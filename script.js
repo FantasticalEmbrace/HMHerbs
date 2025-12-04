@@ -273,23 +273,14 @@ class HMHerbsApp {
         newContainer.className = container.className;
         container.parentNode.replaceChild(newContainer, container);
         
-        newContainer.innerHTML = featuredProducts.map(product => `
-            <div class="product-card ${product.inventory === 0 ? 'out-of-stock' : ''} ${product.inventory <= product.lowStockThreshold ? 'low-stock' : ''}" data-product-id="${product.id}">
-                <img src="${product.image}" alt="${product.name}" class="product-image" loading="lazy">
-                <h3 class="product-title">${product.name}</h3>
-                <p class="product-price">$${product.price.toFixed(2)}</p>
-                ${this.renderInventoryStatus(product)}
-                <div class="product-actions">
-                    <button class="btn btn-primary add-to-cart-btn" 
-                            data-product-id="${product.id}"
-                            ${product.inventory === 0 ? 'disabled' : ''}
-                            aria-label="Add ${product.name} to cart">
-                        <i class="fas fa-cart-plus" aria-hidden="true"></i>
-                        ${product.inventory === 0 ? 'Out of Stock' : 'Add to Cart'}
-                    </button>
-                </div>
-            </div>
-        `).join('');
+        // Clear existing content
+        newContainer.innerHTML = '';
+        
+        // Create product cards safely using DOM methods to prevent XSS
+        featuredProducts.forEach(product => {
+            const productCard = this.createProductCard(product);
+            newContainer.appendChild(productCard);
+        });
         
         // Use event delegation to prevent memory leaks
         newContainer.addEventListener('click', (e) => {
@@ -312,23 +303,14 @@ class HMHerbsApp {
         newContainer.className = container.className;
         container.parentNode.replaceChild(newContainer, container);
         
-        newContainer.innerHTML = bestsellers.map(product => `
-            <div class="product-card ${product.inventory === 0 ? 'out-of-stock' : ''} ${product.inventory <= product.lowStockThreshold ? 'low-stock' : ''}" data-product-id="${product.id}">
-                <img src="${product.image}" alt="${product.name}" class="product-image" loading="lazy">
-                <h3 class="product-title">${product.name}</h3>
-                <p class="product-price">$${product.price.toFixed(2)}</p>
-                ${this.renderInventoryStatus(product)}
-                <div class="product-actions">
-                    <button class="btn btn-primary add-to-cart-btn" 
-                            data-product-id="${product.id}"
-                            ${product.inventory === 0 ? 'disabled' : ''}
-                            aria-label="Add ${product.name} to cart">
-                        <i class="fas fa-cart-plus" aria-hidden="true"></i>
-                        ${product.inventory === 0 ? 'Out of Stock' : 'Add to Cart'}
-                    </button>
-                </div>
-            </div>
-        `).join('');
+        // Clear existing content
+        newContainer.innerHTML = '';
+        
+        // Create product cards safely using DOM methods to prevent XSS
+        bestsellers.forEach(product => {
+            const productCard = this.createProductCard(product);
+            newContainer.appendChild(productCard);
+        });
         
         // Use event delegation to prevent memory leaks
         newContainer.addEventListener('click', (e) => {
@@ -712,6 +694,72 @@ class HMHerbsApp {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+    
+    // Helper function to safely create product cards using DOM methods
+    createProductCard(product) {
+        const productCard = document.createElement('div');
+        productCard.className = `product-card ${product.inventory === 0 ? 'out-of-stock' : ''} ${product.inventory <= product.lowStockThreshold ? 'low-stock' : ''}`;
+        productCard.setAttribute('data-product-id', product.id);
+        
+        // Create image element
+        const img = document.createElement('img');
+        img.src = product.image || '';
+        img.alt = product.name || '';
+        img.className = 'product-image';
+        img.setAttribute('loading', 'lazy');
+        
+        // Create title element
+        const title = document.createElement('h3');
+        title.className = 'product-title';
+        title.textContent = product.name || '';
+        
+        // Create price element
+        const price = document.createElement('p');
+        price.className = 'product-price';
+        price.textContent = `$${(product.price || 0).toFixed(2)}`;
+        
+        // Create inventory status (using existing renderInventoryStatus method)
+        const inventoryStatus = document.createElement('div');
+        inventoryStatus.innerHTML = this.renderInventoryStatus(product);
+        
+        // Create actions container
+        const actions = document.createElement('div');
+        actions.className = 'product-actions';
+        
+        // Create add to cart button
+        const addToCartBtn = document.createElement('button');
+        addToCartBtn.className = 'btn btn-primary add-to-cart-btn';
+        addToCartBtn.setAttribute('data-product-id', product.id);
+        addToCartBtn.setAttribute('aria-label', `Add ${product.name || 'product'} to cart`);
+        
+        if (product.inventory === 0) {
+            addToCartBtn.disabled = true;
+        }
+        
+        // Create cart icon
+        const cartIcon = document.createElement('i');
+        cartIcon.className = 'fas fa-cart-plus';
+        cartIcon.setAttribute('aria-hidden', 'true');
+        
+        // Add button text
+        const buttonText = document.createTextNode(product.inventory === 0 ? ' Out of Stock' : ' Add to Cart');
+        
+        // Assemble button
+        addToCartBtn.appendChild(cartIcon);
+        addToCartBtn.appendChild(buttonText);
+        
+        // Assemble actions
+        actions.appendChild(addToCartBtn);
+        
+        // Assemble product card
+        productCard.appendChild(img);
+        productCard.appendChild(title);
+        productCard.appendChild(price);
+        productCard.appendChild(inventoryStatus);
+        productCard.appendChild(actions);
+        
+        return productCard;
     }
 }
 
