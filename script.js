@@ -33,7 +33,7 @@ class HMHerbsApp {
             console.log('H&M Herbs app initialized successfully');
         } catch (error) {
             console.error('Error initializing app:', error);
-            this.showNotification('Error loading application', 'error');
+            this.showNotification('Unable to load the application. Please refresh the page or try again later.', 'error');
         }
     }
     
@@ -45,7 +45,7 @@ class HMHerbsApp {
                 name: "Terry Naturally Cura Med 375mg 120SG",
                 price: 69.95,
                 category: "supplements",
-                image: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80",
+                image: "/images/placeholder-supplement.svg",
                 description: "Premium curcumin supplement for joint health and inflammation support",
                 featured: true,
                 bestseller: false,
@@ -58,7 +58,7 @@ class HMHerbsApp {
                 name: "Unicity Aloe Vera 50 Capsules",
                 price: 34.95,
                 category: "herbs",
-                image: "https://images.unsplash.com/photo-1609840114035-3c981b782dfe?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80",
+                image: "/images/placeholder-herb.svg",
                 description: "Pure aloe vera capsules for digestive health and wellness",
                 featured: true,
                 bestseller: false,
@@ -71,7 +71,7 @@ class HMHerbsApp {
                 name: "Newton Labs Allergies",
                 price: 17.95,
                 category: "homeopathic",
-                image: "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80",
+                image: "/images/placeholder-product.svg",
                 description: "Natural homeopathic remedy for seasonal allergies",
                 featured: true,
                 bestseller: false,
@@ -84,7 +84,7 @@ class HMHerbsApp {
                 name: "REGALABS CANNABIS OIL FOR PETS",
                 price: 29.99,
                 category: "pet-health",
-                image: "https://images.unsplash.com/photo-1601758228041-f3b2795255f1?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80",
+                image: "/images/placeholder-product.svg",
                 description: "Organic cannabis oil with CBD for cats and dogs",
                 featured: true,
                 bestseller: false,
@@ -97,7 +97,7 @@ class HMHerbsApp {
                 name: "ADVANCED BLOOD PRESSURE CHERRY",
                 price: 32.95,
                 category: "cardiovascular",
-                image: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80",
+                image: "/images/placeholder-supplement.svg",
                 description: "Natural cherry-flavored blood pressure support supplement",
                 featured: true,
                 bestseller: false,
