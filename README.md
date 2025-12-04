@@ -1,6 +1,29 @@
-# H&M Herbs & Vitamins - Complete E-commerce Platform
+# H&M Herbs & Vitamins - E-Commerce Platform
 
-A comprehensive e-commerce platform redesign for HM Herbs featuring modern architecture, customer portal, health condition categorization, brand organization, and EDSA service integration.
+A comprehensive e-commerce platform for H&M Herbs & Vitamins, featuring a modern frontend with advanced backend integration for inventory management, POS systems, and customer analytics.
+
+## 🚨 VS Code Loading Issue - SOLUTION
+
+If you're experiencing loading issues in VS Code, this has been resolved! The project now includes:
+
+- ✅ **Root-level `package.json`** - VS Code workspace configuration
+- ✅ **`.gitignore`** - Proper file exclusions
+- ✅ **VS Code settings** - Optimized editor configuration
+- ✅ **Workspace file** - Multi-folder project structure support
+
+### 🔧 How to Open in VS Code:
+
+**Option 1: Open the workspace file (RECOMMENDED)**
+```bash
+code hmherbs.code-workspace
+```
+
+**Option 2: Open the root directory**
+```bash
+code .
+```
+
+The workspace file provides the best experience with separate frontend and backend folders.
 
 ## 🌟 Key Features
 
