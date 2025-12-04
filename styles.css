@@ -725,6 +725,13 @@ select:focus {
 }
 
 .hero-content {
+  /* Flexbox fallback for older browsers */
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-12);
+  
+  /* CSS Grid for modern browsers */
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--space-12);
@@ -802,10 +809,35 @@ select:focus {
 
 /* Product Grids */
 .products-grid {
+  /* Flexbox fallback for older browsers */
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+  margin-bottom: var(--space-12);
+  
+  /* CSS Grid for modern browsers */
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: var(--space-6);
   margin-bottom: var(--space-12);
+}
+
+/* Flexbox fallback: ensure items have consistent width */
+.products-grid > * {
+  flex: 1 1 280px;
+  max-width: calc(50% - var(--space-3));
+}
+
+@media (min-width: 768px) {
+  .products-grid > * {
+    max-width: calc(33.333% - var(--space-4));
+  }
+}
+
+@media (min-width: 1024px) {
+  .products-grid > * {
+    max-width: calc(25% - var(--space-4));
+  }
 }
 
 .product-card {
