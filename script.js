@@ -448,25 +448,89 @@ class HMHerbsApp {
                 `;
                 if (cartFooter) cartFooter.style.display = 'none';
             } else {
-                cartContent.innerHTML = this.cart.map(item => `
-                    <div class="cart-item" data-product-id="${item.id}">
-                        <img src="${item.image}" alt="${item.name}" class="cart-item-image">
-                        <div class="cart-item-details">
-                            <h4 class="cart-item-name">${item.name}</h4>
-                            <div class="cart-item-controls">
-                                <button class="quantity-btn" data-action="decrease" aria-label="Decrease quantity">-</button>
-                                <span class="quantity">${item.quantity}</span>
-                                <button class="quantity-btn" data-action="increase" aria-label="Increase quantity">+</button>
-                            </div>
-                        </div>
-                        <div class="cart-item-price">
-                            <span>$${(item.price * item.quantity).toFixed(2)}</span>
-                            <button class="remove-item-btn" aria-label="Remove ${item.name} from cart">
-                                <i class="fas fa-trash" aria-hidden="true"></i>
-                            </button>
-                        </div>
-                    </div>
-                `).join('');
+                // Clear existing content
+                cartContent.innerHTML = '';
+                
+                // Create cart items safely using DOM methods to prevent XSS
+                this.cart.forEach(item => {
+                    const cartItem = document.createElement('div');
+                    cartItem.className = 'cart-item';
+                    cartItem.setAttribute('data-product-id', item.id);
+                    
+                    // Create image element
+                    const img = document.createElement('img');
+                    img.src = item.image || '';
+                    img.alt = item.name || '';
+                    img.className = 'cart-item-image';
+                    
+                    // Create details container
+                    const details = document.createElement('div');
+                    details.className = 'cart-item-details';
+                    
+                    // Create name element
+                    const name = document.createElement('h4');
+                    name.className = 'cart-item-name';
+                    name.textContent = item.name || '';
+                    
+                    // Create controls container
+                    const controls = document.createElement('div');
+                    controls.className = 'cart-item-controls';
+                    
+                    // Create decrease button
+                    const decreaseBtn = document.createElement('button');
+                    decreaseBtn.className = 'quantity-btn';
+                    decreaseBtn.setAttribute('data-action', 'decrease');
+                    decreaseBtn.setAttribute('aria-label', 'Decrease quantity');
+                    decreaseBtn.textContent = '-';
+                    
+                    // Create quantity span
+                    const quantitySpan = document.createElement('span');
+                    quantitySpan.className = 'quantity';
+                    quantitySpan.textContent = item.quantity || '0';
+                    
+                    // Create increase button
+                    const increaseBtn = document.createElement('button');
+                    increaseBtn.className = 'quantity-btn';
+                    increaseBtn.setAttribute('data-action', 'increase');
+                    increaseBtn.setAttribute('aria-label', 'Increase quantity');
+                    increaseBtn.textContent = '+';
+                    
+                    // Create price container
+                    const priceContainer = document.createElement('div');
+                    priceContainer.className = 'cart-item-price';
+                    
+                    // Create price span
+                    const priceSpan = document.createElement('span');
+                    priceSpan.textContent = `$${((item.price || 0) * (item.quantity || 0)).toFixed(2)}`;
+                    
+                    // Create remove button
+                    const removeBtn = document.createElement('button');
+                    removeBtn.className = 'remove-item-btn';
+                    removeBtn.setAttribute('aria-label', `Remove ${item.name || 'item'} from cart`);
+                    
+                    // Create trash icon
+                    const trashIcon = document.createElement('i');
+                    trashIcon.className = 'fas fa-trash';
+                    trashIcon.setAttribute('aria-hidden', 'true');
+                    
+                    // Assemble the structure
+                    controls.appendChild(decreaseBtn);
+                    controls.appendChild(quantitySpan);
+                    controls.appendChild(increaseBtn);
+                    
+                    details.appendChild(name);
+                    details.appendChild(controls);
+                    
+                    removeBtn.appendChild(trashIcon);
+                    priceContainer.appendChild(priceSpan);
+                    priceContainer.appendChild(removeBtn);
+                    
+                    cartItem.appendChild(img);
+                    cartItem.appendChild(details);
+                    cartItem.appendChild(priceContainer);
+                    
+                    cartContent.appendChild(cartItem);
+                });
                 
                 if (cartFooter) cartFooter.style.display = 'block';
             }
