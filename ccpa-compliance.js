@@ -78,6 +78,11 @@ class CCPACompliance {
         `;
 
         document.body.appendChild(banner);
+        
+        // Show banner with animation
+        setTimeout(() => {
+            banner.classList.add('show');
+        }, 100);
     }
 
     setupEventListeners() {
@@ -330,4 +335,3 @@ document.addEventListener('DOMContentLoaded', () => {
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = CCPACompliance;
 }
-

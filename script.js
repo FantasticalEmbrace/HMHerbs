@@ -269,6 +269,8 @@ class HMHerbsApp {
         
         // Remove existing event listeners by cloning the container
         const newContainer = container.cloneNode(false);
+        newContainer.id = container.id;
+        newContainer.className = container.className;
         container.parentNode.replaceChild(newContainer, container);
         
         newContainer.innerHTML = featuredProducts.map(product => `
@@ -306,6 +308,8 @@ class HMHerbsApp {
         
         // Remove existing event listeners by cloning the container
         const newContainer = container.cloneNode(false);
+        newContainer.id = container.id;
+        newContainer.className = container.className;
         container.parentNode.replaceChild(newContainer, container);
         
         newContainer.innerHTML = bestsellers.map(product => `
@@ -467,6 +471,8 @@ class HMHerbsApp {
         if (cartContent && this.cart.length > 0) {
             // Remove existing event listeners by cloning the cart content
             const newCartContent = cartContent.cloneNode(false);
+            newCartContent.id = cartContent.id;
+            newCartContent.className = cartContent.className;
             newCartContent.innerHTML = cartContent.innerHTML;
             cartContent.parentNode.replaceChild(newCartContent, cartContent);
             

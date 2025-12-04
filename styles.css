@@ -2027,6 +2027,139 @@ input:checked + .toggle-slider:before {
   }
 }
 
+/* CCPA Compliance Styles */
+.ccpa-banner {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background-color: var(--primary-green);
+  color: var(--white);
+  padding: var(--space-4);
+  z-index: var(--z-notification);
+  box-shadow: var(--shadow-lg);
+  transform: translateY(100%);
+  transition: transform var(--transition-normal);
+}
+
+.ccpa-banner.show {
+  transform: translateY(0);
+}
+
+.ccpa-banner-content {
+  max-width: var(--container-max-width);
+  margin: 0 auto;
+}
+
+.ccpa-banner-content h3 {
+  margin: 0 0 var(--space-3) 0;
+  color: var(--white);
+  font-size: var(--text-lg);
+}
+
+.ccpa-banner-content p {
+  margin: 0 0 var(--space-4) 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.ccpa-banner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.ccpa-banner-actions .btn {
+  font-size: var(--text-sm);
+  padding: var(--space-2) var(--space-4);
+}
+
+.ccpa-modal .modal-content {
+  max-width: 600px;
+}
+
+.ccpa-modal .modal-body h3 {
+  color: var(--primary-green);
+  margin: var(--space-4) 0 var(--space-2) 0;
+  font-size: var(--text-lg);
+}
+
+.ccpa-modal .modal-body h3:first-child {
+  margin-top: 0;
+}
+
+.ccpa-modal .modal-body p {
+  margin: 0 0 var(--space-3) 0;
+  line-height: 1.6;
+}
+
+.ccpa-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-6);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--gray-200);
+}
+
+.notification {
+  position: fixed;
+  top: var(--space-4);
+  right: var(--space-4);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  color: var(--white);
+  font-weight: 500;
+  z-index: var(--z-notification);
+  max-width: 350px;
+  box-shadow: var(--shadow-lg);
+  animation: slideInRight 0.3s ease-out;
+}
+
+.notification-success {
+  background-color: var(--success);
+}
+
+.notification-error {
+  background-color: var(--error);
+}
+
+.notification-info {
+  background-color: var(--info);
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Responsive CCPA Banner */
+@media (max-width: 768px) {
+  .ccpa-banner-actions {
+    flex-direction: column;
+  }
+  
+  .ccpa-banner-actions .btn {
+    width: 100%;
+    text-align: center;
+  }
+  
+  .ccpa-actions {
+    flex-direction: column;
+  }
+  
+  .ccpa-actions .btn {
+    width: 100%;
+    text-align: center;
+  }
+}
+
 /* Print Styles */
 @media print {
   .header,

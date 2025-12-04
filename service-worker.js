@@ -11,6 +11,8 @@ const STATIC_FILES = [
   '/index.html',
   '/styles.css',
   '/script.js',
+  '/gdpr-compliance.js',
+  '/ccpa-compliance.js',
   '/manifest.json',
   '/images/logo.png',
   '/images/icon-192x192.png',
@@ -319,4 +321,3 @@ self.addEventListener('message', event => {
 });
 
 console.log('Service Worker: Loaded successfully');
-
