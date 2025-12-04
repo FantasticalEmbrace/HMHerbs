@@ -388,6 +388,24 @@ class AnalyticsService {
             FROM pos_discounts
         `, [dateRange]);
 
+        // Email Marketing metrics
+        const [emailMetrics] = await this.db.execute(`
+            SELECT 
+                COUNT(DISTINCT ec.id) as total_campaigns,
+                COUNT(DISTINCT CASE WHEN ec.is_active = 1 THEN ec.id END) as active_campaigns,
+                COUNT(DISTINCT es.id) as total_subscribers,
+                COUNT(DISTINCT CASE WHEN es.status = 'active' THEN es.id END) as active_subscribers,
+                COUNT(DISTINCT CASE WHEN es.subscribed_at >= DATE_SUB(NOW(), INTERVAL ? DAY) THEN es.id END) as new_subscribers,
+                COUNT(DISTINCT CASE WHEN es.offer_claimed = 1 THEN es.id END) as offers_claimed,
+                COALESCE(SUM(eca.impressions), 0) as total_impressions,
+                COALESCE(SUM(eca.signups), 0) as total_signups,
+                COALESCE(ROUND(AVG(eca.conversion_rate), 2), 0) as avg_conversion_rate
+            FROM email_campaigns ec
+            LEFT JOIN email_subscribers es ON ec.id = es.campaign_id
+            LEFT JOIN email_campaign_analytics eca ON ec.id = eca.campaign_id 
+                AND eca.date >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+        `, [dateRange, dateRange]);
+
         // Recent activity
         const [recentActivity] = await this.db.execute(`
             SELECT 
@@ -431,6 +449,7 @@ class AnalyticsService {
             gift_cards: giftCardMetrics[0],
             loyalty: loyaltyMetrics[0],
             discounts: discountMetrics[0],
+            email_marketing: emailMetrics[0],
             recent_activity: recentActivity
         };
     }
@@ -594,6 +613,48 @@ class AnalyticsService {
                 message: `${system.expired_count} expired discounts still marked as active in ${system.name}`,
                 timestamp: new Date(),
                 details: 'Consider running discount sync to update status'
+            });
+        });
+
+        // Check for email campaigns with low conversion rates
+        const [lowConversionCampaigns] = await this.db.execute(`
+            SELECT ec.campaign_name, AVG(eca.conversion_rate) as avg_conversion_rate
+            FROM email_campaigns ec
+            JOIN email_campaign_analytics eca ON ec.id = eca.campaign_id
+            WHERE ec.is_active = 1 
+            AND eca.date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+            AND eca.impressions > 100
+            GROUP BY ec.id
+            HAVING avg_conversion_rate < 2.0
+        `);
+
+        lowConversionCampaigns.forEach(campaign => {
+            alerts.push({
+                type: 'warning',
+                category: 'email_campaign_performance',
+                message: `Email campaign "${campaign.campaign_name}" has low conversion rate (${campaign.avg_conversion_rate}%)`,
+                timestamp: new Date(),
+                details: 'Consider updating the offer or targeting settings'
+            });
+        });
+
+        // Check for campaigns with no recent activity
+        const [inactiveCampaigns] = await this.db.execute(`
+            SELECT ec.campaign_name
+            FROM email_campaigns ec
+            LEFT JOIN email_campaign_analytics eca ON ec.id = eca.campaign_id 
+                AND eca.date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+            WHERE ec.is_active = 1 
+            AND eca.id IS NULL
+        `);
+
+        inactiveCampaigns.forEach(campaign => {
+            alerts.push({
+                type: 'info',
+                category: 'email_campaign_inactive',
+                message: `Email campaign "${campaign.campaign_name}" has no recent activity`,
+                timestamp: new Date(),
+                details: 'Check campaign targeting and display settings'
             });
         });
 

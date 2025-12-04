@@ -781,3 +781,124 @@ CREATE TABLE pos_discount_usage (
     INDEX idx_sales_channel (sales_channel),
     INDEX idx_last_synced (last_synced)
 );
+
+-- Email Collection Campaigns (customizable email signup prompts)
+CREATE TABLE email_campaigns (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    
+    -- Campaign Details
+    campaign_name VARCHAR(255) NOT NULL,
+    campaign_description TEXT,
+    is_active BOOLEAN DEFAULT TRUE,
+    
+    -- Display Settings
+    prompt_title VARCHAR(255) NOT NULL DEFAULT 'Join Our Newsletter',
+    prompt_message TEXT NOT NULL DEFAULT 'Get exclusive offers and updates!',
+    button_text VARCHAR(100) NOT NULL DEFAULT 'Sign Me Up',
+    
+    -- Offer Configuration
+    offer_type ENUM('discount_percentage', 'discount_fixed', 'free_shipping', 'exclusive_access', 'early_access', 'gift_with_purchase', 'loyalty_points', 'custom') NOT NULL,
+    offer_value DECIMAL(10,2), -- For discount amounts or point values
+    offer_description VARCHAR(255) NOT NULL, -- e.g., "10% off your first order"
+    offer_code VARCHAR(50), -- Discount code to provide
+    offer_expiry_days INT DEFAULT 30, -- How long the offer is valid
+    
+    -- Display Behavior
+    display_type ENUM('popup', 'banner', 'inline', 'exit_intent') DEFAULT 'popup',
+    display_delay INT DEFAULT 5, -- Seconds before showing
+    display_frequency ENUM('once_per_session', 'once_per_day', 'once_per_week', 'always') DEFAULT 'once_per_session',
+    
+    -- Targeting Rules
+    target_pages JSON, -- Which pages to show on (null = all pages)
+    target_new_visitors BOOLEAN DEFAULT TRUE,
+    target_returning_visitors BOOLEAN DEFAULT FALSE,
+    min_time_on_site INT DEFAULT 0, -- Seconds
+    
+    -- A/B Testing
+    ab_test_variant ENUM('A', 'B') DEFAULT 'A',
+    ab_test_traffic_split INT DEFAULT 100, -- Percentage of traffic to show to
+    
+    -- Audit
+    created_by INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (created_by) REFERENCES admin_users(id) ON DELETE SET NULL,
+    INDEX idx_is_active (is_active),
+    INDEX idx_offer_type (offer_type),
+    INDEX idx_display_type (display_type),
+    INDEX idx_ab_variant (ab_test_variant)
+);
+
+-- Email Subscribers (collected emails with campaign tracking)
+CREATE TABLE email_subscribers (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    
+    -- Subscriber Details
+    email VARCHAR(255) NOT NULL UNIQUE,
+    first_name VARCHAR(100),
+    last_name VARCHAR(100),
+    
+    -- Subscription Details
+    campaign_id INT, -- Which campaign they signed up from
+    offer_claimed BOOLEAN DEFAULT FALSE,
+    offer_code_sent VARCHAR(50), -- The specific code sent to them
+    offer_expires_at DATETIME,
+    
+    -- Status and Preferences
+    status ENUM('active', 'unsubscribed', 'bounced', 'complained') DEFAULT 'active',
+    subscription_source VARCHAR(100) DEFAULT 'website',
+    
+    -- Engagement Tracking
+    signup_ip VARCHAR(45),
+    signup_user_agent TEXT,
+    signup_referrer VARCHAR(500),
+    
+    -- Email Marketing Integration
+    mailchimp_id VARCHAR(255),
+    klaviyo_id VARCHAR(255),
+    sendgrid_id VARCHAR(255),
+    
+    -- Audit
+    subscribed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    unsubscribed_at TIMESTAMP NULL,
+    last_email_sent TIMESTAMP NULL,
+    
+    FOREIGN KEY (campaign_id) REFERENCES email_campaigns(id) ON DELETE SET NULL,
+    INDEX idx_email (email),
+    INDEX idx_status (status),
+    INDEX idx_campaign_id (campaign_id),
+    INDEX idx_subscribed_at (subscribed_at),
+    INDEX idx_offer_claimed (offer_claimed)
+);
+
+-- Email Campaign Analytics (track performance)
+CREATE TABLE email_campaign_analytics (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    campaign_id INT NOT NULL,
+    
+    -- Daily Metrics
+    date DATE NOT NULL,
+    impressions INT DEFAULT 0, -- How many times shown
+    signups INT DEFAULT 0, -- How many emails collected
+    conversion_rate DECIMAL(5,2) DEFAULT 0.00, -- signups/impressions * 100
+    
+    -- Offer Metrics
+    offers_claimed INT DEFAULT 0,
+    offer_claim_rate DECIMAL(5,2) DEFAULT 0.00, -- claimed/signups * 100
+    
+    -- Revenue Impact (if trackable)
+    attributed_orders INT DEFAULT 0,
+    attributed_revenue DECIMAL(10,2) DEFAULT 0.00,
+    
+    -- A/B Testing Metrics
+    variant ENUM('A', 'B') DEFAULT 'A',
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (campaign_id) REFERENCES email_campaigns(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_campaign_date_variant (campaign_id, date, variant),
+    INDEX idx_date (date),
+    INDEX idx_campaign_id (campaign_id)
+);

@@ -13,6 +13,7 @@ const POSService = require('../services/pos');
 const POSGiftCardService = require('../services/pos-giftcard');
 const POSLoyaltyService = require('../services/pos-loyalty');
 const POSDiscountService = require('../services/pos-discount');
+const EmailCampaignService = require('../services/email-campaign');
 const AnalyticsService = require('../services/analytics');
 
 // Admin authentication middleware
@@ -1152,6 +1153,156 @@ router.get('/pos/discounts/analytics', authenticateAdmin, async (req, res) => {
     }
 });
 
+// ===== EMAIL CAMPAIGN MANAGEMENT ENDPOINTS =====
+
+// Get all email campaigns
+router.get('/email-campaigns', authenticateAdmin, async (req, res) => {
+    try {
+        const emailCampaignService = new EmailCampaignService(req.pool);
+        const campaigns = await emailCampaignService.getCampaigns(req.query);
+        res.json({ campaigns });
+    } catch (error) {
+        console.error('Get email campaigns error:', error);
+        res.status(500).json({ error: 'Failed to get email campaigns' });
+    }
+});
+
+// Create new email campaign
+router.post('/email-campaigns', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+    try {
+        const emailCampaignService = new EmailCampaignService(req.pool);
+        const campaign = await emailCampaignService.createCampaign(req.body, req.admin.id);
+        res.status(201).json({ campaign });
+    } catch (error) {
+        console.error('Create email campaign error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get email campaign by ID
+router.get('/email-campaigns/:id', authenticateAdmin, async (req, res) => {
+    try {
+        const emailCampaignService = new EmailCampaignService(req.pool);
+        const campaign = await emailCampaignService.getCampaignById(req.params.id);
+        res.json({ campaign });
+    } catch (error) {
+        console.error('Get email campaign error:', error);
+        res.status(404).json({ error: error.message });
+    }
+});
+
+// Update email campaign
+router.put('/email-campaigns/:id', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+    try {
+        const emailCampaignService = new EmailCampaignService(req.pool);
+        const campaign = await emailCampaignService.updateCampaign(req.params.id, req.body, req.admin.id);
+        res.json({ campaign });
+    } catch (error) {
+        console.error('Update email campaign error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Delete email campaign
+router.delete('/email-campaigns/:id', authenticateAdmin, requirePermission('admin'), async (req, res) => {
+    try {
+        const emailCampaignService = new EmailCampaignService(req.pool);
+        const result = await emailCampaignService.deleteCampaign(req.params.id);
+        res.json(result);
+    } catch (error) {
+        console.error('Delete email campaign error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get email campaign analytics
+router.get('/email-campaigns/:id/analytics', authenticateAdmin, async (req, res) => {
+    try {
+        const emailCampaignService = new EmailCampaignService(req.pool);
+        const analytics = await emailCampaignService.getCampaignAnalytics(req.params.id, req.query.days || 30);
+        res.json({ analytics });
+    } catch (error) {
+        console.error('Get email campaign analytics error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ===== EMAIL SUBSCRIBER MANAGEMENT ENDPOINTS =====
+
+// Get all email subscribers
+router.get('/email-subscribers', authenticateAdmin, async (req, res) => {
+    try {
+        const emailCampaignService = new EmailCampaignService(req.pool);
+        const subscribers = await emailCampaignService.getSubscribers(req.query);
+        res.json({ subscribers });
+    } catch (error) {
+        console.error('Get email subscribers error:', error);
+        res.status(500).json({ error: 'Failed to get email subscribers' });
+    }
+});
+
+// Get email subscriber by ID
+router.get('/email-subscribers/:id', authenticateAdmin, async (req, res) => {
+    try {
+        const emailCampaignService = new EmailCampaignService(req.pool);
+        const subscriber = await emailCampaignService.getSubscriberById(req.params.id);
+        res.json({ subscriber });
+    } catch (error) {
+        console.error('Get email subscriber error:', error);
+        res.status(404).json({ error: error.message });
+    }
+});
+
+// Update subscriber status
+router.put('/email-subscribers/:id/status', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+    try {
+        const emailCampaignService = new EmailCampaignService(req.pool);
+        const subscriber = await emailCampaignService.updateSubscriberStatus(
+            req.params.id, 
+            req.body.status, 
+            req.body.reason
+        );
+        res.json({ subscriber });
+    } catch (error) {
+        console.error('Update subscriber status error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Mark offer as claimed
+router.post('/email-subscribers/:id/claim-offer', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+    try {
+        const emailCampaignService = new EmailCampaignService(req.pool);
+        const result = await emailCampaignService.claimOffer(req.params.id, req.body.order_reference);
+        res.json(result);
+    } catch (error) {
+        console.error('Claim offer error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Export subscribers
+router.get('/email-subscribers/export', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+    try {
+        const emailCampaignService = new EmailCampaignService(req.pool);
+        const format = req.query.format || 'csv';
+        const data = await emailCampaignService.exportSubscribers(format, req.query);
+        
+        if (format === 'csv') {
+            res.setHeader('Content-Type', 'text/csv');
+            res.setHeader('Content-Disposition', 'attachment; filename="subscribers.csv"');
+        } else {
+            res.setHeader('Content-Type', 'application/json');
+            res.setHeader('Content-Disposition', 'attachment; filename="subscribers.json"');
+        }
+        
+        res.send(data);
+    } catch (error) {
+        console.error('Export subscribers error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // ===== ANALYTICS AND MONITORING ENDPOINTS =====
 
 // Get comprehensive dashboard overview
@@ -1223,6 +1374,18 @@ router.get('/analytics/pos-discounts', authenticateAdmin, async (req, res) => {
     } catch (error) {
         console.error('Get POS discount metrics error:', error);
         res.status(500).json({ error: 'Failed to get POS discount metrics' });
+    }
+});
+
+// Get email marketing overview
+router.get('/analytics/email-marketing', authenticateAdmin, async (req, res) => {
+    try {
+        const emailCampaignService = new EmailCampaignService(req.pool);
+        const overview = await emailCampaignService.getEmailMarketingOverview(req.query.days || 30);
+        res.json({ overview });
+    } catch (error) {
+        console.error('Get email marketing overview error:', error);
+        res.status(500).json({ error: 'Failed to get email marketing overview' });
     }
 });
 
