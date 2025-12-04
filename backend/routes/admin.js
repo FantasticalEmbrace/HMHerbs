@@ -5,6 +5,7 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const logger = require('../utils/logger');
 const HMHerbsScraper = require('../scripts/scrape-hmherbs');
 const ProductImporter = require('../scripts/import-products');
 const InventoryService = require('../services/inventory');
@@ -26,7 +27,7 @@ const authenticateAdmin = async (req, res, next) => {
     }
 
     if (!process.env.JWT_SECRET) {
-        console.error('CRITICAL: JWT_SECRET environment variable is not set');
+        logger.error('CRITICAL: JWT_SECRET environment variable is not set');
         return res.status(500).json({ error: 'Server configuration error' });
     }
 
@@ -100,7 +101,7 @@ router.post('/auth/login', async (req, res) => {
         );
 
         if (!process.env.JWT_SECRET) {
-            console.error('CRITICAL: JWT_SECRET environment variable is not set');
+            logger.error('CRITICAL: JWT_SECRET environment variable is not set');
             return res.status(500).json({ error: 'Server configuration error' });
         }
 
@@ -122,7 +123,7 @@ router.post('/auth/login', async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Admin login error:', error);
+        logger.logError('Admin login error', error, { email });
         res.status(500).json({ error: 'Internal server error' });
     }
 });
@@ -174,7 +175,7 @@ router.get('/dashboard/stats', authenticateAdmin, async (req, res) => {
             edsa: edsaStats[0]
         });
     } catch (error) {
-        console.error('Dashboard stats error:', error);
+        logger.logError('Dashboard stats error', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 });

@@ -12,6 +12,7 @@ const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs').promises;
+const logger = require('./utils/logger');
 require('dotenv').config();
 
 const app = express();
@@ -89,7 +90,7 @@ const authenticateToken = async (req, res, next) => {
     }
 
     if (!process.env.JWT_SECRET) {
-        console.error('CRITICAL: JWT_SECRET environment variable is not set');
+        logger.error('CRITICAL: JWT_SECRET environment variable is not set');
         return res.status(500).json({ error: 'Server configuration error' });
     }
 
@@ -197,7 +198,7 @@ app.post('/api/auth/register', async (req, res) => {
 
         // Generate JWT token
         if (!process.env.JWT_SECRET) {
-            console.error('CRITICAL: JWT_SECRET environment variable is not set');
+            logger.error('CRITICAL: JWT_SECRET environment variable is not set');
             return res.status(500).json({ error: 'Server configuration error' });
         }
         
@@ -262,7 +263,7 @@ app.post('/api/auth/login', async (req, res) => {
 
         // Generate JWT token
         if (!process.env.JWT_SECRET) {
-            console.error('CRITICAL: JWT_SECRET environment variable is not set');
+            logger.error('CRITICAL: JWT_SECRET environment variable is not set');
             return res.status(500).json({ error: 'Server configuration error' });
         }
         
