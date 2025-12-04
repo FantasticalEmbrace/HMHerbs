@@ -405,6 +405,17 @@ class HMHerbsApp {
             if (newQuantity <= 0) {
                 this.removeFromCart(productId);
             } else {
+                // Find the product to check inventory limits
+                const product = this.products.find(p => p.id === productId);
+                
+                // Check inventory limits before updating quantity
+                if (product && typeof product.inventory !== 'undefined') {
+                    if (newQuantity > product.inventory) {
+                        this.showNotification(`Only ${product.inventory} items available in stock`, 'error');
+                        return;
+                    }
+                }
+                
                 item.quantity = newQuantity;
                 this.updateCartDisplay();
                 this.saveCartToStorage();
@@ -500,12 +511,17 @@ class HMHerbsApp {
     }
     
     performSearch(query) {
-        // Simple search implementation
-        const results = this.products.filter(product => 
-            product.name.toLowerCase().includes(query.toLowerCase()) ||
-            product.description.toLowerCase().includes(query.toLowerCase()) ||
-            product.category.toLowerCase().includes(query.toLowerCase())
-        );
+        // Simple search implementation with null safety
+        const results = this.products.filter(product => {
+            const searchQuery = query.toLowerCase();
+            const name = (product.name || '').toLowerCase();
+            const description = (product.description || '').toLowerCase();
+            const category = (product.category || '').toLowerCase();
+            
+            return name.includes(searchQuery) ||
+                   description.includes(searchQuery) ||
+                   category.includes(searchQuery);
+        });
         
         this.showSearchResults(results, query);
         this.announceToScreenReader(`Found ${results.length} results for "${query}"`);
@@ -547,14 +563,27 @@ class HMHerbsApp {
         // Create notification element
         const notification = document.createElement('div');
         notification.className = `notification notification-${type}`;
-        notification.innerHTML = `
-            <div class="notification-content">
-                <span class="notification-message">${message}</span>
-                <button class="notification-close" aria-label="Close notification">
-                    <i class="fas fa-times" aria-hidden="true"></i>
-                </button>
-            </div>
-        `;
+        
+        // Create content safely without innerHTML to prevent XSS
+        const content = document.createElement('div');
+        content.className = 'notification-content';
+        
+        const messageSpan = document.createElement('span');
+        messageSpan.className = 'notification-message';
+        messageSpan.textContent = message; // Use textContent to prevent XSS
+        
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'notification-close';
+        closeBtn.setAttribute('aria-label', 'Close notification');
+        
+        const closeIcon = document.createElement('i');
+        closeIcon.className = 'fas fa-times';
+        closeIcon.setAttribute('aria-hidden', 'true');
+        
+        closeBtn.appendChild(closeIcon);
+        content.appendChild(messageSpan);
+        content.appendChild(closeBtn);
+        notification.appendChild(content);
         
         // Add styles for notification
         notification.style.cssText = `
@@ -579,8 +608,7 @@ class HMHerbsApp {
             notification.style.transform = 'translateX(0)';
         }, 100);
         
-        // Add close functionality
-        const closeBtn = notification.querySelector('.notification-close');
+        // Add close functionality (closeBtn already created above)
         closeBtn.addEventListener('click', () => {
             this.closeNotification(notification);
         });
@@ -609,6 +637,13 @@ class HMHerbsApp {
                 liveRegion.textContent = '';
             }, 1000);
         }
+    }
+    
+    // Helper function to escape HTML to prevent XSS
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 }
 
