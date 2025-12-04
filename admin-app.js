@@ -51,9 +51,20 @@ class AdminApp {
     async handleLogin(e) {
         e.preventDefault();
         
-        const email = document.getElementById('email').value;
-        const password = document.getElementById('password').value;
+        const emailElement = document.getElementById('email');
+        const passwordElement = document.getElementById('password');
         const errorDiv = document.getElementById('loginError');
+        
+        if (!emailElement || !passwordElement || !errorDiv) {
+            // Log error in development only
+            if (typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'development') {
+                console.error('Required login form elements not found');
+            }
+            return;
+        }
+        
+        const email = emailElement.value;
+        const password = passwordElement.value;
         
         try {
             const response = await fetch(`${this.apiBaseUrl}/admin/auth/login`, {
@@ -84,12 +95,16 @@ class AdminApp {
 
     async loadDashboard() {
         // Hide login screen and show dashboard
-        document.getElementById('loginScreen').style.display = 'none';
-        document.getElementById('adminDashboard').style.display = 'flex';
+        const loginScreen = document.getElementById('loginScreen');
+        const adminDashboard = document.getElementById('adminDashboard');
+        const userName = document.getElementById('userName');
+        
+        if (loginScreen) loginScreen.style.display = 'none';
+        if (adminDashboard) adminDashboard.style.display = 'flex';
         
         // Update user info
-        if (this.currentUser) {
-            document.getElementById('userName').textContent = 
+        if (this.currentUser && userName) {
+            userName.textContent = 
                 `${this.currentUser.firstName} ${this.currentUser.lastName}`;
         }
 
@@ -102,23 +117,29 @@ class AdminApp {
             const response = await this.apiRequest('/admin/dashboard/stats');
             
             if (response.products) {
-                document.getElementById('totalProducts').textContent = 
-                    response.products.total_products || 0;
-                document.getElementById('lowStockProducts').textContent = 
-                    response.products.low_stock_products || 0;
+                const totalProducts = document.getElementById('totalProducts');
+                const lowStockProducts = document.getElementById('lowStockProducts');
+                
+                if (totalProducts) totalProducts.textContent = response.products.total_products || 0;
+                if (lowStockProducts) lowStockProducts.textContent = response.products.low_stock_products || 0;
             }
             
             if (response.orders) {
-                document.getElementById('totalOrders').textContent = 
-                    response.orders.total_orders || 0;
+                const totalOrders = document.getElementById('totalOrders');
+                if (totalOrders) totalOrders.textContent = response.orders.total_orders || 0;
             }
             
             if (response.edsa) {
-                document.getElementById('totalBookings').textContent = 
-                    response.edsa.pending_bookings || 0;
+                const totalBookings = document.getElementById('totalBookings');
+                if (totalBookings) totalBookings.textContent = response.edsa.pending_bookings || 0;
             }
         } catch (error) {
-            console.error('Failed to load dashboard stats:', error);
+            // Log error in development only
+            if (process.env.NODE_ENV === 'development') {
+                console.error('Failed to load dashboard stats:', error);
+            }
+            // Show user-friendly error message
+            this.showNotification('Failed to load dashboard statistics', 'error');
         }
     }
 
@@ -127,13 +148,17 @@ class AdminApp {
         document.querySelectorAll('.nav-link').forEach(link => {
             link.classList.remove('active');
         });
-        document.querySelector(`[data-section="${sectionName}"]`).classList.add('active');
+        
+        const activeNavLink = document.querySelector(`[data-section="${sectionName}"]`);
+        if (activeNavLink) activeNavLink.classList.add('active');
 
         // Show section
         document.querySelectorAll('.content-section').forEach(section => {
             section.classList.remove('active');
         });
-        document.getElementById(sectionName).classList.add('active');
+        
+        const activeSection = document.getElementById(sectionName);
+        if (activeSection) activeSection.classList.add('active');
 
         // Load section data
         this.loadSectionData(sectionName);
@@ -267,12 +292,17 @@ class AdminApp {
         this.authToken = null;
         this.currentUser = null;
         
-        document.getElementById('adminDashboard').style.display = 'none';
-        document.getElementById('loginScreen').style.display = 'flex';
+        const adminDashboard = document.getElementById('adminDashboard');
+        const loginScreen = document.getElementById('loginScreen');
+        const loginForm = document.getElementById('loginForm');
+        const loginError = document.getElementById('loginError');
+        
+        if (adminDashboard) adminDashboard.style.display = 'none';
+        if (loginScreen) loginScreen.style.display = 'flex';
         
         // Clear forms
-        document.getElementById('loginForm').reset();
-        document.getElementById('loginError').style.display = 'none';
+        if (loginForm) loginForm.reset();
+        if (loginError) loginError.style.display = 'none';
     }
 
     showNotification(message, type = 'info') {

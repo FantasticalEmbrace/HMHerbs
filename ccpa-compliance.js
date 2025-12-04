@@ -23,7 +23,9 @@ class CCPACompliance {
                 timestamp: null
             };
         } catch (error) {
-            console.error('Error loading CCPA preferences:', error);
+            if (typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'development') {
+                console.error('Error loading CCPA preferences:', error);
+            }
             return {
                 doNotSell: false,
                 optOut: false,
@@ -38,7 +40,9 @@ class CCPACompliance {
             this.ccpaPreferences.timestamp = new Date().toISOString();
             localStorage.setItem('hmherbs_ccpa_preferences', JSON.stringify(this.ccpaPreferences));
         } catch (error) {
-            console.error('Error saving CCPA preferences:', error);
+            if (typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'development') {
+                console.error('Error saving CCPA preferences:', error);
+            }
         }
     }
 
@@ -245,37 +249,182 @@ class CCPACompliance {
     }
 
     handleDataRequest() {
-        // In production, this would trigger a backend process
-        const email = prompt('Please enter your email address to receive your data:');
-        if (email && this.validateEmail(email)) {
-            this.showNotification('Your data request has been submitted. You will receive your information within 45 days.', 'info');
-            // Send request to backend
-            this.submitDataRequest(email);
-        }
+        // Use secure modal dialog instead of prompt() to prevent XSS
+        this.showEmailInputModal(
+            'Data Request',
+            'Please enter your email address to receive your data:',
+            (email) => {
+                if (email && this.validateEmail(email)) {
+                    this.showNotification('Your data request has been submitted. You will receive your information within 45 days.', 'info');
+                    // Send request to backend
+                    this.submitDataRequest(email);
+                }
+            }
+        );
     }
 
     handleDataDeletion() {
-        const confirmed = confirm('Are you sure you want to delete all your personal data? This action cannot be undone.');
-        if (confirmed) {
-            const email = prompt('Please enter your email address to confirm deletion:');
-            if (email && this.validateEmail(email)) {
-                this.showNotification('Your data deletion request has been submitted. Your data will be deleted within 45 days.', 'info');
-                // Send deletion request to backend
-                this.submitDataDeletion(email);
+        // Use secure modal dialog instead of confirm() and prompt() to prevent XSS
+        this.showConfirmationModal(
+            'Delete All Data',
+            'Are you sure you want to delete all your personal data? This action cannot be undone.',
+            () => {
+                this.showEmailInputModal(
+                    'Confirm Data Deletion',
+                    'Please enter your email address to confirm deletion:',
+                    (email) => {
+                        if (email && this.validateEmail(email)) {
+                            this.showNotification('Your data deletion request has been submitted. Your data will be deleted within 45 days.', 'info');
+                            // Send deletion request to backend
+                            this.submitDataDeletion(email);
+                        }
+                    }
+                );
             }
-        }
+        );
     }
 
     submitDataRequest(email) {
         // In production, send to backend API
-        console.log('CCPA Data Request submitted for:', email);
+        if (typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'development') {
+            console.log('CCPA Data Request submitted for:', email);
+        }
         // fetch('/api/ccpa/data-request', { method: 'POST', body: JSON.stringify({ email }) });
     }
 
     submitDataDeletion(email) {
         // In production, send to backend API
-        console.log('CCPA Data Deletion submitted for:', email);
+        if (typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'development') {
+            console.log('CCPA Data Deletion submitted for:', email);
+        }
         // fetch('/api/ccpa/data-deletion', { method: 'POST', body: JSON.stringify({ email }) });
+    }
+
+    // Secure modal dialog methods to replace prompt() and confirm()
+    showEmailInputModal(title, message, callback) {
+        const modal = document.createElement('div');
+        modal.className = 'ccpa-modal-overlay';
+        modal.innerHTML = `
+            <div class="ccpa-modal">
+                <div class="ccpa-modal-header">
+                    <h3>${this.escapeHtml(title)}</h3>
+                    <button class="ccpa-modal-close" aria-label="Close">&times;</button>
+                </div>
+                <div class="ccpa-modal-body">
+                    <p>${this.escapeHtml(message)}</p>
+                    <input type="email" id="ccpa-email-input" placeholder="Enter your email address" required>
+                    <div class="ccpa-modal-error" id="ccpa-email-error" style="display: none; color: red; margin-top: 10px;"></div>
+                </div>
+                <div class="ccpa-modal-footer">
+                    <button class="ccpa-btn ccpa-btn-secondary" id="ccpa-cancel">Cancel</button>
+                    <button class="ccpa-btn ccpa-btn-primary" id="ccpa-submit">Submit</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        const emailInput = modal.querySelector('#ccpa-email-input');
+        const errorDiv = modal.querySelector('#ccpa-email-error');
+        const submitBtn = modal.querySelector('#ccpa-submit');
+        const cancelBtn = modal.querySelector('#ccpa-cancel');
+        const closeBtn = modal.querySelector('.ccpa-modal-close');
+
+        const closeModal = () => {
+            document.body.removeChild(modal);
+        };
+
+        const handleSubmit = () => {
+            const email = emailInput.value.trim();
+            if (!email) {
+                errorDiv.textContent = 'Email address is required';
+                errorDiv.style.display = 'block';
+                return;
+            }
+            if (!this.validateEmail(email)) {
+                errorDiv.textContent = 'Please enter a valid email address';
+                errorDiv.style.display = 'block';
+                return;
+            }
+            closeModal();
+            callback(email);
+        };
+
+        submitBtn.addEventListener('click', handleSubmit);
+        cancelBtn.addEventListener('click', closeModal);
+        closeBtn.addEventListener('click', closeModal);
+        
+        // Handle Enter key
+        emailInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                handleSubmit();
+            }
+        });
+
+        // Handle Escape key
+        modal.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeModal();
+            }
+        });
+
+        // Focus the input
+        emailInput.focus();
+    }
+
+    showConfirmationModal(title, message, callback) {
+        const modal = document.createElement('div');
+        modal.className = 'ccpa-modal-overlay';
+        modal.innerHTML = `
+            <div class="ccpa-modal">
+                <div class="ccpa-modal-header">
+                    <h3>${this.escapeHtml(title)}</h3>
+                    <button class="ccpa-modal-close" aria-label="Close">&times;</button>
+                </div>
+                <div class="ccpa-modal-body">
+                    <p>${this.escapeHtml(message)}</p>
+                </div>
+                <div class="ccpa-modal-footer">
+                    <button class="ccpa-btn ccpa-btn-secondary" id="ccpa-cancel">Cancel</button>
+                    <button class="ccpa-btn ccpa-btn-danger" id="ccpa-confirm">Confirm</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        const confirmBtn = modal.querySelector('#ccpa-confirm');
+        const cancelBtn = modal.querySelector('#ccpa-cancel');
+        const closeBtn = modal.querySelector('.ccpa-modal-close');
+
+        const closeModal = () => {
+            document.body.removeChild(modal);
+        };
+
+        confirmBtn.addEventListener('click', () => {
+            closeModal();
+            callback();
+        });
+
+        cancelBtn.addEventListener('click', closeModal);
+        closeBtn.addEventListener('click', closeModal);
+
+        // Handle Escape key
+        modal.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeModal();
+            }
+        });
+
+        // Focus the confirm button
+        confirmBtn.focus();
+    }
+
+    // HTML escaping function to prevent XSS
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 
     validateEmail(email) {
