@@ -17,6 +17,9 @@ const STATIC_FILES = [
   '/images/logo.png',
   '/images/icon-192x192.png',
   '/images/icon-512x512.png',
+  '/images/placeholder-product.svg',
+  '/images/placeholder-supplement.svg',
+  '/images/placeholder-herb.svg',
   // Add other critical assets
 ];
 

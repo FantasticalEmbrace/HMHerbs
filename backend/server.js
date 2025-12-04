@@ -13,6 +13,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs').promises;
 const logger = require('./utils/logger');
+const cache = require('./utils/cache');
 const { userRegistrationValidation, userLoginValidation } = require('./middleware/validation');
 require('dotenv').config();
 
