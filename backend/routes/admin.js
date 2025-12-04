@@ -12,6 +12,7 @@ const VendorService = require('../services/vendor');
 const POSService = require('../services/pos');
 const POSGiftCardService = require('../services/pos-giftcard');
 const POSLoyaltyService = require('../services/pos-loyalty');
+const POSDiscountService = require('../services/pos-discount');
 const AnalyticsService = require('../services/analytics');
 
 // Admin authentication middleware
@@ -1089,6 +1090,68 @@ router.get('/pos/loyalty/analytics', authenticateAdmin, async (req, res) => {
     }
 });
 
+// ===== POS DISCOUNT INTEGRATION ENDPOINTS =====
+
+// Get all POS discounts
+router.get('/pos/discounts', authenticateAdmin, async (req, res) => {
+    try {
+        const posDiscountService = new POSDiscountService(req.pool);
+        const discounts = await posDiscountService.getPOSDiscounts(req.query);
+        res.json({ discounts });
+    } catch (error) {
+        console.error('Get POS discounts error:', error);
+        res.status(500).json({ error: 'Failed to get POS discounts' });
+    }
+});
+
+// Sync discounts from POS system
+router.post('/pos/systems/:id/sync-discounts', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+    try {
+        const posDiscountService = new POSDiscountService(req.pool);
+        const result = await posDiscountService.syncDiscountsFromPOS(req.params.id);
+        res.json(result);
+    } catch (error) {
+        console.error('Sync POS discounts error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get POS discount by ID
+router.get('/pos/discounts/:id', authenticateAdmin, async (req, res) => {
+    try {
+        const posDiscountService = new POSDiscountService(req.pool);
+        const discount = await posDiscountService.getPOSDiscountById(req.params.id);
+        res.json({ discount });
+    } catch (error) {
+        console.error('Get POS discount error:', error);
+        res.status(404).json({ error: error.message });
+    }
+});
+
+// Get POS discount usage
+router.get('/pos/discounts/usage', authenticateAdmin, async (req, res) => {
+    try {
+        const posDiscountService = new POSDiscountService(req.pool);
+        const usage = await posDiscountService.getPOSDiscountUsage(req.query);
+        res.json({ usage });
+    } catch (error) {
+        console.error('Get POS discount usage error:', error);
+        res.status(500).json({ error: 'Failed to get POS discount usage' });
+    }
+});
+
+// Get POS discount analytics
+router.get('/pos/discounts/analytics', authenticateAdmin, async (req, res) => {
+    try {
+        const posDiscountService = new POSDiscountService(req.pool);
+        const analytics = await posDiscountService.getPOSDiscountAnalytics(req.query.pos_system_id, req.query.days || 30);
+        res.json({ analytics });
+    } catch (error) {
+        console.error('Get POS discount analytics error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // ===== ANALYTICS AND MONITORING ENDPOINTS =====
 
 // Get comprehensive dashboard overview
@@ -1148,6 +1211,18 @@ router.get('/analytics/pos-loyalty', authenticateAdmin, async (req, res) => {
     } catch (error) {
         console.error('Get POS loyalty metrics error:', error);
         res.status(500).json({ error: 'Failed to get POS loyalty metrics' });
+    }
+});
+
+// Get POS discount metrics
+router.get('/analytics/pos-discounts', authenticateAdmin, async (req, res) => {
+    try {
+        const analyticsService = new AnalyticsService(req.pool);
+        const metrics = await analyticsService.getPOSDiscountMetrics(req.query.pos_system_id, req.query.days || 30);
+        res.json({ metrics });
+    } catch (error) {
+        console.error('Get POS discount metrics error:', error);
+        res.status(500).json({ error: 'Failed to get POS discount metrics' });
     }
 });
 

@@ -265,6 +265,74 @@ class AnalyticsService {
         };
     }
 
+    // POS Discount Analytics
+    async getPOSDiscountMetrics(posSystemId = null, dateRange = 30) {
+        let systemFilter = '';
+        const params = [dateRange];
+        
+        if (posSystemId) {
+            systemFilter = 'AND pd.pos_system_id = ?';
+            params.push(posSystemId);
+        }
+
+        const [metrics] = await this.db.execute(`
+            SELECT 
+                ps.name as pos_system_name,
+                ps.system_type,
+                COUNT(DISTINCT pd.id) as total_discounts,
+                COUNT(DISTINCT CASE WHEN pd.is_active = 1 THEN pd.id END) as active_discounts,
+                COUNT(DISTINCT CASE WHEN pd.requires_code = 1 THEN pd.id END) as code_based_discounts,
+                COUNT(DISTINCT CASE WHEN pd.ends_at IS NOT NULL AND pd.ends_at < NOW() THEN pd.id END) as expired_discounts,
+                COUNT(DISTINCT pdu.id) as total_usage_count,
+                SUM(pdu.discount_amount_applied) as total_discount_amount,
+                AVG(pdu.discount_amount_applied) as avg_discount_amount,
+                COUNT(DISTINCT pdu.customer_email) as unique_customers_used,
+                COUNT(DISTINCT CASE WHEN pdu.usage_date >= DATE_SUB(NOW(), INTERVAL ? DAY) THEN pdu.id END) as recent_usage_count,
+                COUNT(CASE WHEN pd.sync_status = 'error' THEN 1 END) as sync_errors
+            FROM pos_discounts pd
+            JOIN pos_systems ps ON pd.pos_system_id = ps.id
+            LEFT JOIN pos_discount_usage pdu ON pd.id = pdu.pos_discount_id
+            WHERE pd.created_at >= DATE_SUB(NOW(), INTERVAL ? DAY) ${systemFilter}
+            GROUP BY pd.pos_system_id
+            ORDER BY ps.name
+        `, [dateRange, dateRange]);
+
+        const [typeBreakdown] = await this.db.execute(`
+            SELECT 
+                pd.discount_type,
+                COUNT(*) as discount_count,
+                COUNT(DISTINCT pdu.id) as usage_count,
+                SUM(pdu.discount_amount_applied) as total_amount_saved,
+                AVG(pd.discount_percentage) as avg_percentage,
+                AVG(pd.discount_value) as avg_value
+            FROM pos_discounts pd
+            LEFT JOIN pos_discount_usage pdu ON pd.id = pdu.pos_discount_id
+            WHERE pd.is_active = 1 ${systemFilter}
+            GROUP BY pd.discount_type
+            ORDER BY usage_count DESC
+        `, params.slice(1)); // Remove dateRange param
+
+        const [usageTrends] = await this.db.execute(`
+            SELECT 
+                DATE(pdu.usage_date) as usage_date,
+                COUNT(*) as usage_count,
+                SUM(pdu.discount_amount_applied) as total_discount_amount,
+                COUNT(DISTINCT pdu.customer_email) as unique_customers,
+                AVG(pdu.order_total) as avg_order_total
+            FROM pos_discount_usage pdu
+            JOIN pos_discounts pd ON pdu.pos_discount_id = pd.id
+            WHERE pdu.usage_date >= DATE_SUB(NOW(), INTERVAL ? DAY) ${systemFilter}
+            GROUP BY DATE(pdu.usage_date)
+            ORDER BY usage_date DESC
+        `, [dateRange]);
+
+        return {
+            overview: metrics,
+            type_breakdown: typeBreakdown,
+            usage_trends: usageTrends
+        };
+    }
+
     // Comprehensive Dashboard Metrics
     async getDashboardOverview(dateRange = 30) {
         // Vendor metrics
@@ -309,6 +377,17 @@ class AnalyticsService {
             LEFT JOIN pos_customer_loyalty pcl ON plp.id = pcl.pos_program_id
         `);
 
+        // POS Discount metrics
+        const [discountMetrics] = await this.db.execute(`
+            SELECT 
+                COUNT(*) as total_discounts,
+                COUNT(CASE WHEN is_active = 1 THEN 1 END) as active_discounts,
+                COUNT(CASE WHEN requires_code = 1 THEN 1 END) as code_based_discounts,
+                COUNT(CASE WHEN created_at >= DATE_SUB(NOW(), INTERVAL ? DAY) THEN 1 END) as new_discounts,
+                COUNT(CASE WHEN sync_status = 'error' THEN 1 END) as sync_errors
+            FROM pos_discounts
+        `, [dateRange]);
+
         // Recent activity
         const [recentActivity] = await this.db.execute(`
             SELECT 
@@ -351,6 +430,7 @@ class AnalyticsService {
             pos_systems: posMetrics[0],
             gift_cards: giftCardMetrics[0],
             loyalty: loyaltyMetrics[0],
+            discounts: discountMetrics[0],
             recent_activity: recentActivity
         };
     }
@@ -473,6 +553,47 @@ class AnalyticsService {
                 message: `${system.stale_count} gift cards from ${system.name} haven't synced in 24+ hours`,
                 timestamp: new Date(),
                 details: 'Consider running manual sync'
+            });
+        });
+
+        // Check for POS discount sync errors
+        const [discountSyncErrors] = await this.db.execute(`
+            SELECT ps.name, COUNT(*) as error_count
+            FROM pos_discounts pd
+            JOIN pos_systems ps ON pd.pos_system_id = ps.id
+            WHERE pd.sync_status = 'error' 
+            AND pd.last_synced >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+            GROUP BY ps.id
+        `);
+
+        discountSyncErrors.forEach(system => {
+            alerts.push({
+                type: 'warning',
+                category: 'pos_discount_sync',
+                message: `${system.error_count} discount sync errors from ${system.name}`,
+                timestamp: new Date(),
+                details: 'Check POS discount sync configuration'
+            });
+        });
+
+        // Check for expired discounts that are still marked as active
+        const [expiredActiveDiscounts] = await this.db.execute(`
+            SELECT ps.name, COUNT(*) as expired_count
+            FROM pos_discounts pd
+            JOIN pos_systems ps ON pd.pos_system_id = ps.id
+            WHERE pd.is_active = 1 
+            AND pd.ends_at IS NOT NULL 
+            AND pd.ends_at < NOW()
+            GROUP BY ps.id
+        `);
+
+        expiredActiveDiscounts.forEach(system => {
+            alerts.push({
+                type: 'info',
+                category: 'pos_discount_expired',
+                message: `${system.expired_count} expired discounts still marked as active in ${system.name}`,
+                timestamp: new Date(),
+                details: 'Consider running discount sync to update status'
             });
         });
 

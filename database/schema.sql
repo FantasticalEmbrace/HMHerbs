@@ -685,3 +685,99 @@ CREATE TABLE pos_customer_loyalty (
     INDEX idx_current_tier (current_tier),
     INDEX idx_last_synced (last_synced)
 );
+
+-- POS Discount Integration (sync discount data from POS systems)
+CREATE TABLE pos_discounts (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    pos_system_id INT NOT NULL,
+    external_discount_id VARCHAR(255) NOT NULL,
+    
+    -- Discount Details (synced from POS)
+    discount_name VARCHAR(255) NOT NULL,
+    discount_type ENUM('percentage', 'fixed_amount', 'buy_x_get_y', 'free_shipping', 'tiered', 'custom') NOT NULL,
+    discount_value DECIMAL(10,2),
+    discount_percentage DECIMAL(5,2),
+    
+    -- Discount Rules (from POS)
+    minimum_order_amount DECIMAL(10,2),
+    maximum_discount_amount DECIMAL(10,2),
+    applies_to ENUM('order', 'product', 'category', 'customer_group', 'shipping') DEFAULT 'order',
+    target_selection JSON, -- Store product IDs, category IDs, etc.
+    
+    -- Usage Limits (from POS)
+    usage_limit_total INT,
+    usage_limit_per_customer INT,
+    current_usage_count INT DEFAULT 0,
+    
+    -- Date Restrictions (from POS)
+    starts_at DATETIME,
+    ends_at DATETIME,
+    
+    -- Customer Restrictions (from POS)
+    customer_eligibility ENUM('all', 'specific_customers', 'customer_groups', 'new_customers', 'returning_customers') DEFAULT 'all',
+    eligible_customer_groups JSON,
+    
+    -- Status and Conditions (from POS)
+    status VARCHAR(50) NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    requires_code BOOLEAN DEFAULT FALSE,
+    discount_code VARCHAR(100),
+    stackable BOOLEAN DEFAULT FALSE,
+    
+    -- Sync Information
+    last_synced TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    sync_status ENUM('synced', 'pending', 'error') DEFAULT 'synced',
+    sync_error TEXT,
+    
+    -- Audit
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (pos_system_id) REFERENCES pos_systems(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_pos_discount (pos_system_id, external_discount_id),
+    INDEX idx_discount_name (discount_name),
+    INDEX idx_discount_type (discount_type),
+    INDEX idx_discount_code (discount_code),
+    INDEX idx_status (status),
+    INDEX idx_starts_at (starts_at),
+    INDEX idx_ends_at (ends_at),
+    INDEX idx_last_synced (last_synced)
+);
+
+-- POS Discount Usage Tracking (sync usage data from POS systems)
+CREATE TABLE pos_discount_usage (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    pos_discount_id INT NOT NULL,
+    pos_system_id INT NOT NULL,
+    external_usage_id VARCHAR(255),
+    
+    -- Usage Details (from POS)
+    customer_email VARCHAR(255),
+    customer_name VARCHAR(255),
+    order_reference VARCHAR(255),
+    discount_amount_applied DECIMAL(10,2) NOT NULL,
+    order_total DECIMAL(10,2),
+    
+    -- Usage Context (from POS)
+    usage_date DATETIME NOT NULL,
+    pos_location VARCHAR(255),
+    sales_channel ENUM('online', 'in_store', 'mobile', 'phone', 'other') DEFAULT 'online',
+    
+    -- Sync Information
+    last_synced TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    sync_status ENUM('synced', 'pending', 'error') DEFAULT 'synced',
+    sync_error TEXT,
+    
+    -- Audit
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (pos_discount_id) REFERENCES pos_discounts(id) ON DELETE CASCADE,
+    FOREIGN KEY (pos_system_id) REFERENCES pos_systems(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_pos_usage (pos_system_id, external_usage_id),
+    INDEX idx_customer_email (customer_email),
+    INDEX idx_usage_date (usage_date),
+    INDEX idx_order_reference (order_reference),
+    INDEX idx_sales_channel (sales_channel),
+    INDEX idx_last_synced (last_synced)
+);
