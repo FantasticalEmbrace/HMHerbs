@@ -507,6 +507,7 @@ app.use((req, res, next) => {
 
 // Mount routes
 app.use('/api/cart', cartRoutes);
+app.use('/api/orders', require('./routes/orders'));
 app.use('/api/edsa', edsaRoutes);
 app.use('/api/admin', adminRoutes);
 

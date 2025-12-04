@@ -7,6 +7,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const HMHerbsScraper = require('../scripts/scrape-hmherbs');
 const ProductImporter = require('../scripts/import-products');
+const InventoryService = require('../services/inventory');
 
 // Admin authentication middleware
 const authenticateAdmin = async (req, res, next) => {
@@ -617,6 +618,160 @@ router.post('/import-products', authenticateAdmin, requirePermission('manager'),
     } catch (error) {
         console.error('Import error:', error);
         res.status(500).json({ error: 'Failed to import products: ' + error.message });
+    }
+});
+
+// Inventory Management Endpoints
+
+// Get inventory transaction history
+router.get('/inventory/history/:productId', authenticateAdmin, async (req, res) => {
+    try {
+        const { productId } = req.params;
+        const { variantId, limit = 50 } = req.query;
+        
+        const inventoryService = new InventoryService(req.pool);
+        const history = await inventoryService.getInventoryHistory(
+            parseInt(productId),
+            variantId ? parseInt(variantId) : null,
+            parseInt(limit)
+        );
+        
+        res.json(history);
+    } catch (error) {
+        console.error('Get inventory history error:', error);
+        res.status(500).json({ error: 'Failed to get inventory history' });
+    }
+});
+
+// Get low stock products
+router.get('/inventory/low-stock', authenticateAdmin, async (req, res) => {
+    try {
+        const { limit = 20 } = req.query;
+        
+        const inventoryService = new InventoryService(req.pool);
+        const lowStockProducts = await inventoryService.getLowStockProducts(parseInt(limit));
+        
+        res.json(lowStockProducts);
+    } catch (error) {
+        console.error('Get low stock products error:', error);
+        res.status(500).json({ error: 'Failed to get low stock products' });
+    }
+});
+
+// Manual inventory adjustment
+router.post('/inventory/adjust', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+    try {
+        const { productId, variantId, quantityChange, reason } = req.body;
+        const adminId = req.admin.id;
+        
+        if (!productId || quantityChange === undefined) {
+            return res.status(400).json({ error: 'Product ID and quantity change are required' });
+        }
+        
+        const inventoryService = new InventoryService(req.pool);
+        const result = await inventoryService.adjustInventory(
+            parseInt(productId),
+            variantId ? parseInt(variantId) : null,
+            parseInt(quantityChange),
+            adminId,
+            reason || 'Manual adjustment'
+        );
+        
+        res.json({
+            success: true,
+            message: 'Inventory adjusted successfully',
+            result
+        });
+    } catch (error) {
+        console.error('Inventory adjustment error:', error);
+        res.status(500).json({ error: 'Failed to adjust inventory: ' + error.message });
+    }
+});
+
+// Get current inventory level
+router.get('/inventory/current/:productId', authenticateAdmin, async (req, res) => {
+    try {
+        const { productId } = req.params;
+        const { variantId } = req.query;
+        
+        const inventoryService = new InventoryService(req.pool);
+        const currentInventory = await inventoryService.getCurrentInventory(
+            parseInt(productId),
+            variantId ? parseInt(variantId) : null
+        );
+        
+        res.json({ inventory: currentInventory });
+    } catch (error) {
+        console.error('Get current inventory error:', error);
+        res.status(500).json({ error: 'Failed to get current inventory' });
+    }
+});
+
+// Bulk inventory update
+router.post('/inventory/bulk-update', authenticateAdmin, requirePermission('admin'), async (req, res) => {
+    try {
+        const { inventoryUpdates, reason } = req.body;
+        
+        if (!Array.isArray(inventoryUpdates) || inventoryUpdates.length === 0) {
+            return res.status(400).json({ error: 'Inventory updates array is required' });
+        }
+        
+        const inventoryService = new InventoryService(req.pool);
+        const results = await inventoryService.bulkInventoryImport(
+            inventoryUpdates,
+            reason || 'Bulk inventory update'
+        );
+        
+        res.json({
+            success: true,
+            message: `Successfully updated ${results.length} products`,
+            results
+        });
+    } catch (error) {
+        console.error('Bulk inventory update error:', error);
+        res.status(500).json({ error: 'Failed to update inventory: ' + error.message });
+    }
+});
+
+// Enhanced dashboard stats with inventory info
+router.get('/dashboard/inventory-stats', authenticateAdmin, async (req, res) => {
+    try {
+        const inventoryService = new InventoryService(req.pool);
+        
+        // Get low stock count
+        const lowStockProducts = await inventoryService.getLowStockProducts(100);
+        
+        // Get total products with inventory tracking
+        const [inventoryStats] = await req.pool.execute(`
+            SELECT 
+                COUNT(*) as total_tracked_products,
+                SUM(CASE WHEN inventory_quantity = 0 THEN 1 ELSE 0 END) as out_of_stock_products,
+                SUM(CASE WHEN inventory_quantity <= low_stock_threshold THEN 1 ELSE 0 END) as low_stock_products,
+                SUM(inventory_quantity) as total_inventory_units
+            FROM products 
+            WHERE track_inventory = 1 AND is_active = 1
+        `);
+        
+        // Get recent inventory transactions
+        const [recentTransactions] = await req.pool.execute(`
+            SELECT 
+                it.*,
+                p.name as product_name,
+                p.sku as product_sku
+            FROM inventory_transactions it
+            JOIN products p ON it.product_id = p.id
+            ORDER BY it.created_at DESC
+            LIMIT 10
+        `);
+        
+        res.json({
+            inventory: inventoryStats[0],
+            lowStockProducts: lowStockProducts.slice(0, 10), // Top 10 low stock
+            recentTransactions
+        });
+    } catch (error) {
+        console.error('Get inventory stats error:', error);
+        res.status(500).json({ error: 'Failed to get inventory statistics' });
     }
 });
 

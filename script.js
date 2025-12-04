@@ -49,7 +49,9 @@ class HMHerbsApp {
                 description: "Premium curcumin supplement for joint health and inflammation support",
                 featured: true,
                 bestseller: false,
-                inStock: true
+                inStock: true,
+                inventory: 25,
+                lowStockThreshold: 10
             },
             {
                 id: 2,
@@ -60,7 +62,9 @@ class HMHerbsApp {
                 description: "Pure aloe vera capsules for digestive health and wellness",
                 featured: true,
                 bestseller: false,
-                inStock: true
+                inStock: true,
+                inventory: 8,
+                lowStockThreshold: 10
             },
             {
                 id: 3,
@@ -224,6 +228,17 @@ class HMHerbsApp {
         document.body.appendChild(liveRegion);
     }
     
+    renderInventoryStatus(product) {
+        if (product.inventory === 0) {
+            return '<div class="inventory-status out-of-stock"><i class="fas fa-times-circle"></i> Out of Stock</div>';
+        } else if (product.inventory <= product.lowStockThreshold) {
+            return `<div class="inventory-status low-stock"><i class="fas fa-exclamation-triangle"></i> Only ${product.inventory} left!</div>`;
+        } else if (product.inventory <= 20) {
+            return `<div class="inventory-status in-stock"><i class="fas fa-check-circle"></i> ${product.inventory} in stock</div>`;
+        }
+        return '<div class="inventory-status in-stock"><i class="fas fa-check-circle"></i> In Stock</div>';
+    }
+    
     renderFeaturedProducts() {
         const container = document.getElementById('featured-products-grid');
         if (!container) return;
@@ -231,16 +246,18 @@ class HMHerbsApp {
         const featuredProducts = this.products.filter(product => product.featured);
         
         container.innerHTML = featuredProducts.map(product => `
-            <div class="product-card" data-product-id="${product.id}">
+            <div class="product-card ${product.inventory === 0 ? 'out-of-stock' : ''} ${product.inventory <= product.lowStockThreshold ? 'low-stock' : ''}" data-product-id="${product.id}">
                 <img src="${product.image}" alt="${product.name}" class="product-image" loading="lazy">
                 <h3 class="product-title">${product.name}</h3>
                 <p class="product-price">$${product.price.toFixed(2)}</p>
+                ${this.renderInventoryStatus(product)}
                 <div class="product-actions">
                     <button class="btn btn-primary add-to-cart-btn" 
                             data-product-id="${product.id}"
+                            ${product.inventory === 0 ? 'disabled' : ''}
                             aria-label="Add ${product.name} to cart">
                         <i class="fas fa-cart-plus" aria-hidden="true"></i>
-                        Add to Cart
+                        ${product.inventory === 0 ? 'Out of Stock' : 'Add to Cart'}
                     </button>
                 </div>
             </div>
@@ -262,16 +279,18 @@ class HMHerbsApp {
         const bestsellers = this.products.filter(product => product.bestseller);
         
         container.innerHTML = bestsellers.map(product => `
-            <div class="product-card" data-product-id="${product.id}">
+            <div class="product-card ${product.inventory === 0 ? 'out-of-stock' : ''} ${product.inventory <= product.lowStockThreshold ? 'low-stock' : ''}" data-product-id="${product.id}">
                 <img src="${product.image}" alt="${product.name}" class="product-image" loading="lazy">
                 <h3 class="product-title">${product.name}</h3>
                 <p class="product-price">$${product.price.toFixed(2)}</p>
+                ${this.renderInventoryStatus(product)}
                 <div class="product-actions">
                     <button class="btn btn-primary add-to-cart-btn" 
                             data-product-id="${product.id}"
+                            ${product.inventory === 0 ? 'disabled' : ''}
                             aria-label="Add ${product.name} to cart">
                         <i class="fas fa-cart-plus" aria-hidden="true"></i>
-                        Add to Cart
+                        ${product.inventory === 0 ? 'Out of Stock' : 'Add to Cart'}
                     </button>
                 </div>
             </div>
