@@ -75,7 +75,9 @@ class HMHerbsApp {
                 description: "Natural homeopathic remedy for seasonal allergies",
                 featured: true,
                 bestseller: false,
-                inStock: true
+                inStock: true,
+                inventory: 15,
+                lowStockThreshold: 10
             },
             {
                 id: 4,
@@ -86,7 +88,9 @@ class HMHerbsApp {
                 description: "Organic cannabis oil with CBD for cats and dogs",
                 featured: true,
                 bestseller: false,
-                inStock: true
+                inStock: true,
+                inventory: 12,
+                lowStockThreshold: 10
             },
             {
                 id: 5,
@@ -97,7 +101,9 @@ class HMHerbsApp {
                 description: "Natural cherry-flavored blood pressure support supplement",
                 featured: true,
                 bestseller: false,
-                inStock: true
+                inStock: true,
+                inventory: 30,
+                lowStockThreshold: 10
             },
             {
                 id: 6,
@@ -108,7 +114,9 @@ class HMHerbsApp {
                 description: "Cannabis care cream for topical relief",
                 featured: true,
                 bestseller: false,
-                inStock: true
+                inStock: true,
+                inventory: 18,
+                lowStockThreshold: 10
             },
             {
                 id: 7,
@@ -119,7 +127,9 @@ class HMHerbsApp {
                 description: "Specialized women's health formula, 2 oz pump",
                 featured: false,
                 bestseller: true,
-                inStock: true
+                inStock: true,
+                inventory: 22,
+                lowStockThreshold: 10
             },
             {
                 id: 8,
@@ -130,7 +140,9 @@ class HMHerbsApp {
                 description: "Happy PMS progesterone body cream, 2oz jar",
                 featured: false,
                 bestseller: true,
-                inStock: true
+                inStock: true,
+                inventory: 5,
+                lowStockThreshold: 10
             }
         ];
     }
@@ -229,9 +241,19 @@ class HMHerbsApp {
     }
     
     renderInventoryStatus(product) {
+        // Defensive programming: handle missing inventory data
+        if (typeof product.inventory === 'undefined' || product.inventory === null) {
+            // Fallback to inStock boolean if inventory data is missing
+            if (product.inStock === false) {
+                return '<div class="inventory-status out-of-stock"><i class="fas fa-times-circle"></i> Out of Stock</div>';
+            }
+            return '<div class="inventory-status in-stock"><i class="fas fa-check-circle"></i> In Stock</div>';
+        }
+        
+        // Normal inventory-based logic
         if (product.inventory === 0) {
             return '<div class="inventory-status out-of-stock"><i class="fas fa-times-circle"></i> Out of Stock</div>';
-        } else if (product.inventory <= product.lowStockThreshold) {
+        } else if (product.lowStockThreshold && product.inventory <= product.lowStockThreshold) {
             return `<div class="inventory-status low-stock"><i class="fas fa-exclamation-triangle"></i> Only ${product.inventory} left!</div>`;
         } else if (product.inventory <= 20) {
             return `<div class="inventory-status in-stock"><i class="fas fa-check-circle"></i> ${product.inventory} in stock</div>`;
@@ -312,14 +334,33 @@ class HMHerbsApp {
             return;
         }
         
-        if (!product.inStock) {
+        // Check inventory availability (with fallback to inStock)
+        const isOutOfStock = (typeof product.inventory !== 'undefined') 
+            ? product.inventory === 0 
+            : !product.inStock;
+            
+        if (isOutOfStock) {
             this.showNotification('Product is out of stock', 'error');
             return;
         }
         
-        // Check if product already exists in cart
+        // Check if adding this quantity would exceed available inventory
         const existingItem = this.cart.find(item => item.id === productId);
+        const currentCartQuantity = existingItem ? existingItem.quantity : 0;
+        const totalRequestedQuantity = currentCartQuantity + quantity;
         
+        if (typeof product.inventory !== 'undefined' && totalRequestedQuantity > product.inventory) {
+            const availableQuantity = product.inventory - currentCartQuantity;
+            if (availableQuantity <= 0) {
+                this.showNotification('No more items available', 'error');
+                return;
+            } else {
+                this.showNotification(`Only ${availableQuantity} more available. Added ${availableQuantity} to cart.`, 'warning');
+                quantity = availableQuantity;
+            }
+        }
+        
+        // Add or update cart item
         if (existingItem) {
             existingItem.quantity += quantity;
         } else {
