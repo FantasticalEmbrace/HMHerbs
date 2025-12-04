@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HM Herbs Admin Panel</title>
+    <link rel="icon" type="image/x-icon" href="https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?ixlib=rb-4.0.3&auto=format&fit=crop&w=32&q=80">
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        /* Admin Panel Styles - Matching Frontend Design */
+        :root {
+            --primary-green: #2d5a27;
+            --secondary-sage: #87a96b;
+            --accent-gold: #d4af37;
+            --light-green: #f0f7ed;
+            --dark-green: #1a3d16;
+            
+            --gray-50: #f9fafb;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-300: #d1d5db;
+            --gray-400: #9ca3af;
+            --gray-500: #6b7280;
+            --gray-600: #4b5563;
+            --gray-700: #374151;
+            --gray-800: #1f2937;
+            --gray-900: #111827;
+            
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --info: #3b82f6;
+            
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+            
+            --border-radius: 0.5rem;
+            --border-radius-lg: 0.75rem;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--gray-50);
+            color: var(--gray-900);
+            line-height: 1.6;
+        }
+
+        /* Layout */
+        .admin-container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 280px;
+            background: linear-gradient(135deg, var(--primary-green) 0%, var(--dark-green) 100%);
+            color: white;
+            padding: 2rem 0;
+            box-shadow: var(--shadow-lg);
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            z-index: 1000;
+        }
+
+        .sidebar-header {
+            padding: 0 2rem 2rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 2rem;
+        }
+
+        .sidebar-logo {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            font-family: 'Playfair Display', serif;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .sidebar-logo i {
+            font-size: 2rem;
+            color: var(--accent-gold);
+        }
+
+        .sidebar-nav {
+            padding: 0 1rem;
+        }
+
+        .nav-section {
+            margin-bottom: 2rem;
+        }
+
+        .nav-section-title {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: rgba(255, 255, 255, 0.6);
+            margin-bottom: 0.5rem;
+            padding: 0 1rem;
+        }
+
+        .nav-item {
+            margin-bottom: 0.25rem;
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            color: rgba(255, 255, 255, 0.8);
+            text-decoration: none;
+            border-radius: var(--border-radius);
+            transition: all 0.2s ease;
+            font-weight: 500;
+        }
+
+        .nav-link:hover,
+        .nav-link.active {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            transform: translateX(4px);
+        }
+
+        .nav-link.active {
+            background: var(--accent-gold);
+            color: var(--primary-green);
+        }
+
+        .nav-link i {
+            width: 1.25rem;
+            text-align: center;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            margin-left: 280px;
+            padding: 2rem;
+        }
+
+        /* Header */
+        .content-header {
+            background: white;
+            padding: 1.5rem 2rem;
+            border-radius: var(--border-radius-lg);
+            box-shadow: var(--shadow-sm);
+            margin-bottom: 2rem;
+            display: flex;
+            justify-content: between;
+            align-items: center;
+        }
+
+        .page-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 2rem;
+            font-weight: 600;
+            color: var(--primary-green);
+            margin: 0;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .user-avatar {
+            width: 2.5rem;
+            height: 2.5rem;
+            border-radius: 50%;
+            background: var(--secondary-sage);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+        }
+
+        /* Cards */
+        .card {
+            background: white;
+            border-radius: var(--border-radius-lg);
+            box-shadow: var(--shadow-sm);
+            overflow: hidden;
+            margin-bottom: 2rem;
+        }
+
+        .card-header {
+            padding: 1.5rem 2rem;
+            border-bottom: 1px solid var(--gray-200);
+            background: var(--gray-50);
+        }
+
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--gray-900);
+            margin: 0;
+        }
+
+        .card-content {
+            padding: 2rem;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: var(--border-radius-lg);
+            box-shadow: var(--shadow-sm);
+            border-left: 4px solid var(--primary-green);
+        }
+
+        .stat-card.success {
+            border-left-color: var(--success);
+        }
+
+        .stat-card.warning {
+            border-left-color: var(--warning);
+        }
+
+        .stat-card.info {
+            border-left-color: var(--info);
+        }
+
+        .stat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-title {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--gray-600);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .stat-icon {
+            width: 2.5rem;
+            height: 2.5rem;
+            border-radius: 50%;
+            background: var(--light-green);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary-green);
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--gray-900);
+            margin-bottom: 0.25rem;
+        }
+
+        .stat-change {
+            font-size: 0.875rem;
+            color: var(--gray-500);
+        }
+
+        /* Tables */
+        .table-container {
+            overflow-x: auto;
+        }
+
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .table th,
+        .table td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        .table th {
+            background: var(--gray-50);
+            font-weight: 600;
+            color: var(--gray-700);
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .table tr:hover {
+            background: var(--gray-50);
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: var(--border-radius);
+            font-weight: 500;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.875rem;
+        }
+
+        .btn-primary {
+            background: var(--primary-green);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--dark-green);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-secondary {
+            background: var(--gray-200);
+            color: var(--gray-700);
+        }
+
+        .btn-secondary:hover {
+            background: var(--gray-300);
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+
+        .btn-warning {
+            background: var(--warning);
+            color: white;
+        }
+
+        .btn-danger {
+            background: var(--error);
+            color: white;
+        }
+
+        .btn-sm {
+            padding: 0.5rem 1rem;
+            font-size: 0.75rem;
+        }
+
+        /* Forms */
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            font-weight: 500;
+            color: var(--gray-700);
+            margin-bottom: 0.5rem;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--gray-300);
+            border-radius: var(--border-radius);
+            font-size: 0.875rem;
+            transition: border-color 0.2s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary-green);
+            box-shadow: 0 0 0 3px rgba(45, 90, 39, 0.1);
+        }
+
+        /* Status Badges */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .badge-success {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+        }
+
+        .badge-warning {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--warning);
+        }
+
+        .badge-danger {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--error);
+        }
+
+        .badge-info {
+            background: rgba(59, 130, 246, 0.1);
+            color: var(--info);
+        }
+
+        /* Loading States */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            color: var(--gray-500);
+        }
+
+        .spinner {
+            width: 2rem;
+            height: 2rem;
+            border: 2px solid var(--gray-200);
+            border-top: 2px solid var(--primary-green);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 0.5rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+            }
+
+            .sidebar.open {
+                transform: translateX(0);
+            }
+
+            .main-content {
+                margin-left: 0;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Login Form */
+        .login-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, var(--primary-green) 0%, var(--dark-green) 100%);
+            padding: 2rem;
+        }
+
+        .login-card {
+            background: white;
+            padding: 3rem;
+            border-radius: var(--border-radius-lg);
+            box-shadow: var(--shadow-lg);
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .login-logo {
+            font-family: 'Playfair Display', serif;
+            font-size: 2rem;
+            font-weight: 600;
+            color: var(--primary-green);
+            margin-bottom: 0.5rem;
+        }
+
+        .login-subtitle {
+            color: var(--gray-600);
+            font-size: 0.875rem;
+        }
+
+        /* Hidden by default */
+        .content-section {
+            display: none;
+        }
+
+        .content-section.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <!-- Login Screen -->
+    <div id="loginScreen" class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <div class="login-logo">
+                    <i class="fas fa-leaf"></i>
+                    HM Herbs Admin
+                </div>
+                <p class="login-subtitle">Sign in to your admin account</p>
+            </div>
+            
+            <form id="loginForm">
+                <div class="form-group">
+                    <label class="form-label" for="email">Email Address</label>
+                    <input type="email" id="email" class="form-input" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="password">Password</label>
+                    <input type="password" id="password" class="form-input" required>
+                </div>
+                
+                <button type="submit" class="btn btn-primary" style="width: 100%;">
+                    <i class="fas fa-sign-in-alt"></i>
+                    Sign In
+                </button>
+            </form>
+            
+            <div id="loginError" style="margin-top: 1rem; color: var(--error); text-align: center; display: none;"></div>
+        </div>
+    </div>
+
+    <!-- Admin Dashboard -->
+    <div id="adminDashboard" class="admin-container" style="display: none;">
+        <!-- Sidebar -->
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-logo">
+                    <i class="fas fa-leaf"></i>
+                    <span>HM Herbs Admin</span>
+                </div>
+            </div>
+            
+            <div class="sidebar-nav">
+                <div class="nav-section">
+                    <div class="nav-section-title">Overview</div>
+                    <div class="nav-item">
+                        <a href="#" class="nav-link active" data-section="dashboard">
+                            <i class="fas fa-chart-line"></i>
+                            Dashboard
+                        </a>
+                    </div>
+                </div>
+                
+                <div class="nav-section">
+                    <div class="nav-section-title">Catalog</div>
+                    <div class="nav-item">
+                        <a href="#" class="nav-link" data-section="products">
+                            <i class="fas fa-boxes"></i>
+                            Products
+                        </a>
+                    </div>
+                    <div class="nav-item">
+                        <a href="#" class="nav-link" data-section="import">
+                            <i class="fas fa-upload"></i>
+                            Import Products
+                        </a>
+                    </div>
+                    <div class="nav-item">
+                        <a href="#" class="nav-link" data-section="categories">
+                            <i class="fas fa-tags"></i>
+                            Categories
+                        </a>
+                    </div>
+                    <div class="nav-item">
+                        <a href="#" class="nav-link" data-section="brands">
+                            <i class="fas fa-trademark"></i>
+                            Brands
+                        </a>
+                    </div>
+                </div>
+                
+                <div class="nav-section">
+                    <div class="nav-section-title">Sales</div>
+                    <div class="nav-item">
+                        <a href="#" class="nav-link" data-section="orders">
+                            <i class="fas fa-shopping-cart"></i>
+                            Orders
+                        </a>
+                    </div>
+                    <div class="nav-item">
+                        <a href="#" class="nav-link" data-section="customers">
+                            <i class="fas fa-users"></i>
+                            Customers
+                        </a>
+                    </div>
+                </div>
+                
+                <div class="nav-section">
+                    <div class="nav-section-title">Services</div>
+                    <div class="nav-item">
+                        <a href="#" class="nav-link" data-section="edsa">
+                            <i class="fas fa-stethoscope"></i>
+                            EDSA Bookings
+                        </a>
+                    </div>
+                </div>
+                
+                <div class="nav-section">
+                    <div class="nav-section-title">System</div>
+                    <div class="nav-item">
+                        <a href="#" class="nav-link" data-section="settings">
+                            <i class="fas fa-cog"></i>
+                            Settings
+                        </a>
+                    </div>
+                    <div class="nav-item">
+                        <a href="#" class="nav-link" onclick="logout()">
+                            <i class="fas fa-sign-out-alt"></i>
+                            Logout
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Dashboard Section -->
+            <section id="dashboard" class="content-section active">
+                <div class="content-header">
+                    <h1 class="page-title">Dashboard</h1>
+                    <div class="user-info">
+                        <div class="user-avatar">
+                            <i class="fas fa-user"></i>
+                        </div>
+                        <span id="userName">Admin User</span>
+                    </div>
+                </div>
+
+                <!-- Stats Grid -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div class="stat-title">Total Products</div>
+                            <div class="stat-icon">
+                                <i class="fas fa-boxes"></i>
+                            </div>
+                        </div>
+                        <div class="stat-value" id="totalProducts">-</div>
+                        <div class="stat-change">Active products in catalog</div>
+                    </div>
+
+                    <div class="stat-card success">
+                        <div class="stat-header">
+                            <div class="stat-title">Orders (30 days)</div>
+                            <div class="stat-icon">
+                                <i class="fas fa-shopping-cart"></i>
+                            </div>
+                        </div>
+                        <div class="stat-value" id="totalOrders">-</div>
+                        <div class="stat-change">Recent order activity</div>
+                    </div>
+
+                    <div class="stat-card info">
+                        <div class="stat-header">
+                            <div class="stat-title">EDSA Bookings</div>
+                            <div class="stat-icon">
+                                <i class="fas fa-stethoscope"></i>
+                            </div>
+                        </div>
+                        <div class="stat-value" id="totalBookings">-</div>
+                        <div class="stat-change">Pending appointments</div>
+                    </div>
+
+                    <div class="stat-card warning">
+                        <div class="stat-header">
+                            <div class="stat-title">Low Stock</div>
+                            <div class="stat-icon">
+                                <i class="fas fa-exclamation-triangle"></i>
+                            </div>
+                        </div>
+                        <div class="stat-value" id="lowStockProducts">-</div>
+                        <div class="stat-change">Products need restocking</div>
+                    </div>
+                </div>
+
+                <!-- Recent Activity -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Recent Activity</h2>
+                    </div>
+                    <div class="card-content">
+                        <div id="recentActivity" class="loading">
+                            <div class="spinner"></div>
+                            Loading recent activity...
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Products Section -->
+            <section id="products" class="content-section">
+                <div class="content-header">
+                    <h1 class="page-title">Products</h1>
+                    <div style="display: flex; gap: 1rem;">
+                        <button class="btn btn-secondary" onclick="scrapeProducts()">
+                            <i class="fas fa-download"></i>
+                            Scrape HM Herbs
+                        </button>
+                        <button class="btn btn-primary" onclick="showAddProduct()">
+                            <i class="fas fa-plus"></i>
+                            Add Product
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-content">
+                        <div id="productsTable" class="loading">
+                            <div class="spinner"></div>
+                            Loading products...
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Import Section -->
+            <section id="import" class="content-section">
+                <div class="content-header">
+                    <h1 class="page-title">Import Products</h1>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Bulk Product Import</h2>
+                    </div>
+                    <div class="card-content">
+                        <div class="form-group">
+                            <label class="form-label" for="csvFile">Select CSV File</label>
+                            <input type="file" id="csvFile" class="form-input" accept=".csv">
+                        </div>
+                        
+                        <button class="btn btn-primary" onclick="importProducts()">
+                            <i class="fas fa-upload"></i>
+                            Import Products
+                        </button>
+                        
+                        <div id="importProgress" style="margin-top: 1rem; display: none;">
+                            <div class="loading">
+                                <div class="spinner"></div>
+                                Importing products...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Other sections would go here -->
+        </main>
+    </div>
+
+    <script src="admin-app.js"></script>
+</body>
+</html>

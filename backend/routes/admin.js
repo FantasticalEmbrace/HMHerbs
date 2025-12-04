@@ -5,6 +5,8 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const HMHerbsScraper = require('../scripts/scrape-hmherbs');
+const ProductImporter = require('../scripts/import-products');
 
 // Admin authentication middleware
 const authenticateAdmin = async (req, res, next) => {
@@ -572,6 +574,49 @@ router.put('/settings', authenticateAdmin, requirePermission('admin'), async (re
     } catch (error) {
         console.error('Settings update error:', error);
         res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Scrape Products from HM Herbs Website
+router.post('/scrape-products', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+    try {
+        console.log('Starting HM Herbs website scraping...');
+        
+        const scraper = new HMHerbsScraper();
+        await scraper.scrapeAllProducts();
+        
+        // Import the scraped products
+        const importer = new ProductImporter();
+        await importer.importFromCSV('./data/scraped-products.csv');
+        
+        res.json({
+            message: 'Products scraped and imported successfully',
+            productsFound: scraper.products.length
+        });
+        
+    } catch (error) {
+        console.error('Scraping error:', error);
+        res.status(500).json({ error: 'Failed to scrape products: ' + error.message });
+    }
+});
+
+// Import Products from CSV
+router.post('/import-products', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+    try {
+        // Handle file upload (you'd need multer middleware for this)
+        // For now, we'll assume the file is already uploaded
+        
+        const importer = new ProductImporter();
+        await importer.importFromCSV('./data/uploaded-products.csv');
+        
+        res.json({
+            message: 'Products imported successfully',
+            imported: importer.importStats.success
+        });
+        
+    } catch (error) {
+        console.error('Import error:', error);
+        res.status(500).json({ error: 'Failed to import products: ' + error.message });
     }
 });
 
