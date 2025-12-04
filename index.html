@@ -3,17 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="H&M Herbs & Vitamins - Your trusted source for premium natural health products, herbs, vitamins, and wellness supplements.">
-    <meta name="keywords" content="herbs, vitamins, supplements, natural health, wellness, organic, HM Herbs">
+    <meta name="description" content="H&M Herbs & Vitamins - Your trusted source for premium natural health products, herbs, vitamins, and wellness supplements. Over 10,000 products organized by health conditions and brands.">
+    <meta name="keywords" content="herbs, vitamins, supplements, natural health, wellness, organic, HM Herbs, blood pressure, heart health, allergies, EDSA, electro dermal stress analysis">
     <meta name="author" content="H&M Herbs & Vitamins">
     <meta name="robots" content="index, follow">
     <meta property="og:title" content="H&M Herbs & Vitamins - Premium Natural Health Products">
-    <meta property="og:description" content="Discover premium herbs, vitamins, and natural health supplements for your wellness journey.">
+    <meta property="og:description" content="Discover over 10,000 premium herbs, vitamins, and natural health supplements organized by health conditions. Plus EDSA service available.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://hmherbs.com">
     <link rel="canonical" href="https://hmherbs.com">
     
-    <title>H&M Herbs & Vitamins - Premium Natural Health Products</title>
+    <title>H&M Herbs & Vitamins - Premium Natural Health Products & EDSA Service</title>
     
     <!-- Stylesheets -->
     <link rel="stylesheet" href="styles.css">
@@ -73,7 +73,9 @@
                     <ul class="nav-menu" id="nav-menu" role="menubar">
                         <li role="none"><a href="#home" role="menuitem">Home</a></li>
                         <li role="none"><a href="#products" role="menuitem">Products</a></li>
-                        <li role="none"><a href="#categories" role="menuitem">Categories</a></li>
+                        <li role="none"><a href="#health-categories" role="menuitem">Health Conditions</a></li>
+                        <li role="none"><a href="#brands" role="menuitem">Brands</a></li>
+                        <li role="none"><a href="#edsa-service" role="menuitem" class="edsa-nav-link">EDSA Service</a></li>
                         <li role="none"><a href="#about" role="menuitem">About</a></li>
                         <li role="none"><a href="#contact" role="menuitem">Contact</a></li>
                     </ul>
@@ -116,12 +118,14 @@
                     <div class="hero-text">
                         <h1 id="hero-heading">Premium Natural Health Products</h1>
                         <p class="hero-description">
-                            Discover our carefully curated selection of herbs, vitamins, and natural supplements 
-                            to support your wellness journey. Quality you can trust, results you can feel.
+                            Discover over 10,000 carefully curated herbs, vitamins, and natural supplements 
+                            organized by health conditions and brands. Plus professional EDSA health analysis service.
+                            Quality you can trust, results you can feel.
                         </p>
                         <div class="hero-actions">
                             <a href="#products" class="btn btn-primary">Shop Now</a>
-                            <a href="#about" class="btn btn-outline">Learn More</a>
+                            <a href="#health-categories" class="btn btn-secondary">Health Conditions</a>
+                            <a href="#edsa-service" class="btn btn-accent">EDSA Service</a>
                         </div>
                     </div>
                     <div class="hero-image">
@@ -146,57 +150,70 @@
             </div>
         </section>
 
-        <!-- Categories Section -->
-        <section class="categories" id="categories" aria-labelledby="categories-heading">
+        <!-- Health Categories Section -->
+        <section class="health-categories" id="health-categories" aria-labelledby="health-categories-heading">
             <div class="container">
                 <div class="section-header">
-                    <h2 id="categories-heading">Shop by Category</h2>
-                    <p>Find exactly what you need for your health and wellness goals</p>
+                    <h2 id="health-categories-heading">Shop by Health Condition</h2>
+                    <p>Find products specifically for your health needs - organized by condition</p>
                 </div>
-                <div class="categories-grid">
-                    <div class="category-card">
-                        <div class="category-icon">
-                            <i class="fas fa-leaf" aria-hidden="true"></i>
+                <div class="health-categories-grid" id="health-categories-grid">
+                    <!-- Health categories will be dynamically loaded here -->
+                </div>
+            </div>
+        </section>
+
+        <!-- EDSA Service Section -->
+        <section class="edsa-service" id="edsa-service" aria-labelledby="edsa-heading">
+            <div class="container">
+                <div class="edsa-content">
+                    <div class="edsa-text">
+                        <h2 id="edsa-heading">EDSA - Electro Dermal Stress Analysis</h2>
+                        <p class="edsa-description">
+                            Experience our professional EDSA service - a non-invasive health assessment technique 
+                            that provides valuable insights into your body's stress levels and overall wellness.
+                        </p>
+                        <div class="edsa-features">
+                            <div class="edsa-feature">
+                                <i class="fas fa-stethoscope" aria-hidden="true"></i>
+                                <span>Non-invasive assessment</span>
+                            </div>
+                            <div class="edsa-feature">
+                                <i class="fas fa-chart-line" aria-hidden="true"></i>
+                                <span>Detailed stress analysis</span>
+                            </div>
+                            <div class="edsa-feature">
+                                <i class="fas fa-user-md" aria-hidden="true"></i>
+                                <span>Professional consultation</span>
+                            </div>
                         </div>
-                        <h3>Herbs & Botanicals</h3>
-                        <p>Pure, organic herbs and botanical extracts for natural wellness support.</p>
-                        <a href="#herbs" class="category-link" aria-label="Browse herbs and botanicals">
-                            Explore Collection
-                        </a>
-                    </div>
-                    
-                    <div class="category-card">
-                        <div class="category-icon">
-                            <i class="fas fa-pills" aria-hidden="true"></i>
+                        <div class="edsa-pricing">
+                            <span class="edsa-price">$75.00</span>
+                            <span class="edsa-price-note">per session</span>
                         </div>
-                        <h3>Vitamins & Minerals</h3>
-                        <p>Essential vitamins and minerals to support your daily nutritional needs.</p>
-                        <a href="#vitamins" class="category-link" aria-label="Browse vitamins and minerals">
-                            Explore Collection
-                        </a>
+                        <button class="btn btn-primary edsa-book-btn" onclick="openEDSABooking()">
+                            <i class="fas fa-calendar-plus" aria-hidden="true"></i>
+                            Book EDSA Session
+                        </button>
                     </div>
-                    
-                    <div class="category-card">
-                        <div class="category-icon">
-                            <i class="fas fa-heart" aria-hidden="true"></i>
-                        </div>
-                        <h3>Women's Health</h3>
-                        <p>Specialized formulations designed to support women's unique health needs.</p>
-                        <a href="#womens-health" class="category-link" aria-label="Browse women's health products">
-                            Explore Collection
-                        </a>
+                    <div class="edsa-image">
+                        <img src="https://images.unsplash.com/photo-1559757175-0eb30cd8c063?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" 
+                             alt="Professional health assessment equipment" 
+                             loading="lazy">
                     </div>
-                    
-                    <div class="category-card">
-                        <div class="category-icon">
-                            <i class="fas fa-paw" aria-hidden="true"></i>
-                        </div>
-                        <h3>Pet Health</h3>
-                        <p>Natural health products to keep your furry friends happy and healthy.</p>
-                        <a href="#pet-health" class="category-link" aria-label="Browse pet health products">
-                            Explore Collection
-                        </a>
-                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Brands Section -->
+        <section class="brands" id="brands" aria-labelledby="brands-heading">
+            <div class="container">
+                <div class="section-header">
+                    <h2 id="brands-heading">Shop by Brand</h2>
+                    <p>Trusted brands we carry for your health and wellness needs</p>
+                </div>
+                <div class="brands-grid" id="brands-grid">
+                    <!-- Brands will be dynamically loaded here -->
                 </div>
             </div>
         </section>
@@ -422,4 +439,3 @@
     <script src="ccpa-compliance.js"></script>
 </body>
 </html>
-
