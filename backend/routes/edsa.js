@@ -1,6 +1,7 @@
 // EDSA (Electro Dermal Stress Analysis) Service Routes
 const express = require('express');
 const router = express.Router();
+const { edsaBookingValidation } = require('../middleware/validation');
 
 // Get EDSA service information
 router.get('/info', async (req, res) => {
@@ -28,7 +29,7 @@ router.get('/info', async (req, res) => {
 });
 
 // Book EDSA appointment
-router.post('/book', async (req, res) => {
+router.post('/book', edsaBookingValidation, async (req, res) => {
     try {
         const {
             firstName,

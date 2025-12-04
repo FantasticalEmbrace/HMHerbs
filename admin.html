@@ -5,15 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HM Herbs Admin Panel</title>
     <link rel="icon" type="image/x-icon" href="https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?ixlib=rb-4.0.3&auto=format&fit=crop&w=32&q=80">
-    
+
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap" rel="stylesheet">
-    
+
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
+
     <style>
         /* Admin Panel Styles - Matching Frontend Design */
         :root {
@@ -22,7 +22,7 @@
             --accent-gold: #d4af37;
             --light-green: #f0f7ed;
             --dark-green: #1a3d16;
-            
+
             --gray-50: #f9fafb;
             --gray-100: #f3f4f6;
             --gray-200: #e5e7eb;
@@ -33,16 +33,16 @@
             --gray-700: #374151;
             --gray-800: #1f2937;
             --gray-900: #111827;
-            
+
             --success: #10b981;
             --warning: #f59e0b;
             --error: #ef4444;
             --info: #3b82f6;
-            
+
             --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
             --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
             --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-            
+
             --border-radius: 0.5rem;
             --border-radius-lg: 0.75rem;
         }
@@ -720,24 +720,24 @@
                 </div>
                 <p class="login-subtitle">Sign in to your admin account</p>
             </div>
-            
+
             <form id="loginForm">
                 <div class="form-group">
                     <label class="form-label" for="email">Email Address</label>
                     <input type="email" id="email" class="form-input" required>
                 </div>
-                
+
                 <div class="form-group">
                     <label class="form-label" for="password">Password</label>
                     <input type="password" id="password" class="form-input" required>
                 </div>
-                
+
                 <button type="submit" class="btn btn-primary btn-full-width">
                     <i class="fas fa-sign-in-alt"></i>
                     Sign In
                 </button>
             </form>
-            
+
             <div id="loginError" class="login-error"></div>
         </div>
     </div>
@@ -752,7 +752,7 @@
                     <span>HM Herbs Admin</span>
                 </div>
             </div>
-            
+
             <div class="sidebar-nav">
                 <div class="nav-section">
                     <div class="nav-section-title">Overview</div>
@@ -763,7 +763,7 @@
                         </a>
                     </div>
                 </div>
-                
+
                 <div class="nav-section">
                     <div class="nav-section-title">Catalog</div>
                     <div class="nav-item">
@@ -791,7 +791,7 @@
                         </a>
                     </div>
                 </div>
-                
+
                 <div class="nav-section">
                     <div class="nav-section-title">Sales</div>
                     <div class="nav-item">
@@ -807,7 +807,7 @@
                         </a>
                     </div>
                 </div>
-                
+
                 <div class="nav-section">
                     <div class="nav-section-title">Services</div>
                     <div class="nav-item">
@@ -817,7 +817,7 @@
                         </a>
                     </div>
                 </div>
-                
+
                 <div class="nav-section">
                     <div class="nav-section-title">System</div>
                     <div class="nav-item">
@@ -952,12 +952,12 @@
                             <label class="form-label" for="csvFile">Select CSV File</label>
                             <input type="file" id="csvFile" class="form-input" accept=".csv">
                         </div>
-                        
+
                         <button type="button" class="btn btn-primary" onclick="importProducts()">
                             <i class="fas fa-upload"></i>
                             Import Products
                         </button>
-                        
+
                         <div id="importProgress" style="margin-top: 1rem; display: none;">
                             <div class="loading">
                                 <div class="spinner"></div>

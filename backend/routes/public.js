@@ -3,6 +3,7 @@
 
 const express = require('express');
 const router = express.Router();
+const { emailSubscriptionValidation } = require('../middleware/validation');
 const EmailCampaignService = require('../services/email-campaign');
 
 // Middleware to add database pool to request
@@ -58,7 +59,7 @@ router.get('/email-campaign/active', async (req, res) => {
 });
 
 // Subscribe to email list
-router.post('/email-campaign/subscribe', emailSignupLimiter, async (req, res) => {
+router.post('/email-campaign/subscribe', emailSignupLimiter, emailSubscriptionValidation, async (req, res) => {
     try {
         const emailCampaignService = new EmailCampaignService(req.pool);
         const { email, first_name, last_name, campaign_id } = req.body;
@@ -297,4 +298,3 @@ router.get('/email-campaign/offer-types', (req, res) => {
 });
 
 module.exports = router;
-

@@ -5,7 +5,16 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const rateLimit = require('express-rate-limit');
 const logger = require('../utils/logger');
+const {
+    adminLoginValidation,
+    productValidation,
+    settingsValidation,
+    inventoryAdjustmentValidation,
+    vendorValidation,
+    commonValidations
+} = require('../middleware/validation');
 const HMHerbsScraper = require('../scripts/scrape-hmherbs');
 const ProductImporter = require('../scripts/import-products');
 const InventoryService = require('../services/inventory');
@@ -16,6 +25,18 @@ const POSLoyaltyService = require('../services/pos-loyalty');
 const POSDiscountService = require('../services/pos-discount');
 const EmailCampaignService = require('../services/email-campaign');
 const AnalyticsService = require('../services/analytics');
+
+// Rate limiting for admin authentication
+const adminAuthLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 5, // limit each IP to 5 admin auth attempts per windowMs
+    message: {
+        error: 'Too many admin authentication attempts, please try again later.',
+        retryAfter: '15 minutes'
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
 
 // Admin authentication middleware
 const authenticateAdmin = async (req, res, next) => {
@@ -65,7 +86,7 @@ const requirePermission = (minRole) => {
 };
 
 // Admin Authentication
-router.post('/auth/login', async (req, res) => {
+router.post('/auth/login', adminAuthLimiter, adminLoginValidation, async (req, res) => {
     try {
         const { email, password } = req.body;
 
@@ -260,7 +281,7 @@ router.get('/products', authenticateAdmin, async (req, res) => {
 });
 
 // Create Product
-router.post('/products', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+router.post('/products', authenticateAdmin, requirePermission('manager'), productValidation, async (req, res) => {
     try {
         const {
             sku, name, short_description, long_description, brand_id, category_id,
@@ -563,7 +584,7 @@ router.get('/settings', authenticateAdmin, requirePermission('admin'), async (re
 });
 
 // Update System Settings
-router.put('/settings', authenticateAdmin, requirePermission('admin'), async (req, res) => {
+router.put('/settings', authenticateAdmin, requirePermission('admin'), settingsValidation, async (req, res) => {
     try {
         const { settings } = req.body;
 

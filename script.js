@@ -250,13 +250,14 @@ class HMHerbsApp {
             return '<div class="inventory-status in-stock"><i class="fas fa-check-circle"></i> In Stock</div>';
         }
         
-        // Normal inventory-based logic
+        // Normal inventory-based logic - escape inventory values to prevent XSS
+        const inventoryCount = this.escapeHtml(String(product.inventory));
         if (product.inventory === 0) {
             return '<div class="inventory-status out-of-stock"><i class="fas fa-times-circle"></i> Out of Stock</div>';
         } else if (product.lowStockThreshold && product.inventory <= product.lowStockThreshold) {
-            return `<div class="inventory-status low-stock"><i class="fas fa-exclamation-triangle"></i> Only ${product.inventory} left!</div>`;
+            return `<div class="inventory-status low-stock"><i class="fas fa-exclamation-triangle"></i> Only ${inventoryCount} left!</div>`;
         } else if (product.inventory <= 20) {
-            return `<div class="inventory-status in-stock"><i class="fas fa-check-circle"></i> ${product.inventory} in stock</div>`;
+            return `<div class="inventory-status in-stock"><i class="fas fa-check-circle"></i> ${inventoryCount} in stock</div>`;
         }
         return '<div class="inventory-status in-stock"><i class="fas fa-check-circle"></i> In Stock</div>';
     }

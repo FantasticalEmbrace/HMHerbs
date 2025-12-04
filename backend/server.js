@@ -13,6 +13,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs').promises;
 const logger = require('./utils/logger');
+const { userRegistrationValidation, userLoginValidation } = require('./middleware/validation');
 require('dotenv').config();
 
 const app = express();
@@ -45,6 +46,18 @@ const limiter = rateLimit({
     max: 100 // limit each IP to 100 requests per windowMs
 });
 app.use(limiter);
+
+// Stricter rate limiting for authentication endpoints
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 5, // limit each IP to 5 auth attempts per windowMs
+    message: {
+        error: 'Too many authentication attempts, please try again later.',
+        retryAfter: '15 minutes'
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
 
 // Body parsing
 app.use(express.json({ limit: '10mb' }));
@@ -167,7 +180,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // User Authentication Routes
-app.post('/api/auth/register', async (req, res) => {
+app.post('/api/auth/register', authLimiter, userRegistrationValidation, async (req, res) => {
     try {
         const { email, password, firstName, lastName, phone } = req.body;
 
@@ -224,7 +237,7 @@ app.post('/api/auth/register', async (req, res) => {
     }
 });
 
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', authLimiter, userLoginValidation, async (req, res) => {
     try {
         const { email, password } = req.body;
 
