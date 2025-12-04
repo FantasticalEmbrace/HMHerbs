@@ -803,9 +803,24 @@ function initLazyLoading() {
             entries.forEach(entry => {
                 if (entry.isIntersecting) {
                     const img = entry.target;
+                    
+                    // Add error handling for failed image loads
+                    img.addEventListener('load', () => {
+                        img.classList.remove('lazy');
+                        img.classList.add('loaded');
+                    }, { once: true });
+                    
+                    img.addEventListener('error', () => {
+                        img.classList.remove('lazy');
+                        img.classList.add('error');
+                        console.warn('Failed to load image:', img.dataset.src);
+                        // Set fallback image if available
+                        if (img.dataset.fallback) {
+                            img.src = img.dataset.fallback;
+                        }
+                    }, { once: true });
+                    
                     img.src = img.dataset.src;
-                    img.classList.remove('lazy');
-                    img.classList.add('loaded');
                     observer.unobserve(img);
                 }
             });
@@ -820,9 +835,22 @@ function initLazyLoading() {
     } else {
         // Fallback for browsers without IntersectionObserver
         document.querySelectorAll('img[data-src]').forEach(img => {
+            // Add error handling for fallback mode too
+            img.addEventListener('load', () => {
+                img.classList.remove('lazy');
+                img.classList.add('loaded');
+            }, { once: true });
+            
+            img.addEventListener('error', () => {
+                img.classList.remove('lazy');
+                img.classList.add('error');
+                console.warn('Failed to load image:', img.dataset.src);
+                if (img.dataset.fallback) {
+                    img.src = img.dataset.fallback;
+                }
+            }, { once: true });
+            
             img.src = img.dataset.src;
-            img.classList.remove('lazy');
-            img.classList.add('loaded');
         });
     }
 }
@@ -880,11 +908,37 @@ function registerServiceWorker() {
             navigator.serviceWorker.register('/service-worker.js')
                 .then(registration => {
                     console.log('SW registered: ', registration);
+                    
+                    // Check if service worker is actually controlling the page
+                    if (!navigator.serviceWorker.controller) {
+                        console.info('Service worker registered but not yet controlling the page');
+                    }
+                    
+                    // Listen for updates
+                    registration.addEventListener('updatefound', () => {
+                        console.log('Service worker update found');
+                    });
                 })
                 .catch(registrationError => {
-                    console.log('SW registration failed: ', registrationError);
+                    console.error('SW registration failed: ', registrationError);
+                    
+                    // Provide more detailed error information
+                    if (registrationError.name === 'SecurityError') {
+                        console.warn('Service Worker registration failed due to security restrictions. HTTPS required.');
+                    } else if (registrationError.name === 'NetworkError') {
+                        console.warn('Service Worker registration failed due to network issues. Retrying in 30 seconds...');
+                        // Retry after network issues
+                        setTimeout(() => {
+                            registerServiceWorker();
+                        }, 30000);
+                    }
+                    
+                    // Graceful degradation - app continues to work without SW
+                    console.info('App will continue to work without offline capabilities');
                 });
         });
+    } else {
+        console.info('Service Workers not supported in this browser');
     }
 }
 
