@@ -404,3 +404,368 @@ CREATE TABLE inventory_transactions (
     INDEX idx_type (type),
     INDEX idx_created_at (created_at)
 );
+
+-- Vendor Management System
+CREATE TABLE vendors (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(255) NOT NULL,
+    company_name VARCHAR(255),
+    contact_person VARCHAR(255),
+    email VARCHAR(255),
+    phone VARCHAR(50),
+    website VARCHAR(255),
+    
+    -- Address Information
+    address_line1 VARCHAR(255),
+    address_line2 VARCHAR(255),
+    city VARCHAR(100),
+    state VARCHAR(100),
+    postal_code VARCHAR(20),
+    country VARCHAR(100) DEFAULT 'United States',
+    
+    -- Business Information
+    tax_id VARCHAR(50),
+    business_license VARCHAR(100),
+    payment_terms ENUM('net_15', 'net_30', 'net_45', 'net_60', 'cod', 'prepaid') DEFAULT 'net_30',
+    currency VARCHAR(3) DEFAULT 'USD',
+    
+    -- Integration Settings
+    catalog_url VARCHAR(500),
+    catalog_format ENUM('csv', 'xml', 'json', 'api') DEFAULT 'csv',
+    catalog_auth_type ENUM('none', 'basic', 'bearer', 'api_key') DEFAULT 'none',
+    catalog_auth_credentials JSON,
+    auto_sync_enabled BOOLEAN DEFAULT FALSE,
+    sync_frequency ENUM('hourly', 'daily', 'weekly', 'manual') DEFAULT 'daily',
+    
+    -- Status and Tracking
+    status ENUM('active', 'inactive', 'pending', 'suspended') DEFAULT 'pending',
+    rating DECIMAL(3,2) DEFAULT 0.00,
+    total_products INT DEFAULT 0,
+    last_catalog_sync TIMESTAMP NULL,
+    
+    -- Audit Fields
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    created_by INT,
+    
+    FOREIGN KEY (created_by) REFERENCES admin_users(id) ON DELETE SET NULL,
+    INDEX idx_name (name),
+    INDEX idx_status (status),
+    INDEX idx_email (email)
+);
+
+-- Vendor Catalog Import History
+CREATE TABLE vendor_catalog_imports (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    vendor_id INT NOT NULL,
+    import_type ENUM('manual', 'scheduled', 'webhook') DEFAULT 'manual',
+    status ENUM('pending', 'processing', 'completed', 'failed') DEFAULT 'pending',
+    
+    -- Import Statistics
+    total_records INT DEFAULT 0,
+    processed_records INT DEFAULT 0,
+    new_products INT DEFAULT 0,
+    updated_products INT DEFAULT 0,
+    failed_records INT DEFAULT 0,
+    
+    -- File Information
+    source_file VARCHAR(255),
+    file_size INT,
+    
+    -- Results and Errors
+    import_log TEXT,
+    error_details JSON,
+    
+    -- Timing
+    started_at TIMESTAMP NULL,
+    completed_at TIMESTAMP NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (vendor_id) REFERENCES vendors(id) ON DELETE CASCADE,
+    INDEX idx_vendor_id (vendor_id),
+    INDEX idx_status (status),
+    INDEX idx_created_at (created_at)
+);
+
+-- Vendor Product Mapping
+CREATE TABLE vendor_products (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    vendor_id INT NOT NULL,
+    product_id INT NOT NULL,
+    vendor_sku VARCHAR(255),
+    vendor_name VARCHAR(500),
+    vendor_price DECIMAL(10,2),
+    vendor_cost DECIMAL(10,2),
+    minimum_order_quantity INT DEFAULT 1,
+    lead_time_days INT DEFAULT 0,
+    
+    -- Mapping Status
+    mapping_status ENUM('mapped', 'unmapped', 'conflict', 'discontinued') DEFAULT 'mapped',
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (vendor_id) REFERENCES vendors(id) ON DELETE CASCADE,
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_vendor_product (vendor_id, product_id),
+    INDEX idx_vendor_sku (vendor_sku),
+    INDEX idx_mapping_status (mapping_status)
+);
+
+-- POS System Integration
+CREATE TABLE pos_systems (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(255) NOT NULL,
+    system_type ENUM('square', 'shopify_pos', 'lightspeed', 'toast', 'clover', 'custom') NOT NULL,
+    
+    -- Connection Settings
+    api_endpoint VARCHAR(500),
+    api_version VARCHAR(50),
+    auth_type ENUM('oauth', 'api_key', 'basic', 'bearer') DEFAULT 'api_key',
+    auth_credentials JSON,
+    
+    -- Sync Configuration
+    sync_inventory BOOLEAN DEFAULT TRUE,
+    sync_orders BOOLEAN DEFAULT TRUE,
+    sync_customers BOOLEAN DEFAULT FALSE,
+    sync_frequency ENUM('real_time', 'every_5min', 'hourly', 'daily') DEFAULT 'hourly',
+    
+    -- Status
+    status ENUM('active', 'inactive', 'error', 'testing') DEFAULT 'testing',
+    last_sync TIMESTAMP NULL,
+    last_error TEXT,
+    
+    -- Audit
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    created_by INT,
+    
+    FOREIGN KEY (created_by) REFERENCES admin_users(id) ON DELETE SET NULL,
+    INDEX idx_system_type (system_type),
+    INDEX idx_status (status)
+);
+
+-- POS Transaction Log
+CREATE TABLE pos_transactions (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    pos_system_id INT NOT NULL,
+    transaction_type ENUM('inventory_sync', 'order_sync', 'customer_sync', 'webhook') NOT NULL,
+    direction ENUM('inbound', 'outbound') NOT NULL,
+    
+    -- Transaction Details
+    external_id VARCHAR(255),
+    entity_type ENUM('product', 'order', 'customer', 'inventory') NOT NULL,
+    entity_id INT,
+    
+    -- Status and Results
+    status ENUM('pending', 'processing', 'completed', 'failed', 'retrying') DEFAULT 'pending',
+    attempts INT DEFAULT 0,
+    max_attempts INT DEFAULT 3,
+    
+    -- Data
+    request_data JSON,
+    response_data JSON,
+    error_message TEXT,
+    
+    -- Timing
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    processed_at TIMESTAMP NULL,
+    
+    FOREIGN KEY (pos_system_id) REFERENCES pos_systems(id) ON DELETE CASCADE,
+    INDEX idx_pos_system_id (pos_system_id),
+    INDEX idx_transaction_type (transaction_type),
+    INDEX idx_status (status),
+    INDEX idx_external_id (external_id)
+);
+
+-- Gift Card System
+CREATE TABLE gift_cards (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    card_number VARCHAR(50) UNIQUE NOT NULL,
+    card_code VARCHAR(20) UNIQUE NOT NULL,
+    
+    -- Card Details
+    initial_amount DECIMAL(10,2) NOT NULL,
+    current_balance DECIMAL(10,2) NOT NULL,
+    currency VARCHAR(3) DEFAULT 'USD',
+    
+    -- Status and Dates
+    status ENUM('active', 'redeemed', 'expired', 'cancelled', 'suspended') DEFAULT 'active',
+    issued_date DATE NOT NULL,
+    expiry_date DATE,
+    
+    -- Purchase Information
+    purchased_by_user_id INT NULL,
+    purchased_by_email VARCHAR(255),
+    purchase_order_id INT NULL,
+    
+    -- Recipient Information
+    recipient_name VARCHAR(255),
+    recipient_email VARCHAR(255),
+    personal_message TEXT,
+    
+    -- Admin Information
+    created_by INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (purchased_by_user_id) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (purchase_order_id) REFERENCES orders(id) ON DELETE SET NULL,
+    FOREIGN KEY (created_by) REFERENCES admin_users(id) ON DELETE SET NULL,
+    INDEX idx_card_number (card_number),
+    INDEX idx_card_code (card_code),
+    INDEX idx_status (status),
+    INDEX idx_expiry_date (expiry_date)
+);
+
+-- Gift Card Transactions
+CREATE TABLE gift_card_transactions (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    gift_card_id INT NOT NULL,
+    transaction_type ENUM('purchase', 'redemption', 'refund', 'adjustment', 'expiry') NOT NULL,
+    
+    -- Transaction Details
+    amount DECIMAL(10,2) NOT NULL,
+    balance_before DECIMAL(10,2) NOT NULL,
+    balance_after DECIMAL(10,2) NOT NULL,
+    
+    -- Reference Information
+    order_id INT NULL,
+    user_id INT NULL,
+    admin_id INT NULL,
+    reference_number VARCHAR(100),
+    notes TEXT,
+    
+    -- Audit
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (gift_card_id) REFERENCES gift_cards(id) ON DELETE CASCADE,
+    FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (admin_id) REFERENCES admin_users(id) ON DELETE SET NULL,
+    INDEX idx_gift_card_id (gift_card_id),
+    INDEX idx_transaction_type (transaction_type),
+    INDEX idx_created_at (created_at)
+);
+
+-- Loyalty Programs
+CREATE TABLE loyalty_programs (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    program_type ENUM('points', 'cashback', 'tier_based', 'hybrid') DEFAULT 'points',
+    
+    -- Program Settings
+    is_active BOOLEAN DEFAULT TRUE,
+    auto_enrollment BOOLEAN DEFAULT TRUE,
+    points_per_dollar DECIMAL(5,2) DEFAULT 1.00,
+    dollar_per_point DECIMAL(5,4) DEFAULT 0.01,
+    
+    -- Tier Settings (for tier-based programs)
+    enable_tiers BOOLEAN DEFAULT FALSE,
+    tier_upgrade_threshold DECIMAL(10,2) DEFAULT 0.00,
+    tier_downgrade_enabled BOOLEAN DEFAULT FALSE,
+    
+    -- Expiration Settings
+    points_expire BOOLEAN DEFAULT FALSE,
+    points_expiry_months INT DEFAULT 12,
+    
+    -- Minimum Redemption
+    minimum_redemption_points INT DEFAULT 100,
+    maximum_redemption_points INT DEFAULT 10000,
+    
+    -- Audit
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    created_by INT,
+    
+    FOREIGN KEY (created_by) REFERENCES admin_users(id) ON DELETE SET NULL,
+    INDEX idx_program_type (program_type),
+    INDEX idx_is_active (is_active)
+);
+
+-- Loyalty Program Tiers
+CREATE TABLE loyalty_tiers (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    program_id INT NOT NULL,
+    tier_name VARCHAR(100) NOT NULL,
+    tier_level INT NOT NULL,
+    
+    -- Tier Requirements
+    minimum_spend DECIMAL(10,2) DEFAULT 0.00,
+    minimum_points INT DEFAULT 0,
+    
+    -- Tier Benefits
+    points_multiplier DECIMAL(3,2) DEFAULT 1.00,
+    discount_percentage DECIMAL(5,2) DEFAULT 0.00,
+    free_shipping BOOLEAN DEFAULT FALSE,
+    early_access BOOLEAN DEFAULT FALSE,
+    
+    -- Tier Colors/Branding
+    tier_color VARCHAR(7) DEFAULT '#000000',
+    tier_icon VARCHAR(50),
+    
+    FOREIGN KEY (program_id) REFERENCES loyalty_programs(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_program_tier (program_id, tier_level),
+    INDEX idx_program_id (program_id)
+);
+
+-- Customer Loyalty Accounts
+CREATE TABLE customer_loyalty (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT NOT NULL,
+    program_id INT NOT NULL,
+    
+    -- Current Status
+    current_points INT DEFAULT 0,
+    lifetime_points INT DEFAULT 0,
+    current_tier_id INT NULL,
+    tier_progress DECIMAL(5,2) DEFAULT 0.00,
+    
+    -- Statistics
+    total_earned INT DEFAULT 0,
+    total_redeemed INT DEFAULT 0,
+    total_spent DECIMAL(10,2) DEFAULT 0.00,
+    
+    -- Dates
+    enrolled_date DATE NOT NULL,
+    last_activity_date DATE,
+    tier_achieved_date DATE,
+    
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (program_id) REFERENCES loyalty_programs(id) ON DELETE CASCADE,
+    FOREIGN KEY (current_tier_id) REFERENCES loyalty_tiers(id) ON DELETE SET NULL,
+    UNIQUE KEY unique_user_program (user_id, program_id),
+    INDEX idx_user_id (user_id),
+    INDEX idx_program_id (program_id)
+);
+
+-- Loyalty Transactions
+CREATE TABLE loyalty_transactions (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    customer_loyalty_id INT NOT NULL,
+    transaction_type ENUM('earn', 'redeem', 'expire', 'adjustment', 'bonus', 'refund') NOT NULL,
+    
+    -- Transaction Details
+    points_change INT NOT NULL,
+    points_balance_before INT NOT NULL,
+    points_balance_after INT NOT NULL,
+    
+    -- Reference Information
+    order_id INT NULL,
+    admin_id INT NULL,
+    reference_number VARCHAR(100),
+    description TEXT,
+    
+    -- Expiration (for earned points)
+    expires_at DATE NULL,
+    
+    -- Audit
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (customer_loyalty_id) REFERENCES customer_loyalty(id) ON DELETE CASCADE,
+    FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL,
+    FOREIGN KEY (admin_id) REFERENCES admin_users(id) ON DELETE SET NULL,
+    INDEX idx_customer_loyalty_id (customer_loyalty_id),
+    INDEX idx_transaction_type (transaction_type),
+    INDEX idx_expires_at (expires_at),
+    INDEX idx_created_at (created_at)
+);

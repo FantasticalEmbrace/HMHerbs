@@ -8,6 +8,11 @@ const jwt = require('jsonwebtoken');
 const HMHerbsScraper = require('../scripts/scrape-hmherbs');
 const ProductImporter = require('../scripts/import-products');
 const InventoryService = require('../services/inventory');
+const VendorService = require('../services/vendor');
+const POSService = require('../services/pos');
+const GiftCardService = require('../services/giftcard');
+const LoyaltyService = require('../services/loyalty');
+const AnalyticsService = require('../services/analytics');
 
 // Admin authentication middleware
 const authenticateAdmin = async (req, res, next) => {
@@ -772,6 +777,546 @@ router.get('/dashboard/inventory-stats', authenticateAdmin, async (req, res) => 
     } catch (error) {
         console.error('Get inventory stats error:', error);
         res.status(500).json({ error: 'Failed to get inventory statistics' });
+    }
+});
+
+// ===== VENDOR MANAGEMENT ENDPOINTS =====
+
+// Get all vendors
+router.get('/vendors', authenticateAdmin, async (req, res) => {
+    try {
+        const vendorService = new VendorService(req.pool);
+        const vendors = await vendorService.getVendors(req.query);
+        res.json({ vendors });
+    } catch (error) {
+        console.error('Get vendors error:', error);
+        res.status(500).json({ error: 'Failed to get vendors' });
+    }
+});
+
+// Create new vendor
+router.post('/vendors', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+    try {
+        const vendorService = new VendorService(req.pool);
+        const vendor = await vendorService.createVendor(req.body, req.admin.id);
+        res.status(201).json({ vendor });
+    } catch (error) {
+        console.error('Create vendor error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get vendor by ID
+router.get('/vendors/:id', authenticateAdmin, async (req, res) => {
+    try {
+        const vendorService = new VendorService(req.pool);
+        const vendor = await vendorService.getVendorById(req.params.id);
+        res.json({ vendor });
+    } catch (error) {
+        console.error('Get vendor error:', error);
+        res.status(404).json({ error: error.message });
+    }
+});
+
+// Update vendor
+router.put('/vendors/:id', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+    try {
+        const vendorService = new VendorService(req.pool);
+        const vendor = await vendorService.updateVendor(req.params.id, req.body, req.admin.id);
+        res.json({ vendor });
+    } catch (error) {
+        console.error('Update vendor error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Delete vendor
+router.delete('/vendors/:id', authenticateAdmin, requirePermission('admin'), async (req, res) => {
+    try {
+        const vendorService = new VendorService(req.pool);
+        const result = await vendorService.deleteVendor(req.params.id, req.admin.id);
+        res.json(result);
+    } catch (error) {
+        console.error('Delete vendor error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Import vendor catalog
+router.post('/vendors/:id/import-catalog', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+    try {
+        const vendorService = new VendorService(req.pool);
+        const result = await vendorService.importCatalog(req.params.id, 'manual');
+        res.json(result);
+    } catch (error) {
+        console.error('Import catalog error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get vendor analytics
+router.get('/vendors/:id/analytics', authenticateAdmin, async (req, res) => {
+    try {
+        const vendorService = new VendorService(req.pool);
+        const analytics = await vendorService.getVendorAnalytics(req.params.id, req.query.days || 30);
+        res.json({ analytics });
+    } catch (error) {
+        console.error('Get vendor analytics error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get vendor import history
+router.get('/vendors/:id/import-history', authenticateAdmin, async (req, res) => {
+    try {
+        const vendorService = new VendorService(req.pool);
+        const history = await vendorService.getImportHistory(req.params.id, req.query.limit || 20);
+        res.json({ history });
+    } catch (error) {
+        console.error('Get import history error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ===== POS INTEGRATION ENDPOINTS =====
+
+// Get all POS systems
+router.get('/pos/systems', authenticateAdmin, async (req, res) => {
+    try {
+        const posService = new POSService(req.pool, new InventoryService(req.pool));
+        const systems = await posService.getPOSSystems(req.query);
+        res.json({ systems });
+    } catch (error) {
+        console.error('Get POS systems error:', error);
+        res.status(500).json({ error: 'Failed to get POS systems' });
+    }
+});
+
+// Create new POS system
+router.post('/pos/systems', authenticateAdmin, requirePermission('admin'), async (req, res) => {
+    try {
+        const posService = new POSService(req.pool, new InventoryService(req.pool));
+        const system = await posService.createPOSSystem(req.body, req.admin.id);
+        res.status(201).json({ system });
+    } catch (error) {
+        console.error('Create POS system error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get POS system by ID
+router.get('/pos/systems/:id', authenticateAdmin, async (req, res) => {
+    try {
+        const posService = new POSService(req.pool, new InventoryService(req.pool));
+        const system = await posService.getPOSSystemById(req.params.id);
+        res.json({ system });
+    } catch (error) {
+        console.error('Get POS system error:', error);
+        res.status(404).json({ error: error.message });
+    }
+});
+
+// Update POS system
+router.put('/pos/systems/:id', authenticateAdmin, requirePermission('admin'), async (req, res) => {
+    try {
+        const posService = new POSService(req.pool, new InventoryService(req.pool));
+        const system = await posService.updatePOSSystem(req.params.id, req.body, req.admin.id);
+        res.json({ system });
+    } catch (error) {
+        console.error('Update POS system error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Test POS connection
+router.post('/pos/systems/:id/test', authenticateAdmin, async (req, res) => {
+    try {
+        const posService = new POSService(req.pool, new InventoryService(req.pool));
+        const result = await posService.testConnection(req.params.id);
+        res.json(result);
+    } catch (error) {
+        console.error('Test POS connection error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Sync inventory to POS
+router.post('/pos/systems/:id/sync-inventory', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+    try {
+        const posService = new POSService(req.pool, new InventoryService(req.pool));
+        const result = await posService.syncInventoryToPOS(req.params.id, req.body.product_ids);
+        res.json(result);
+    } catch (error) {
+        console.error('Sync inventory to POS error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Sync inventory from POS
+router.post('/pos/systems/:id/sync-from-pos', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+    try {
+        const posService = new POSService(req.pool, new InventoryService(req.pool));
+        const result = await posService.syncInventoryFromPOS(req.params.id);
+        res.json(result);
+    } catch (error) {
+        console.error('Sync inventory from POS error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// POS webhook endpoint
+router.post('/pos/webhook/:systemId', async (req, res) => {
+    try {
+        const posService = new POSService(req.pool, new InventoryService(req.pool));
+        const signature = req.headers['x-webhook-signature'] || req.headers['x-signature'];
+        const result = await posService.handleWebhook(req.params.systemId, req.body, signature);
+        res.json(result);
+    } catch (error) {
+        console.error('POS webhook error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ===== GIFT CARD MANAGEMENT ENDPOINTS =====
+
+// Get all gift cards
+router.get('/giftcards', authenticateAdmin, async (req, res) => {
+    try {
+        const giftCardService = new GiftCardService(req.pool);
+        const giftCards = await giftCardService.getGiftCards(req.query);
+        res.json({ giftCards });
+    } catch (error) {
+        console.error('Get gift cards error:', error);
+        res.status(500).json({ error: 'Failed to get gift cards' });
+    }
+});
+
+// Generate single gift card
+router.post('/giftcards/generate', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+    try {
+        const giftCardService = new GiftCardService(req.pool);
+        const giftCard = await giftCardService.generateGiftCard(req.body, req.admin.id);
+        res.status(201).json({ giftCard });
+    } catch (error) {
+        console.error('Generate gift card error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Generate bulk gift cards
+router.post('/giftcards/generate-bulk', authenticateAdmin, requirePermission('admin'), async (req, res) => {
+    try {
+        const giftCardService = new GiftCardService(req.pool);
+        const giftCards = await giftCardService.generateBulkGiftCards(req.body, req.admin.id);
+        res.status(201).json({ giftCards });
+    } catch (error) {
+        console.error('Generate bulk gift cards error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get gift card by ID
+router.get('/giftcards/:id', authenticateAdmin, async (req, res) => {
+    try {
+        const giftCardService = new GiftCardService(req.pool);
+        const giftCard = await giftCardService.getGiftCardById(req.params.id);
+        res.json({ giftCard });
+    } catch (error) {
+        console.error('Get gift card error:', error);
+        res.status(404).json({ error: error.message });
+    }
+});
+
+// Update gift card status
+router.put('/giftcards/:id/status', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+    try {
+        const giftCardService = new GiftCardService(req.pool);
+        const result = await giftCardService.updateGiftCardStatus(
+            req.params.id, 
+            req.body.status, 
+            req.admin.id, 
+            req.body.notes
+        );
+        res.json(result);
+    } catch (error) {
+        console.error('Update gift card status error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Adjust gift card balance
+router.post('/giftcards/:id/adjust-balance', authenticateAdmin, requirePermission('admin'), async (req, res) => {
+    try {
+        const giftCardService = new GiftCardService(req.pool);
+        const result = await giftCardService.adjustGiftCardBalance(
+            req.params.id, 
+            req.body.adjustment, 
+            req.admin.id, 
+            req.body.notes
+        );
+        res.json(result);
+    } catch (error) {
+        console.error('Adjust gift card balance error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get gift card transactions
+router.get('/giftcards/:id/transactions', authenticateAdmin, async (req, res) => {
+    try {
+        const giftCardService = new GiftCardService(req.pool);
+        const transactions = await giftCardService.getGiftCardTransactions(req.params.id, req.query.limit || 50);
+        res.json({ transactions });
+    } catch (error) {
+        console.error('Get gift card transactions error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get gift card analytics
+router.get('/giftcards/analytics', authenticateAdmin, async (req, res) => {
+    try {
+        const giftCardService = new GiftCardService(req.pool);
+        const analytics = await giftCardService.getGiftCardAnalytics(req.query.days || 30);
+        res.json({ analytics });
+    } catch (error) {
+        console.error('Get gift card analytics error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Process expired gift cards
+router.post('/giftcards/process-expired', authenticateAdmin, requirePermission('admin'), async (req, res) => {
+    try {
+        const giftCardService = new GiftCardService(req.pool);
+        const result = await giftCardService.processExpiredGiftCards();
+        res.json(result);
+    } catch (error) {
+        console.error('Process expired gift cards error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ===== LOYALTY PROGRAM ENDPOINTS =====
+
+// Get all loyalty programs
+router.get('/loyalty/programs', authenticateAdmin, async (req, res) => {
+    try {
+        const loyaltyService = new LoyaltyService(req.pool);
+        const programs = await loyaltyService.getLoyaltyPrograms(req.query);
+        res.json({ programs });
+    } catch (error) {
+        console.error('Get loyalty programs error:', error);
+        res.status(500).json({ error: 'Failed to get loyalty programs' });
+    }
+});
+
+// Create loyalty program
+router.post('/loyalty/programs', authenticateAdmin, requirePermission('admin'), async (req, res) => {
+    try {
+        const loyaltyService = new LoyaltyService(req.pool);
+        const program = await loyaltyService.createLoyaltyProgram(req.body, req.admin.id);
+        res.status(201).json({ program });
+    } catch (error) {
+        console.error('Create loyalty program error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get loyalty program by ID
+router.get('/loyalty/programs/:id', authenticateAdmin, async (req, res) => {
+    try {
+        const loyaltyService = new LoyaltyService(req.pool);
+        const program = await loyaltyService.getLoyaltyProgramById(req.params.id);
+        res.json({ program });
+    } catch (error) {
+        console.error('Get loyalty program error:', error);
+        res.status(404).json({ error: error.message });
+    }
+});
+
+// Update loyalty program
+router.put('/loyalty/programs/:id', authenticateAdmin, requirePermission('admin'), async (req, res) => {
+    try {
+        const loyaltyService = new LoyaltyService(req.pool);
+        const program = await loyaltyService.updateLoyaltyProgram(req.params.id, req.body, req.admin.id);
+        res.json({ program });
+    } catch (error) {
+        console.error('Update loyalty program error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Create loyalty tier
+router.post('/loyalty/programs/:id/tiers', authenticateAdmin, requirePermission('admin'), async (req, res) => {
+    try {
+        const loyaltyService = new LoyaltyService(req.pool);
+        const tierId = await loyaltyService.createLoyaltyTier(req.params.id, req.body);
+        res.status(201).json({ tier_id: tierId });
+    } catch (error) {
+        console.error('Create loyalty tier error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Update loyalty tier
+router.put('/loyalty/tiers/:id', authenticateAdmin, requirePermission('admin'), async (req, res) => {
+    try {
+        const loyaltyService = new LoyaltyService(req.pool);
+        const result = await loyaltyService.updateLoyaltyTier(req.params.id, req.body);
+        res.json(result);
+    } catch (error) {
+        console.error('Update loyalty tier error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get loyalty customers
+router.get('/loyalty/customers', authenticateAdmin, async (req, res) => {
+    try {
+        const { program_id, limit = 50, offset = 0 } = req.query;
+        
+        let query = `
+            SELECT cl.*, u.email, u.first_name, u.last_name,
+                   lp.name as program_name, lt.tier_name
+            FROM customer_loyalty cl
+            JOIN users u ON cl.user_id = u.id
+            JOIN loyalty_programs lp ON cl.program_id = lp.id
+            LEFT JOIN loyalty_tiers lt ON cl.current_tier_id = lt.id
+            WHERE 1=1
+        `;
+        
+        const params = [];
+        
+        if (program_id) {
+            query += ' AND cl.program_id = ?';
+            params.push(program_id);
+        }
+        
+        query += ' ORDER BY cl.enrolled_date DESC LIMIT ? OFFSET ?';
+        params.push(parseInt(limit), parseInt(offset));
+        
+        const [customers] = await req.pool.execute(query, params);
+        res.json({ customers });
+    } catch (error) {
+        console.error('Get loyalty customers error:', error);
+        res.status(500).json({ error: 'Failed to get loyalty customers' });
+    }
+});
+
+// Adjust customer points
+router.post('/loyalty/customers/:userId/adjust-points', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+    try {
+        const loyaltyService = new LoyaltyService(req.pool);
+        const result = await loyaltyService.adjustPoints(
+            req.params.userId,
+            req.body.program_id,
+            req.body.points_adjustment,
+            req.admin.id,
+            req.body.reason
+        );
+        res.json(result);
+    } catch (error) {
+        console.error('Adjust customer points error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get loyalty analytics
+router.get('/loyalty/analytics', authenticateAdmin, async (req, res) => {
+    try {
+        const loyaltyService = new LoyaltyService(req.pool);
+        const analytics = await loyaltyService.getLoyaltyAnalytics(req.query.program_id, req.query.days || 30);
+        res.json({ analytics });
+    } catch (error) {
+        console.error('Get loyalty analytics error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get loyalty tier distribution
+router.get('/loyalty/programs/:id/tier-distribution', authenticateAdmin, async (req, res) => {
+    try {
+        const loyaltyService = new LoyaltyService(req.pool);
+        const distribution = await loyaltyService.getLoyaltyTierDistribution(req.params.id);
+        res.json({ distribution });
+    } catch (error) {
+        console.error('Get tier distribution error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Process expired loyalty points
+router.post('/loyalty/process-expired-points', authenticateAdmin, requirePermission('admin'), async (req, res) => {
+    try {
+        const loyaltyService = new LoyaltyService(req.pool);
+        const result = await loyaltyService.processExpiredPoints();
+        res.json(result);
+    } catch (error) {
+        console.error('Process expired points error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ===== ANALYTICS AND MONITORING ENDPOINTS =====
+
+// Get comprehensive dashboard overview
+router.get('/analytics/dashboard', authenticateAdmin, async (req, res) => {
+    try {
+        const analyticsService = new AnalyticsService(req.pool);
+        const overview = await analyticsService.getDashboardOverview(req.query.days || 30);
+        res.json({ overview });
+    } catch (error) {
+        console.error('Get dashboard overview error:', error);
+        res.status(500).json({ error: 'Failed to get dashboard overview' });
+    }
+});
+
+// Get vendor performance metrics
+router.get('/analytics/vendors', authenticateAdmin, async (req, res) => {
+    try {
+        const analyticsService = new AnalyticsService(req.pool);
+        const metrics = await analyticsService.getVendorPerformanceMetrics(req.query.vendor_id, req.query.days || 30);
+        res.json({ metrics });
+    } catch (error) {
+        console.error('Get vendor metrics error:', error);
+        res.status(500).json({ error: 'Failed to get vendor metrics' });
+    }
+});
+
+// Get POS system health
+router.get('/analytics/pos-health', authenticateAdmin, async (req, res) => {
+    try {
+        const analyticsService = new AnalyticsService(req.pool);
+        const health = await analyticsService.getPOSSystemHealth(req.query.system_id);
+        res.json({ health });
+    } catch (error) {
+        console.error('Get POS health error:', error);
+        res.status(500).json({ error: 'Failed to get POS system health' });
+    }
+});
+
+// Get system alerts
+router.get('/analytics/alerts', authenticateAdmin, async (req, res) => {
+    try {
+        const analyticsService = new AnalyticsService(req.pool);
+        const alerts = await analyticsService.getSystemAlerts();
+        res.json({ alerts });
+    } catch (error) {
+        console.error('Get system alerts error:', error);
+        res.status(500).json({ error: 'Failed to get system alerts' });
+    }
+});
+
+// Get performance metrics
+router.get('/analytics/performance', authenticateAdmin, async (req, res) => {
+    try {
+        const analyticsService = new AnalyticsService(req.pool);
+        const metrics = await analyticsService.getPerformanceMetrics(req.query.hours || 24);
+        res.json({ metrics });
+    } catch (error) {
+        console.error('Get performance metrics error:', error);
+        res.status(500).json({ error: 'Failed to get performance metrics' });
     }
 });
 
