@@ -25,8 +25,13 @@ const authenticateAdmin = async (req, res, next) => {
         return res.status(401).json({ error: 'Admin access token required' });
     }
 
+    if (!process.env.JWT_SECRET) {
+        console.error('CRITICAL: JWT_SECRET environment variable is not set');
+        return res.status(500).json({ error: 'Server configuration error' });
+    }
+
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const [rows] = await req.pool.execute(
             'SELECT id, email, first_name, last_name, role, is_active FROM admin_users WHERE id = ? AND is_active = 1',
             [decoded.adminId]
@@ -94,9 +99,14 @@ router.post('/auth/login', async (req, res) => {
             [admin.id]
         );
 
+        if (!process.env.JWT_SECRET) {
+            console.error('CRITICAL: JWT_SECRET environment variable is not set');
+            return res.status(500).json({ error: 'Server configuration error' });
+        }
+
         const token = jwt.sign(
             { adminId: admin.id },
-            process.env.JWT_SECRET || 'your-secret-key',
+            process.env.JWT_SECRET,
             { expiresIn: '8h' }
         );
 

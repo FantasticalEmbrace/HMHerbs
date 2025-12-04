@@ -640,8 +640,12 @@ class POSService {
 
     // Security Methods
     encryptCredentials(credentials) {
+        if (!process.env.POS_ENCRYPTION_KEY) {
+            throw new Error('CRITICAL: POS_ENCRYPTION_KEY environment variable is not set');
+        }
+        
         const algorithm = 'aes-256-gcm';
-        const key = crypto.scryptSync(process.env.POS_ENCRYPTION_KEY || 'default-key', 'salt', 32);
+        const key = crypto.scryptSync(process.env.POS_ENCRYPTION_KEY, 'salt', 32);
         const iv = crypto.randomBytes(16);
         
         const cipher = crypto.createCipher(algorithm, key);
@@ -660,10 +664,14 @@ class POSService {
     }
 
     decryptCredentials(encryptedData) {
+        if (!process.env.POS_ENCRYPTION_KEY) {
+            throw new Error('CRITICAL: POS_ENCRYPTION_KEY environment variable is not set');
+        }
+        
         try {
             const { encrypted, iv, authTag } = JSON.parse(encryptedData);
             const algorithm = 'aes-256-gcm';
-            const key = crypto.scryptSync(process.env.POS_ENCRYPTION_KEY || 'default-key', 'salt', 32);
+            const key = crypto.scryptSync(process.env.POS_ENCRYPTION_KEY, 'salt', 32);
             
             const decipher = crypto.createDecipher(algorithm, key);
             decipher.setAAD(Buffer.from('pos-credentials'));
@@ -714,4 +722,3 @@ class POSService {
 }
 
 module.exports = POSService;
-

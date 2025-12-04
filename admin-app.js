@@ -378,13 +378,315 @@ async function importProducts() {
 }
 
 function editProduct(productId) {
-    // TODO: Implement product editing modal
-    window.adminApp.showNotification('Product editing coming soon!', 'info');
+    // Create and show product editing modal
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Edit Product</h2>
+                <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="edit-product-form">
+                    <div class="form-group">
+                        <label for="edit-sku">SKU *</label>
+                        <input type="text" id="edit-sku" name="sku" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-name">Product Name *</label>
+                        <input type="text" id="edit-name" name="name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-short-description">Short Description</label>
+                        <textarea id="edit-short-description" name="short_description" rows="2"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-long-description">Long Description</label>
+                        <textarea id="edit-long-description" name="long_description" rows="4"></textarea>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="edit-price">Price *</label>
+                            <input type="number" id="edit-price" name="price" step="0.01" min="0" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="edit-compare-price">Compare Price</label>
+                            <input type="number" id="edit-compare-price" name="compare_price" step="0.01" min="0">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="edit-inventory">Inventory Quantity *</label>
+                            <input type="number" id="edit-inventory" name="inventory_quantity" min="0" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="edit-low-stock">Low Stock Threshold</label>
+                            <input type="number" id="edit-low-stock" name="low_stock_threshold" min="0" value="10">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-weight">Weight (oz)</label>
+                        <input type="number" id="edit-weight" name="weight" step="0.01" min="0">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="edit-is-active" name="is_active" checked>
+                                Active Product
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="edit-is-featured" name="is_featured">
+                                Featured Product
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" onclick="this.closest('.modal').remove()">Cancel</button>
+                        <button type="submit">Update Product</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    modal.style.display = 'block';
+    
+    // Load existing product data
+    loadProductForEdit(productId);
+    
+    // Handle form submission
+    document.getElementById('edit-product-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await updateProduct(productId, new FormData(e.target));
+        modal.remove();
+    });
+}
+
+async function loadProductForEdit(productId) {
+    try {
+        const response = await fetch(`/api/admin/products/${productId}`, {
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+            }
+        });
+        
+        if (response.ok) {
+            const product = await response.json();
+            
+            // Populate form fields
+            document.getElementById('edit-sku').value = product.sku || '';
+            document.getElementById('edit-name').value = product.name || '';
+            document.getElementById('edit-short-description').value = product.short_description || '';
+            document.getElementById('edit-long-description').value = product.long_description || '';
+            document.getElementById('edit-price').value = product.price || '';
+            document.getElementById('edit-compare-price').value = product.compare_price || '';
+            document.getElementById('edit-inventory').value = product.inventory_quantity || '';
+            document.getElementById('edit-low-stock').value = product.low_stock_threshold || '';
+            document.getElementById('edit-weight').value = product.weight || '';
+            document.getElementById('edit-is-active').checked = product.is_active;
+            document.getElementById('edit-is-featured').checked = product.is_featured;
+        } else {
+            window.adminApp.showNotification('Failed to load product data', 'error');
+        }
+    } catch (error) {
+        window.adminApp.showNotification('Error loading product: ' + error.message, 'error');
+    }
+}
+
+async function updateProduct(productId, formData) {
+    try {
+        const productData = {};
+        for (let [key, value] of formData.entries()) {
+            if (key === 'is_active' || key === 'is_featured') {
+                productData[key] = true; // Checkbox was checked
+            } else {
+                productData[key] = value;
+            }
+        }
+        
+        // Handle unchecked checkboxes
+        if (!formData.has('is_active')) productData.is_active = false;
+        if (!formData.has('is_featured')) productData.is_featured = false;
+        
+        const response = await fetch(`/api/admin/products/${productId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+            },
+            body: JSON.stringify(productData)
+        });
+        
+        if (response.ok) {
+            window.adminApp.showNotification('Product updated successfully!', 'success');
+            // Refresh the products list
+            if (typeof loadProducts === 'function') {
+                loadProducts();
+            }
+        } else {
+            const error = await response.json();
+            window.adminApp.showNotification('Failed to update product: ' + error.error, 'error');
+        }
+    } catch (error) {
+        window.adminApp.showNotification('Error updating product: ' + error.message, 'error');
+    }
 }
 
 function showAddProduct() {
-    // TODO: Implement add product modal
-    window.adminApp.showNotification('Add product form coming soon!', 'info');
+    // Create and show add product modal
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Add New Product</h2>
+                <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="add-product-form">
+                    <div class="form-group">
+                        <label for="add-sku">SKU *</label>
+                        <input type="text" id="add-sku" name="sku" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="add-name">Product Name *</label>
+                        <input type="text" id="add-name" name="name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="add-short-description">Short Description</label>
+                        <textarea id="add-short-description" name="short_description" rows="2"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="add-long-description">Long Description</label>
+                        <textarea id="add-long-description" name="long_description" rows="4"></textarea>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="add-brand">Brand *</label>
+                            <select id="add-brand" name="brand_id" required>
+                                <option value="">Select Brand</option>
+                                <option value="1">HM Herbs</option>
+                                <option value="2">Nature's Way</option>
+                                <option value="3">Garden of Life</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="add-category">Category *</label>
+                            <select id="add-category" name="category_id" required>
+                                <option value="">Select Category</option>
+                                <option value="1">Herbs & Botanicals</option>
+                                <option value="2">Vitamins</option>
+                                <option value="3">Supplements</option>
+                                <option value="4">Essential Oils</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="add-price">Price *</label>
+                            <input type="number" id="add-price" name="price" step="0.01" min="0" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="add-compare-price">Compare Price</label>
+                            <input type="number" id="add-compare-price" name="compare_price" step="0.01" min="0">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="add-inventory">Inventory Quantity *</label>
+                            <input type="number" id="add-inventory" name="inventory_quantity" min="0" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="add-low-stock">Low Stock Threshold</label>
+                            <input type="number" id="add-low-stock" name="low_stock_threshold" min="0" value="10">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="add-weight">Weight (oz)</label>
+                        <input type="number" id="add-weight" name="weight" step="0.01" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="add-health-categories">Health Categories (comma-separated)</label>
+                        <input type="text" id="add-health-categories" name="health_categories" placeholder="e.g., immune support, digestive health">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="add-is-active" name="is_active" checked>
+                                Active Product
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="add-is-featured" name="is_featured">
+                                Featured Product
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" onclick="this.closest('.modal').remove()">Cancel</button>
+                        <button type="submit">Add Product</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    modal.style.display = 'block';
+    
+    // Handle form submission
+    document.getElementById('add-product-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await createProduct(new FormData(e.target));
+        modal.remove();
+    });
+}
+
+async function createProduct(formData) {
+    try {
+        const productData = {};
+        for (let [key, value] of formData.entries()) {
+            if (key === 'is_active' || key === 'is_featured') {
+                productData[key] = true; // Checkbox was checked
+            } else if (key === 'health_categories') {
+                // Convert comma-separated string to array
+                productData[key] = value.split(',').map(cat => cat.trim()).filter(cat => cat);
+            } else {
+                productData[key] = value;
+            }
+        }
+        
+        // Handle unchecked checkboxes
+        if (!formData.has('is_active')) productData.is_active = false;
+        if (!formData.has('is_featured')) productData.is_featured = false;
+        
+        const response = await fetch('/api/admin/products', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+            },
+            body: JSON.stringify(productData)
+        });
+        
+        if (response.ok) {
+            window.adminApp.showNotification('Product created successfully!', 'success');
+            // Refresh the products list
+            if (typeof loadProducts === 'function') {
+                loadProducts();
+            }
+        } else {
+            const error = await response.json();
+            window.adminApp.showNotification('Failed to create product: ' + error.error, 'error');
+        }
+    } catch (error) {
+        window.adminApp.showNotification('Error creating product: ' + error.message, 'error');
+    }
 }
 
 function logout() {

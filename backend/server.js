@@ -88,8 +88,13 @@ const authenticateToken = async (req, res, next) => {
         return res.status(401).json({ error: 'Access token required' });
     }
 
+    if (!process.env.JWT_SECRET) {
+        console.error('CRITICAL: JWT_SECRET environment variable is not set');
+        return res.status(500).json({ error: 'Server configuration error' });
+    }
+
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const [rows] = await pool.execute(
             'SELECT id, email, first_name, last_name, is_active FROM users WHERE id = ? AND is_active = 1',
             [decoded.userId]
@@ -115,8 +120,13 @@ const authenticateAdmin = async (req, res, next) => {
         return res.status(401).json({ error: 'Access token required' });
     }
 
+    if (!process.env.JWT_SECRET) {
+        console.error('CRITICAL: JWT_SECRET environment variable is not set');
+        return res.status(500).json({ error: 'Server configuration error' });
+    }
+
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const [rows] = await pool.execute(
             'SELECT id, email, first_name, last_name, role, is_active FROM admin_users WHERE id = ? AND is_active = 1',
             [decoded.adminId]
@@ -186,9 +196,14 @@ app.post('/api/auth/register', async (req, res) => {
         );
 
         // Generate JWT token
+        if (!process.env.JWT_SECRET) {
+            console.error('CRITICAL: JWT_SECRET environment variable is not set');
+            return res.status(500).json({ error: 'Server configuration error' });
+        }
+        
         const token = jwt.sign(
             { userId: result.insertId },
-            process.env.JWT_SECRET || 'your-secret-key',
+            process.env.JWT_SECRET,
             { expiresIn: '7d' }
         );
 
@@ -246,9 +261,14 @@ app.post('/api/auth/login', async (req, res) => {
         );
 
         // Generate JWT token
+        if (!process.env.JWT_SECRET) {
+            console.error('CRITICAL: JWT_SECRET environment variable is not set');
+            return res.status(500).json({ error: 'Server configuration error' });
+        }
+        
         const token = jwt.sign(
             { userId: user.id },
-            process.env.JWT_SECRET || 'your-secret-key',
+            process.env.JWT_SECRET,
             { expiresIn: '7d' }
         );
 
