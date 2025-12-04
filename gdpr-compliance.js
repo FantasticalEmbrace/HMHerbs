@@ -11,6 +11,7 @@ class GDPRCompliance {
         
         this.consentGiven = false;
         this.consentTimestamp = null;
+        this.eventListeners = new Map(); // Track event listeners for cleanup
         
         this.init();
     }
@@ -152,7 +153,28 @@ class GDPRCompliance {
         if (modal) {
             modal.classList.remove('show');
             modal.setAttribute('aria-hidden', 'true');
+            
+            // Clean up event listeners when modal closes
+            this.cleanupEventListeners();
         }
+    }
+    
+    // Helper method to add tracked event listeners
+    addTrackedEventListener(element, event, handler, key) {
+        if (element) {
+            element.addEventListener(event, handler);
+            this.eventListeners.set(key, { element, event, handler });
+        }
+    }
+    
+    // Clean up all tracked event listeners
+    cleanupEventListeners() {
+        this.eventListeners.forEach(({ element, event, handler }) => {
+            if (element) {
+                element.removeEventListener(event, handler);
+            }
+        });
+        this.eventListeners.clear();
     }
     
     updateModalToggles() {

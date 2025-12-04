@@ -267,7 +267,11 @@ class HMHerbsApp {
         
         const featuredProducts = this.products.filter(product => product.featured);
         
-        container.innerHTML = featuredProducts.map(product => `
+        // Remove existing event listeners by cloning the container
+        const newContainer = container.cloneNode(false);
+        container.parentNode.replaceChild(newContainer, container);
+        
+        newContainer.innerHTML = featuredProducts.map(product => `
             <div class="product-card ${product.inventory === 0 ? 'out-of-stock' : ''} ${product.inventory <= product.lowStockThreshold ? 'low-stock' : ''}" data-product-id="${product.id}">
                 <img src="${product.image}" alt="${product.name}" class="product-image" loading="lazy">
                 <h3 class="product-title">${product.name}</h3>
@@ -285,12 +289,12 @@ class HMHerbsApp {
             </div>
         `).join('');
         
-        // Add event listeners to add-to-cart buttons
-        container.querySelectorAll('.add-to-cart-btn').forEach(button => {
-            button.addEventListener('click', (e) => {
+        // Use event delegation to prevent memory leaks
+        newContainer.addEventListener('click', (e) => {
+            if (e.target.closest('.add-to-cart-btn')) {
                 const productId = parseInt(e.target.closest('[data-product-id]').dataset.productId);
                 this.addToCart(productId);
-            });
+            }
         });
     }
     
@@ -300,7 +304,11 @@ class HMHerbsApp {
         
         const bestsellers = this.products.filter(product => product.bestseller);
         
-        container.innerHTML = bestsellers.map(product => `
+        // Remove existing event listeners by cloning the container
+        const newContainer = container.cloneNode(false);
+        container.parentNode.replaceChild(newContainer, container);
+        
+        newContainer.innerHTML = bestsellers.map(product => `
             <div class="product-card ${product.inventory === 0 ? 'out-of-stock' : ''} ${product.inventory <= product.lowStockThreshold ? 'low-stock' : ''}" data-product-id="${product.id}">
                 <img src="${product.image}" alt="${product.name}" class="product-image" loading="lazy">
                 <h3 class="product-title">${product.name}</h3>
@@ -318,12 +326,12 @@ class HMHerbsApp {
             </div>
         `).join('');
         
-        // Add event listeners to add-to-cart buttons
-        container.querySelectorAll('.add-to-cart-btn').forEach(button => {
-            button.addEventListener('click', (e) => {
+        // Use event delegation to prevent memory leaks
+        newContainer.addEventListener('click', (e) => {
+            if (e.target.closest('.add-to-cart-btn')) {
                 const productId = parseInt(e.target.closest('[data-product-id]').dataset.productId);
                 this.addToCart(productId);
-            });
+            }
         });
     }
     
@@ -455,12 +463,21 @@ class HMHerbsApp {
             cartTotal.textContent = `$${total.toFixed(2)}`;
         }
         
-        // Add event listeners to cart controls
-        if (cartContent) {
-            cartContent.querySelectorAll('.quantity-btn').forEach(button => {
-                button.addEventListener('click', (e) => {
-                    const cartItem = e.target.closest('.cart-item');
-                    const productId = parseInt(cartItem.dataset.productId);
+        // Use event delegation to prevent memory leaks in cart controls
+        if (cartContent && this.cart.length > 0) {
+            // Remove existing event listeners by cloning the cart content
+            const newCartContent = cartContent.cloneNode(false);
+            newCartContent.innerHTML = cartContent.innerHTML;
+            cartContent.parentNode.replaceChild(newCartContent, cartContent);
+            
+            // Add single event listener using delegation
+            newCartContent.addEventListener('click', (e) => {
+                const cartItem = e.target.closest('.cart-item');
+                if (!cartItem) return;
+                
+                const productId = parseInt(cartItem.dataset.productId);
+                
+                if (e.target.closest('.quantity-btn')) {
                     const action = e.target.dataset.action;
                     const currentQuantity = parseInt(cartItem.querySelector('.quantity').textContent);
                     
@@ -469,15 +486,9 @@ class HMHerbsApp {
                     } else if (action === 'decrease') {
                         this.updateCartQuantity(productId, currentQuantity - 1);
                     }
-                });
-            });
-            
-            cartContent.querySelectorAll('.remove-item-btn').forEach(button => {
-                button.addEventListener('click', (e) => {
-                    const cartItem = e.target.closest('.cart-item');
-                    const productId = parseInt(cartItem.dataset.productId);
+                } else if (e.target.closest('.remove-item-btn')) {
                     this.removeFromCart(productId);
-                });
+                }
             });
         }
     }
