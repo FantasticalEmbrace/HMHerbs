@@ -34,7 +34,7 @@ const pool = mysql.createPool(dbConfig);
 app.use(helmet());
 app.use(compression());
 app.use(cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: process.env.FRONTEND_URL || 'http://localhost:8000',
     credentials: true
 }));
 
@@ -526,5 +526,5 @@ app.use('*', (req, res) => {
 app.listen(PORT, () => {
     console.log(`H&M Herbs API Server running on port ${PORT}`);
     console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
+    console.log(`Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:8000'}`);
 });
