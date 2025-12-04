@@ -610,11 +610,15 @@ class HMHerbsApp {
         
         // Add close functionality (closeBtn already created above)
         closeBtn.addEventListener('click', () => {
+            // Clear the auto-close timeout when manually closed
+            if (notification.autoCloseTimeout) {
+                clearTimeout(notification.autoCloseTimeout);
+            }
             this.closeNotification(notification);
         });
         
         // Auto-close after 5 seconds
-        setTimeout(() => {
+        notification.autoCloseTimeout = setTimeout(() => {
             this.closeNotification(notification);
         }, 5000);
     }
