@@ -159,175 +159,110 @@ class AnalyticsService {
         return trends;
     }
 
-    // Gift Card Analytics
-    async getGiftCardMetrics(dateRange = 30) {
+    // POS Gift Card Analytics
+    async getPOSGiftCardMetrics(posSystemId = null, dateRange = 30) {
+        let systemFilter = '';
+        const params = [dateRange];
+        
+        if (posSystemId) {
+            systemFilter = 'AND pgc.pos_system_id = ?';
+            params.push(posSystemId);
+        }
+
         const [metrics] = await this.db.execute(`
             SELECT 
-                COUNT(*) as total_cards_issued,
-                COUNT(CASE WHEN status = 'active' THEN 1 END) as active_cards,
-                COUNT(CASE WHEN status = 'redeemed' THEN 1 END) as fully_redeemed_cards,
-                COUNT(CASE WHEN status = 'expired' THEN 1 END) as expired_cards,
-                COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as cancelled_cards,
-                SUM(initial_amount) as total_value_issued,
-                SUM(current_balance) as total_outstanding_balance,
-                SUM(initial_amount - current_balance) as total_value_redeemed,
-                AVG(initial_amount) as avg_card_value,
-                COUNT(CASE WHEN current_balance > 0 AND current_balance < initial_amount THEN 1 END) as partially_used_cards,
-                COUNT(CASE WHEN expiry_date IS NOT NULL AND expiry_date < CURDATE() AND status = 'active' THEN 1 END) as cards_needing_expiry
-            FROM gift_cards
-            WHERE created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
-        `, [dateRange]);
+                ps.name as pos_system_name,
+                ps.system_type,
+                COUNT(*) as total_cards,
+                COUNT(CASE WHEN pgc.status = 'active' THEN 1 END) as active_cards,
+                COUNT(CASE WHEN pgc.current_balance = 0 THEN 1 END) as fully_redeemed_cards,
+                SUM(pgc.current_balance) as total_outstanding_balance,
+                SUM(pgc.initial_amount) as total_value_issued,
+                AVG(pgc.current_balance) as avg_balance,
+                AVG(pgc.initial_amount) as avg_initial_value,
+                COUNT(CASE WHEN pgc.last_synced >= DATE_SUB(NOW(), INTERVAL ? DAY) THEN 1 END) as recently_synced,
+                COUNT(CASE WHEN pgc.sync_status = 'error' THEN 1 END) as sync_errors
+            FROM pos_gift_cards pgc
+            JOIN pos_systems ps ON pgc.pos_system_id = ps.id
+            WHERE pgc.created_at >= DATE_SUB(NOW(), INTERVAL ? DAY) ${systemFilter}
+            GROUP BY pgc.pos_system_id
+            ORDER BY ps.name
+        `, [dateRange, dateRange]);
 
-        const [transactionMetrics] = await this.db.execute(`
+        const [syncHealth] = await this.db.execute(`
             SELECT 
-                transaction_type,
-                COUNT(*) as transaction_count,
-                SUM(ABS(amount)) as total_amount,
-                AVG(ABS(amount)) as avg_transaction_amount
-            FROM gift_card_transactions
-            WHERE created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
-            GROUP BY transaction_type
-        `, [dateRange]);
-
-        const [dailyTrends] = await this.db.execute(`
-            SELECT 
-                DATE(created_at) as transaction_date,
-                COUNT(CASE WHEN transaction_type = 'purchase' THEN 1 END) as cards_purchased,
-                COUNT(CASE WHEN transaction_type = 'redemption' THEN 1 END) as redemptions,
-                SUM(CASE WHEN transaction_type = 'purchase' THEN amount ELSE 0 END) as value_purchased,
-                SUM(CASE WHEN transaction_type = 'redemption' THEN ABS(amount) ELSE 0 END) as value_redeemed
-            FROM gift_card_transactions
-            WHERE created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
-            GROUP BY DATE(created_at)
-            ORDER BY transaction_date DESC
+                sync_status,
+                COUNT(*) as count
+            FROM pos_gift_cards pgc
+            WHERE pgc.last_synced >= DATE_SUB(NOW(), INTERVAL ? DAY) ${systemFilter}
+            GROUP BY sync_status
         `, [dateRange]);
 
         return {
-            overview: metrics[0],
-            transaction_breakdown: transactionMetrics,
-            daily_trends: dailyTrends
+            overview: metrics,
+            sync_health: syncHealth
         };
     }
 
-    async getGiftCardRedemptionPatterns() {
-        const [patterns] = await this.db.execute(`
-            SELECT 
-                CASE 
-                    WHEN DATEDIFF(first_redemption, issued_date) <= 7 THEN '0-7 days'
-                    WHEN DATEDIFF(first_redemption, issued_date) <= 30 THEN '8-30 days'
-                    WHEN DATEDIFF(first_redemption, issued_date) <= 90 THEN '31-90 days'
-                    WHEN DATEDIFF(first_redemption, issued_date) <= 365 THEN '91-365 days'
-                    ELSE '365+ days'
-                END as redemption_timeframe,
-                COUNT(*) as card_count,
-                AVG(initial_amount) as avg_card_value,
-                AVG(DATEDIFF(first_redemption, issued_date)) as avg_days_to_first_use
-            FROM (
-                SELECT 
-                    gc.id,
-                    gc.issued_date,
-                    gc.initial_amount,
-                    MIN(gct.created_at) as first_redemption
-                FROM gift_cards gc
-                JOIN gift_card_transactions gct ON gc.id = gct.gift_card_id
-                WHERE gct.transaction_type = 'redemption'
-                GROUP BY gc.id
-            ) as redemption_data
-            GROUP BY redemption_timeframe
-            ORDER BY 
-                CASE redemption_timeframe
-                    WHEN '0-7 days' THEN 1
-                    WHEN '8-30 days' THEN 2
-                    WHEN '31-90 days' THEN 3
-                    WHEN '91-365 days' THEN 4
-                    ELSE 5
-                END
-        `);
-
-        return patterns;
-    }
-
-    // Loyalty Program Analytics
-    async getLoyaltyProgramMetrics(programId = null, dateRange = 30) {
+    // POS Loyalty Program Analytics
+    async getPOSLoyaltyMetrics(posSystemId = null, programId = null, dateRange = 30) {
+        let systemFilter = '';
         let programFilter = '';
         const params = [dateRange];
         
+        if (posSystemId) {
+            systemFilter = 'AND plp.pos_system_id = ?';
+            params.push(posSystemId);
+        }
+        
         if (programId) {
-            programFilter = 'AND lp.id = ?';
+            programFilter = 'AND plp.id = ?';
             params.push(programId);
         }
 
         const [metrics] = await this.db.execute(`
             SELECT 
-                lp.id as program_id,
-                lp.name as program_name,
-                lp.program_type,
-                COUNT(DISTINCT cl.user_id) as total_members,
-                COUNT(DISTINCT CASE WHEN cl.last_activity_date >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN cl.user_id END) as active_members_30d,
-                COUNT(DISTINCT CASE WHEN cl.enrolled_date >= DATE_SUB(NOW(), INTERVAL ? DAY) THEN cl.user_id END) as new_members,
-                SUM(cl.current_points) as total_outstanding_points,
-                SUM(cl.lifetime_points) as total_lifetime_points,
-                SUM(cl.total_earned) as total_points_earned,
-                SUM(cl.total_redeemed) as total_points_redeemed,
-                SUM(cl.total_spent) as total_member_spending,
-                AVG(cl.current_points) as avg_points_balance,
-                AVG(cl.total_spent) as avg_member_lifetime_spending,
-                COUNT(DISTINCT CASE WHEN cl.current_tier_id IS NOT NULL THEN cl.user_id END) as tiered_members
-            FROM loyalty_programs lp
-            LEFT JOIN customer_loyalty cl ON lp.id = cl.program_id
-            WHERE 1=1 ${programFilter}
-            GROUP BY lp.id
-            ORDER BY lp.name
-        `, params);
+                plp.program_name,
+                ps.name as pos_system_name,
+                ps.system_type,
+                plp.program_type,
+                COUNT(DISTINCT pcl.id) as total_customers,
+                COUNT(DISTINCT CASE WHEN pcl.current_points > 0 THEN pcl.id END) as customers_with_points,
+                COUNT(DISTINCT CASE WHEN pcl.last_synced >= DATE_SUB(NOW(), INTERVAL ? DAY) THEN pcl.id END) as recently_synced_customers,
+                SUM(pcl.current_points) as total_outstanding_points,
+                SUM(pcl.lifetime_points) as total_lifetime_points,
+                AVG(pcl.current_points) as avg_current_points,
+                AVG(pcl.total_spent) as avg_customer_spending,
+                COUNT(DISTINCT pcl.current_tier) as tier_count,
+                MAX(pcl.last_synced) as last_sync_date
+            FROM pos_loyalty_programs plp
+            JOIN pos_systems ps ON plp.pos_system_id = ps.id
+            LEFT JOIN pos_customer_loyalty pcl ON plp.id = pcl.pos_program_id
+            WHERE plp.is_active = 1 
+            AND plp.created_at >= DATE_SUB(NOW(), INTERVAL ? DAY) 
+            ${systemFilter} ${programFilter}
+            GROUP BY plp.id
+            ORDER BY ps.name, plp.program_name
+        `, [dateRange, dateRange]);
 
-        const [engagementMetrics] = await this.db.execute(`
+        const [tierDistribution] = await this.db.execute(`
             SELECT 
-                lp.id as program_id,
-                COUNT(DISTINCT lt.customer_loyalty_id) as active_customers_period,
-                COUNT(CASE WHEN lt.transaction_type = 'earn' THEN 1 END) as points_earned_transactions,
-                COUNT(CASE WHEN lt.transaction_type = 'redeem' THEN 1 END) as points_redeemed_transactions,
-                SUM(CASE WHEN lt.transaction_type = 'earn' THEN lt.points_change ELSE 0 END) as total_points_earned_period,
-                SUM(CASE WHEN lt.transaction_type = 'redeem' THEN ABS(lt.points_change) ELSE 0 END) as total_points_redeemed_period,
-                AVG(CASE WHEN lt.transaction_type = 'earn' THEN lt.points_change END) as avg_points_per_earn,
-                AVG(CASE WHEN lt.transaction_type = 'redeem' THEN ABS(lt.points_change) END) as avg_points_per_redemption
-            FROM loyalty_programs lp
-            LEFT JOIN customer_loyalty cl ON lp.id = cl.program_id
-            LEFT JOIN loyalty_transactions lt ON cl.id = lt.customer_loyalty_id
-                AND lt.created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
-            WHERE 1=1 ${programFilter}
-            GROUP BY lp.id
-        `, params);
+                pcl.current_tier,
+                COUNT(*) as customer_count,
+                AVG(pcl.current_points) as avg_points,
+                AVG(pcl.total_spent) as avg_spending
+            FROM pos_customer_loyalty pcl
+            JOIN pos_loyalty_programs plp ON pcl.pos_program_id = plp.id
+            WHERE plp.is_active = 1 ${systemFilter} ${programFilter}
+            AND pcl.current_tier IS NOT NULL
+            GROUP BY pcl.current_tier
+            ORDER BY customer_count DESC
+        `, params.slice(1)); // Remove dateRange param
 
-        // Combine metrics
-        const combinedMetrics = metrics.map(program => {
-            const engagement = engagementMetrics.find(e => e.program_id === program.program_id) || {};
-            return { ...program, ...engagement };
-        });
-
-        return combinedMetrics;
-    }
-
-    async getLoyaltyTierDistribution(programId) {
-        const [distribution] = await this.db.execute(`
-            SELECT 
-                lt.tier_name,
-                lt.tier_level,
-                lt.minimum_spend,
-                lt.minimum_points,
-                lt.points_multiplier,
-                lt.discount_percentage,
-                COUNT(cl.user_id) as member_count,
-                AVG(cl.current_points) as avg_points,
-                AVG(cl.total_spent) as avg_spending,
-                SUM(cl.current_points) as total_tier_points
-            FROM loyalty_tiers lt
-            LEFT JOIN customer_loyalty cl ON lt.id = cl.current_tier_id
-            WHERE lt.program_id = ?
-            GROUP BY lt.id
-            ORDER BY lt.tier_level
-        `, [programId]);
-
-        return distribution;
+        return {
+            overview: metrics,
+            tier_distribution: tierDistribution
+        };
     }
 
     // Comprehensive Dashboard Metrics
@@ -351,25 +286,27 @@ class AnalyticsService {
             FROM pos_systems
         `);
 
-        // Gift card metrics
+        // POS Gift card metrics
         const [giftCardMetrics] = await this.db.execute(`
             SELECT 
                 COUNT(*) as total_gift_cards,
                 COUNT(CASE WHEN status = 'active' THEN 1 END) as active_gift_cards,
                 SUM(current_balance) as outstanding_gift_card_value,
-                COUNT(CASE WHEN created_at >= DATE_SUB(NOW(), INTERVAL ? DAY) THEN 1 END) as new_gift_cards
-            FROM gift_cards
+                COUNT(CASE WHEN created_at >= DATE_SUB(NOW(), INTERVAL ? DAY) THEN 1 END) as new_gift_cards,
+                COUNT(CASE WHEN sync_status = 'error' THEN 1 END) as sync_errors
+            FROM pos_gift_cards
         `, [dateRange]);
 
-        // Loyalty metrics
+        // POS Loyalty metrics
         const [loyaltyMetrics] = await this.db.execute(`
             SELECT 
-                COUNT(DISTINCT lp.id) as total_loyalty_programs,
-                COUNT(DISTINCT CASE WHEN lp.is_active THEN lp.id END) as active_loyalty_programs,
-                COUNT(DISTINCT cl.user_id) as total_loyalty_members,
-                SUM(cl.current_points) as total_outstanding_points
-            FROM loyalty_programs lp
-            LEFT JOIN customer_loyalty cl ON lp.id = cl.program_id
+                COUNT(DISTINCT plp.id) as total_loyalty_programs,
+                COUNT(DISTINCT CASE WHEN plp.is_active THEN plp.id END) as active_loyalty_programs,
+                COUNT(DISTINCT pcl.id) as total_loyalty_members,
+                SUM(pcl.current_points) as total_outstanding_points,
+                COUNT(CASE WHEN pcl.sync_status = 'error' THEN 1 END) as sync_errors
+            FROM pos_loyalty_programs plp
+            LEFT JOIN pos_customer_loyalty pcl ON plp.id = pcl.pos_program_id
         `);
 
         // Recent activity
@@ -479,49 +416,65 @@ class AnalyticsService {
             });
         });
 
-        // Check for expired gift cards that need processing
-        const [expiredCards] = await this.db.execute(`
-            SELECT COUNT(*) as count
-            FROM gift_cards
-            WHERE status = 'active' 
-            AND expiry_date IS NOT NULL 
-            AND expiry_date < CURDATE()
+        // Check for POS gift card sync errors
+        const [giftCardSyncErrors] = await this.db.execute(`
+            SELECT ps.name, COUNT(*) as error_count
+            FROM pos_gift_cards pgc
+            JOIN pos_systems ps ON pgc.pos_system_id = ps.id
+            WHERE pgc.sync_status = 'error' 
+            AND pgc.last_synced >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+            GROUP BY ps.id
         `);
 
-        if (expiredCards[0].count > 0) {
+        giftCardSyncErrors.forEach(system => {
             alerts.push({
-                type: 'info',
-                category: 'gift_cards',
-                message: `${expiredCards[0].count} gift cards need to be expired`,
+                type: 'warning',
+                category: 'pos_gift_card_sync',
+                message: `${system.error_count} gift card sync errors from ${system.name}`,
                 timestamp: new Date(),
-                details: 'Run gift card expiration process'
+                details: 'Check POS gift card sync configuration'
             });
-        }
+        });
 
-        // Check for loyalty points that need expiration
-        const [expiringPoints] = await this.db.execute(`
-            SELECT COUNT(*) as count
-            FROM loyalty_transactions
-            WHERE transaction_type = 'earn' 
-            AND expires_at IS NOT NULL 
-            AND expires_at < CURDATE()
-            AND id NOT IN (
-                SELECT DISTINCT reference_number 
-                FROM loyalty_transactions 
-                WHERE transaction_type = 'expire' 
-                AND reference_number IS NOT NULL
-            )
+        // Check for POS loyalty sync errors
+        const [loyaltySyncErrors] = await this.db.execute(`
+            SELECT ps.name, COUNT(*) as error_count
+            FROM pos_customer_loyalty pcl
+            JOIN pos_systems ps ON pcl.pos_system_id = ps.id
+            WHERE pcl.sync_status = 'error' 
+            AND pcl.last_synced >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+            GROUP BY ps.id
         `);
 
-        if (expiringPoints[0].count > 0) {
+        loyaltySyncErrors.forEach(system => {
+            alerts.push({
+                type: 'warning',
+                category: 'pos_loyalty_sync',
+                message: `${system.error_count} loyalty sync errors from ${system.name}`,
+                timestamp: new Date(),
+                details: 'Check POS loyalty sync configuration'
+            });
+        });
+
+        // Check for stale POS gift card data
+        const [staleGiftCards] = await this.db.execute(`
+            SELECT ps.name, COUNT(*) as stale_count
+            FROM pos_gift_cards pgc
+            JOIN pos_systems ps ON pgc.pos_system_id = ps.id
+            WHERE pgc.last_synced < DATE_SUB(NOW(), INTERVAL 24 HOUR)
+            AND ps.status = 'active'
+            GROUP BY ps.id
+        `);
+
+        staleGiftCards.forEach(system => {
             alerts.push({
                 type: 'info',
-                category: 'loyalty_points',
-                message: `${expiringPoints[0].count} loyalty point transactions need expiration processing`,
+                category: 'pos_gift_card_stale',
+                message: `${system.stale_count} gift cards from ${system.name} haven't synced in 24+ hours`,
                 timestamp: new Date(),
-                details: 'Run loyalty points expiration process'
+                details: 'Consider running manual sync'
             });
-        }
+        });
 
         return alerts.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
     }
@@ -557,4 +510,3 @@ class AnalyticsService {
 }
 
 module.exports = AnalyticsService;
-

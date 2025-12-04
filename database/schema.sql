@@ -576,196 +576,112 @@ CREATE TABLE pos_transactions (
     INDEX idx_external_id (external_id)
 );
 
--- Gift Card System
-CREATE TABLE gift_cards (
+-- POS Gift Card Integration (sync data from POS systems)
+CREATE TABLE pos_gift_cards (
     id INT PRIMARY KEY AUTO_INCREMENT,
-    card_number VARCHAR(50) UNIQUE NOT NULL,
-    card_code VARCHAR(20) UNIQUE NOT NULL,
+    pos_system_id INT NOT NULL,
+    external_gift_card_id VARCHAR(255) NOT NULL,
+    card_number VARCHAR(50),
     
-    -- Card Details
-    initial_amount DECIMAL(10,2) NOT NULL,
+    -- Card Details (synced from POS)
     current_balance DECIMAL(10,2) NOT NULL,
+    initial_amount DECIMAL(10,2),
     currency VARCHAR(3) DEFAULT 'USD',
     
-    -- Status and Dates
-    status ENUM('active', 'redeemed', 'expired', 'cancelled', 'suspended') DEFAULT 'active',
-    issued_date DATE NOT NULL,
+    -- Status and Dates (from POS)
+    status VARCHAR(50) NOT NULL,
+    issued_date DATE,
     expiry_date DATE,
     
-    -- Purchase Information
-    purchased_by_user_id INT NULL,
-    purchased_by_email VARCHAR(255),
-    purchase_order_id INT NULL,
+    -- Customer Information (if available from POS)
+    customer_email VARCHAR(255),
+    customer_name VARCHAR(255),
     
-    -- Recipient Information
-    recipient_name VARCHAR(255),
-    recipient_email VARCHAR(255),
-    personal_message TEXT,
+    -- Sync Information
+    last_synced TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    sync_status ENUM('synced', 'pending', 'error') DEFAULT 'synced',
+    sync_error TEXT,
     
-    -- Admin Information
-    created_by INT,
+    -- Audit
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     
-    FOREIGN KEY (purchased_by_user_id) REFERENCES users(id) ON DELETE SET NULL,
-    FOREIGN KEY (purchase_order_id) REFERENCES orders(id) ON DELETE SET NULL,
-    FOREIGN KEY (created_by) REFERENCES admin_users(id) ON DELETE SET NULL,
+    FOREIGN KEY (pos_system_id) REFERENCES pos_systems(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_pos_gift_card (pos_system_id, external_gift_card_id),
     INDEX idx_card_number (card_number),
-    INDEX idx_card_code (card_code),
     INDEX idx_status (status),
-    INDEX idx_expiry_date (expiry_date)
+    INDEX idx_customer_email (customer_email),
+    INDEX idx_last_synced (last_synced)
 );
 
--- Gift Card Transactions
-CREATE TABLE gift_card_transactions (
+-- POS Loyalty Programs Integration (sync data from POS systems)
+CREATE TABLE pos_loyalty_programs (
     id INT PRIMARY KEY AUTO_INCREMENT,
-    gift_card_id INT NOT NULL,
-    transaction_type ENUM('purchase', 'redemption', 'refund', 'adjustment', 'expiry') NOT NULL,
+    pos_system_id INT NOT NULL,
+    external_program_id VARCHAR(255) NOT NULL,
     
-    -- Transaction Details
-    amount DECIMAL(10,2) NOT NULL,
-    balance_before DECIMAL(10,2) NOT NULL,
-    balance_after DECIMAL(10,2) NOT NULL,
-    
-    -- Reference Information
-    order_id INT NULL,
-    user_id INT NULL,
-    admin_id INT NULL,
-    reference_number VARCHAR(100),
-    notes TEXT,
-    
-    -- Audit
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    
-    FOREIGN KEY (gift_card_id) REFERENCES gift_cards(id) ON DELETE CASCADE,
-    FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
-    FOREIGN KEY (admin_id) REFERENCES admin_users(id) ON DELETE SET NULL,
-    INDEX idx_gift_card_id (gift_card_id),
-    INDEX idx_transaction_type (transaction_type),
-    INDEX idx_created_at (created_at)
-);
-
--- Loyalty Programs
-CREATE TABLE loyalty_programs (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    name VARCHAR(255) NOT NULL,
+    -- Program Details (synced from POS)
+    program_name VARCHAR(255) NOT NULL,
+    program_type VARCHAR(100),
     description TEXT,
-    program_type ENUM('points', 'cashback', 'tier_based', 'hybrid') DEFAULT 'points',
     
-    -- Program Settings
+    -- Program Settings (from POS)
     is_active BOOLEAN DEFAULT TRUE,
-    auto_enrollment BOOLEAN DEFAULT TRUE,
-    points_per_dollar DECIMAL(5,2) DEFAULT 1.00,
-    dollar_per_point DECIMAL(5,4) DEFAULT 0.01,
+    points_per_dollar DECIMAL(5,2),
+    dollar_per_point DECIMAL(5,4),
     
-    -- Tier Settings (for tier-based programs)
-    enable_tiers BOOLEAN DEFAULT FALSE,
-    tier_upgrade_threshold DECIMAL(10,2) DEFAULT 0.00,
-    tier_downgrade_enabled BOOLEAN DEFAULT FALSE,
-    
-    -- Expiration Settings
-    points_expire BOOLEAN DEFAULT FALSE,
-    points_expiry_months INT DEFAULT 12,
-    
-    -- Minimum Redemption
-    minimum_redemption_points INT DEFAULT 100,
-    maximum_redemption_points INT DEFAULT 10000,
+    -- Sync Information
+    last_synced TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    sync_status ENUM('synced', 'pending', 'error') DEFAULT 'synced',
+    sync_error TEXT,
     
     -- Audit
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    created_by INT,
     
-    FOREIGN KEY (created_by) REFERENCES admin_users(id) ON DELETE SET NULL,
-    INDEX idx_program_type (program_type),
-    INDEX idx_is_active (is_active)
+    FOREIGN KEY (pos_system_id) REFERENCES pos_systems(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_pos_program (pos_system_id, external_program_id),
+    INDEX idx_program_name (program_name),
+    INDEX idx_is_active (is_active),
+    INDEX idx_last_synced (last_synced)
 );
 
--- Loyalty Program Tiers
-CREATE TABLE loyalty_tiers (
+-- POS Customer Loyalty Accounts (sync customer loyalty data from POS)
+CREATE TABLE pos_customer_loyalty (
     id INT PRIMARY KEY AUTO_INCREMENT,
-    program_id INT NOT NULL,
-    tier_name VARCHAR(100) NOT NULL,
-    tier_level INT NOT NULL,
+    pos_system_id INT NOT NULL,
+    pos_program_id INT NOT NULL,
+    external_customer_id VARCHAR(255) NOT NULL,
     
-    -- Tier Requirements
-    minimum_spend DECIMAL(10,2) DEFAULT 0.00,
-    minimum_points INT DEFAULT 0,
+    -- Customer Information (from POS)
+    customer_email VARCHAR(255),
+    customer_name VARCHAR(255),
+    customer_phone VARCHAR(50),
     
-    -- Tier Benefits
-    points_multiplier DECIMAL(3,2) DEFAULT 1.00,
-    discount_percentage DECIMAL(5,2) DEFAULT 0.00,
-    free_shipping BOOLEAN DEFAULT FALSE,
-    early_access BOOLEAN DEFAULT FALSE,
-    
-    -- Tier Colors/Branding
-    tier_color VARCHAR(7) DEFAULT '#000000',
-    tier_icon VARCHAR(50),
-    
-    FOREIGN KEY (program_id) REFERENCES loyalty_programs(id) ON DELETE CASCADE,
-    UNIQUE KEY unique_program_tier (program_id, tier_level),
-    INDEX idx_program_id (program_id)
-);
-
--- Customer Loyalty Accounts
-CREATE TABLE customer_loyalty (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    user_id INT NOT NULL,
-    program_id INT NOT NULL,
-    
-    -- Current Status
+    -- Loyalty Status (synced from POS)
     current_points INT DEFAULT 0,
     lifetime_points INT DEFAULT 0,
-    current_tier_id INT NULL,
-    tier_progress DECIMAL(5,2) DEFAULT 0.00,
+    current_tier VARCHAR(100),
+    tier_level INT DEFAULT 0,
     
-    -- Statistics
-    total_earned INT DEFAULT 0,
-    total_redeemed INT DEFAULT 0,
+    -- Statistics (from POS)
+    total_visits INT DEFAULT 0,
     total_spent DECIMAL(10,2) DEFAULT 0.00,
+    last_visit_date DATE,
     
-    -- Dates
-    enrolled_date DATE NOT NULL,
-    last_activity_date DATE,
-    tier_achieved_date DATE,
-    
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (program_id) REFERENCES loyalty_programs(id) ON DELETE CASCADE,
-    FOREIGN KEY (current_tier_id) REFERENCES loyalty_tiers(id) ON DELETE SET NULL,
-    UNIQUE KEY unique_user_program (user_id, program_id),
-    INDEX idx_user_id (user_id),
-    INDEX idx_program_id (program_id)
-);
-
--- Loyalty Transactions
-CREATE TABLE loyalty_transactions (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    customer_loyalty_id INT NOT NULL,
-    transaction_type ENUM('earn', 'redeem', 'expire', 'adjustment', 'bonus', 'refund') NOT NULL,
-    
-    -- Transaction Details
-    points_change INT NOT NULL,
-    points_balance_before INT NOT NULL,
-    points_balance_after INT NOT NULL,
-    
-    -- Reference Information
-    order_id INT NULL,
-    admin_id INT NULL,
-    reference_number VARCHAR(100),
-    description TEXT,
-    
-    -- Expiration (for earned points)
-    expires_at DATE NULL,
+    -- Sync Information
+    last_synced TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    sync_status ENUM('synced', 'pending', 'error') DEFAULT 'synced',
+    sync_error TEXT,
     
     -- Audit
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     
-    FOREIGN KEY (customer_loyalty_id) REFERENCES customer_loyalty(id) ON DELETE CASCADE,
-    FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL,
-    FOREIGN KEY (admin_id) REFERENCES admin_users(id) ON DELETE SET NULL,
-    INDEX idx_customer_loyalty_id (customer_loyalty_id),
-    INDEX idx_transaction_type (transaction_type),
-    INDEX idx_expires_at (expires_at),
-    INDEX idx_created_at (created_at)
+    FOREIGN KEY (pos_system_id) REFERENCES pos_systems(id) ON DELETE CASCADE,
+    FOREIGN KEY (pos_program_id) REFERENCES pos_loyalty_programs(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_pos_customer_loyalty (pos_system_id, pos_program_id, external_customer_id),
+    INDEX idx_customer_email (customer_email),
+    INDEX idx_current_tier (current_tier),
+    INDEX idx_last_synced (last_synced)
 );
