@@ -497,6 +497,7 @@ app.get('/api/categories', async (req, res) => {
 // Import route modules
 const cartRoutes = require('./routes/cart');
 const edsaRoutes = require('./routes/edsa');
+const adminRoutes = require('./routes/admin');
 
 // Middleware to attach database pool to requests
 app.use((req, res, next) => {
@@ -507,6 +508,7 @@ app.use((req, res, next) => {
 // Mount routes
 app.use('/api/cart', cartRoutes);
 app.use('/api/edsa', edsaRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Error handling middleware
 app.use((error, req, res, next) => {
