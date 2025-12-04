@@ -285,7 +285,12 @@ class HMHerbsApp {
         // Use event delegation to prevent memory leaks
         newContainer.addEventListener('click', (e) => {
             if (e.target.closest('.add-to-cart-btn')) {
-                const productId = parseInt(e.target.closest('[data-product-id]').dataset.productId);
+                const productElement = e.target.closest('[data-product-id]');
+                if (!productElement) {
+                    console.error('Product element with data-product-id not found');
+                    return;
+                }
+                const productId = parseInt(productElement.dataset.productId);
                 this.addToCart(productId);
             }
         });
@@ -315,7 +320,12 @@ class HMHerbsApp {
         // Use event delegation to prevent memory leaks
         newContainer.addEventListener('click', (e) => {
             if (e.target.closest('.add-to-cart-btn')) {
-                const productId = parseInt(e.target.closest('[data-product-id]').dataset.productId);
+                const productElement = e.target.closest('[data-product-id]');
+                if (!productElement) {
+                    console.error('Product element with data-product-id not found');
+                    return;
+                }
+                const productId = parseInt(productElement.dataset.productId);
                 this.addToCart(productId);
             }
         });
@@ -542,7 +552,15 @@ class HMHerbsApp {
                 
                 if (e.target.closest('.quantity-btn')) {
                     const action = e.target.dataset.action;
-                    const currentQuantity = parseInt(cartItem.querySelector('.quantity').textContent);
+                    const quantityElement = cartItem.querySelector('.quantity');
+                    
+                    // Add null check to prevent runtime errors
+                    if (!quantityElement) {
+                        console.error('Quantity element not found in cart item');
+                        return;
+                    }
+                    
+                    const currentQuantity = parseInt(quantityElement.textContent) || 0;
                     
                     if (action === 'increase') {
                         this.updateCartQuantity(productId, currentQuantity + 1);
