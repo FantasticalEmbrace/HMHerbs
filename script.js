@@ -290,7 +290,11 @@ class HMHerbsApp {
                     console.error('Product element with data-product-id not found');
                     return;
                 }
-                const productId = parseInt(productElement.dataset.productId);
+                const productId = parseInt(productElement.dataset.productId) || 0;
+                if (productId === 0) {
+                    console.error('Invalid product ID:', productElement.dataset.productId);
+                    return;
+                }
                 this.addToCart(productId);
             }
         });
@@ -325,7 +329,11 @@ class HMHerbsApp {
                     console.error('Product element with data-product-id not found');
                     return;
                 }
-                const productId = parseInt(productElement.dataset.productId);
+                const productId = parseInt(productElement.dataset.productId) || 0;
+                if (productId === 0) {
+                    console.error('Invalid product ID:', productElement.dataset.productId);
+                    return;
+                }
                 this.addToCart(productId);
             }
         });
@@ -536,19 +544,21 @@ class HMHerbsApp {
         
         // Use event delegation to prevent memory leaks in cart controls
         if (cartContent && this.cart.length > 0) {
-            // Remove existing event listeners by cloning the cart content
-            const newCartContent = cartContent.cloneNode(false);
-            newCartContent.id = cartContent.id;
-            newCartContent.className = cartContent.className;
-            newCartContent.innerHTML = cartContent.innerHTML;
-            cartContent.parentNode.replaceChild(newCartContent, cartContent);
+            // Remove existing event listeners to prevent accumulation
+            if (cartContent.cartEventListener) {
+                cartContent.removeEventListener('click', cartContent.cartEventListener);
+            }
             
-            // Add single event listener using delegation
-            newCartContent.addEventListener('click', (e) => {
+            // Create and store event listener reference for cleanup
+            cartContent.cartEventListener = (e) => {
                 const cartItem = e.target.closest('.cart-item');
                 if (!cartItem) return;
                 
-                const productId = parseInt(cartItem.dataset.productId);
+                const productId = parseInt(cartItem.dataset.productId) || 0;
+                if (productId === 0) {
+                    console.error('Invalid product ID in cart item:', cartItem.dataset.productId);
+                    return;
+                }
                 
                 if (e.target.closest('.quantity-btn')) {
                     const action = e.target.dataset.action;
@@ -570,7 +580,10 @@ class HMHerbsApp {
                 } else if (e.target.closest('.remove-item-btn')) {
                     this.removeFromCart(productId);
                 }
-            });
+            };
+            
+            // Add the event listener
+            cartContent.addEventListener('click', cartContent.cartEventListener);
         }
     }
     
