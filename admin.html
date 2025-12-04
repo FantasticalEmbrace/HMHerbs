@@ -5,15 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HM Herbs Admin Panel</title>
     <link rel="icon" type="image/x-icon" href="https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?ixlib=rb-4.0.3&auto=format&fit=crop&w=32&q=80">
-    
+
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap" rel="stylesheet">
-    
+
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
+
     <style>
         /* Admin Panel Styles - Matching Frontend Design */
         :root {
@@ -22,7 +22,7 @@
             --accent-gold: #d4af37;
             --light-green: #f0f7ed;
             --dark-green: #1a3d16;
-            
+
             --gray-50: #f9fafb;
             --gray-100: #f3f4f6;
             --gray-200: #e5e7eb;
@@ -33,16 +33,16 @@
             --gray-700: #374151;
             --gray-800: #1f2937;
             --gray-900: #111827;
-            
+
             --success: #10b981;
             --warning: #f59e0b;
             --error: #ef4444;
             --info: #3b82f6;
-            
+
             --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
             --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
             --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-            
+
             --border-radius: 0.5rem;
             --border-radius-lg: 0.75rem;
         }
@@ -520,6 +520,193 @@
         .content-section.active {
             display: block;
         }
+
+        .btn-full-width {
+            width: 100%;
+        }
+
+        .login-error {
+            margin-top: 1rem;
+            color: var(--error);
+            text-align: center;
+            display: none;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 1rem;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 2% auto;
+            padding: 0;
+            border-radius: var(--border-radius-lg);
+            box-shadow: var(--shadow-lg);
+            width: 90%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
+            animation: modalSlideIn 0.3s ease-out;
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .modal-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--gray-200);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: var(--light-green);
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            color: var(--primary-green);
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--gray-500);
+            padding: 0.25rem;
+            border-radius: 50%;
+            width: 2rem;
+            height: 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .modal-close:hover {
+            background-color: var(--gray-100);
+            color: var(--gray-700);
+        }
+
+        .modal-body {
+            padding: 1.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: var(--gray-700);
+        }
+
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--gray-300);
+            border-radius: var(--border-radius);
+            font-size: 0.875rem;
+            transition: border-color 0.2s ease;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: var(--primary-green);
+            box-shadow: 0 0 0 3px rgba(45, 90, 39, 0.1);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .form-group input[type="checkbox"] {
+            width: auto;
+            margin-right: 0.5rem;
+        }
+
+        .form-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.75rem;
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--gray-200);
+        }
+
+        .form-actions button {
+            padding: 0.75rem 1.5rem;
+            border-radius: var(--border-radius);
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .form-actions button[type="button"] {
+            background-color: var(--gray-100);
+            border: 1px solid var(--gray-300);
+            color: var(--gray-700);
+        }
+
+        .form-actions button[type="button"]:hover {
+            background-color: var(--gray-200);
+        }
+
+        .form-actions button[type="submit"] {
+            background-color: var(--primary-green);
+            border: 1px solid var(--primary-green);
+            color: white;
+        }
+
+        .form-actions button[type="submit"]:hover {
+            background-color: var(--dark-green);
+        }
+
+        @media (max-width: 768px) {
+            .modal-content {
+                width: 95%;
+                margin: 5% auto;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            .form-actions {
+                flex-direction: column;
+            }
+        }
     </style>
 </head>
 <body>
@@ -533,25 +720,25 @@
                 </div>
                 <p class="login-subtitle">Sign in to your admin account</p>
             </div>
-            
+
             <form id="loginForm">
                 <div class="form-group">
                     <label class="form-label" for="email">Email Address</label>
                     <input type="email" id="email" class="form-input" required>
                 </div>
-                
+
                 <div class="form-group">
                     <label class="form-label" for="password">Password</label>
                     <input type="password" id="password" class="form-input" required>
                 </div>
-                
-                <button type="submit" class="btn btn-primary" style="width: 100%;">
+
+                <button type="submit" class="btn btn-primary btn-full-width">
                     <i class="fas fa-sign-in-alt"></i>
                     Sign In
                 </button>
             </form>
-            
-            <div id="loginError" style="margin-top: 1rem; color: var(--error); text-align: center; display: none;"></div>
+
+            <div id="loginError" class="login-error"></div>
         </div>
     </div>
 
@@ -565,7 +752,7 @@
                     <span>HM Herbs Admin</span>
                 </div>
             </div>
-            
+
             <div class="sidebar-nav">
                 <div class="nav-section">
                     <div class="nav-section-title">Overview</div>
@@ -576,7 +763,7 @@
                         </a>
                     </div>
                 </div>
-                
+
                 <div class="nav-section">
                     <div class="nav-section-title">Catalog</div>
                     <div class="nav-item">
@@ -604,7 +791,7 @@
                         </a>
                     </div>
                 </div>
-                
+
                 <div class="nav-section">
                     <div class="nav-section-title">Sales</div>
                     <div class="nav-item">
@@ -620,7 +807,7 @@
                         </a>
                     </div>
                 </div>
-                
+
                 <div class="nav-section">
                     <div class="nav-section-title">Services</div>
                     <div class="nav-item">
@@ -630,7 +817,7 @@
                         </a>
                     </div>
                 </div>
-                
+
                 <div class="nav-section">
                     <div class="nav-section-title">System</div>
                     <div class="nav-item">
@@ -728,12 +915,12 @@
             <section id="products" class="content-section">
                 <div class="content-header">
                     <h1 class="page-title">Products</h1>
-                    <div style="display: flex; gap: 1rem;">
-                        <button class="btn btn-secondary" onclick="scrapeProducts()">
+                    <div class="button-group">
+                        <button type="button" class="btn btn-secondary" onclick="scrapeProducts()">
                             <i class="fas fa-download"></i>
                             Scrape HM Herbs
                         </button>
-                        <button class="btn btn-primary" onclick="showAddProduct()">
+                        <button type="button" class="btn btn-primary" onclick="showAddProduct()">
                             <i class="fas fa-plus"></i>
                             Add Product
                         </button>
@@ -765,12 +952,12 @@
                             <label class="form-label" for="csvFile">Select CSV File</label>
                             <input type="file" id="csvFile" class="form-input" accept=".csv">
                         </div>
-                        
-                        <button class="btn btn-primary" onclick="importProducts()">
+
+                        <button type="button" class="btn btn-primary" onclick="importProducts()">
                             <i class="fas fa-upload"></i>
                             Import Products
                         </button>
-                        
+
                         <div id="importProgress" style="margin-top: 1rem; display: none;">
                             <div class="loading">
                                 <div class="spinner"></div>
@@ -784,6 +971,8 @@
             <!-- Other sections would go here -->
         </main>
     </div>
+
+
 
     <script src="admin-app.js"></script>
 </body>

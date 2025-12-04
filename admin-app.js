@@ -23,6 +23,14 @@ class AdminApp {
         this.setupEventListeners();
     }
 
+    // Helper function to escape HTML to prevent XSS
+    escapeHtml(text) {
+        if (text === null || text === undefined) return '';
+        const div = document.createElement('div');
+        div.textContent = String(text);
+        return div.innerHTML;
+    }
+
     setupEventListeners() {
         // Login form
         const loginForm = document.getElementById('loginForm');
@@ -43,9 +51,20 @@ class AdminApp {
     async handleLogin(e) {
         e.preventDefault();
         
-        const email = document.getElementById('email').value;
-        const password = document.getElementById('password').value;
+        const emailElement = document.getElementById('email');
+        const passwordElement = document.getElementById('password');
         const errorDiv = document.getElementById('loginError');
+        
+        if (!emailElement || !passwordElement || !errorDiv) {
+            // Log error in development only
+            if (typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'development') {
+                console.error('Required login form elements not found');
+            }
+            return;
+        }
+        
+        const email = emailElement.value;
+        const password = passwordElement.value;
         
         try {
             const response = await fetch(`${this.apiBaseUrl}/admin/auth/login`, {
@@ -76,12 +95,16 @@ class AdminApp {
 
     async loadDashboard() {
         // Hide login screen and show dashboard
-        document.getElementById('loginScreen').style.display = 'none';
-        document.getElementById('adminDashboard').style.display = 'flex';
+        const loginScreen = document.getElementById('loginScreen');
+        const adminDashboard = document.getElementById('adminDashboard');
+        const userName = document.getElementById('userName');
+        
+        if (loginScreen) loginScreen.style.display = 'none';
+        if (adminDashboard) adminDashboard.style.display = 'flex';
         
         // Update user info
-        if (this.currentUser) {
-            document.getElementById('userName').textContent = 
+        if (this.currentUser && userName) {
+            userName.textContent = 
                 `${this.currentUser.firstName} ${this.currentUser.lastName}`;
         }
 
@@ -94,23 +117,29 @@ class AdminApp {
             const response = await this.apiRequest('/admin/dashboard/stats');
             
             if (response.products) {
-                document.getElementById('totalProducts').textContent = 
-                    response.products.total_products || 0;
-                document.getElementById('lowStockProducts').textContent = 
-                    response.products.low_stock_products || 0;
+                const totalProducts = document.getElementById('totalProducts');
+                const lowStockProducts = document.getElementById('lowStockProducts');
+                
+                if (totalProducts) totalProducts.textContent = response.products.total_products || 0;
+                if (lowStockProducts) lowStockProducts.textContent = response.products.low_stock_products || 0;
             }
             
             if (response.orders) {
-                document.getElementById('totalOrders').textContent = 
-                    response.orders.total_orders || 0;
+                const totalOrders = document.getElementById('totalOrders');
+                if (totalOrders) totalOrders.textContent = response.orders.total_orders || 0;
             }
             
             if (response.edsa) {
-                document.getElementById('totalBookings').textContent = 
-                    response.edsa.pending_bookings || 0;
+                const totalBookings = document.getElementById('totalBookings');
+                if (totalBookings) totalBookings.textContent = response.edsa.pending_bookings || 0;
             }
         } catch (error) {
-            console.error('Failed to load dashboard stats:', error);
+            // Log error in development only
+            if (process.env.NODE_ENV === 'development') {
+                console.error('Failed to load dashboard stats:', error);
+            }
+            // Show user-friendly error message
+            this.showNotification('Failed to load dashboard statistics', 'error');
         }
     }
 
@@ -119,13 +148,17 @@ class AdminApp {
         document.querySelectorAll('.nav-link').forEach(link => {
             link.classList.remove('active');
         });
-        document.querySelector(`[data-section="${sectionName}"]`).classList.add('active');
+        
+        const activeNavLink = document.querySelector(`[data-section="${sectionName}"]`);
+        if (activeNavLink) activeNavLink.classList.add('active');
 
         // Show section
         document.querySelectorAll('.content-section').forEach(section => {
             section.classList.remove('active');
         });
-        document.getElementById(sectionName).classList.add('active');
+        
+        const activeSection = document.getElementById(sectionName);
+        if (activeSection) activeSection.classList.add('active');
 
         // Load section data
         this.loadSectionData(sectionName);
@@ -197,12 +230,12 @@ class AdminApp {
                     <tbody>
                         ${products.map(product => `
                             <tr>
-                                <td><code>${product.sku}</code></td>
+                                <td><code>${this.escapeHtml(product.sku)}</code></td>
                                 <td>
-                                    <div style="font-weight: 500;">${product.name}</div>
-                                    <div style="font-size: 0.75rem; color: var(--gray-500);">${product.category_name || 'No category'}</div>
+                                    <div style="font-weight: 500;">${this.escapeHtml(product.name)}</div>
+                                    <div style="font-size: 0.75rem; color: var(--gray-500);">${this.escapeHtml(product.category_name || 'No category')}</div>
                                 </td>
-                                <td>${product.brand_name || 'Unknown'}</td>
+                                <td>${this.escapeHtml(product.brand_name || 'Unknown')}</td>
                                 <td>$${product.price.toFixed(2)}</td>
                                 <td>
                                     <span class="badge ${product.inventory_quantity <= (product.low_stock_threshold || 10) ? 'badge-warning' : 'badge-success'}">
@@ -259,12 +292,17 @@ class AdminApp {
         this.authToken = null;
         this.currentUser = null;
         
-        document.getElementById('adminDashboard').style.display = 'none';
-        document.getElementById('loginScreen').style.display = 'flex';
+        const adminDashboard = document.getElementById('adminDashboard');
+        const loginScreen = document.getElementById('loginScreen');
+        const loginForm = document.getElementById('loginForm');
+        const loginError = document.getElementById('loginError');
+        
+        if (adminDashboard) adminDashboard.style.display = 'none';
+        if (loginScreen) loginScreen.style.display = 'flex';
         
         // Clear forms
-        document.getElementById('loginForm').reset();
-        document.getElementById('loginError').style.display = 'none';
+        if (loginForm) loginForm.reset();
+        if (loginError) loginError.style.display = 'none';
     }
 
     showNotification(message, type = 'info') {
@@ -274,7 +312,7 @@ class AdminApp {
         notification.innerHTML = `
             <div style="display: flex; align-items: center; gap: 0.5rem;">
                 <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}"></i>
-                <span>${message}</span>
+                <span>${this.escapeHtml(message)}</span>
             </div>
         `;
         
@@ -378,13 +416,315 @@ async function importProducts() {
 }
 
 function editProduct(productId) {
-    // TODO: Implement product editing modal
-    window.adminApp.showNotification('Product editing coming soon!', 'info');
+    // Create and show product editing modal
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Edit Product</h2>
+                <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="edit-product-form">
+                    <div class="form-group">
+                        <label for="edit-sku">SKU *</label>
+                        <input type="text" id="edit-sku" name="sku" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-name">Product Name *</label>
+                        <input type="text" id="edit-name" name="name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-short-description">Short Description</label>
+                        <textarea id="edit-short-description" name="short_description" rows="2"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-long-description">Long Description</label>
+                        <textarea id="edit-long-description" name="long_description" rows="4"></textarea>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="edit-price">Price *</label>
+                            <input type="number" id="edit-price" name="price" step="0.01" min="0" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="edit-compare-price">Compare Price</label>
+                            <input type="number" id="edit-compare-price" name="compare_price" step="0.01" min="0">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="edit-inventory">Inventory Quantity *</label>
+                            <input type="number" id="edit-inventory" name="inventory_quantity" min="0" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="edit-low-stock">Low Stock Threshold</label>
+                            <input type="number" id="edit-low-stock" name="low_stock_threshold" min="0" value="10">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-weight">Weight (oz)</label>
+                        <input type="number" id="edit-weight" name="weight" step="0.01" min="0">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="edit-is-active" name="is_active" checked>
+                                Active Product
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="edit-is-featured" name="is_featured">
+                                Featured Product
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" onclick="this.closest('.modal').remove()">Cancel</button>
+                        <button type="submit">Update Product</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    modal.style.display = 'block';
+    
+    // Load existing product data
+    loadProductForEdit(productId);
+    
+    // Handle form submission
+    document.getElementById('edit-product-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await updateProduct(productId, new FormData(e.target));
+        modal.remove();
+    });
+}
+
+async function loadProductForEdit(productId) {
+    try {
+        const response = await fetch(`/api/admin/products/${productId}`, {
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+            }
+        });
+        
+        if (response.ok) {
+            const product = await response.json();
+            
+            // Populate form fields
+            document.getElementById('edit-sku').value = product.sku || '';
+            document.getElementById('edit-name').value = product.name || '';
+            document.getElementById('edit-short-description').value = product.short_description || '';
+            document.getElementById('edit-long-description').value = product.long_description || '';
+            document.getElementById('edit-price').value = product.price || '';
+            document.getElementById('edit-compare-price').value = product.compare_price || '';
+            document.getElementById('edit-inventory').value = product.inventory_quantity || '';
+            document.getElementById('edit-low-stock').value = product.low_stock_threshold || '';
+            document.getElementById('edit-weight').value = product.weight || '';
+            document.getElementById('edit-is-active').checked = product.is_active;
+            document.getElementById('edit-is-featured').checked = product.is_featured;
+        } else {
+            window.adminApp.showNotification('Failed to load product data', 'error');
+        }
+    } catch (error) {
+        window.adminApp.showNotification('Error loading product: ' + error.message, 'error');
+    }
+}
+
+async function updateProduct(productId, formData) {
+    try {
+        const productData = {};
+        for (let [key, value] of formData.entries()) {
+            if (key === 'is_active' || key === 'is_featured') {
+                productData[key] = true; // Checkbox was checked
+            } else {
+                productData[key] = value;
+            }
+        }
+        
+        // Handle unchecked checkboxes
+        if (!formData.has('is_active')) productData.is_active = false;
+        if (!formData.has('is_featured')) productData.is_featured = false;
+        
+        const response = await fetch(`/api/admin/products/${productId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+            },
+            body: JSON.stringify(productData)
+        });
+        
+        if (response.ok) {
+            window.adminApp.showNotification('Product updated successfully!', 'success');
+            // Refresh the products list
+            if (typeof loadProducts === 'function') {
+                loadProducts();
+            }
+        } else {
+            const error = await response.json();
+            window.adminApp.showNotification('Failed to update product: ' + error.error, 'error');
+        }
+    } catch (error) {
+        window.adminApp.showNotification('Error updating product: ' + error.message, 'error');
+    }
 }
 
 function showAddProduct() {
-    // TODO: Implement add product modal
-    window.adminApp.showNotification('Add product form coming soon!', 'info');
+    // Create and show add product modal
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Add New Product</h2>
+                <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="add-product-form">
+                    <div class="form-group">
+                        <label for="add-sku">SKU *</label>
+                        <input type="text" id="add-sku" name="sku" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="add-name">Product Name *</label>
+                        <input type="text" id="add-name" name="name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="add-short-description">Short Description</label>
+                        <textarea id="add-short-description" name="short_description" rows="2"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="add-long-description">Long Description</label>
+                        <textarea id="add-long-description" name="long_description" rows="4"></textarea>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="add-brand">Brand *</label>
+                            <select id="add-brand" name="brand_id" required>
+                                <option value="">Select Brand</option>
+                                <option value="1">HM Herbs</option>
+                                <option value="2">Nature's Way</option>
+                                <option value="3">Garden of Life</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="add-category">Category *</label>
+                            <select id="add-category" name="category_id" required>
+                                <option value="">Select Category</option>
+                                <option value="1">Herbs & Botanicals</option>
+                                <option value="2">Vitamins</option>
+                                <option value="3">Supplements</option>
+                                <option value="4">Essential Oils</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="add-price">Price *</label>
+                            <input type="number" id="add-price" name="price" step="0.01" min="0" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="add-compare-price">Compare Price</label>
+                            <input type="number" id="add-compare-price" name="compare_price" step="0.01" min="0">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="add-inventory">Inventory Quantity *</label>
+                            <input type="number" id="add-inventory" name="inventory_quantity" min="0" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="add-low-stock">Low Stock Threshold</label>
+                            <input type="number" id="add-low-stock" name="low_stock_threshold" min="0" value="10">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="add-weight">Weight (oz)</label>
+                        <input type="number" id="add-weight" name="weight" step="0.01" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="add-health-categories">Health Categories (comma-separated)</label>
+                        <input type="text" id="add-health-categories" name="health_categories" placeholder="e.g., immune support, digestive health">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="add-is-active" name="is_active" checked>
+                                Active Product
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="add-is-featured" name="is_featured">
+                                Featured Product
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" onclick="this.closest('.modal').remove()">Cancel</button>
+                        <button type="submit">Add Product</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    modal.style.display = 'block';
+    
+    // Handle form submission
+    document.getElementById('add-product-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await createProduct(new FormData(e.target));
+        modal.remove();
+    });
+}
+
+async function createProduct(formData) {
+    try {
+        const productData = {};
+        for (let [key, value] of formData.entries()) {
+            if (key === 'is_active' || key === 'is_featured') {
+                productData[key] = true; // Checkbox was checked
+            } else if (key === 'health_categories') {
+                // Convert comma-separated string to array
+                productData[key] = value.split(',').map(cat => cat.trim()).filter(cat => cat);
+            } else {
+                productData[key] = value;
+            }
+        }
+        
+        // Handle unchecked checkboxes
+        if (!formData.has('is_active')) productData.is_active = false;
+        if (!formData.has('is_featured')) productData.is_featured = false;
+        
+        const response = await fetch('/api/admin/products', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+            },
+            body: JSON.stringify(productData)
+        });
+        
+        if (response.ok) {
+            window.adminApp.showNotification('Product created successfully!', 'success');
+            // Refresh the products list
+            if (typeof loadProducts === 'function') {
+                loadProducts();
+            }
+        } else {
+            const error = await response.json();
+            window.adminApp.showNotification('Failed to create product: ' + error.error, 'error');
+        }
+    } catch (error) {
+        window.adminApp.showNotification('Error creating product: ' + error.message, 'error');
+    }
 }
 
 function logout() {

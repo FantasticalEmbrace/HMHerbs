@@ -11,7 +11,149 @@
     <meta property="og:description" content="Discover over 10,000 premium herbs, vitamins, and natural health supplements organized by health conditions. Plus EDSA service available.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://hmherbs.com">
+    <meta property="og:image" content="https://hmherbs.com/images/og-image.jpg">
+    <meta property="og:site_name" content="H&M Herbs & Vitamins">
+    <meta property="og:locale" content="en_US">
+    
+    <!-- Twitter Card Tags -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="H&M Herbs & Vitamins - Premium Natural Health Products">
+    <meta name="twitter:description" content="Discover over 10,000 premium herbs, vitamins, and natural health supplements organized by health conditions. Plus EDSA service available.">
+    <meta name="twitter:image" content="https://hmherbs.com/images/twitter-card.jpg">
+    
+    <!-- Additional SEO Meta Tags -->
+    <meta name="theme-color" content="#2d5a27">
+    <meta name="msapplication-TileColor" content="#2d5a27">
+    <meta name="application-name" content="H&M Herbs & Vitamins">
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json">
+    
+    <!-- Apple Touch Icons -->
+    <link rel="apple-touch-icon" sizes="152x152" href="/images/icon-152x152.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/images/icon-180x180.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="HM Herbs">
+    
     <link rel="canonical" href="https://hmherbs.com">
+    <link rel="alternate" hreflang="en" href="https://hmherbs.com">
+    
+    <!-- Structured Data - Organization Schema -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "H&M Herbs & Vitamins",
+      "alternateName": "HM Herbs",
+      "url": "https://hmherbs.com",
+      "logo": "https://hmherbs.com/images/logo.png",
+      "description": "Premium natural health products, herbs, vitamins, and wellness supplements with over 10,000 products organized by health conditions.",
+      "foundingDate": "2010",
+      "contactPoint": {
+        "@type": "ContactPoint",
+        "telephone": "+1-555-HERBS-01",
+        "contactType": "customer service",
+        "availableLanguage": "English"
+      },
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "123 Wellness Way",
+        "addressLocality": "Natural City",
+        "addressRegion": "CA",
+        "postalCode": "90210",
+        "addressCountry": "US"
+      },
+      "sameAs": [
+        "https://www.facebook.com/hmherbs",
+        "https://www.instagram.com/hmherbs",
+        "https://twitter.com/hmherbs"
+      ],
+      "hasOfferCatalog": {
+        "@type": "OfferCatalog",
+        "name": "Natural Health Products",
+        "itemListElement": [
+          {
+            "@type": "OfferCatalog",
+            "name": "Herbs & Botanicals",
+            "numberOfItems": "5000+"
+          },
+          {
+            "@type": "OfferCatalog", 
+            "name": "Vitamins & Minerals",
+            "numberOfItems": "3000+"
+          },
+          {
+            "@type": "OfferCatalog",
+            "name": "Supplements",
+            "numberOfItems": "2000+"
+          }
+        ]
+      }
+    }
+    </script>
+    
+    <!-- Structured Data - Local Business Schema -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "HealthAndBeautyBusiness",
+      "name": "H&M Herbs & Vitamins",
+      "image": "https://hmherbs.com/images/storefront.jpg",
+      "url": "https://hmherbs.com",
+      "telephone": "+1-555-HERBS-01",
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "123 Wellness Way",
+        "addressLocality": "Natural City",
+        "addressRegion": "CA",
+        "postalCode": "90210",
+        "addressCountry": "US"
+      },
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": 34.0522,
+        "longitude": -118.2437
+      },
+      "openingHoursSpecification": [
+        {
+          "@type": "OpeningHoursSpecification",
+          "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+          "opens": "09:00",
+          "closes": "18:00"
+        },
+        {
+          "@type": "OpeningHoursSpecification",
+          "dayOfWeek": "Saturday",
+          "opens": "10:00",
+          "closes": "16:00"
+        }
+      ],
+      "priceRange": "$$",
+      "paymentAccepted": "Cash, Credit Card, Debit Card",
+      "currenciesAccepted": "USD",
+      "hasMap": "https://maps.google.com/?q=123+Wellness+Way,+Natural+City,+CA+90210"
+    }
+    </script>
+    
+    <!-- Structured Data - Website Schema -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "H&M Herbs & Vitamins",
+      "alternateName": "HM Herbs",
+      "url": "https://hmherbs.com",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": {
+          "@type": "EntryPoint",
+          "urlTemplate": "https://hmherbs.com/search?q={search_term_string}"
+        },
+        "query-input": "required name=search_term_string"
+      }
+    }
+    </script>
     
     <title>H&M Herbs & Vitamins - Premium Natural Health Products & EDSA Service</title>
     
@@ -19,10 +161,24 @@
     <link rel="stylesheet" href="styles.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     
-    <!-- Fonts -->
+    <!-- Performance Optimizations -->
+    <link rel="dns-prefetch" href="//fonts.googleapis.com">
+    <link rel="dns-prefetch" href="//fonts.gstatic.com">
+    <link rel="dns-prefetch" href="//cdnjs.cloudflare.com">
+    
+    <!-- Fonts with performance optimization -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <!-- Preload critical resources -->
+    <link rel="preload" href="styles.css" as="style">
+    <link rel="preload" href="script.js" as="script">
+    
+    <!-- Resource hints for better performance -->
+    <link rel="prefetch" href="/categories/herbs">
+    <link rel="prefetch" href="/categories/vitamins">
+    <link rel="prefetch" href="/services/edsa">
 </head>
 <body>
     <!-- Skip Navigation Link for Accessibility -->
@@ -108,6 +264,20 @@
             </div>
         </div>
     </header>
+
+    <!-- Breadcrumb Navigation -->
+    <nav aria-label="Breadcrumb" class="breadcrumb-nav">
+        <div class="container">
+            <ol class="breadcrumb" itemscope itemtype="https://schema.org/BreadcrumbList">
+                <li class="breadcrumb-item" itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
+                    <a href="/" itemprop="item">
+                        <span itemprop="name">Home</span>
+                    </a>
+                    <meta itemprop="position" content="1" />
+                </li>
+            </ol>
+        </div>
+    </nav>
 
     <!-- Main Content -->
     <main id="main-content" role="main">

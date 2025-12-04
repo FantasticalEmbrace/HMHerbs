@@ -1,6 +1,7 @@
 // Shopping Cart Routes
 const express = require('express');
 const router = express.Router();
+const { addToCartValidation, updateCartValidation, commonValidations } = require('../middleware/validation');
 
 // Get or create cart for user/session
 const getOrCreateCart = async (pool, userId, sessionId) => {
@@ -74,7 +75,7 @@ router.get('/', async (req, res) => {
 });
 
 // Add item to cart
-router.post('/add', async (req, res) => {
+router.post('/add', addToCartValidation, async (req, res) => {
     try {
         const { productId, variantId, quantity = 1 } = req.body;
         const userId = req.user?.id || null;
@@ -160,7 +161,7 @@ router.post('/add', async (req, res) => {
 });
 
 // Update cart item quantity
-router.put('/items/:itemId', async (req, res) => {
+router.put('/items/:itemId', updateCartValidation, async (req, res) => {
     try {
         const { itemId } = req.params;
         const { quantity } = req.body;

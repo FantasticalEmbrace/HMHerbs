@@ -11,6 +11,7 @@ class GDPRCompliance {
         
         this.consentGiven = false;
         this.consentTimestamp = null;
+        this.eventListeners = new Map(); // Track event listeners for cleanup
         
         this.init();
     }
@@ -30,7 +31,9 @@ class GDPRCompliance {
             this.applyConsentPreferences();
         }
         
-        console.log('GDPR Compliance system initialized');
+        if (typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'development') {
+            console.log('GDPR Compliance system initialized');
+        }
     }
     
     setupEventListeners() {
@@ -152,7 +155,28 @@ class GDPRCompliance {
         if (modal) {
             modal.classList.remove('show');
             modal.setAttribute('aria-hidden', 'true');
+            
+            // Clean up event listeners when modal closes
+            this.cleanupEventListeners();
         }
+    }
+    
+    // Helper method to add tracked event listeners
+    addTrackedEventListener(element, event, handler, key) {
+        if (element) {
+            element.addEventListener(event, handler);
+            this.eventListeners.set(key, { element, event, handler });
+        }
+    }
+    
+    // Clean up all tracked event listeners
+    cleanupEventListeners() {
+        this.eventListeners.forEach(({ element, event, handler }) => {
+            if (element) {
+                element.removeEventListener(event, handler);
+            }
+        });
+        this.eventListeners.clear();
     }
     
     updateModalToggles() {
@@ -431,21 +455,25 @@ class GDPRCompliance {
     }
     
     deleteUserData() {
-        if (confirm('Are you sure you want to delete all your data? This action cannot be undone.')) {
-            // Remove all stored data
-            localStorage.removeItem('hmherbs_gdpr_consent');
-            localStorage.removeItem('hmherbs_cart');
-            
-            // Remove all cookies
-            this.removeCookiesByPattern(['hmherbs', '_ga', '_gid', '_gat', '_fbp', '_fbc']);
-            
-            // Reset consent state
-            this.cookieConsent = {
-                essential: true,
-                analytics: false,
-                marketing: false
-            };
-            this.consentGiven = false;
+        // Use secure modal dialog instead of confirm() to prevent XSS
+        this.showConfirmationModal(
+            'Delete All Data',
+            'Are you sure you want to delete all your data? This action cannot be undone.',
+            () => {
+                // Remove all stored data
+                localStorage.removeItem('hmherbs_gdpr_consent');
+                localStorage.removeItem('hmherbs_cart');
+                
+                // Remove all cookies
+                this.removeCookiesByPattern(['hmherbs', '_ga', '_gid', '_gat', '_fbp', '_fbc']);
+                
+                // Reset consent state
+                this.cookieConsent = {
+                    essential: true,
+                    analytics: false,
+                    marketing: false
+                };
+                this.consentGiven = false;
             this.consentTimestamp = null;
             
             this.showConsentNotification('All user data deleted successfully');
@@ -463,6 +491,62 @@ class GDPRCompliance {
             preferences: this.cookieConsent,
             timestamp: this.consentTimestamp
         };
+    }
+
+    // Secure modal dialog method to replace confirm()
+    showConfirmationModal(title, message, callback) {
+        const modal = document.createElement('div');
+        modal.className = 'gdpr-modal-overlay';
+        modal.innerHTML = `
+            <div class="gdpr-modal">
+                <div class="gdpr-modal-header">
+                    <h3>${this.escapeHtml(title)}</h3>
+                    <button class="gdpr-modal-close" aria-label="Close">&times;</button>
+                </div>
+                <div class="gdpr-modal-body">
+                    <p>${this.escapeHtml(message)}</p>
+                </div>
+                <div class="gdpr-modal-footer">
+                    <button class="gdpr-btn gdpr-btn-secondary" id="gdpr-cancel">Cancel</button>
+                    <button class="gdpr-btn gdpr-btn-danger" id="gdpr-confirm">Confirm</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        const confirmBtn = modal.querySelector('#gdpr-confirm');
+        const cancelBtn = modal.querySelector('#gdpr-cancel');
+        const closeBtn = modal.querySelector('.gdpr-modal-close');
+
+        const closeModal = () => {
+            document.body.removeChild(modal);
+        };
+
+        confirmBtn.addEventListener('click', () => {
+            closeModal();
+            callback();
+        });
+
+        cancelBtn.addEventListener('click', closeModal);
+        closeBtn.addEventListener('click', closeModal);
+
+        // Handle Escape key
+        modal.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeModal();
+            }
+        });
+
+        // Focus the confirm button
+        confirmBtn.focus();
+    }
+
+    // HTML escaping function to prevent XSS
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 }
 

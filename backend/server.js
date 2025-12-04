@@ -12,6 +12,8 @@ const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs').promises;
+const logger = require('./utils/logger');
+const { userRegistrationValidation, userLoginValidation } = require('./middleware/validation');
 require('dotenv').config();
 
 const app = express();
@@ -34,7 +36,7 @@ const pool = mysql.createPool(dbConfig);
 app.use(helmet());
 app.use(compression());
 app.use(cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: process.env.FRONTEND_URL || 'http://localhost:8000',
     credentials: true
 }));
 
@@ -44,6 +46,18 @@ const limiter = rateLimit({
     max: 100 // limit each IP to 100 requests per windowMs
 });
 app.use(limiter);
+
+// Stricter rate limiting for authentication endpoints
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 5, // limit each IP to 5 auth attempts per windowMs
+    message: {
+        error: 'Too many authentication attempts, please try again later.',
+        retryAfter: '15 minutes'
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
 
 // Body parsing
 app.use(express.json({ limit: '10mb' }));
@@ -88,8 +102,13 @@ const authenticateToken = async (req, res, next) => {
         return res.status(401).json({ error: 'Access token required' });
     }
 
+    if (!process.env.JWT_SECRET) {
+        logger.error('CRITICAL: JWT_SECRET environment variable is not set');
+        return res.status(500).json({ error: 'Server configuration error' });
+    }
+
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const [rows] = await pool.execute(
             'SELECT id, email, first_name, last_name, is_active FROM users WHERE id = ? AND is_active = 1',
             [decoded.userId]
@@ -115,8 +134,13 @@ const authenticateAdmin = async (req, res, next) => {
         return res.status(401).json({ error: 'Access token required' });
     }
 
+    if (!process.env.JWT_SECRET) {
+        console.error('CRITICAL: JWT_SECRET environment variable is not set');
+        return res.status(500).json({ error: 'Server configuration error' });
+    }
+
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const [rows] = await pool.execute(
             'SELECT id, email, first_name, last_name, role, is_active FROM admin_users WHERE id = ? AND is_active = 1',
             [decoded.adminId]
@@ -156,7 +180,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // User Authentication Routes
-app.post('/api/auth/register', async (req, res) => {
+app.post('/api/auth/register', authLimiter, userRegistrationValidation, async (req, res) => {
     try {
         const { email, password, firstName, lastName, phone } = req.body;
 
@@ -186,9 +210,14 @@ app.post('/api/auth/register', async (req, res) => {
         );
 
         // Generate JWT token
+        if (!process.env.JWT_SECRET) {
+            logger.error('CRITICAL: JWT_SECRET environment variable is not set');
+            return res.status(500).json({ error: 'Server configuration error' });
+        }
+        
         const token = jwt.sign(
             { userId: result.insertId },
-            process.env.JWT_SECRET || 'your-secret-key',
+            process.env.JWT_SECRET,
             { expiresIn: '7d' }
         );
 
@@ -208,7 +237,7 @@ app.post('/api/auth/register', async (req, res) => {
     }
 });
 
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', authLimiter, userLoginValidation, async (req, res) => {
     try {
         const { email, password } = req.body;
 
@@ -246,9 +275,14 @@ app.post('/api/auth/login', async (req, res) => {
         );
 
         // Generate JWT token
+        if (!process.env.JWT_SECRET) {
+            logger.error('CRITICAL: JWT_SECRET environment variable is not set');
+            return res.status(500).json({ error: 'Server configuration error' });
+        }
+        
         const token = jwt.sign(
             { userId: user.id },
-            process.env.JWT_SECRET || 'your-secret-key',
+            process.env.JWT_SECRET,
             { expiresIn: '7d' }
         );
 
@@ -507,6 +541,7 @@ app.use((req, res, next) => {
 
 // Mount routes
 app.use('/api/cart', cartRoutes);
+app.use('/api/orders', require('./routes/orders'));
 app.use('/api/edsa', edsaRoutes);
 app.use('/api/admin', adminRoutes);
 
@@ -525,5 +560,5 @@ app.use('*', (req, res) => {
 app.listen(PORT, () => {
     console.log(`H&M Herbs API Server running on port ${PORT}`);
     console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
+    console.log(`Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:8000'}`);
 });
