@@ -554,9 +554,112 @@ class HMHerbsApp {
     }
 }
 
+// Performance Optimization Functions
+
+// Lazy Loading for Images
+function initLazyLoading() {
+    if ('IntersectionObserver' in window) {
+        const imageObserver = new IntersectionObserver((entries, observer) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const img = entry.target;
+                    img.src = img.dataset.src;
+                    img.classList.remove('lazy');
+                    img.classList.add('loaded');
+                    observer.unobserve(img);
+                }
+            });
+        }, {
+            rootMargin: '50px 0px',
+            threshold: 0.01
+        });
+
+        document.querySelectorAll('img[data-src]').forEach(img => {
+            imageObserver.observe(img);
+        });
+    } else {
+        // Fallback for browsers without IntersectionObserver
+        document.querySelectorAll('img[data-src]').forEach(img => {
+            img.src = img.dataset.src;
+            img.classList.remove('lazy');
+            img.classList.add('loaded');
+        });
+    }
+}
+
+// Image Optimization
+function initImageOptimization() {
+    // Add loading="lazy" to images that don't have it
+    document.querySelectorAll('img:not([loading])').forEach(img => {
+        // Don't lazy load images that are above the fold
+        const rect = img.getBoundingClientRect();
+        if (rect.top > window.innerHeight) {
+            img.loading = 'lazy';
+        }
+    });
+
+    // Optimize images for different screen sizes
+    if (window.devicePixelRatio > 1) {
+        document.querySelectorAll('img').forEach(img => {
+            if (img.src && !img.src.includes('w=')) {
+                // Add high DPI optimization for Unsplash images
+                img.src = img.src.replace('w=400', 'w=800&dpr=2');
+            }
+        });
+    }
+}
+
+// Core Web Vitals Optimization
+function optimizeCoreWebVitals() {
+    // Preload critical resources
+    const criticalResources = [
+        { href: '/styles.css', as: 'style' },
+        { href: '/script.js', as: 'script' }
+    ];
+
+    criticalResources.forEach(resource => {
+        const link = document.createElement('link');
+        link.rel = 'preload';
+        link.href = resource.href;
+        link.as = resource.as;
+        document.head.appendChild(link);
+    });
+
+    // Optimize font loading
+    if ('fonts' in document) {
+        document.fonts.ready.then(() => {
+            document.body.classList.add('fonts-loaded');
+        });
+    }
+}
+
+// Service Worker Registration for PWA
+function registerServiceWorker() {
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/service-worker.js')
+                .then(registration => {
+                    console.log('SW registered: ', registration);
+                })
+                .catch(registrationError => {
+                    console.log('SW registration failed: ', registrationError);
+                });
+        });
+    }
+}
+
 // Initialize the application when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
+    // Initialize performance optimizations
+    initLazyLoading();
+    initImageOptimization();
+    optimizeCoreWebVitals();
+    
+    // Initialize main application
     window.hmHerbsApp = new HMHerbsApp();
+    
+    // Register service worker for PWA features
+    registerServiceWorker();
 });
 
 // Export for potential module usage
