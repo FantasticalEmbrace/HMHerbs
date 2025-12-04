@@ -23,6 +23,14 @@ class AdminApp {
         this.setupEventListeners();
     }
 
+    // Helper function to escape HTML to prevent XSS
+    escapeHtml(text) {
+        if (text === null || text === undefined) return '';
+        const div = document.createElement('div');
+        div.textContent = String(text);
+        return div.innerHTML;
+    }
+
     setupEventListeners() {
         // Login form
         const loginForm = document.getElementById('loginForm');
@@ -197,12 +205,12 @@ class AdminApp {
                     <tbody>
                         ${products.map(product => `
                             <tr>
-                                <td><code>${product.sku}</code></td>
+                                <td><code>${this.escapeHtml(product.sku)}</code></td>
                                 <td>
-                                    <div style="font-weight: 500;">${product.name}</div>
-                                    <div style="font-size: 0.75rem; color: var(--gray-500);">${product.category_name || 'No category'}</div>
+                                    <div style="font-weight: 500;">${this.escapeHtml(product.name)}</div>
+                                    <div style="font-size: 0.75rem; color: var(--gray-500);">${this.escapeHtml(product.category_name || 'No category')}</div>
                                 </td>
-                                <td>${product.brand_name || 'Unknown'}</td>
+                                <td>${this.escapeHtml(product.brand_name || 'Unknown')}</td>
                                 <td>$${product.price.toFixed(2)}</td>
                                 <td>
                                     <span class="badge ${product.inventory_quantity <= (product.low_stock_threshold || 10) ? 'badge-warning' : 'badge-success'}">
@@ -274,7 +282,7 @@ class AdminApp {
         notification.innerHTML = `
             <div style="display: flex; align-items: center; gap: 0.5rem;">
                 <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}"></i>
-                <span>${message}</span>
+                <span>${this.escapeHtml(message)}</span>
             </div>
         `;
         
