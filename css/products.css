@@ -213,7 +213,7 @@
 /* Products Grid - Enhanced for Product Pages */
 .products-section .products-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
     gap: var(--space-8);
     margin-bottom: var(--space-12);
 }
@@ -226,19 +226,19 @@
 
 @media (min-width: 768px) {
     .products-section .products-grid {
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(2, 1fr);
     }
 }
 
 @media (min-width: 1024px) {
     .products-section .products-grid {
-        grid-template-columns: repeat(4, 1fr);
+        grid-template-columns: repeat(3, 1fr);
     }
 }
 
 @media (min-width: 1280px) {
     .products-section .products-grid {
-        grid-template-columns: repeat(5, 1fr);
+        grid-template-columns: repeat(3, 1fr);
     }
 }
 
@@ -247,11 +247,14 @@
     background-color: var(--white);
     border: 1px solid var(--gray-200);
     border-radius: var(--radius-xl);
-    padding: var(--space-6);
+    padding: var(--space-8);
     text-align: center;
     transition: all var(--transition-normal);
     position: relative;
     overflow: hidden;
+    min-height: 400px;
+    display: flex;
+    flex-direction: column;
 }
 
 .products-section .product-card:hover {
@@ -262,11 +265,12 @@
 
 .products-section .product-image {
     width: 100%;
-    height: 200px;
+    height: 240px;
     object-fit: cover;
     border-radius: var(--radius-lg);
-    margin-bottom: var(--space-4);
+    margin-bottom: var(--space-6);
     transition: transform var(--transition-normal);
+    flex-shrink: 0;
 }
 
 .products-section .product-card:hover .product-image {
@@ -274,18 +278,24 @@
 }
 
 .products-section .product-title {
-    font-size: var(--text-lg);
+    font-size: var(--text-xl);
     font-weight: 600;
     color: var(--gray-900);
-    margin-bottom: var(--space-2);
+    margin-bottom: var(--space-4);
     line-height: 1.4;
+    flex-grow: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 60px;
 }
 
 .products-section .product-price {
-    font-size: var(--text-xl);
+    font-size: var(--text-2xl);
     font-weight: 700;
     color: var(--primary-600);
-    margin-bottom: var(--space-3);
+    margin-bottom: var(--space-4);
+    margin-top: auto;
 }
 
 /* No Results State */
@@ -688,4 +698,3 @@
         border: 1px solid #ccc;
     }
 }
-
