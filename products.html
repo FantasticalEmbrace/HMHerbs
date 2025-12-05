@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Products - H&M Herbs & Vitamins | Natural Health Solutions</title>
+    <meta name="description" content="Browse our complete catalog of natural health products, herbs, and vitamins. Professional-grade supplements for optimal wellness.">
+    <meta name="keywords" content="natural health products, herbs, vitamins, supplements, wellness, organic">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="css/products.css">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "CollectionPage",
+        "name": "H&M Herbs & Vitamins Products",
+        "description": "Complete catalog of natural health products, herbs, and vitamins",
+        "url": "https://hmherbs.com/products.html",
+        "mainEntity": {
+            "@type": "ItemList",
+            "name": "Natural Health Products",
+            "description": "Professional-grade supplements and natural health solutions"
+        }
+    }
+    </script>
+</head>
+<body>
+    <!-- Skip to main content for accessibility -->
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+    
+    <!-- Header -->
+    <header class="header" role="banner">
+        <nav class="navbar" role="navigation" aria-label="Main navigation">
+            <div class="container">
+                <div class="navbar-brand">
+                    <a href="index.html" class="brand-link" aria-label="H&M Herbs & Vitamins - Home">
+                        <img src="images/logo.png" alt="H&M Herbs & Vitamins" class="logo" width="50" height="50">
+                        <span class="brand-text">H&M Herbs</span>
+                    </a>
+                </div>
+                
+                <button class="navbar-toggle" aria-label="Toggle navigation menu" aria-expanded="false">
+                    <span class="hamburger-line"></span>
+                    <span class="hamburger-line"></span>
+                    <span class="hamburger-line"></span>
+                </button>
+                
+                <div class="navbar-menu" id="navbar-menu">
+                    <ul class="navbar-nav" role="menubar">
+                        <li class="nav-item" role="none">
+                            <a href="index.html" class="nav-link" role="menuitem">Home</a>
+                        </li>
+                        <li class="nav-item" role="none">
+                            <a href="products.html" class="nav-link active" role="menuitem" aria-current="page">Products</a>
+                        </li>
+                        <li class="nav-item" role="none">
+                            <a href="index.html#about" class="nav-link" role="menuitem">About</a>
+                        </li>
+                        <li class="nav-item" role="none">
+                            <a href="index.html#services" class="nav-link" role="menuitem">Services</a>
+                        </li>
+                        <li class="nav-item" role="none">
+                            <a href="index.html#contact" class="nav-link" role="menuitem">Contact</a>
+                        </li>
+                    </ul>
+                    
+                    <div class="navbar-actions">
+                        <button class="cart-toggle" aria-label="Shopping cart" aria-expanded="false">
+                            <i class="fas fa-shopping-cart" aria-hidden="true"></i>
+                            <span class="cart-count" id="cart-count">0</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <!-- Main Content -->
+    <main id="main-content" class="main-content">
+        <!-- Breadcrumb Navigation -->
+        <nav class="breadcrumb-nav" aria-label="Breadcrumb">
+            <div class="container">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="index.html">
+                            <i class="fas fa-home" aria-hidden="true"></i>
+                            Home
+                        </a>
+                    </li>
+                    <li class="breadcrumb-item active" aria-current="page">
+                        Products
+                    </li>
+                </ol>
+            </div>
+        </nav>
+
+        <!-- Page Header -->
+        <section class="page-header">
+            <div class="container">
+                <div class="page-header-content">
+                    <h1 class="page-title">Natural Health Products</h1>
+                    <p class="page-subtitle">Discover our complete collection of premium herbs, vitamins, and natural supplements</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Product Filters & Search -->
+        <section class="product-filters">
+            <div class="container">
+                <div class="filters-wrapper">
+                    <div class="search-box">
+                        <label for="product-search" class="sr-only">Search products</label>
+                        <input type="text" id="product-search" class="search-input" placeholder="Search products..." aria-describedby="search-help">
+                        <button type="button" class="search-btn" aria-label="Search">
+                            <i class="fas fa-search" aria-hidden="true"></i>
+                        </button>
+                        <div id="search-help" class="sr-only">Enter product name or keywords to search</div>
+                    </div>
+                    
+                    <div class="filter-controls">
+                        <div class="filter-group">
+                            <label for="category-filter" class="filter-label">Category:</label>
+                            <select id="category-filter" class="filter-select">
+                                <option value="">All Categories</option>
+                                <option value="herbs">Herbs</option>
+                                <option value="vitamins">Vitamins</option>
+                                <option value="supplements">Supplements</option>
+                                <option value="wellness">Wellness</option>
+                            </select>
+                        </div>
+                        
+                        <div class="filter-group">
+                            <label for="sort-filter" class="filter-label">Sort by:</label>
+                            <select id="sort-filter" class="filter-select">
+                                <option value="name">Name (A-Z)</option>
+                                <option value="name-desc">Name (Z-A)</option>
+                                <option value="price">Price (Low to High)</option>
+                                <option value="price-desc">Price (High to Low)</option>
+                                <option value="featured">Featured First</option>
+                            </select>
+                        </div>
+                        
+                        <button type="button" class="filter-reset" id="reset-filters">
+                            <i class="fas fa-undo" aria-hidden="true"></i>
+                            Reset
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Products Grid -->
+        <section class="products-section">
+            <div class="container">
+                <!-- Loading State -->
+                <div class="loading-state" id="loading-state">
+                    <div class="loading-spinner">
+                        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                    </div>
+                    <p>Loading products...</p>
+                </div>
+
+                <!-- Products Grid -->
+                <div class="products-grid" id="products-grid" role="region" aria-label="Product catalog">
+                    <!-- Products will be dynamically loaded here -->
+                </div>
+
+                <!-- No Results State -->
+                <div class="no-results" id="no-results" style="display: none;">
+                    <div class="no-results-content">
+                        <i class="fas fa-search" aria-hidden="true"></i>
+                        <h3>No products found</h3>
+                        <p>Try adjusting your search or filter criteria</p>
+                        <button type="button" class="btn btn-primary" onclick="resetFilters()">
+                            Clear Filters
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Pagination -->
+                <nav class="pagination-nav" aria-label="Product pages navigation">
+                    <div class="pagination-info">
+                        <span id="pagination-info">Showing 1-20 of 0 products</span>
+                    </div>
+                    <ul class="pagination" id="pagination">
+                        <!-- Pagination will be dynamically generated -->
+                    </ul>
+                </nav>
+            </div>
+        </section>
+    </main>
+
+    <!-- Shopping Cart Sidebar -->
+    <aside class="cart-sidebar" id="cart-sidebar" aria-label="Shopping cart">
+        <div class="cart-header">
+            <h2 class="cart-title">Shopping Cart</h2>
+            <button class="cart-close" aria-label="Close cart">
+                <i class="fas fa-times" aria-hidden="true"></i>
+            </button>
+        </div>
+        
+        <div class="cart-content">
+            <div class="cart-items" id="cart-items">
+                <!-- Cart items will be dynamically loaded here -->
+            </div>
+            
+            <div class="cart-empty" id="cart-empty">
+                <i class="fas fa-shopping-cart" aria-hidden="true"></i>
+                <p>Your cart is empty</p>
+                <a href="products.html" class="btn btn-primary">Continue Shopping</a>
+            </div>
+        </div>
+        
+        <div class="cart-footer">
+            <div class="cart-total">
+                <span class="total-label">Total: </span>
+                <span class="total-amount" id="cart-total">$0.00</span>
+            </div>
+            <button class="btn btn-primary btn-block checkout-btn" id="checkout-btn">
+                <i class="fas fa-credit-card" aria-hidden="true"></i>
+                Proceed to Checkout
+            </button>
+        </div>
+    </aside>
+
+    <!-- Cart Overlay -->
+    <div class="cart-overlay" id="cart-overlay"></div>
+
+    <!-- Footer -->
+    <footer class="footer" role="contentinfo">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h3 class="footer-title">H&M Herbs & Vitamins</h3>
+                    <p class="footer-text">Your trusted source for premium natural health products and wellness solutions.</p>
+                </div>
+                
+                <div class="footer-section">
+                    <h4 class="footer-subtitle">Quick Links</h4>
+                    <ul class="footer-links">
+                        <li><a href="index.html">Home</a></li>
+                        <li><a href="products.html">Products</a></li>
+                        <li><a href="index.html#about">About</a></li>
+                        <li><a href="index.html#contact">Contact</a></li>
+                    </ul>
+                </div>
+                
+                <div class="footer-section">
+                    <h4 class="footer-subtitle">Categories</h4>
+                    <ul class="footer-links">
+                        <li><a href="products.html?category=herbs">Herbs</a></li>
+                        <li><a href="products.html?category=vitamins">Vitamins</a></li>
+                        <li><a href="products.html?category=supplements">Supplements</a></li>
+                        <li><a href="products.html?category=wellness">Wellness</a></li>
+                    </ul>
+                </div>
+                
+                <div class="footer-section">
+                    <h4 class="footer-subtitle">Contact Info</h4>
+                    <div class="contact-info">
+                        <p><i class="fas fa-phone" aria-hidden="true"></i> (555) 123-4567</p>
+                        <p><i class="fas fa-envelope" aria-hidden="true"></i> info@hmherbs.com</p>
+                        <p><i class="fas fa-map-marker-alt" aria-hidden="true"></i> 123 Wellness St, Health City, HC 12345</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="footer-bottom">
+                <p>&copy; 2024 H&M Herbs & Vitamins. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Notification Container -->
+    <div class="notification-container" id="notification-container" aria-live="polite" aria-atomic="true">
+        <!-- Notifications will be dynamically added here -->
+    </div>
+
+    <!-- JavaScript -->
+    <script src="js/products.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
+
