@@ -32,7 +32,11 @@ class HMHerbsApp {
             console.log('H&M Herbs app initialized successfully');
         } catch (error) {
             console.error('Error initializing app:', error);
-            this.showNotification('Unable to load the application. Please refresh the page or try again later.', 'error');
+            // Only show error notification on homepage - other pages have their own error handling
+            const isHomepage = document.getElementById('spotlight-products-grid') !== null;
+            if (isHomepage) {
+                this.showNotification('Unable to load the application. Please refresh the page or try again later.', 'error');
+            }
         }
     }
     
