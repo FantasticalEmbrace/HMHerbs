@@ -54,11 +54,14 @@ async function setupEnvironment() {
             fs.copyFileSync(envExamplePath, envPath);
             console.log('✅ Created .env file from template');
         } else {
-            // Create basic .env file
+            // Create basic .env file with improved configuration
             const envContent = `# HM Herbs Environment Configuration
 PORT=3001
 NODE_ENV=development
 FRONTEND_URL=http://localhost:8000
+
+# Production Configuration (update for deployment)
+PRODUCTION_DOMAIN=your-domain.com
 
 # Database Configuration
 DB_HOST=localhost
@@ -66,12 +69,21 @@ DB_USER=root
 DB_PASSWORD=
 DB_NAME=hmherbs
 
-# JWT Secret (auto-generated)
+# Security (auto-generated secure keys)
 JWT_SECRET=${require('crypto').randomBytes(32).toString('hex')}
 POS_ENCRYPTION_KEY=${require('crypto').randomBytes(32).toString('hex')}
 
 # Logging
 LOG_LEVEL=info
+
+# Optional: Redis for caching
+# REDIS_URL=redis://localhost:6379
+
+# Optional: Email configuration
+# SMTP_HOST=smtp.gmail.com
+# SMTP_PORT=587
+# SMTP_USER=your_email@gmail.com
+# SMTP_PASS=your_email_password
 `;
             fs.writeFileSync(envPath, envContent);
             console.log('✅ Created basic .env file');
@@ -355,8 +367,9 @@ async function main() {
         console.log('   npm start');
         console.log('   OR press F5 in VS Code');
         console.log('   OR Ctrl+Shift+P → "Run Task" → "Start HM Herbs Backend"');
-        console.log('\n3. 🌐 Access admin panel:');
-        console.log('   http://localhost:3001/admin');
+        console.log('\n3. 🌐 Access your website:');
+        console.log('   Frontend: http://localhost:8000');
+        console.log('   Admin Panel: http://localhost:8000/admin.html');
         console.log('\n4. 🕷️ Run the scraper (optional):');
         console.log('   npm run scrape');
         
@@ -403,4 +416,3 @@ if (require.main === module) {
 }
 
 module.exports = { main };
-

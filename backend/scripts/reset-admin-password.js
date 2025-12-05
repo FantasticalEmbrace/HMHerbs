@@ -131,8 +131,8 @@ async function resetAdminPassword() {
             console.log(`   Email: ${email}`);
             console.log(`   Password: ${newPassword}`);
             console.log('\n🌐 Access your admin panel at:');
-            console.log('   http://localhost:3001/admin');
-            console.log('   or http://localhost:8000/admin.html');
+            console.log('   Development: http://localhost:8000/admin.html');
+            console.log('   Production: https://your-domain.com/admin.html');
             console.log('\n⚠️  Remember to change this password after logging in!');
         } else {
             console.log('❌ Failed to update password');
@@ -195,4 +195,3 @@ if (require.main === module) {
 }
 
 module.exports = { resetAdminPassword };
-

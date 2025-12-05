@@ -36,8 +36,37 @@ const pool = mysql.createPool(dbConfig);
 // Middleware
 app.use(helmet());
 app.use(compression());
+// CORS configuration with support for multiple origins
+const allowedOrigins = [
+    'http://localhost:8000',
+    'http://localhost:3000',
+    'http://127.0.0.1:8000',
+    'http://127.0.0.1:3000'
+];
+
+// Add production frontend URL if specified
+if (process.env.FRONTEND_URL && !allowedOrigins.includes(process.env.FRONTEND_URL)) {
+    allowedOrigins.push(process.env.FRONTEND_URL);
+}
+
+// Add production domain if specified
+if (process.env.PRODUCTION_DOMAIN) {
+    allowedOrigins.push(`https://${process.env.PRODUCTION_DOMAIN}`);
+    allowedOrigins.push(`http://${process.env.PRODUCTION_DOMAIN}`);
+}
+
 app.use(cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:8000',
+    origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+        
+        if (allowedOrigins.indexOf(origin) !== -1) {
+            callback(null, true);
+        } else {
+            console.warn(`CORS blocked request from origin: ${origin}`);
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
     credentials: true
 }));
 
