@@ -26,8 +26,7 @@ class HMHerbsApp {
             this.loadCartFromStorage();
             
             // Render initial content
-            this.renderFeaturedProducts();
-            this.renderBestsellers();
+            this.renderSpotlightProducts();
             this.updateCartDisplay();
             
             console.log('H&M Herbs app initialized successfully');
@@ -44,7 +43,7 @@ class HMHerbsApp {
                 ? 'http://localhost:3001' 
                 : window.location.origin;
             
-            const response = await fetch(`${apiBaseUrl}/api/products?limit=50&featured=true`);
+            const response = await fetch(`${apiBaseUrl}/api/products?limit=4&featured=true`);
             
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
@@ -183,11 +182,53 @@ class HMHerbsApp {
         return '<div class="inventory-status in-stock"><i class="fas fa-check-circle"></i> In Stock</div>';
     }
     
-    renderFeaturedProducts() {
-        const container = document.getElementById('featured-products-grid');
+    renderSpotlightProducts() {
+        const container = document.getElementById('spotlight-products-grid');
         if (!container) return;
         
-        const featuredProducts = this.products.filter(product => product.featured);
+        // H&M Herbs signature products (static data for now)
+        const spotlightProducts = [
+            {
+                id: 'hmherbs-1',
+                name: 'Immune Support',
+                price: 29.99,
+                image: 'images/products/hmherbs-immune-support.svg',
+                inventory: 25,
+                lowStockThreshold: 5,
+                featured: true,
+                description: 'Natural Defense Formula - Boost your immune system with our premium blend of herbs and vitamins.'
+            },
+            {
+                id: 'hmherbs-2',
+                name: 'Joint Health',
+                price: 34.99,
+                image: 'images/products/hmherbs-joint-health.svg',
+                inventory: 18,
+                lowStockThreshold: 5,
+                featured: true,
+                description: 'Mobility & Comfort Blend - Support healthy joints and mobility with our specialized formula.'
+            },
+            {
+                id: 'hmherbs-3',
+                name: 'Energy Boost',
+                price: 27.99,
+                image: 'images/products/hmherbs-energy-boost.svg',
+                inventory: 32,
+                lowStockThreshold: 5,
+                featured: true,
+                description: 'Natural Vitality Complex - Increase your energy levels naturally with our energizing blend.'
+            },
+            {
+                id: 'hmherbs-4',
+                name: 'Digestive Wellness',
+                price: 31.99,
+                image: 'images/products/hmherbs-digestive-wellness.svg',
+                inventory: 22,
+                lowStockThreshold: 5,
+                featured: true,
+                description: 'Gut Health Support - Promote digestive health with our carefully crafted herbal formula.'
+            }
+        ];
         
         // Remove existing event listeners by cloning the container
         const newContainer = container.cloneNode(false);
@@ -199,7 +240,7 @@ class HMHerbsApp {
         newContainer.innerHTML = '';
         
         // Create product cards safely using DOM methods to prevent XSS
-        featuredProducts.forEach(product => {
+        spotlightProducts.forEach(product => {
             const productCard = this.createProductCard(product);
             newContainer.appendChild(productCard);
         });
@@ -212,12 +253,12 @@ class HMHerbsApp {
                     console.error('Product element with data-product-id not found');
                     return;
                 }
-                const productId = parseInt(productElement.dataset.productId) || 0;
-                if (productId === 0) {
+                const productId = productElement.dataset.productId;
+                if (!productId) {
                     console.error('Invalid product ID:', productElement.dataset.productId);
                     return;
                 }
-                this.addToCart(productId);
+                this.addToCartSpotlight(productId, spotlightProducts);
             }
         });
     }
@@ -304,6 +345,47 @@ class HMHerbsApp {
                 price: product.price,
                 image: product.image,
                 quantity: quantity
+            });
+        }
+        
+        this.updateCartDisplay();
+        this.saveCartToStorage();
+        this.showNotification(`${product.name} added to cart`, 'success');
+        this.announceToScreenReader(`${product.name} added to cart`);
+    }
+    
+    addToCartSpotlight(productId, spotlightProducts) {
+        const product = spotlightProducts.find(p => p.id === productId);
+        if (!product) {
+            this.showNotification('Product not found', 'error');
+            return;
+        }
+        
+        // Check inventory availability
+        if (product.inventory === 0) {
+            this.showNotification('Product is out of stock', 'error');
+            return;
+        }
+        
+        // Check if adding this quantity would exceed available inventory
+        const existingItem = this.cart.find(item => item.id === productId);
+        const currentCartQuantity = existingItem ? existingItem.quantity : 0;
+        
+        if (currentCartQuantity >= product.inventory) {
+            this.showNotification('No more items available', 'error');
+            return;
+        }
+        
+        // Add or update cart item
+        if (existingItem) {
+            existingItem.quantity += 1;
+        } else {
+            this.cart.push({
+                id: productId,
+                name: product.name,
+                price: product.price,
+                image: product.image,
+                quantity: 1
             });
         }
         
