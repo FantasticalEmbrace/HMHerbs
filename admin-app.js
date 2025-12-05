@@ -3,11 +3,22 @@
 
 class AdminApp {
     constructor() {
-        this.apiBaseUrl = 'http://localhost:3001/api';
+        // Dynamic API base URL configuration
+        this.apiBaseUrl = this.getApiBaseUrl();
         this.authToken = localStorage.getItem('adminToken');
         this.currentUser = null;
         
         this.init();
+    }
+    
+    getApiBaseUrl() {
+        // Check if we're in development (localhost)
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            return 'http://localhost:3001/api';
+        }
+        
+        // For production, use the same origin with /api path
+        return `${window.location.origin}/api`;
     }
 
     async init() {

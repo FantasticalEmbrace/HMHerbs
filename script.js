@@ -38,12 +38,34 @@ class HMHerbsApp {
     }
     
     async loadProducts() {
-        // Products will be loaded from the database via API after scraping
-        // For now, initialize with empty array until products are scraped
-        this.products = [];
-        
-        // TODO: Implement API call to fetch products from backend
-        // Example: this.products = await this.fetchProductsFromAPI();
+        try {
+            // Get API base URL from environment or default to current origin
+            const apiBaseUrl = window.location.origin.includes('localhost') 
+                ? 'http://localhost:3001' 
+                : window.location.origin;
+            
+            const response = await fetch(`${apiBaseUrl}/api/products?limit=50&featured=true`);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            this.products = data.products || [];
+            
+            console.log(`✅ Loaded ${this.products.length} products from API`);
+            
+            // Update the UI after loading products
+            this.renderProducts();
+            this.updateProductCount();
+            
+        } catch (error) {
+            console.error('❌ Failed to load products from API:', error);
+            
+            // Fallback to empty array and show user-friendly message
+            this.products = [];
+            this.showNotification('Unable to load products. Please check your connection and try again.', 'error');
+        }
     }
     
     setupEventListeners() {

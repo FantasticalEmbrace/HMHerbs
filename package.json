@@ -7,7 +7,7 @@
     "backend"
   ],
   "scripts": {
-    "start": "npm run start:backend",
+    "start": "node start.js",
     "start:backend": "cd backend && npm start",
     "dev": "npm run dev:backend",
     "dev:backend": "cd backend && npm run dev",
@@ -15,7 +15,9 @@
     "test": "cd backend && npm test",
     "build": "echo 'Frontend is static HTML/CSS/JS - no build step required'",
     "serve": "python3 -m http.server 8000 || python -m SimpleHTTPServer 8000",
-    "setup": "npm run install:backend"
+    "setup": "node setup.js",
+    "reset-password": "cd backend && node scripts/reset-admin-password.js",
+    "scrape": "cd backend && node scripts/scrape-hmherbs.js"
   },
   "keywords": [
     "herbs",
