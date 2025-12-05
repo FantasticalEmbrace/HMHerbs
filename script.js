@@ -38,113 +38,12 @@ class HMHerbsApp {
     }
     
     async loadProducts() {
-        // Sample product data based on the original HM Herbs website
-        this.products = [
-            {
-                id: 1,
-                name: "Terry Naturally Cura Med 375mg 120SG",
-                price: 69.95,
-                category: "supplements",
-                image: "/images/placeholder-supplement.svg",
-                description: "Premium curcumin supplement for joint health and inflammation support",
-                featured: true,
-                bestseller: false,
-                inStock: true,
-                inventory: 25,
-                lowStockThreshold: 10
-            },
-            {
-                id: 2,
-                name: "Unicity Aloe Vera 50 Capsules",
-                price: 34.95,
-                category: "herbs",
-                image: "/images/placeholder-herb.svg",
-                description: "Pure aloe vera capsules for digestive health and wellness",
-                featured: true,
-                bestseller: false,
-                inStock: true,
-                inventory: 8,
-                lowStockThreshold: 10
-            },
-            {
-                id: 3,
-                name: "Newton Labs Allergies",
-                price: 17.95,
-                category: "homeopathic",
-                image: "/images/placeholder-product.svg",
-                description: "Natural homeopathic remedy for seasonal allergies",
-                featured: true,
-                bestseller: false,
-                inStock: true,
-                inventory: 15,
-                lowStockThreshold: 10
-            },
-            {
-                id: 4,
-                name: "REGALABS CANNABIS OIL FOR PETS",
-                price: 29.99,
-                category: "pet-health",
-                image: "/images/placeholder-product.svg",
-                description: "Organic cannabis oil with CBD for cats and dogs",
-                featured: true,
-                bestseller: false,
-                inStock: true,
-                inventory: 12,
-                lowStockThreshold: 10
-            },
-            {
-                id: 5,
-                name: "ADVANCED BLOOD PRESSURE CHERRY",
-                price: 32.95,
-                category: "cardiovascular",
-                image: "/images/placeholder-supplement.svg",
-                description: "Natural cherry-flavored blood pressure support supplement",
-                featured: true,
-                bestseller: false,
-                inStock: true,
-                inventory: 30,
-                lowStockThreshold: 10
-            },
-            {
-                id: 6,
-                name: "REGAL LABS CANNABIS CARE TUBES Or JARS",
-                price: 25.49,
-                category: "topical",
-                image: "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80",
-                description: "Cannabis care cream for topical relief",
-                featured: true,
-                bestseller: false,
-                inStock: true,
-                inventory: 18,
-                lowStockThreshold: 10
-            },
-            {
-                id: 7,
-                name: "EVE'S GENERATIONAL FORMULA",
-                price: 19.99,
-                category: "womens-health",
-                image: "https://images.unsplash.com/photo-1559757148-5c350d0d3c56?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80",
-                description: "Specialized women's health formula, 2 oz pump",
-                featured: false,
-                bestseller: true,
-                inStock: true,
-                inventory: 22,
-                lowStockThreshold: 10
-            },
-            {
-                id: 8,
-                name: "HAPPY PMS CREAM JAR",
-                price: 19.99,
-                category: "womens-health",
-                image: "https://images.unsplash.com/photo-1576086213369-97a306d36557?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80",
-                description: "Happy PMS progesterone body cream, 2oz jar",
-                featured: false,
-                bestseller: true,
-                inStock: true,
-                inventory: 5,
-                lowStockThreshold: 10
-            }
-        ];
+        // Products will be loaded from the database via API after scraping
+        // For now, initialize with empty array until products are scraped
+        this.products = [];
+        
+        // TODO: Implement API call to fetch products from backend
+        // Example: this.products = await this.fetchProductsFromAPI();
     }
     
     setupEventListeners() {

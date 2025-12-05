@@ -87,15 +87,19 @@ class HMHerbsScraper {
     extractProductLinks($) {
         const links = [];
         
-        // Common selectors for product links
+        // Common selectors for product links - updated for actual website structure
         const selectors = [
+            'a[href*="/index.php/products/"]',
+            'a[href*="/products/"]',
             'a[href*="/product"]',
             'a[href*="/item"]',
             'a[href*="/p/"]',
             '.product-link',
             '.product-item a',
             '.product-card a',
-            '.product-title a'
+            '.product-title a',
+            'h2 a',
+            'h3 a'
         ];
         
         selectors.forEach(selector => {
@@ -138,14 +142,18 @@ class HMHerbsScraper {
     }
 
     isProductPage($) {
-        // Check if this is a product page
+        // Check if this is a product page - updated for actual website structure
         const indicators = [
+            $('h1').length > 0 && $('h1').text().includes('SKU:'), // Product pages have h1 with SKU
             $('.product-details').length > 0,
             $('.product-info').length > 0,
             $('.product-price').length > 0,
             $('.add-to-cart').length > 0,
             $('meta[property="og:type"]').attr('content') === 'product',
-            $('.product-description').length > 0
+            $('.product-description').length > 0,
+            $('h1').length > 0 && $('h1').text().trim().length > 0, // Has product title
+            $('body').text().includes('Add to Cart'), // Has add to cart button
+            $('body').text().includes('$') // Has price somewhere on page
         ];
         
         return indicators.some(indicator => indicator);
@@ -177,7 +185,9 @@ class HMHerbsScraper {
                     '.price',
                     '.current-price',
                     '.sale-price',
-                    '.product-cost'
+                    '.product-cost',
+                    'h1 + *', // Price often appears right after h1
+                    'body' // Fallback: search entire body for price pattern
                 ]),
                 
                 comparePrice: this.extractPrice($, [
@@ -257,11 +267,22 @@ class HMHerbsScraper {
     extractPrice($, selectors) {
         for (const selector of selectors) {
             const text = $(selector).first().text().trim();
-            const price = text.match(/[\d,]+\.?\d*/);
+            // Look for price patterns like $19.99, $1,234.56, etc.
+            const price = text.match(/\$\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/);
             if (price) {
-                return parseFloat(price[0].replace(',', ''));
+                return parseFloat(price[1].replace(',', ''));
             }
         }
+        
+        // Fallback: look for any number that looks like a price
+        for (const selector of selectors) {
+            const text = $(selector).first().text().trim();
+            const price = text.match(/(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/);
+            if (price && parseFloat(price[1].replace(',', '')) > 0) {
+                return parseFloat(price[1].replace(',', ''));
+            }
+        }
+        
         return 0;
     }
 
@@ -374,24 +395,96 @@ class HMHerbsScraper {
     async findCategoryPages() {
         console.log('🔍 Looking for category pages...');
         
-        // Common category page patterns
+        const allProductLinks = new Set();
+        
+        // Common category page patterns - updated for actual website structure
         const categoryUrls = [
-            `${this.baseUrl}/shop`,
-            `${this.baseUrl}/products`,
-            `${this.baseUrl}/categories`,
-            `${this.baseUrl}/herbs`,
-            `${this.baseUrl}/vitamins`,
-            `${this.baseUrl}/supplements`
+            `${this.baseUrl}/index.php/products`,
+            `${this.baseUrl}/index.php/shop`,
+            `${this.baseUrl}/index.php/categories`,
+            `${this.baseUrl}/index.php/herbs`,
+            `${this.baseUrl}/index.php/vitamins`,
+            `${this.baseUrl}/index.php/supplements`
         ];
         
         for (const url of categoryUrls) {
             try {
                 const { productLinks } = await this.scrapePage(url);
                 console.log(`📦 Found ${productLinks.length} product links on ${url}`);
+                
+                // Add links to our collection
+                productLinks.forEach(link => allProductLinks.add(link));
+                
+                // If this is the main products page, try pagination
+                if (url.includes('/index.php/products')) {
+                    const paginationLinks = await this.scrapePaginatedPages(url);
+                    paginationLinks.forEach(link => allProductLinks.add(link));
+                }
             } catch (error) {
                 // Continue if category page doesn't exist
             }
         }
+        
+        // Now scrape all the individual product pages we found
+        console.log(`🎯 Found ${allProductLinks.size} unique product links. Starting individual product scraping...`);
+        await this.scrapeFoundProductLinks(Array.from(allProductLinks));
+    }
+
+    async scrapePaginatedPages(baseUrl) {
+        console.log('📄 Checking for pagination...');
+        
+        const allPaginationLinks = [];
+        
+        // Try pages 2-10 to get more products (saw up to page 37 on the site)
+        for (let page = 2; page <= 10; page++) {
+            try {
+                const pageUrl = `${baseUrl}?ccm_paging_p=${page}`;
+                const { productLinks } = await this.scrapePage(pageUrl);
+                console.log(`📦 Found ${productLinks.length} product links on page ${page}`);
+                
+                // Add links to our collection
+                allPaginationLinks.push(...productLinks);
+                
+                // If no products found, we've reached the end
+                if (productLinks.length === 0) {
+                    break;
+                }
+                
+                // Add a small delay to be respectful
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            } catch (error) {
+                console.log(`⚠️ Could not access page ${page}`);
+                break;
+            }
+        }
+        
+        return allPaginationLinks;
+    }
+
+    async scrapeFoundProductLinks(productLinks) {
+        console.log(`🔍 Scraping ${productLinks.length} individual product pages...`);
+        
+        for (let i = 0; i < productLinks.length; i++) {
+            const link = productLinks[i];
+            try {
+                console.log(`📦 Scraping product ${i + 1}/${productLinks.length}: ${link}`);
+                
+                // Scrape the individual product page
+                await this.scrapePage(link);
+                
+                // Add a small delay to be respectful
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+                // Log progress every 10 products
+                if ((i + 1) % 10 === 0) {
+                    console.log(`✅ Progress: ${i + 1}/${productLinks.length} products scraped. Found ${this.products.length} valid products so far.`);
+                }
+            } catch (error) {
+                console.log(`⚠️ Error scraping product ${link}: ${error.message}`);
+            }
+        }
+        
+        console.log(`🎉 Finished scraping individual products. Found ${this.products.length} valid products total.`);
     }
 
     async scrapeProductPages() {
@@ -407,7 +500,7 @@ class HMHerbsScraper {
         
         for (const term of searchTerms) {
             try {
-                const searchUrl = `${this.baseUrl}/search?q=${term}`;
+                const searchUrl = `${this.baseUrl}/index.php/search?q=${term}`;
                 await this.scrapePage(searchUrl);
             } catch (error) {
                 // Continue if search doesn't work
