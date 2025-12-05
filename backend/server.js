@@ -14,8 +14,12 @@ const path = require('path');
 const fs = require('fs').promises;
 const logger = require('./utils/logger');
 const cache = require('./utils/cache');
+const envValidator = require('./utils/env-validator');
 const { userRegistrationValidation, userLoginValidation } = require('./middleware/validation');
 require('dotenv').config();
+
+// Validate environment variables at startup
+envValidator.validateAll();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -132,13 +136,12 @@ const authenticateToken = async (req, res, next) => {
         return res.status(401).json({ error: 'Access token required' });
     }
 
-    if (!process.env.JWT_SECRET) {
-        logger.error('CRITICAL: JWT_SECRET environment variable is not set');
+    if (!envValidator.isValid('JWT_SECRET')) {
         return res.status(500).json({ error: 'Server configuration error' });
     }
 
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const decoded = jwt.verify(token, envValidator.require('JWT_SECRET'));
         const [rows] = await pool.execute(
             'SELECT id, email, first_name, last_name, is_active FROM users WHERE id = ? AND is_active = 1',
             [decoded.userId]
@@ -164,13 +167,12 @@ const authenticateAdmin = async (req, res, next) => {
         return res.status(401).json({ error: 'Access token required' });
     }
 
-    if (!process.env.JWT_SECRET) {
-        console.error('CRITICAL: JWT_SECRET environment variable is not set');
+    if (!envValidator.isValid('JWT_SECRET')) {
         return res.status(500).json({ error: 'Server configuration error' });
     }
 
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const decoded = jwt.verify(token, envValidator.require('JWT_SECRET'));
         const [rows] = await pool.execute(
             'SELECT id, email, first_name, last_name, role, is_active FROM admin_users WHERE id = ? AND is_active = 1',
             [decoded.adminId]
@@ -240,14 +242,13 @@ app.post('/api/auth/register', authLimiter, userRegistrationValidation, async (r
         );
 
         // Generate JWT token
-        if (!process.env.JWT_SECRET) {
-            logger.error('CRITICAL: JWT_SECRET environment variable is not set');
+        if (!envValidator.isValid('JWT_SECRET')) {
             return res.status(500).json({ error: 'Server configuration error' });
         }
         
         const token = jwt.sign(
             { userId: result.insertId },
-            process.env.JWT_SECRET,
+            envValidator.require('JWT_SECRET'),
             { expiresIn: '7d' }
         );
 
@@ -305,14 +306,13 @@ app.post('/api/auth/login', authLimiter, userLoginValidation, async (req, res) =
         );
 
         // Generate JWT token
-        if (!process.env.JWT_SECRET) {
-            logger.error('CRITICAL: JWT_SECRET environment variable is not set');
+        if (!envValidator.isValid('JWT_SECRET')) {
             return res.status(500).json({ error: 'Server configuration error' });
         }
         
         const token = jwt.sign(
             { userId: user.id },
-            process.env.JWT_SECRET,
+            envValidator.require('JWT_SECRET'),
             { expiresIn: '7d' }
         );
 
