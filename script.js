@@ -61,9 +61,13 @@ class HMHerbsApp {
         } catch (error) {
             console.error('❌ Failed to load products from API:', error);
             
-            // Fallback to empty array and show user-friendly message
-            this.products = [];
-            this.showNotification('Unable to load products. Please check your connection and try again.', 'error');
+            // Fallback to demo products for homepage spotlight
+            this.products = this.getDemoProducts();
+            console.log('Using demo products as fallback for homepage');
+            
+            // Update the UI with demo products
+            this.renderProducts();
+            this.updateProductCount();
         }
     }
     
@@ -795,6 +799,56 @@ class HMHerbsApp {
         productCard.appendChild(actions);
         
         return productCard;
+    }
+    
+    getDemoProducts() {
+        // Generate demo products for homepage spotlight
+        return [
+            {
+                id: 1,
+                name: "Organic Turmeric Capsules",
+                price: 24.99,
+                image: "https://via.placeholder.com/300x300/4a7c59/ffffff?text=Turmeric",
+                category: "herbs",
+                description: "Premium organic turmeric with curcumin for natural anti-inflammatory support",
+                inventory: 50,
+                featured: true,
+                inStock: true
+            },
+            {
+                id: 2,
+                name: "Vitamin D3 5000 IU",
+                price: 19.99,
+                image: "https://via.placeholder.com/300x300/4a7c59/ffffff?text=Vitamin+D3",
+                category: "vitamins",
+                description: "High-potency Vitamin D3 for immune system and bone health support",
+                inventory: 75,
+                featured: true,
+                inStock: true
+            },
+            {
+                id: 3,
+                name: "Omega-3 Fish Oil",
+                price: 29.99,
+                image: "https://via.placeholder.com/300x300/4a7c59/ffffff?text=Omega-3",
+                category: "supplements",
+                description: "Pure fish oil with EPA and DHA for heart and brain health",
+                inventory: 40,
+                featured: true,
+                inStock: true
+            },
+            {
+                id: 4,
+                name: "Ashwagandha Root Extract",
+                price: 22.99,
+                image: "https://via.placeholder.com/300x300/4a7c59/ffffff?text=Ashwagandha",
+                category: "herbs",
+                description: "Adaptogenic herb for stress relief and energy support",
+                inventory: 30,
+                featured: true,
+                inStock: true
+            }
+        ];
     }
 }
 
