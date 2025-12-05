@@ -16,8 +16,8 @@ npm start
 ```
 
 ### 2. Admin Login
-- **Default Admin**: admin@hmherbs.com
-- **Password**: Use the hashed password from seed data or create new admin
+- **Default Admin**: hmherbs1@gmail.com
+- **Password**: admin1!
 - **Login URL**: `POST /api/admin/auth/login`
 
 ## 📊 Admin Panel Features

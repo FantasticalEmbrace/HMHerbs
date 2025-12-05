@@ -7,7 +7,7 @@
  * 
  * Usage:
  *   node scripts/reset-admin-password.js
- *   node scripts/reset-admin-password.js --email admin@hmherbs.com --password newpassword123
+ *   node scripts/reset-admin-password.js --email hmherbs1@gmail.com --password admin1!
  */
 
 const mysql = require('mysql2/promise');
@@ -56,9 +56,9 @@ async function resetAdminPassword() {
         
         // Get email if not provided
         if (!email) {
-            email = await question('Enter admin email (default: admin@hmherbs.com): ');
+            email = await question('Enter admin email (default: hmherbs1@gmail.com): ');
             if (!email.trim()) {
-                email = 'admin@hmherbs.com';
+                email = 'hmherbs1@gmail.com';
             }
         }
         

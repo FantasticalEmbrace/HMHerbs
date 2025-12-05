@@ -74,9 +74,9 @@ INSERT INTO settings (key_name, value, description, type) VALUES
 ('edsa_service_price', '75.00', 'Price for EDSA service', 'number'),
 ('edsa_service_description', 'Electro Dermal Stress Analysis - A non-invasive health assessment technique', 'EDSA service description', 'string');
 
--- Insert default admin user (password should be changed immediately)
+-- Insert default admin user (password: admin1!)
 INSERT INTO admin_users (email, password_hash, first_name, last_name, role) VALUES
-('admin@hmherbs.com', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj6hsxq5S/kS', 'Admin', 'User', 'super_admin');
+('hmherbs1@gmail.com', '$2b$12$2cSm7OpjMZ9so2Zy6PGIg.ff1SO8VWn4.4.BKH5OA5p6jX9R.wlBa', 'H&M Herbs', 'Admin', 'super_admin');
 
 -- Insert email templates
 INSERT INTO email_templates (name, subject, html_content, text_content, variables) VALUES
