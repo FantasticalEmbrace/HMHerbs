@@ -7,6 +7,8 @@ class AdminApp {
         this.apiBaseUrl = this.getApiBaseUrl();
         this.authToken = localStorage.getItem('adminToken');
         this.currentUser = null;
+        this.eventListeners = []; // Track event listeners for cleanup
+        this.timeouts = []; // Track timeouts for cleanup
         
         this.init();
     }
@@ -299,6 +301,9 @@ class AdminApp {
     }
 
     logout() {
+        // Clean up event listeners and timeouts
+        this.cleanup();
+        
         localStorage.removeItem('adminToken');
         this.authToken = null;
         this.currentUser = null;
@@ -314,6 +319,42 @@ class AdminApp {
         // Clear forms
         if (loginForm) loginForm.reset();
         if (loginError) loginError.style.display = 'none';
+    }
+
+    // Add event listener with tracking for cleanup
+    addEventListenerWithCleanup(element, event, handler, options = false) {
+        element.addEventListener(event, handler, options);
+        this.eventListeners.push({ element, event, handler, options });
+    }
+
+    // Add timeout with tracking for cleanup
+    addTimeoutWithCleanup(callback, delay) {
+        const timeoutId = setTimeout(callback, delay);
+        this.timeouts.push(timeoutId);
+        return timeoutId;
+    }
+
+    // Clean up all tracked event listeners and timeouts
+    cleanup() {
+        // Remove all tracked event listeners
+        this.eventListeners.forEach(({ element, event, handler, options }) => {
+            try {
+                element.removeEventListener(event, handler, options);
+            } catch (error) {
+                console.warn('Error removing event listener:', error);
+            }
+        });
+        this.eventListeners = [];
+
+        // Clear all tracked timeouts
+        this.timeouts.forEach(timeoutId => {
+            try {
+                clearTimeout(timeoutId);
+            } catch (error) {
+                console.warn('Error clearing timeout:', error);
+            }
+        });
+        this.timeouts = [];
     }
 
     showNotification(message, type = 'info') {
