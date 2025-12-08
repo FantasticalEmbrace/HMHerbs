@@ -251,10 +251,8 @@ class VisualBugFixer {
                 img.classList.add('loading');
                 this.loadingImages.add(img);
                 
-                const originalSrc = img.src;
-                img.src = '';
-                
-                loadImageWithRetry(img, originalSrc).catch(error => {
+                // Don't clear the src - just set up retry mechanism
+                loadImageWithRetry(img, img.src).catch(error => {
                     console.error('Image loading failed:', error);
                 });
             }
