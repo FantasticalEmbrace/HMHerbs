@@ -186,47 +186,73 @@ class HMHerbsApp {
         const container = document.getElementById('spotlight-products-grid');
         if (!container) return;
         
-        // H&M Herbs signature products (static data for now)
+        // H&M Herbs signature products - Real products from their catalog
         const spotlightProducts = [
             {
-                id: 'hmherbs-1',
-                name: 'Immune Support',
-                price: 29.99,
-                image: 'images/products/hmherbs-immune-support.svg',
+                id: 'hs-03',
+                name: "Our Father's Healing Antiseptic Salve",
+                price: 18.99,
+                image: 'https://hmherbs.com/application/files/cache/thumbnails/our-fathers-healing-antiseptic-salve-2oz-60fefe12ef7ac85568c785fc398bc266.jpg',
                 inventory: 25,
                 lowStockThreshold: 5,
                 featured: true,
-                description: 'Natural Defense Formula - Boost your immune system with our premium blend of herbs and vitamins.'
+                description: 'Premium healing salve made with natural ingredients for cuts, scrapes, and skin irritations. 2oz jar.',
+                url: 'https://hmherbs.com/index.php/products/our-fathers-healing-herbs-healing-antiseptic-salve-2oz'
             },
             {
-                id: 'hmherbs-2',
-                name: 'Joint Health',
-                price: 34.99,
-                image: 'images/products/hmherbs-joint-health.svg',
+                id: 'hs-01',
+                name: "Our Father's Bone, Flesh & Cartilage Salve",
+                price: 18.99,
+                image: 'https://hmherbs.com/application/files/cache/thumbnails/our-fathers-bone-flesh-cartilage-salve-2oz-jar-b7516adf6e40fdd6a123dbc4c0ad0976.jpg',
                 inventory: 18,
                 lowStockThreshold: 5,
                 featured: true,
-                description: 'Mobility & Comfort Blend - Support healthy joints and mobility with our specialized formula.'
+                description: 'Specialized healing salve for bone, flesh and cartilage support. Natural herbal formula in 2oz jar.',
+                url: 'https://hmherbs.com/index.php/products/our-fathers-healing-herbs-bone-flesh-and-cartilage-salve-2oz'
             },
             {
-                id: 'hmherbs-3',
-                name: 'Energy Boost',
-                price: 27.99,
-                image: 'images/products/hmherbs-energy-boost.svg',
+                id: 'eve2oz3',
+                name: "Eve's Generational Formula",
+                price: 24.99,
+                image: 'https://hmherbs.com/application/files/cache/thumbnails/eves-generational-formula-b7516adf6e40fdd6a123dbc4c0ad0976.jpg',
                 inventory: 32,
                 lowStockThreshold: 5,
                 featured: true,
-                description: 'Natural Vitality Complex - Increase your energy levels naturally with our energizing blend.'
+                description: 'Traditional herbal formula passed down through generations for women\'s health and wellness.',
+                url: 'https://hmherbs.com/index.php/products/hm-eves-generational-formula-1'
             },
             {
-                id: 'hmherbs-4',
-                name: 'Digestive Wellness',
-                price: 31.99,
-                image: 'images/products/hmherbs-digestive-wellness.svg',
+                id: '14202',
+                name: 'Happy PMS Cream',
+                price: 22.99,
+                image: 'https://hmherbs.com/application/files/cache/thumbnails/happy-pms-cream-b7516adf6e40fdd6a123dbc4c0ad0976.jpg',
                 inventory: 22,
                 lowStockThreshold: 5,
                 featured: true,
-                description: 'Gut Health Support - Promote digestive health with our carefully crafted herbal formula.'
+                description: 'Natural cream formulated to help support comfort during monthly cycles. Made with caring ingredients.',
+                url: 'https://hmherbs.com/index.php/products/hm-happy-pms-cream-jar-2'
+            },
+            {
+                id: 'hs-06',
+                name: "Our Father's Cayenne Deep Heat Salve",
+                price: 18.99,
+                image: 'https://hmherbs.com/application/files/cache/thumbnails/our-fathers-cayenne-deep-heat-salve-2oz-jar-b7516adf6e40fdd6a123dbc4c0ad0976.jpg',
+                inventory: 15,
+                lowStockThreshold: 5,
+                featured: true,
+                description: 'Warming salve with cayenne for deep heat therapy. Perfect for sore muscles and joints. 2oz jar.',
+                url: 'https://hmherbs.com/index.php/products/our-fathers-healing-herbs-cayenne-deep-heat-salve'
+            },
+            {
+                id: 'e1-7h2u-wdec',
+                name: "Women's Touch Natural Progesterone Cream",
+                price: 29.99,
+                image: 'https://hmherbs.com/application/files/cache/thumbnails/womens-touch-natural-progesterone-cream-b7516adf6e40fdd6a123dbc4c0ad0976.jpg',
+                inventory: 20,
+                lowStockThreshold: 5,
+                featured: true,
+                description: 'Natural progesterone cream specially formulated for women\'s hormonal balance and wellness.',
+                url: 'https://hmherbs.com/index.php/products/hm-womens-touch-body-cream'
             }
         ];
         
@@ -744,10 +770,29 @@ class HMHerbsApp {
         img.className = 'product-image';
         img.setAttribute('loading', 'lazy');
         
-        // Create title element
+        // Create title element (make it clickable if URL is provided)
         const title = document.createElement('h3');
         title.className = 'product-title';
-        title.textContent = product.name || '';
+        
+        if (product.url) {
+            const titleLink = document.createElement('a');
+            titleLink.href = product.url;
+            titleLink.textContent = product.name || '';
+            titleLink.target = '_blank';
+            titleLink.rel = 'noopener noreferrer';
+            titleLink.className = 'product-title-link';
+            title.appendChild(titleLink);
+        } else {
+            title.textContent = product.name || '';
+        }
+        
+        // Create description element (if available)
+        let description = null;
+        if (product.description) {
+            description = document.createElement('p');
+            description.className = 'product-description';
+            description.textContent = product.description;
+        }
         
         // Create price element
         const price = document.createElement('p');
@@ -790,6 +835,9 @@ class HMHerbsApp {
         // Assemble product card
         productCard.appendChild(img);
         productCard.appendChild(title);
+        if (description) {
+            productCard.appendChild(description);
+        }
         productCard.appendChild(price);
         productCard.appendChild(inventoryStatus);
         productCard.appendChild(actions);
