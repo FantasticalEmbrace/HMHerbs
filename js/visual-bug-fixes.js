@@ -424,16 +424,63 @@ class VisualBugFixer {
     }
 
     handleNewImage(img) {
-        img.classList.add('loading');
+        if (this.loadingImages.has(img)) return;
+        
         this.loadingImages.add(img);
+        img.classList.add('loading');
         
         const originalSrc = img.src;
-        img.src = '';
         
-        // Use the same retry mechanism
-        this.loadImageWithRetry(img, originalSrc).catch(error => {
-            console.error('Dynamic image loading failed:', error);
-        });
+        // Don't clear the src - just check if it loads properly
+        const handleLoad = () => {
+            img.classList.remove('loading');
+            img.classList.add('loaded');
+            this.loadingImages.delete(img);
+            console.log('✅ Image loaded successfully:', originalSrc);
+        };
+        
+        const handleError = () => {
+            img.classList.remove('loading');
+            img.classList.add('error');
+            this.loadingImages.delete(img);
+            this.applyImageFallback(img);
+            console.log('❌ Image failed to load, applying fallback:', originalSrc);
+        };
+        
+        // Check current state
+        if (img.complete) {
+            if (img.naturalWidth === 0 || !originalSrc || originalSrc === '') {
+                handleError();
+            } else {
+                handleLoad();
+            }
+        } else {
+            // Set up listeners for images still loading
+            img.addEventListener('load', handleLoad, { once: true });
+            img.addEventListener('error', handleError, { once: true });
+            
+            // Timeout fallback
+            setTimeout(() => {
+                if (this.loadingImages.has(img)) {
+                    console.log('⏰ Image loading timeout:', originalSrc);
+                    handleError();
+                }
+            }, 5000);
+        }
+    }
+
+    applyImageFallback(img) {
+        // Apply fallback styling and placeholder
+        img.style.background = '#f8f9fa url(\'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iI2Y4ZjlmYSIvPgo8cmVjdCB4PSI1MCIgeT0iNTAiIHdpZHRoPSIyMDAiIGhlaWdodD0iMTAwIiBmaWxsPSIjZTllY2VmIiByeD0iOCIvPgo8Y2lyY2xlIGN4PSIxMDAiIGN5PSI4MCIgcj0iMTUiIGZpbGw9IiNkZWUyZTYiLz4KPHJlY3QgeD0iMTMwIiB5PSI3MCIgd2lkdGg9IjgwIiBoZWlnaHQ9IjgiIGZpbGw9IiNkZWUyZTYiIHJ4PSI0Ii8+CjxyZWN0IHg9IjEzMCIgeT0iODUiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2IiBmaWxsPSIjZGVlMmU2IiByeD0iMyIvPgo8dGV4dCB4PSIxNTAiIHk9IjEzMCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjEyIiBmaWxsPSIjNmM3NTdkIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5JbWFnZSB1bmF2YWlsYWJsZTwvdGV4dD4KPC9zdmc+\') center/contain no-repeat';
+        img.style.backgroundColor = '#f8f9fa';
+        img.style.minHeight = '200px';
+        img.style.opacity = '1';
+        img.alt = 'Image unavailable';
+        
+        // Clear the broken src to prevent further loading attempts
+        img.removeAttribute('src');
+        
+        console.log('🖼️ Applied fallback styling to image');
     }
 
     optimizeProductCard(card) {
