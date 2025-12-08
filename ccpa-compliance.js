@@ -446,15 +446,41 @@ class CCPACompliance {
             border-radius: 4px;
             z-index: 10000;
             max-width: 300px;
+            opacity: 0;
+            transition: opacity 250ms ease-in-out;
         `;
 
         document.body.appendChild(notification);
 
-        setTimeout(() => {
+        // Store timeout IDs for cleanup
+        const timeouts = [];
+        
+        // Animate in
+        timeouts.push(setTimeout(() => {
+            if (notification.parentNode) {
+                notification.style.opacity = '1';
+            }
+        }, 100));
+
+        // Auto-remove after 5 seconds
+        timeouts.push(setTimeout(() => {
+            if (notification.parentNode) {
+                notification.style.opacity = '0';
+                timeouts.push(setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.parentNode.removeChild(notification);
+                    }
+                }, 250));
+            }
+        }, 5000));
+        
+        // Store cleanup function for potential early removal
+        notification._cleanup = () => {
+            timeouts.forEach(id => clearTimeout(id));
             if (notification.parentNode) {
                 notification.parentNode.removeChild(notification);
             }
-        }, 5000);
+        };
     }
 
     checkCCPACompliance() {
