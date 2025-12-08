@@ -403,28 +403,48 @@ class GDPRCompliance {
         
         document.body.appendChild(notification);
         
-        // Animate in
-        setTimeout(() => {
-            notification.style.opacity = '1';
-        }, 100);
+        // Store timeout IDs for cleanup
+        const timeouts = [];
         
-        // Remove after 3 seconds
-        setTimeout(() => {
-            notification.style.opacity = '0';
-            setTimeout(() => {
-                if (notification.parentNode) {
-                    notification.parentNode.removeChild(notification);
-                }
-            }, 250);
-        }, 3000);
+        // Animate in
+        timeouts.push(setTimeout(() => {
+            if (notification.parentNode) {
+                notification.style.opacity = '1';
+            }
+        }, 100));
+        
+        // Auto-remove after 3 seconds
+        timeouts.push(setTimeout(() => {
+            if (notification.parentNode) {
+                notification.style.opacity = '0';
+                timeouts.push(setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.parentNode.removeChild(notification);
+                    }
+                }, 250));
+            }
+        }, 3000));
+        
+        // Store cleanup function on notification for potential early removal
+        notification._cleanup = () => {
+            timeouts.forEach(id => clearTimeout(id));
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        };
     }
     
     announceToScreenReader(message) {
         const liveRegion = document.getElementById('live-region');
         if (liveRegion) {
             liveRegion.textContent = message;
-            setTimeout(() => {
+            // Store timeout ID for potential cleanup
+            if (liveRegion._clearTimeout) {
+                clearTimeout(liveRegion._clearTimeout);
+            }
+            liveRegion._clearTimeout = setTimeout(() => {
                 liveRegion.textContent = '';
+                liveRegion._clearTimeout = null;
             }, 1000);
         }
     }
