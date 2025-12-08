@@ -405,6 +405,14 @@ class VisualBugFixer {
                             }
                         });
                         
+                        // Handle product images specifically
+                        const productImages = node.querySelectorAll ? node.querySelectorAll('.product-image') : [];
+                        productImages.forEach(img => {
+                            if (!this.loadingImages.has(img)) {
+                                this.handleNewImage(img);
+                            }
+                        });
+                        
                         // Handle new product cards
                         const productCards = node.querySelectorAll ? node.querySelectorAll('.product-card') : [];
                         productCards.forEach(card => {

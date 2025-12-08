@@ -76,7 +76,7 @@ class ProductsPage {
                 id: product.id,
                 name: product.name,
                 price: parseFloat(product.price),
-                image: product.image_url || `https://via.placeholder.com/300x300/4a7c59/ffffff?text=${encodeURIComponent(product.name)}`,
+                image: product.image_url || this.createProductPlaceholder(product.name),
                 category: product.category_slug || 'general',
                 description: product.short_description || '',
                 inventory: product.inventory_quantity || 0,
@@ -104,11 +104,12 @@ class ProductsPage {
         const products = [];
         
         for (let i = 1; i <= 50; i++) {
+            const productName = `Natural Product ${i}`;
             products.push({
                 id: i,
-                name: `Natural Product ${i}`,
+                name: productName,
                 price: Math.floor(Math.random() * 50) + 15,
-                image: `https://via.placeholder.com/300x300/4a7c59/ffffff?text=Product+${i}`,
+                image: this.createProductPlaceholder(productName),
                 category: categories[Math.floor(Math.random() * categories.length)],
                 description: `High-quality natural health product ${i} for optimal wellness.`,
                 inventory: Math.floor(Math.random() * 50) + 5,
@@ -118,6 +119,30 @@ class ProductsPage {
         }
         
         return products;
+    }
+    
+    createProductPlaceholder(productName) {
+        // Create a professional SVG placeholder that matches the site design
+        const encodedName = encodeURIComponent(productName.substring(0, 20));
+        const svgPlaceholder = `data:image/svg+xml;base64,${btoa(`
+            <svg width="300" height="300" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" style="stop-color:#4a7c59;stop-opacity:1" />
+                        <stop offset="100%" style="stop-color:#5a8c69;stop-opacity:1" />
+                    </linearGradient>
+                </defs>
+                <rect width="100%" height="100%" fill="url(#grad)"/>
+                <rect x="50" y="80" width="200" height="140" fill="#ffffff" fill-opacity="0.1" rx="12"/>
+                <circle cx="100" cy="120" r="20" fill="#ffffff" fill-opacity="0.3"/>
+                <rect x="140" y="110" width="80" height="8" fill="#ffffff" fill-opacity="0.4" rx="4"/>
+                <rect x="140" y="125" width="60" height="6" fill="#ffffff" fill-opacity="0.3" rx="3"/>
+                <text x="150" y="180" font-family="Arial, sans-serif" font-size="12" fill="#ffffff" text-anchor="middle" font-weight="500">Natural Health</text>
+                <text x="150" y="200" font-family="Arial, sans-serif" font-size="10" fill="#ffffff" fill-opacity="0.8" text-anchor="middle">Product</text>
+            </svg>
+        `)}`;
+        
+        return svgPlaceholder;
     }
     
     setupEventListeners() {
