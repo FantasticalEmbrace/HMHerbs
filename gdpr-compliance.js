@@ -474,15 +474,16 @@ class GDPRCompliance {
                     marketing: false
                 };
                 this.consentGiven = false;
-            this.consentTimestamp = null;
-            
-            this.showConsentNotification('All user data deleted successfully');
-            
-            // Reload page to reset state
-            setTimeout(() => {
-                window.location.reload();
-            }, 2000);
-        }
+                this.consentTimestamp = null;
+                
+                this.showConsentNotification('All user data deleted successfully');
+                
+                // Reload page to reset state
+                setTimeout(() => {
+                    window.location.reload();
+                }, 2000);
+            }
+        );
     }
     
     getConsentStatus() {
