@@ -8,12 +8,13 @@ class VisualBugFixer {
             enableImageFallbacks: true,
             enableScrollOptimization: true,
             enableTransitionOptimization: true,
-            debugMode: false
+            debugMode: true // Enable debug mode to see what's happening
         };
         
         this.imageCache = new Map();
         this.loadingImages = new Set();
         this.flickerElements = new WeakSet();
+        this.initialized = false;
         
         this.init();
     }
@@ -446,24 +447,33 @@ class VisualBugFixer {
 
     // Apply all fixes
     applyFixes() {
+        console.log('🔧 Applying visual bug fixes...');
+        
         // Fix existing elements
         document.querySelectorAll('.product-card').forEach(card => {
             this.optimizeProductCard(card);
         });
         
-        // Fix existing images
+        // Fix ALL images on the page - be more aggressive
         document.querySelectorAll('img').forEach(img => {
-            if (!img.complete && img.src) {
+            console.log('🖼️ Processing image:', img.src, 'Complete:', img.complete);
+            
+            // Force re-process all images
+            if (img.src) {
                 this.handleNewImage(img);
+            } else {
+                // Image has no src - apply fallback immediately
+                img.classList.add('error');
+                console.log('❌ Image has no src, applying fallback');
             }
         });
         
         // Mark as initialized
         document.body.classList.add('visual-bugs-fixed');
+        this.initialized = true;
         
-        if (this.config.debugMode) {
-            console.log('Visual bug fixes applied successfully');
-        }
+        console.log('✅ Visual bug fixes applied successfully');
+        console.log('📊 Status:', this.getLoadingStatus());
     }
 
     // Utility method for image loading with retry
@@ -520,10 +530,60 @@ class VisualBugFixer {
     }
 }
 
-// Initialize Visual Bug Fixer
-document.addEventListener('DOMContentLoaded', () => {
+// Initialize Visual Bug Fixer IMMEDIATELY - don't wait for DOM
+(function() {
+    // Apply critical CSS fixes immediately
+    const criticalCSS = document.createElement('style');
+    criticalCSS.textContent = `
+        /* IMMEDIATE FLICKER FIXES */
+        * {
+            -webkit-backface-visibility: hidden !important;
+            backface-visibility: hidden !important;
+            -webkit-transform: translateZ(0) !important;
+            transform: translateZ(0) !important;
+        }
+        
+        .product-card, .product-image, .spotlight-grid {
+            will-change: transform !important;
+            transform: translate3d(0,0,0) !important;
+            -webkit-transform: translate3d(0,0,0) !important;
+        }
+        
+        /* IMMEDIATE SCROLLBAR FIX */
+        html {
+            scrollbar-gutter: stable !important;
+            overflow-y: scroll !important;
+        }
+        
+        /* IMMEDIATE IMAGE LOADING FIX */
+        img {
+            opacity: 0 !important;
+            transition: opacity 0.3s ease !important;
+        }
+        
+        img.loaded, img.error {
+            opacity: 1 !important;
+        }
+        
+        img[src=""], img:not([src]) {
+            background: #f8f9fa url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iI2Y4ZjlmYSIvPgo8cmVjdCB4PSI1MCIgeT0iNTAiIHdpZHRoPSIyMDAiIGhlaWdodD0iMTAwIiBmaWxsPSIjZTllY2VmIiByeD0iOCIvPgo8Y2lyY2xlIGN4PSIxMDAiIGN5PSI4MCIgcj0iMTUiIGZpbGw9IiNkZWUyZTYiLz4KPHJlY3QgeD0iMTMwIiB5PSI3MCIgd2lkdGg9IjgwIiBoZWlnaHQ9IjgiIGZpbGw9IiNkZWUyZTYiIHJ4PSI0Ii8+CjxyZWN0IHg9IjEzMCIgeT0iODUiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2IiBmaWxsPSIjZGVlMmU2IiByeD0iMyIvPgo8dGV4dCB4PSIxNTAiIHk9IjEzMCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjEyIiBmaWxsPSIjNmM3NTdkIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5JbWFnZSB1bmF2YWlsYWJsZTwvdGV4dD4KPC9zdmc+') center/contain no-repeat !important;
+            opacity: 1 !important;
+        }
+    `;
+    document.head.insertBefore(criticalCSS, document.head.firstChild);
+    
+    // Initialize immediately
     window.visualBugFixer = new VisualBugFixer();
-});
+    
+    // Also initialize on DOM ready as backup
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!window.visualBugFixer.initialized) {
+                window.visualBugFixer.applyFixes();
+            }
+        });
+    }
+})();
 
 // Export for use in other modules
 if (typeof module !== 'undefined' && module.exports) {
