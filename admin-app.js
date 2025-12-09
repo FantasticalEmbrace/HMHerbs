@@ -521,80 +521,218 @@ async function importProducts() {
     }
 }
 
-function editProduct(productId) {
-    // Create and show product editing modal
+// Helper function to create form elements safely
+function createFormElement(type, attributes = {}, textContent = '') {
+    const element = document.createElement(type);
+    
+    // Set attributes safely
+    Object.entries(attributes).forEach(([key, value]) => {
+        if (key === 'className') {
+            element.className = value;
+        } else if (key === 'textContent') {
+            element.textContent = value;
+        } else {
+            element.setAttribute(key, value);
+        }
+    });
+    
+    if (textContent) {
+        element.textContent = textContent;
+    }
+    
+    return element;
+}
+
+// Helper function to create modal structure safely
+function createProductModal(title, formId, isEdit = false) {
     const modal = document.createElement('div');
     modal.className = 'modal';
-    modal.innerHTML = `
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Edit Product</h2>
-                <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
-            </div>
-            <div class="modal-body">
-                <form id="edit-product-form">
-                    <div class="form-group">
-                        <label for="edit-sku">SKU *</label>
-                        <input type="text" id="edit-sku" name="sku" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="edit-name">Product Name *</label>
-                        <input type="text" id="edit-name" name="name" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="edit-short-description">Short Description</label>
-                        <textarea id="edit-short-description" name="short_description" rows="2"></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label for="edit-long-description">Long Description</label>
-                        <textarea id="edit-long-description" name="long_description" rows="4"></textarea>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="edit-price">Price *</label>
-                            <input type="number" id="edit-price" name="price" step="0.01" min="0" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="edit-compare-price">Compare Price</label>
-                            <input type="number" id="edit-compare-price" name="compare_price" step="0.01" min="0">
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="edit-inventory">Inventory Quantity *</label>
-                            <input type="number" id="edit-inventory" name="inventory_quantity" min="0" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="edit-low-stock">Low Stock Threshold</label>
-                            <input type="number" id="edit-low-stock" name="low_stock_threshold" min="0" value="10">
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label for="edit-weight">Weight (oz)</label>
-                        <input type="number" id="edit-weight" name="weight" step="0.01" min="0">
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>
-                                <input type="checkbox" id="edit-is-active" name="is_active" checked>
-                                Active Product
-                            </label>
-                        </div>
-                        <div class="form-group">
-                            <label>
-                                <input type="checkbox" id="edit-is-featured" name="is_featured">
-                                Featured Product
-                            </label>
-                        </div>
-                    </div>
-                    <div class="form-actions">
-                        <button type="button" onclick="this.closest('.modal').remove()">Cancel</button>
-                        <button type="submit">Update Product</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    `;
+    
+    const modalContent = document.createElement('div');
+    modalContent.className = 'modal-content';
+    
+    // Header
+    const header = document.createElement('div');
+    header.className = 'modal-header';
+    
+    const titleEl = document.createElement('h2');
+    titleEl.textContent = title;
+    
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'modal-close';
+    closeBtn.textContent = '×';
+    closeBtn.onclick = function() { this.closest('.modal').remove(); };
+    
+    header.appendChild(titleEl);
+    header.appendChild(closeBtn);
+    
+    // Body
+    const body = document.createElement('div');
+    body.className = 'modal-body';
+    
+    const form = document.createElement('form');
+    form.id = formId;
+    
+    // Create form fields
+    const fields = [
+        { type: 'input', label: 'SKU *', id: `${isEdit ? 'edit' : 'add'}-sku`, name: 'sku', inputType: 'text', required: true },
+        { type: 'input', label: 'Product Name *', id: `${isEdit ? 'edit' : 'add'}-name`, name: 'name', inputType: 'text', required: true },
+        { type: 'textarea', label: 'Short Description', id: `${isEdit ? 'edit' : 'add'}-short-description`, name: 'short_description', rows: 2 },
+        { type: 'textarea', label: 'Long Description', id: `${isEdit ? 'edit' : 'add'}-long-description`, name: 'long_description', rows: 4 }
+    ];
+    
+    // Add brand and category selects for add modal only
+    if (!isEdit) {
+        fields.push(
+            { type: 'select', label: 'Brand *', id: 'add-brand', name: 'brand_id', required: true, options: [
+                { value: '', text: 'Select Brand' },
+                { value: '1', text: 'HM Herbs' },
+                { value: '2', text: 'Nature\'s Way' },
+                { value: '3', text: 'Garden of Life' }
+            ]},
+            { type: 'select', label: 'Category *', id: 'add-category', name: 'category_id', required: true, options: [
+                { value: '', text: 'Select Category' },
+                { value: '1', text: 'Herbs & Botanicals' },
+                { value: '2', text: 'Vitamins' },
+                { value: '3', text: 'Supplements' },
+                { value: '4', text: 'Essential Oils' }
+            ]}
+        );
+    }
+    
+    // Add remaining fields
+    fields.push(
+        { type: 'input', label: 'Price *', id: `${isEdit ? 'edit' : 'add'}-price`, name: 'price', inputType: 'number', step: '0.01', min: '0', required: true },
+        { type: 'input', label: 'Compare Price', id: `${isEdit ? 'edit' : 'add'}-compare-price`, name: 'compare_price', inputType: 'number', step: '0.01', min: '0' },
+        { type: 'input', label: 'Inventory Quantity *', id: `${isEdit ? 'edit' : 'add'}-inventory`, name: 'inventory_quantity', inputType: 'number', min: '0', required: true },
+        { type: 'input', label: 'Low Stock Threshold', id: `${isEdit ? 'edit' : 'add'}-low-stock`, name: 'low_stock_threshold', inputType: 'number', min: '0', value: '10' },
+        { type: 'input', label: 'Weight (oz)', id: `${isEdit ? 'edit' : 'add'}-weight`, name: 'weight', inputType: 'number', step: '0.01', min: '0' }
+    );
+    
+    // Add health categories for add modal only
+    if (!isEdit) {
+        fields.push({ type: 'input', label: 'Health Categories (comma-separated)', id: 'add-health-categories', name: 'health_categories', inputType: 'text', placeholder: 'e.g., immune support, digestive health' });
+    }
+    
+    // Create form fields
+    let currentRow = null;
+    fields.forEach((field, index) => {
+        const isRowField = (field.label.includes('Price') && field.label !== 'Compare Price') || 
+                          (field.label.includes('Brand') || field.label.includes('Category')) ||
+                          (field.label.includes('Inventory') || field.label.includes('Low Stock'));
+        
+        if (isRowField && (!currentRow || currentRow.children.length >= 2)) {
+            currentRow = document.createElement('div');
+            currentRow.className = 'form-row';
+            form.appendChild(currentRow);
+        }
+        
+        const formGroup = document.createElement('div');
+        formGroup.className = 'form-group';
+        
+        const label = document.createElement('label');
+        label.setAttribute('for', field.id);
+        label.textContent = field.label;
+        formGroup.appendChild(label);
+        
+        if (field.type === 'input') {
+            const input = document.createElement('input');
+            input.setAttribute('type', field.inputType);
+            input.id = field.id;
+            input.setAttribute('name', field.name);
+            if (field.required) input.setAttribute('required', '');
+            if (field.step) input.setAttribute('step', field.step);
+            if (field.min) input.setAttribute('min', field.min);
+            if (field.value) input.setAttribute('value', field.value);
+            if (field.placeholder) input.setAttribute('placeholder', field.placeholder);
+            formGroup.appendChild(input);
+        } else if (field.type === 'textarea') {
+            const textarea = document.createElement('textarea');
+            textarea.id = field.id;
+            textarea.setAttribute('name', field.name);
+            if (field.rows) textarea.setAttribute('rows', field.rows.toString());
+            formGroup.appendChild(textarea);
+        } else if (field.type === 'select') {
+            const select = document.createElement('select');
+            select.id = field.id;
+            select.setAttribute('name', field.name);
+            if (field.required) select.setAttribute('required', '');
+            
+            field.options.forEach(option => {
+                const optionEl = document.createElement('option');
+                optionEl.setAttribute('value', option.value);
+                optionEl.textContent = option.text;
+                select.appendChild(optionEl);
+            });
+            formGroup.appendChild(select);
+        }
+        
+        if (isRowField && currentRow) {
+            currentRow.appendChild(formGroup);
+        } else {
+            form.appendChild(formGroup);
+        }
+    });
+    
+    // Add checkboxes
+    const checkboxRow = document.createElement('div');
+    checkboxRow.className = 'form-row';
+    
+    const activeGroup = document.createElement('div');
+    activeGroup.className = 'form-group';
+    const activeLabel = document.createElement('label');
+    const activeCheckbox = document.createElement('input');
+    activeCheckbox.setAttribute('type', 'checkbox');
+    activeCheckbox.id = `${isEdit ? 'edit' : 'add'}-is-active`;
+    activeCheckbox.setAttribute('name', 'is_active');
+    activeCheckbox.checked = true;
+    activeLabel.appendChild(activeCheckbox);
+    activeLabel.appendChild(document.createTextNode(' Active Product'));
+    activeGroup.appendChild(activeLabel);
+    
+    const featuredGroup = document.createElement('div');
+    featuredGroup.className = 'form-group';
+    const featuredLabel = document.createElement('label');
+    const featuredCheckbox = document.createElement('input');
+    featuredCheckbox.setAttribute('type', 'checkbox');
+    featuredCheckbox.id = `${isEdit ? 'edit' : 'add'}-is-featured`;
+    featuredCheckbox.setAttribute('name', 'is_featured');
+    featuredLabel.appendChild(featuredCheckbox);
+    featuredLabel.appendChild(document.createTextNode(' Featured Product'));
+    featuredGroup.appendChild(featuredLabel);
+    
+    checkboxRow.appendChild(activeGroup);
+    checkboxRow.appendChild(featuredGroup);
+    form.appendChild(checkboxRow);
+    
+    // Form actions
+    const actions = document.createElement('div');
+    actions.className = 'form-actions';
+    
+    const cancelBtn = document.createElement('button');
+    cancelBtn.setAttribute('type', 'button');
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.onclick = function() { this.closest('.modal').remove(); };
+    
+    const submitBtn = document.createElement('button');
+    submitBtn.setAttribute('type', 'submit');
+    submitBtn.textContent = isEdit ? 'Update Product' : 'Add Product';
+    
+    actions.appendChild(cancelBtn);
+    actions.appendChild(submitBtn);
+    form.appendChild(actions);
+    
+    body.appendChild(form);
+    modalContent.appendChild(header);
+    modalContent.appendChild(body);
+    modal.appendChild(modalContent);
+    
+    return modal;
+}
+
+function editProduct(productId) {
+    // Create and show product editing modal using safe helper
+    const modal = createProductModal('Edit Product', 'edit-product-form', true);
     
     document.body.appendChild(modal);
     modal.style.display = 'block';
@@ -681,104 +819,8 @@ async function updateProduct(productId, formData) {
 }
 
 function showAddProduct() {
-    // Create and show add product modal
-    const modal = document.createElement('div');
-    modal.className = 'modal';
-    modal.innerHTML = `
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Add New Product</h2>
-                <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
-            </div>
-            <div class="modal-body">
-                <form id="add-product-form">
-                    <div class="form-group">
-                        <label for="add-sku">SKU *</label>
-                        <input type="text" id="add-sku" name="sku" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="add-name">Product Name *</label>
-                        <input type="text" id="add-name" name="name" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="add-short-description">Short Description</label>
-                        <textarea id="add-short-description" name="short_description" rows="2"></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label for="add-long-description">Long Description</label>
-                        <textarea id="add-long-description" name="long_description" rows="4"></textarea>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="add-brand">Brand *</label>
-                            <select id="add-brand" name="brand_id" required>
-                                <option value="">Select Brand</option>
-                                <option value="1">HM Herbs</option>
-                                <option value="2">Nature's Way</option>
-                                <option value="3">Garden of Life</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="add-category">Category *</label>
-                            <select id="add-category" name="category_id" required>
-                                <option value="">Select Category</option>
-                                <option value="1">Herbs & Botanicals</option>
-                                <option value="2">Vitamins</option>
-                                <option value="3">Supplements</option>
-                                <option value="4">Essential Oils</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="add-price">Price *</label>
-                            <input type="number" id="add-price" name="price" step="0.01" min="0" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="add-compare-price">Compare Price</label>
-                            <input type="number" id="add-compare-price" name="compare_price" step="0.01" min="0">
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="add-inventory">Inventory Quantity *</label>
-                            <input type="number" id="add-inventory" name="inventory_quantity" min="0" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="add-low-stock">Low Stock Threshold</label>
-                            <input type="number" id="add-low-stock" name="low_stock_threshold" min="0" value="10">
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label for="add-weight">Weight (oz)</label>
-                        <input type="number" id="add-weight" name="weight" step="0.01" min="0">
-                    </div>
-                    <div class="form-group">
-                        <label for="add-health-categories">Health Categories (comma-separated)</label>
-                        <input type="text" id="add-health-categories" name="health_categories" placeholder="e.g., immune support, digestive health">
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>
-                                <input type="checkbox" id="add-is-active" name="is_active" checked>
-                                Active Product
-                            </label>
-                        </div>
-                        <div class="form-group">
-                            <label>
-                                <input type="checkbox" id="add-is-featured" name="is_featured">
-                                Featured Product
-                            </label>
-                        </div>
-                    </div>
-                    <div class="form-actions">
-                        <button type="button" onclick="this.closest('.modal').remove()">Cancel</button>
-                        <button type="submit">Add Product</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    `;
+    // Create and show add product modal using safe helper
+    const modal = createProductModal('Add New Product', 'add-product-form', false);
     
     document.body.appendChild(modal);
     modal.style.display = 'block';
