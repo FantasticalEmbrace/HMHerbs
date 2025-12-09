@@ -22,6 +22,10 @@ class ProductsPage {
         // Track event listeners for cleanup
         this.eventListeners = [];
         
+        // Debouncing for cart operations to prevent race conditions
+        this.cartOperationTimeouts = new Map();
+        this.cartOperationDelay = 300; // 300ms debounce
+        
         this.init();
     }
     
@@ -647,6 +651,24 @@ class ProductsPage {
     
     // Cart functionality (shared with main app)
     addToCart(productId, quantity = 1) {
+        // Debounce cart operations to prevent race conditions
+        const operationKey = `add-${productId}`;
+        
+        // Clear existing timeout for this operation
+        if (this.cartOperationTimeouts.has(operationKey)) {
+            clearTimeout(this.cartOperationTimeouts.get(operationKey));
+        }
+        
+        // Set new timeout
+        const timeoutId = setTimeout(() => {
+            this._performAddToCart(productId, quantity);
+            this.cartOperationTimeouts.delete(operationKey);
+        }, this.cartOperationDelay);
+        
+        this.cartOperationTimeouts.set(operationKey, timeoutId);
+    }
+    
+    _performAddToCart(productId, quantity = 1) {
         const product = this.products.find(p => p.id === productId);
         if (!product) {
             this.showNotification('Product not found', 'error');
@@ -705,6 +727,24 @@ class ProductsPage {
     }
     
     updateCartQuantity(productId, newQuantity) {
+        // Debounce cart quantity updates to prevent race conditions
+        const operationKey = `update-${productId}`;
+        
+        // Clear existing timeout for this operation
+        if (this.cartOperationTimeouts.has(operationKey)) {
+            clearTimeout(this.cartOperationTimeouts.get(operationKey));
+        }
+        
+        // Set new timeout
+        const timeoutId = setTimeout(() => {
+            this._performUpdateCartQuantity(productId, newQuantity);
+            this.cartOperationTimeouts.delete(operationKey);
+        }, this.cartOperationDelay);
+        
+        this.cartOperationTimeouts.set(operationKey, timeoutId);
+    }
+    
+    _performUpdateCartQuantity(productId, newQuantity) {
         const item = this.cart.find(item => item.id === productId);
         
         if (item) {
