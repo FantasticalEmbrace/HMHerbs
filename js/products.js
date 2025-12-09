@@ -105,6 +105,7 @@ class ProductsPage {
         
         for (let i = 1; i <= 50; i++) {
             const productName = `Natural Product ${i}`;
+            const inventory = Math.floor(Math.random() * 50) + 5;
             products.push({
                 id: i,
                 name: productName,
@@ -112,9 +113,10 @@ class ProductsPage {
                 image: this.createProductPlaceholder(productName),
                 category: categories[Math.floor(Math.random() * categories.length)],
                 description: `High-quality natural health product ${i} for optimal wellness.`,
-                inventory: Math.floor(Math.random() * 50) + 5,
+                inventory: inventory,
                 featured: Math.random() > 0.7,
-                inStock: true
+                inStock: inventory > 0,
+                lowStockThreshold: 5
             });
         }
         
@@ -713,6 +715,14 @@ class ProductsPage {
         });
         
         increaseBtn.addEventListener('click', () => {
+            // Check inventory before increasing
+            const product = this.products.find(p => p.id === item.id);
+            if (product && typeof product.inventory !== 'undefined') {
+                if (item.quantity >= product.inventory) {
+                    this.showNotification(`Only ${product.inventory} items available in stock`, 'error');
+                    return;
+                }
+            }
             this.updateCartQuantity(item.id, item.quantity + 1);
         });
         
