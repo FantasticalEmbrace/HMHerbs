@@ -19,6 +19,9 @@ class ProductsPage {
         // Cart functionality (shared with main app)
         this.cart = [];
         
+        // Track event listeners for cleanup
+        this.eventListeners = [];
+        
         this.init();
     }
     
@@ -54,8 +57,8 @@ class ProductsPage {
         const productsGrid = document.getElementById('products-grid');
         
         try {
-            loadingState.style.display = 'block';
-            productsGrid.style.display = 'none';
+            if (loadingState) loadingState.style.display = 'block';
+            if (productsGrid) productsGrid.style.display = 'none';
             
             // Determine API base URL
             const apiBaseUrl = window.location.hostname === 'localhost' 
@@ -93,8 +96,8 @@ class ProductsPage {
             this.products = this.getDemoProducts();
             console.log('Using demo products as fallback');
         } finally {
-            loadingState.style.display = 'none';
-            productsGrid.style.display = 'grid';
+            if (loadingState) loadingState.style.display = 'none';
+            if (productsGrid) productsGrid.style.display = 'grid';
         }
     }
     
@@ -277,7 +280,9 @@ class ProductsPage {
         // Apply page from URL
         const page = urlParams.get('page');
         if (page) {
-            this.currentPage = parseInt(page) || 1;
+            const pageNum = parseInt(page) || 1;
+            // Validate page is positive and not beyond reasonable bounds
+            this.currentPage = Math.max(1, Math.min(pageNum, this.totalPages || 1));
         }
     }
     
@@ -863,13 +868,30 @@ class ProductsPage {
     debounce(func, wait) {
         let timeout;
         return function executedFunction(...args) {
+            const context = this;
             const later = () => {
                 clearTimeout(timeout);
-                func(...args);
+                func.apply(context, args);
             };
             clearTimeout(timeout);
             timeout = setTimeout(later, wait);
         };
+    }
+    
+    // Helper method to add event listeners with tracking
+    addEventListenerWithCleanup(element, event, handler, options = false) {
+        if (element) {
+            element.addEventListener(event, handler, options);
+            this.eventListeners.push({ element, event, handler, options });
+        }
+    }
+    
+    // Cleanup method to remove all event listeners
+    destroy() {
+        this.eventListeners.forEach(({ element, event, handler, options }) => {
+            element.removeEventListener(event, handler, options);
+        });
+        this.eventListeners = [];
     }
 }
 
