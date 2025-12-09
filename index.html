@@ -157,6 +157,46 @@
     
     <title>H&M Herbs & Vitamins - Premium Natural Health Products & EDSA Service</title>
     
+    <!-- CRITICAL: Immediate visual bug fixes -->
+    <style>
+        /* EMERGENCY FLICKER FIXES - Load immediately */
+        * {
+            -webkit-backface-visibility: hidden !important;
+            backface-visibility: hidden !important;
+            -webkit-transform: translateZ(0) !important;
+            transform: translateZ(0) !important;
+        }
+        
+        .product-card, .product-image, .spotlight-grid, .product-spotlight {
+            will-change: transform !important;
+            transform: translate3d(0,0,0) !important;
+            -webkit-transform: translate3d(0,0,0) !important;
+        }
+        
+        /* EMERGENCY SCROLLBAR FIX */
+        html {
+            scrollbar-gutter: stable !important;
+            overflow-y: scroll !important;
+        }
+        
+        /* EMERGENCY IMAGE LOADING FIX */
+        img {
+            opacity: 0 !important;
+            transition: opacity 0.3s ease !important;
+        }
+        
+        img.loaded, img.error, img[src*="data:"] {
+            opacity: 1 !important;
+        }
+        
+        /* Fallback for broken images */
+        img[src=""], img:not([src]), img[alt*="unavailable"] {
+            background: #f8f9fa url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iI2Y4ZjlmYSIvPgo8cmVjdCB4PSI1MCIgeT0iNTAiIHdpZHRoPSIyMDAiIGhlaWdodD0iMTAwIiBmaWxsPSIjZTllY2VmIiByeD0iOCIvPgo8Y2lyY2xlIGN4PSIxMDAiIGN5PSI4MCIgcj0iMTUiIGZpbGw9IiNkZWUyZTYiLz4KPHJlY3QgeD0iMTMwIiB5PSI3MCIgd2lkdGg9IjgwIiBoZWlnaHQ9IjgiIGZpbGw9IiNkZWUyZTYiIHJ4PSI0Ii8+CjxyZWN0IHg9IjEzMCIgeT0iODUiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2IiBmaWxsPSIjZGVlMmU2IiByeD0iMyIvPgo8dGV4dCB4PSIxNTAiIHk9IjEzMCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjEyIiBmaWxsPSIjNmM3NTdkIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5JbWFnZSB1bmF2YWlsYWJsZTwvdGV4dD4KPC9zdmc+') center/contain no-repeat !important;
+            opacity: 1 !important;
+            min-height: 200px !important;
+        }
+    </style>
+    
     <!-- Stylesheets -->
     <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="css/browser-compatibility.css">
@@ -603,9 +643,18 @@
         </div>
     </div>
 
-    <!-- Scripts -->
+    <!-- CRITICAL: Visual Bug Fixes MUST load first -->
+    <script src="js/visual-bug-fixes.js"></script>
+    
+    <!-- Other Scripts -->
     <script src="js/structured-data.js" defer></script>
     <script src="js/error-handling.js" defer></script>
+    <script src="js/advanced-analytics.js" defer></script>
+    <script src="js/pwa-manager.js" defer></script>
+    <script src="js/device-adaptive.js" defer></script>
+    <script src="js/seo-optimizer.js" defer></script>
+    <script src="js/code-quality-optimizer.js" defer></script>
+    <script src="js/performance-micro-optimizer.js" defer></script>
     <script src="script.js"></script>
     <script src="gdpr-compliance.js"></script>
     <script src="ccpa-compliance.js"></script>
