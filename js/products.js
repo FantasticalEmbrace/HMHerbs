@@ -75,7 +75,7 @@ class ProductsPage {
             this.products = this.products.map(product => ({
                 id: product.id,
                 name: product.name,
-                price: parseFloat(product.price),
+                price: parseFloat(product.price) || 0,
                 image: product.image_url || this.createProductPlaceholder(product.name),
                 category: product.category_slug || 'general',
                 description: product.short_description || '',
@@ -640,6 +640,15 @@ class ProductsPage {
             if (newQuantity <= 0) {
                 this.removeFromCart(productId);
             } else {
+                // Validate inventory before updating quantity
+                const product = this.products.find(p => p.id === productId);
+                if (product && typeof product.inventory !== 'undefined') {
+                    if (newQuantity > product.inventory) {
+                        this.showNotification(`Only ${product.inventory} items available in stock`, 'error');
+                        return;
+                    }
+                }
+                
                 item.quantity = newQuantity;
                 this.updateCartDisplay();
                 this.saveCartToStorage();
@@ -689,27 +698,58 @@ class ProductsPage {
         cartItem.className = 'cart-item';
         cartItem.setAttribute('data-product-id', item.id);
         
-        cartItem.innerHTML = `
-            <img src="${item.image}" alt="${item.name}" class="cart-item-image">
-            <div class="cart-item-details">
-                <div class="cart-item-name">${item.name}</div>
-                <div class="cart-item-price">$${item.price.toFixed(2)}</div>
-                <div class="cart-item-controls">
-                    <button class="quantity-btn decrease-qty" data-product-id="${item.id}">-</button>
-                    <span class="quantity-display">${item.quantity}</span>
-                    <button class="quantity-btn increase-qty" data-product-id="${item.id}">+</button>
-                </div>
-            </div>
-            <button class="remove-item" data-product-id="${item.id}">
-                <i class="fas fa-trash" aria-hidden="true"></i>
-            </button>
-        `;
+        // Create elements safely to prevent XSS
+        const img = document.createElement('img');
+        img.src = item.image;
+        img.alt = item.name;
+        img.className = 'cart-item-image';
         
-        // Add event listeners
-        const decreaseBtn = cartItem.querySelector('.decrease-qty');
-        const increaseBtn = cartItem.querySelector('.increase-qty');
-        const removeBtn = cartItem.querySelector('.remove-item');
+        const details = document.createElement('div');
+        details.className = 'cart-item-details';
         
+        const name = document.createElement('div');
+        name.className = 'cart-item-name';
+        name.textContent = item.name;
+        
+        const price = document.createElement('div');
+        price.className = 'cart-item-price';
+        price.textContent = `$${item.price.toFixed(2)}`;
+        
+        const controls = document.createElement('div');
+        controls.className = 'cart-item-controls';
+        
+        const decreaseBtn = document.createElement('button');
+        decreaseBtn.className = 'quantity-btn decrease-qty';
+        decreaseBtn.setAttribute('data-product-id', item.id);
+        decreaseBtn.textContent = '-';
+        
+        const quantitySpan = document.createElement('span');
+        quantitySpan.className = 'quantity-display';
+        quantitySpan.textContent = item.quantity;
+        
+        const increaseBtn = document.createElement('button');
+        increaseBtn.className = 'quantity-btn increase-qty';
+        increaseBtn.setAttribute('data-product-id', item.id);
+        increaseBtn.textContent = '+';
+        
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'remove-item';
+        removeBtn.setAttribute('data-product-id', item.id);
+        removeBtn.innerHTML = '<i class="fas fa-trash" aria-hidden="true"></i>';
+        
+        controls.appendChild(decreaseBtn);
+        controls.appendChild(quantitySpan);
+        controls.appendChild(increaseBtn);
+        
+        details.appendChild(name);
+        details.appendChild(price);
+        details.appendChild(controls);
+        
+        cartItem.appendChild(img);
+        cartItem.appendChild(details);
+        cartItem.appendChild(removeBtn);
+        
+        // Add event listeners (using the elements we created above)
         decreaseBtn.addEventListener('click', () => {
             this.updateCartQuantity(item.id, item.quantity - 1);
         });
@@ -787,13 +827,19 @@ class ProductsPage {
         
         const notification = document.createElement('div');
         notification.className = `notification notification-${type}`;
-        notification.innerHTML = `
-            <span class="notification-message">${message}</span>
-            <button class="notification-close" aria-label="Close notification">
-                <i class="fas fa-times" aria-hidden="true"></i>
-            </button>
-        `;
         
+        // Create elements safely to prevent XSS
+        const messageSpan = document.createElement('span');
+        messageSpan.className = 'notification-message';
+        messageSpan.textContent = message; // Use textContent instead of innerHTML
+        
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'notification-close';
+        closeBtn.setAttribute('aria-label', 'Close notification');
+        closeBtn.innerHTML = '<i class="fas fa-times" aria-hidden="true"></i>';
+        
+        notification.appendChild(messageSpan);
+        notification.appendChild(closeBtn);
         container.appendChild(notification);
         
         // Auto remove after 5 seconds
@@ -804,7 +850,6 @@ class ProductsPage {
         }, 5000);
         
         // Manual close
-        const closeBtn = notification.querySelector('.notification-close');
         closeBtn.addEventListener('click', () => {
             notification.remove();
         });
