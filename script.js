@@ -1,6 +1,20 @@
 // H&M Herbs & Vitamins - Interactive JavaScript
 // Modern, accessible, and feature-rich functionality
 
+// Production-safe logging utility
+const Logger = {
+    isDevelopment: window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1',
+    log: function(...args) {
+        if (this.isDevelopment) console.log(...args);
+    },
+    error: function(...args) {
+        if (this.isDevelopment) console.error(...args);
+    },
+    warn: function(...args) {
+        if (this.isDevelopment) console.warn(...args);
+    }
+};
+
 class HMHerbsApp {
     constructor() {
         this.cart = [];
@@ -29,9 +43,9 @@ class HMHerbsApp {
             this.renderSpotlightProducts();
             this.updateCartDisplay();
             
-            console.log('H&M Herbs app initialized successfully');
+            Logger.log('H&M Herbs app initialized successfully');
         } catch (error) {
-            console.error('Error initializing app:', error);
+            Logger.error('Error initializing app:', error);
             this.showNotification('Unable to load the application. Please refresh the page or try again later.', 'error');
         }
     }
@@ -52,7 +66,7 @@ class HMHerbsApp {
             const data = await response.json();
             this.products = data.products || [];
             
-            console.log(`✅ Loaded ${this.products.length} products from API`);
+            Logger.log(`✅ Loaded ${this.products.length} products from API`);
             
             // Update the UI after loading products
             this.renderProducts();
