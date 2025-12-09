@@ -174,26 +174,56 @@ class HMHerbsApp {
         document.body.appendChild(liveRegion);
     }
     
-    renderInventoryStatus(product) {
+    createInventoryStatusElement(product) {
+        const statusDiv = document.createElement('div');
+        statusDiv.className = 'inventory-status';
+        
+        const icon = document.createElement('i');
+        const text = document.createElement('span');
+        
         // Defensive programming: handle missing inventory data
         if (typeof product.inventory === 'undefined' || product.inventory === null) {
             // Fallback to inStock boolean if inventory data is missing
             if (product.inStock === false) {
-                return '<div class="inventory-status out-of-stock"><i class="fas fa-times-circle"></i> Out of Stock</div>';
+                statusDiv.classList.add('out-of-stock');
+                icon.className = 'fas fa-times-circle';
+                text.textContent = ' Out of Stock';
+            } else {
+                statusDiv.classList.add('in-stock');
+                icon.className = 'fas fa-check-circle';
+                text.textContent = ' In Stock';
             }
-            return '<div class="inventory-status in-stock"><i class="fas fa-check-circle"></i> In Stock</div>';
+        } else {
+            // Normal inventory-based logic
+            const inventoryCount = parseInt(product.inventory, 10);
+            if (inventoryCount === 0) {
+                statusDiv.classList.add('out-of-stock');
+                icon.className = 'fas fa-times-circle';
+                text.textContent = ' Out of Stock';
+            } else if (product.lowStockThreshold && inventoryCount <= product.lowStockThreshold) {
+                statusDiv.classList.add('low-stock');
+                icon.className = 'fas fa-exclamation-triangle';
+                text.textContent = ` Only ${inventoryCount} left!`;
+            } else if (inventoryCount <= 20) {
+                statusDiv.classList.add('in-stock');
+                icon.className = 'fas fa-check-circle';
+                text.textContent = ` ${inventoryCount} in stock`;
+            } else {
+                statusDiv.classList.add('in-stock');
+                icon.className = 'fas fa-check-circle';
+                text.textContent = ' In Stock';
+            }
         }
         
-        // Normal inventory-based logic - escape inventory values to prevent XSS
-        const inventoryCount = this.escapeHtml(String(product.inventory));
-        if (product.inventory === 0) {
-            return '<div class="inventory-status out-of-stock"><i class="fas fa-times-circle"></i> Out of Stock</div>';
-        } else if (product.lowStockThreshold && product.inventory <= product.lowStockThreshold) {
-            return `<div class="inventory-status low-stock"><i class="fas fa-exclamation-triangle"></i> Only ${inventoryCount} left!</div>`;
-        } else if (product.inventory <= 20) {
-            return `<div class="inventory-status in-stock"><i class="fas fa-check-circle"></i> ${inventoryCount} in stock</div>`;
-        }
-        return '<div class="inventory-status in-stock"><i class="fas fa-check-circle"></i> In Stock</div>';
+        statusDiv.appendChild(icon);
+        statusDiv.appendChild(text);
+        return statusDiv;
+    }
+    
+    // Legacy method for backward compatibility - now returns HTML safely
+    renderInventoryStatus(product) {
+        const element = this.createInventoryStatusElement(product);
+        return element.outerHTML;
     }
     
     async renderSpotlightProducts() {
@@ -212,7 +242,14 @@ class HMHerbsApp {
         } catch (error) {
             console.error('Error loading spotlight products:', error);
             // Fallback to empty state or show error message
-            container.innerHTML = '<div class="error-message">Unable to load featured products. Please try again later.</div>';
+            const container = document.getElementById('spotlight-products-grid');
+            if (container) {
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'error-message';
+                errorDiv.textContent = 'Unable to load featured products. Please try again later.';
+                container.innerHTML = '';
+                container.appendChild(errorDiv);
+            }
         }
     }
     
@@ -433,13 +470,28 @@ class HMHerbsApp {
         // Update cart content
         if (cartContent) {
             if (this.cart.length === 0) {
-                cartContent.innerHTML = `
-                    <div class="empty-cart">
-                        <i class="fas fa-shopping-cart" aria-hidden="true"></i>
-                        <p>Your cart is empty</p>
-                        <a href="#products" class="btn btn-primary">Start Shopping</a>
-                    </div>
-                `;
+                // Create empty cart message safely
+                const emptyCartDiv = document.createElement('div');
+                emptyCartDiv.className = 'empty-cart';
+                
+                const icon = document.createElement('i');
+                icon.className = 'fas fa-shopping-cart';
+                icon.setAttribute('aria-hidden', 'true');
+                
+                const message = document.createElement('p');
+                message.textContent = 'Your cart is empty';
+                
+                const shopLink = document.createElement('a');
+                shopLink.href = '#products';
+                shopLink.className = 'btn btn-primary';
+                shopLink.textContent = 'Start Shopping';
+                
+                emptyCartDiv.appendChild(icon);
+                emptyCartDiv.appendChild(message);
+                emptyCartDiv.appendChild(shopLink);
+                
+                cartContent.innerHTML = '';
+                cartContent.appendChild(emptyCartDiv);
                 if (cartFooter) cartFooter.style.display = 'none';
             } else {
                 // Clear existing content
@@ -763,9 +815,8 @@ class HMHerbsApp {
         price.className = 'product-price';
         price.textContent = `$${(product.price || 0).toFixed(2)}`;
         
-        // Create inventory status (using existing renderInventoryStatus method)
-        const inventoryStatus = document.createElement('div');
-        inventoryStatus.innerHTML = this.renderInventoryStatus(product);
+        // Create inventory status safely
+        const inventoryStatus = this.createInventoryStatusElement(product);
         
         // Create actions container
         const actions = document.createElement('div');

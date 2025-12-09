@@ -13,6 +13,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs').promises;
 const logger = require('./utils/logger');
+const secureLogger = require('./utils/secure-logger');
 const cache = require('./utils/cache');
 const { userRegistrationValidation, userLoginValidation } = require('./middleware/validation');
 require('dotenv').config();
@@ -33,8 +34,34 @@ const dbConfig = {
 
 const pool = mysql.createPool(dbConfig);
 
-// Middleware
-app.use(helmet());
+// Enhanced Security Middleware
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com", "https://fonts.googleapis.com"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"],
+            fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com"],
+            imgSrc: ["'self'", "data:", "https:", "blob:"],
+            connectSrc: ["'self'"],
+            frameSrc: ["'none'"],
+            objectSrc: ["'none'"],
+            mediaSrc: ["'self'"],
+            workerSrc: ["'self'"],
+            childSrc: ["'self'"],
+            formAction: ["'self'"],
+            upgradeInsecureRequests: [],
+        },
+    },
+    hsts: {
+        maxAge: 31536000,
+        includeSubDomains: true,
+        preload: true
+    },
+    noSniff: true,
+    xssFilter: true,
+    referrerPolicy: { policy: "strict-origin-when-cross-origin" }
+}));
 app.use(compression());
 // CORS configuration with support for multiple origins
 const allowedOrigins = [
@@ -63,7 +90,7 @@ app.use(cors({
         if (allowedOrigins.indexOf(origin) !== -1) {
             callback(null, true);
         } else {
-            console.warn(`CORS blocked request from origin: ${origin}`);
+            secureLogger.logSecurityEvent('cors_blocked', 'medium', 'CORS blocked request', { origin });
             callback(new Error('Not allowed by CORS'));
         }
     },

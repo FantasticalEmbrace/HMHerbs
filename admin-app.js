@@ -196,7 +196,18 @@ class AdminApp {
 
     async loadProducts() {
         const container = document.getElementById('productsTable');
-        container.innerHTML = '<div class="loading"><div class="spinner"></div>Loading products...</div>';
+        
+        // Create loading indicator safely
+        const loadingDiv = document.createElement('div');
+        loadingDiv.className = 'loading';
+        const spinner = document.createElement('div');
+        spinner.className = 'spinner';
+        const loadingText = document.createTextNode('Loading products...');
+        loadingDiv.appendChild(spinner);
+        loadingDiv.appendChild(loadingText);
+        
+        container.innerHTML = '';
+        container.appendChild(loadingDiv);
 
         try {
             const response = await this.apiRequest('/admin/products?limit=50');
@@ -204,24 +215,59 @@ class AdminApp {
             if (response.products && response.products.length > 0) {
                 container.innerHTML = this.renderProductsTable(response.products);
             } else {
-                container.innerHTML = `
-                    <div style="text-align: center; padding: 2rem; color: var(--gray-500);">
-                        <i class="fas fa-box-open" style="font-size: 3rem; margin-bottom: 1rem;"></i>
-                        <p>No products found. Import products or scrape from HM Herbs website.</p>
-                        <button class="btn btn-primary" onclick="scrapeProducts()">
-                            <i class="fas fa-download"></i>
-                            Scrape HM Herbs Products
-                        </button>
-                    </div>
-                `;
+                // Create empty state safely
+                const emptyDiv = document.createElement('div');
+                emptyDiv.style.textAlign = 'center';
+                emptyDiv.style.padding = '2rem';
+                emptyDiv.style.color = 'var(--gray-500)';
+                
+                const icon = document.createElement('i');
+                icon.className = 'fas fa-box-open';
+                icon.style.fontSize = '3rem';
+                icon.style.marginBottom = '1rem';
+                
+                const message = document.createElement('p');
+                message.textContent = 'No products found. Import products or scrape from HM Herbs website.';
+                
+                emptyDiv.appendChild(icon);
+                emptyDiv.appendChild(message);
+                
+                // Add scrape button
+                const scrapeBtn = document.createElement('button');
+                scrapeBtn.className = 'btn btn-primary';
+                scrapeBtn.onclick = () => scrapeProducts();
+                
+                const btnIcon = document.createElement('i');
+                btnIcon.className = 'fas fa-download';
+                const btnText = document.createTextNode(' Scrape HM Herbs Products');
+                
+                scrapeBtn.appendChild(btnIcon);
+                scrapeBtn.appendChild(btnText);
+                emptyDiv.appendChild(scrapeBtn);
+                
+                container.innerHTML = '';
+                container.appendChild(emptyDiv);
             }
         } catch (error) {
-            container.innerHTML = `
-                <div style="text-align: center; padding: 2rem; color: var(--error);">
-                    <i class="fas fa-exclamation-triangle" style="font-size: 3rem; margin-bottom: 1rem;"></i>
-                    <p>Failed to load products: ${error.message}</p>
-                </div>
-            `;
+            // Create error message safely
+            const errorDiv = document.createElement('div');
+            errorDiv.style.textAlign = 'center';
+            errorDiv.style.padding = '2rem';
+            errorDiv.style.color = 'var(--error)';
+            
+            const errorIcon = document.createElement('i');
+            errorIcon.className = 'fas fa-exclamation-triangle';
+            errorIcon.style.fontSize = '3rem';
+            errorIcon.style.marginBottom = '1rem';
+            
+            const errorMessage = document.createElement('p');
+            errorMessage.textContent = `Failed to load products: ${error.message}`;
+            
+            errorDiv.appendChild(errorIcon);
+            errorDiv.appendChild(errorMessage);
+            
+            container.innerHTML = '';
+            container.appendChild(errorDiv);
         }
     }
 
