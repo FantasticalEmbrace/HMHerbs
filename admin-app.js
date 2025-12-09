@@ -407,12 +407,20 @@ class AdminApp {
         // Create notification element
         const notification = document.createElement('div');
         notification.className = `notification notification-${type}`;
-        notification.innerHTML = `
-            <div style="display: flex; align-items: center; gap: 0.5rem;">
-                <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}"></i>
-                <span>${this.escapeHtml(message)}</span>
-            </div>
-        `;
+        // Create notification content safely
+        const container = document.createElement('div');
+        container.style.cssText = 'display: flex; align-items: center; gap: 0.5rem;';
+        
+        const icon = document.createElement('i');
+        const iconClass = type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle';
+        icon.className = `fas fa-${iconClass}`;
+        
+        const messageSpan = document.createElement('span');
+        messageSpan.textContent = message;
+        
+        container.appendChild(icon);
+        container.appendChild(messageSpan);
+        notification.appendChild(container);
         
         // Add styles
         Object.assign(notification.style, {
