@@ -29,6 +29,8 @@ class PerformanceMicroOptimizer {
         
         // Track intervals for cleanup
         this.intervals = [];
+        // Track event listeners for cleanup
+        this.eventListeners = [];
         
         this.init();
     }
@@ -917,7 +919,7 @@ class PerformanceMicroOptimizer {
         };
         
         // Replace existing scroll listeners with optimized version
-        document.addEventListener('scroll', optimizedScrollHandler, { passive: true });
+        this.addEventListenerWithCleanup(document, 'scroll', optimizedScrollHandler, { passive: true });
     }
 
     optimizeImageLoading() {
@@ -992,8 +994,17 @@ class PerformanceMicroOptimizer {
         return result;
     }
 
-    // Cleanup method to clear all intervals
+    // Helper method to add event listeners with tracking
+    addEventListenerWithCleanup(element, event, handler, options = false) {
+        if (element) {
+            element.addEventListener(event, handler, options);
+            this.eventListeners.push({ element, event, handler, options });
+        }
+    }
+
+    // Cleanup method to clear all intervals and event listeners
     cleanup() {
+        // Clear intervals
         this.intervals.forEach(intervalId => {
             try {
                 clearInterval(intervalId);
@@ -1002,6 +1013,16 @@ class PerformanceMicroOptimizer {
             }
         });
         this.intervals = [];
+        
+        // Remove event listeners
+        this.eventListeners.forEach(({ element, event, handler, options }) => {
+            try {
+                element.removeEventListener(event, handler, options);
+            } catch (error) {
+                console.warn('Error removing PerformanceMicroOptimizer event listener:', error);
+            }
+        });
+        this.eventListeners = [];
     }
 }
 
