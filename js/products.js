@@ -64,39 +64,15 @@ class ProductsPage {
             if (loadingState) loadingState.style.display = 'block';
             if (productsGrid) productsGrid.style.display = 'none';
             
-            // Determine API base URL
-            const apiBaseUrl = window.location.hostname === 'localhost' 
-                ? 'http://localhost:3001' 
-                : window.location.origin;
+            console.log('Loading demo products directly (API disabled for testing)...');
             
-            const response = await fetch(`${apiBaseUrl}/api/products?limit=100`);
-            
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            
-            const data = await response.json();
-            this.products = Array.isArray(data) ? data : data.products || [];
-            
-            // Transform API data to match frontend format
-            this.products = this.products.map(product => ({
-                id: product.id,
-                name: product.name,
-                price: parseFloat(product.price) || 0,
-                image: product.image_url || this.createProductPlaceholder(product.name),
-                category: product.category_slug || 'general',
-                description: product.short_description || '',
-                inventory: product.inventory_quantity || 0,
-                featured: product.is_featured === 1,
-                inStock: product.inventory_quantity > 0,
-                lowStockThreshold: 5
-            }));
-            
-            console.log(`Loaded ${this.products.length} products`);
+            // Skip API call and use demo products directly for now
+            this.products = this.getDemoProducts();
+            console.log(`Loaded ${this.products.length} demo products`);
             
         } catch (error) {
             console.error('Error loading products:', error);
-            // Fallback to demo products if API fails
+            // Fallback to demo products if anything fails
             this.products = this.getDemoProducts();
             console.log('Using demo products as fallback');
         } finally {
@@ -131,27 +107,31 @@ class ProductsPage {
     }
     
     createProductPlaceholder(productName) {
-        // Create a professional SVG placeholder that matches the site design
-        const encodedName = encodeURIComponent(productName.substring(0, 20));
-        const svgPlaceholder = `data:image/svg+xml;base64,${btoa(`
-            <svg width="300" height="300" xmlns="http://www.w3.org/2000/svg">
-                <defs>
-                    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" style="stop-color:#4a7c59;stop-opacity:1" />
-                        <stop offset="100%" style="stop-color:#5a8c69;stop-opacity:1" />
-                    </linearGradient>
-                </defs>
-                <rect width="100%" height="100%" fill="url(#grad)"/>
-                <rect x="50" y="80" width="200" height="140" fill="#ffffff" fill-opacity="0.1" rx="12"/>
-                <circle cx="100" cy="120" r="20" fill="#ffffff" fill-opacity="0.3"/>
-                <rect x="140" y="110" width="80" height="8" fill="#ffffff" fill-opacity="0.4" rx="4"/>
-                <rect x="140" y="125" width="60" height="6" fill="#ffffff" fill-opacity="0.3" rx="3"/>
-                <text x="150" y="180" font-family="Arial, sans-serif" font-size="12" fill="#ffffff" text-anchor="middle" font-weight="500">Natural Health</text>
-                <text x="150" y="200" font-family="Arial, sans-serif" font-size="10" fill="#ffffff" fill-opacity="0.8" text-anchor="middle">Product</text>
-            </svg>
-        `)}`;
+        // Create a simple, reliable placeholder image
+        const canvas = document.createElement('canvas');
+        canvas.width = 300;
+        canvas.height = 300;
+        const ctx = canvas.getContext('2d');
         
-        return svgPlaceholder;
+        // Create gradient background
+        const gradient = ctx.createLinearGradient(0, 0, 300, 300);
+        gradient.addColorStop(0, '#4a7c59');
+        gradient.addColorStop(1, '#5a8c69');
+        
+        // Fill background
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, 300, 300);
+        
+        // Add text
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 16px Arial, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Natural Health', 150, 140);
+        ctx.font = '14px Arial, sans-serif';
+        ctx.fillText('Product', 150, 170);
+        
+        // Convert to data URL
+        return canvas.toDataURL('image/png');
     }
     
     setupEventListeners() {
@@ -351,20 +331,30 @@ class ProductsPage {
     }
     
     renderProducts() {
+        console.log('renderProducts called');
         const productsGrid = document.getElementById('products-grid');
         const noResults = document.getElementById('no-results');
         
-        if (!productsGrid) return;
+        console.log('productsGrid element:', productsGrid);
+        console.log('filteredProducts length:', this.filteredProducts.length);
+        
+        if (!productsGrid) {
+            console.error('Products grid element not found!');
+            return;
+        }
         
         // Calculate products for current page
         const startIndex = (this.currentPage - 1) * this.productsPerPage;
         const endIndex = startIndex + this.productsPerPage;
         const pageProducts = this.filteredProducts.slice(startIndex, endIndex);
         
+        console.log(`Rendering ${pageProducts.length} products for page ${this.currentPage}`);
+        
         // Clear existing content
         productsGrid.innerHTML = '';
         
         if (pageProducts.length === 0) {
+            console.log('No products to display');
             productsGrid.style.display = 'none';
             if (noResults) noResults.style.display = 'block';
             return;
@@ -374,10 +364,13 @@ class ProductsPage {
         if (noResults) noResults.style.display = 'none';
         
         // Create product cards
-        pageProducts.forEach(product => {
+        pageProducts.forEach((product, index) => {
+            console.log(`Creating product card ${index + 1}:`, product.name);
             const productCard = this.createProductCard(product);
             productsGrid.appendChild(productCard);
         });
+        
+        console.log('Products rendered successfully');
     }
     
     createProductCard(product) {
