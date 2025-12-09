@@ -518,21 +518,56 @@ class GDPRCompliance {
     showConfirmationModal(title, message, callback) {
         const modal = document.createElement('div');
         modal.className = 'gdpr-modal-overlay';
-        modal.innerHTML = `
-            <div class="gdpr-modal">
-                <div class="gdpr-modal-header">
-                    <h3>${this.escapeHtml(title)}</h3>
-                    <button class="gdpr-modal-close" aria-label="Close">&times;</button>
-                </div>
-                <div class="gdpr-modal-body">
-                    <p>${this.escapeHtml(message)}</p>
-                </div>
-                <div class="gdpr-modal-footer">
-                    <button class="gdpr-btn gdpr-btn-secondary" id="gdpr-cancel">Cancel</button>
-                    <button class="gdpr-btn gdpr-btn-danger" id="gdpr-confirm">Confirm</button>
-                </div>
-            </div>
-        `;
+        
+        // Create modal structure safely
+        const modalDiv = document.createElement('div');
+        modalDiv.className = 'gdpr-modal';
+        
+        // Header
+        const header = document.createElement('div');
+        header.className = 'gdpr-modal-header';
+        
+        const titleEl = document.createElement('h3');
+        titleEl.textContent = title;
+        
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'gdpr-modal-close';
+        closeBtn.setAttribute('aria-label', 'Close');
+        closeBtn.textContent = '×';
+        
+        header.appendChild(titleEl);
+        header.appendChild(closeBtn);
+        
+        // Body
+        const body = document.createElement('div');
+        body.className = 'gdpr-modal-body';
+        
+        const messageEl = document.createElement('p');
+        messageEl.textContent = message;
+        body.appendChild(messageEl);
+        
+        // Footer
+        const footer = document.createElement('div');
+        footer.className = 'gdpr-modal-footer';
+        
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'gdpr-btn gdpr-btn-secondary';
+        cancelBtn.id = 'gdpr-cancel';
+        cancelBtn.textContent = 'Cancel';
+        
+        const confirmBtn = document.createElement('button');
+        confirmBtn.className = 'gdpr-btn gdpr-btn-danger';
+        confirmBtn.id = 'gdpr-confirm';
+        confirmBtn.textContent = 'Confirm';
+        
+        footer.appendChild(cancelBtn);
+        footer.appendChild(confirmBtn);
+        
+        // Assemble modal
+        modalDiv.appendChild(header);
+        modalDiv.appendChild(body);
+        modalDiv.appendChild(footer);
+        modal.appendChild(modalDiv);
 
         document.body.appendChild(modal);
 

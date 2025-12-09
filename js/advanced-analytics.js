@@ -24,6 +24,9 @@ class AdvancedAnalytics {
         this.userId = this.getUserId();
         this.pageLoadTime = performance.now();
         
+        // Track intervals for cleanup
+        this.intervals = [];
+        
         this.init();
     }
 
@@ -248,7 +251,7 @@ class AdvancedAnalytics {
             });
             
             // Send mouse data periodically
-            setInterval(() => {
+            const mouseInterval = setInterval(() => {
                 if (mouseData.length > 0) {
                     this.trackUserInteraction('mouse_movement', {
                         data: mouseData.slice(),
@@ -257,6 +260,7 @@ class AdvancedAnalytics {
                     mouseData = [];
                 }
             }, 30000); // Every 30 seconds
+            this.intervals.push(mouseInterval);
         }
     }
 
@@ -302,7 +306,7 @@ class AdvancedAnalytics {
     initializePerformanceMonitoring() {
         // Memory usage (if available)
         if ('memory' in performance) {
-            setInterval(() => {
+            const memoryInterval = setInterval(() => {
                 this.trackPerformance('memory', {
                     usedJSHeapSize: performance.memory.usedJSHeapSize,
                     totalJSHeapSize: performance.memory.totalJSHeapSize,
@@ -310,6 +314,7 @@ class AdvancedAnalytics {
                     timestamp: Date.now()
                 });
             }, 30000); // Every 30 seconds
+            this.intervals.push(memoryInterval);
         }
 
         // Connection information
@@ -492,20 +497,23 @@ class AdvancedAnalytics {
     // Data Transmission
     startDataTransmission() {
         // Send data every 30 seconds
-        setInterval(() => {
+        const transmissionInterval = setInterval(() => {
             this.sendAllData();
         }, 30000);
+        this.intervals.push(transmissionInterval);
     }
 
     setupBeforeUnload() {
         window.addEventListener('beforeunload', () => {
             this.sendAllData(true); // Use sendBeacon for reliability
+            this.cleanup(); // Clean up intervals
         });
         
         // Also send on page hide (for mobile)
         document.addEventListener('visibilitychange', () => {
             if (document.hidden) {
                 this.sendAllData(true);
+                this.cleanup(); // Clean up intervals
             }
         });
     }
@@ -603,6 +611,18 @@ class AdvancedAnalytics {
     // Configuration
     updateConfig(newConfig) {
         this.config = { ...this.config, ...newConfig };
+    }
+
+    // Cleanup method to clear all intervals
+    cleanup() {
+        this.intervals.forEach(intervalId => {
+            try {
+                clearInterval(intervalId);
+            } catch (error) {
+                console.warn('Error clearing interval:', error);
+            }
+        });
+        this.intervals = [];
     }
 }
 
