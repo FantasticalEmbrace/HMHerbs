@@ -1001,8 +1001,10 @@ document.addEventListener('DOMContentLoaded', () => {
     initImageOptimization();
     optimizeCoreWebVitals();
     
-    // Initialize main application
-    window.hmHerbsApp = new HMHerbsApp();
+    // Initialize main application only if not on products page
+    if (!window.location.pathname.includes('products.html')) {
+        window.hmHerbsApp = new HMHerbsApp();
+    }
     
     // Register service worker for PWA features
     registerServiceWorker();

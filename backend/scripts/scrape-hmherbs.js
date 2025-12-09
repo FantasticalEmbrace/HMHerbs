@@ -435,8 +435,8 @@ class HMHerbsScraper {
         
         const allPaginationLinks = [];
         
-        // Try pages 2-10 to get more products (saw up to page 37 on the site)
-        for (let page = 2; page <= 10; page++) {
+        // Try pages 2-37 to get all products (saw up to page 37 on the site)
+        for (let page = 2; page <= 37; page++) {
             try {
                 const pageUrl = `${baseUrl}?ccm_paging_p=${page}`;
                 const { productLinks } = await this.scrapePage(pageUrl);
