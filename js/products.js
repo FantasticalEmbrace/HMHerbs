@@ -377,7 +377,7 @@ class ProductsPage {
         // Product image
         const image = document.createElement('img');
         image.className = 'product-image';
-        image.src = product.image || 'https://via.placeholder.com/300x300/4a7c59/ffffff?text=Product';
+        image.src = product.image || this.createProductPlaceholder(product.name);
         image.alt = product.name;
         image.loading = 'lazy';
         
