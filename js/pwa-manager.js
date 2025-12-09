@@ -353,19 +353,48 @@ class PWAManager {
         const installBanner = document.createElement('div');
         installBanner.id = 'app-install-banner';
         installBanner.className = 'app-install-banner';
-        installBanner.innerHTML = `
-            <div class="install-content">
-                <div class="install-icon">📱</div>
-                <div class="install-text">
-                    <h3>Install HM Herbs App</h3>
-                    <p>Get quick access to our products and exclusive mobile features</p>
-                </div>
-                <div class="install-actions">
-                    <button id="install-app-btn" class="btn btn-primary">Install</button>
-                    <button id="dismiss-install-btn" class="btn btn-secondary">Not Now</button>
-                </div>
-            </div>
-        `;
+        
+        // Create banner content safely
+        const installContent = document.createElement('div');
+        installContent.className = 'install-content';
+        
+        const installIcon = document.createElement('div');
+        installIcon.className = 'install-icon';
+        installIcon.textContent = '📱';
+        
+        const installText = document.createElement('div');
+        installText.className = 'install-text';
+        
+        const title = document.createElement('h3');
+        title.textContent = 'Install HM Herbs App';
+        
+        const description = document.createElement('p');
+        description.textContent = 'Get quick access to our products and exclusive mobile features';
+        
+        installText.appendChild(title);
+        installText.appendChild(description);
+        
+        const installActions = document.createElement('div');
+        installActions.className = 'install-actions';
+        
+        const installBtn = document.createElement('button');
+        installBtn.id = 'install-app-btn';
+        installBtn.className = 'btn btn-primary';
+        installBtn.textContent = 'Install';
+        
+        const dismissBtn = document.createElement('button');
+        dismissBtn.id = 'dismiss-install-btn';
+        dismissBtn.className = 'btn btn-secondary';
+        dismissBtn.textContent = 'Not Now';
+        
+        installActions.appendChild(installBtn);
+        installActions.appendChild(dismissBtn);
+        
+        installContent.appendChild(installIcon);
+        installContent.appendChild(installText);
+        installContent.appendChild(installActions);
+        
+        installBanner.appendChild(installContent);
         
         document.body.appendChild(installBanner);
         
@@ -517,13 +546,29 @@ class PWAManager {
     showUpdateAvailable() {
         const updateBanner = document.createElement('div');
         updateBanner.className = 'update-banner';
-        updateBanner.innerHTML = `
-            <div class="update-content">
-                <span>A new version is available!</span>
-                <button id="update-app-btn" class="btn btn-primary btn-sm">Update</button>
-                <button id="dismiss-update-btn" class="btn btn-secondary btn-sm">Later</button>
-            </div>
-        `;
+        
+        // Create update content safely
+        const updateContent = document.createElement('div');
+        updateContent.className = 'update-content';
+        
+        const message = document.createElement('span');
+        message.textContent = 'A new version is available!';
+        
+        const updateBtn = document.createElement('button');
+        updateBtn.id = 'update-app-btn';
+        updateBtn.className = 'btn btn-primary btn-sm';
+        updateBtn.textContent = 'Update';
+        
+        const dismissBtn = document.createElement('button');
+        dismissBtn.id = 'dismiss-update-btn';
+        dismissBtn.className = 'btn btn-secondary btn-sm';
+        dismissBtn.textContent = 'Later';
+        
+        updateContent.appendChild(message);
+        updateContent.appendChild(updateBtn);
+        updateContent.appendChild(dismissBtn);
+        
+        updateBanner.appendChild(updateContent);
         
         document.body.appendChild(updateBanner);
         

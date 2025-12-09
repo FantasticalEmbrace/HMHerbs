@@ -806,7 +806,10 @@ class ProductsPage {
         const removeBtn = document.createElement('button');
         removeBtn.className = 'remove-item';
         removeBtn.setAttribute('data-product-id', item.id);
-        removeBtn.innerHTML = '<i class="fas fa-trash" aria-hidden="true"></i>';
+        const trashIcon = document.createElement('i');
+        trashIcon.className = 'fas fa-trash';
+        trashIcon.setAttribute('aria-hidden', 'true');
+        removeBtn.appendChild(trashIcon);
         
         controls.appendChild(decreaseBtn);
         controls.appendChild(quantitySpan);
@@ -907,7 +910,10 @@ class ProductsPage {
         const closeBtn = document.createElement('button');
         closeBtn.className = 'notification-close';
         closeBtn.setAttribute('aria-label', 'Close notification');
-        closeBtn.innerHTML = '<i class="fas fa-times" aria-hidden="true"></i>';
+        const timesIcon = document.createElement('i');
+        timesIcon.className = 'fas fa-times';
+        timesIcon.setAttribute('aria-hidden', 'true');
+        closeBtn.appendChild(timesIcon);
         
         notification.appendChild(messageSpan);
         notification.appendChild(closeBtn);

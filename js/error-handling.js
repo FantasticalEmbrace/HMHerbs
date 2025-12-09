@@ -331,15 +331,24 @@ class ErrorHandler {
             word-wrap: break-word;
         `;
         
-        notification.innerHTML = `
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <span style="flex: 1;">${message}</span>
-                <button style="background: none; border: none; color: white; cursor: pointer; font-size: 18px;" aria-label="Close notification">&times;</button>
-            </div>
-        `;
+        // Create notification content safely
+        const container = document.createElement('div');
+        container.style.cssText = 'display: flex; align-items: center; gap: 10px;';
+        
+        const messageSpan = document.createElement('span');
+        messageSpan.style.flex = '1';
+        messageSpan.textContent = message;
+        
+        const closeButton = document.createElement('button');
+        closeButton.style.cssText = 'background: none; border: none; color: white; cursor: pointer; font-size: 18px;';
+        closeButton.setAttribute('aria-label', 'Close notification');
+        closeButton.textContent = '×';
+        
+        container.appendChild(messageSpan);
+        container.appendChild(closeButton);
+        notification.appendChild(container);
 
-        // Close button functionality
-        const closeButton = notification.querySelector('button');
+        // Close button functionality (reuse the closeButton variable)
         closeButton.addEventListener('click', () => {
             this.removeNotification(notification);
         });
