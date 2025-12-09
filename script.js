@@ -20,6 +20,7 @@ class HMHerbsApp {
         this.cart = [];
         this.products = [];
         this.isLoading = false;
+        this.eventListeners = []; // Track event listeners for cleanup
         
         // Debouncing for cart operations to prevent race conditions
         this.cartOperationTimeouts = new Map();
@@ -52,6 +53,30 @@ class HMHerbsApp {
             Logger.error('Error initializing app:', error);
             this.showNotification('Unable to load the application. Please refresh the page or try again later.', 'error');
         }
+    }
+
+    // Helper method to add event listeners with tracking
+    addEventListenerWithCleanup(element, event, handler, options = false) {
+        if (element) {
+            element.addEventListener(event, handler, options);
+            this.eventListeners.push({ element, event, handler, options });
+        }
+    }
+
+    // Cleanup method to remove all tracked event listeners
+    cleanup() {
+        this.eventListeners.forEach(({ element, event, handler, options }) => {
+            try {
+                element.removeEventListener(event, handler, options);
+            } catch (error) {
+                console.warn('Error removing HMHerbsApp event listener:', error);
+            }
+        });
+        this.eventListeners = [];
+        
+        // Clear any pending cart operation timeouts
+        this.cartOperationTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
+        this.cartOperationTimeouts.clear();
     }
     
     async loadProducts() {
@@ -91,7 +116,7 @@ class HMHerbsApp {
         const navMenu = document.querySelector('.nav-menu');
         
         if (mobileMenuToggle && navMenu) {
-            mobileMenuToggle.addEventListener('click', () => {
+            this.addEventListenerWithCleanup(mobileMenuToggle, 'click', () => {
                 const isExpanded = mobileMenuToggle.getAttribute('aria-expanded') === 'true';
                 mobileMenuToggle.setAttribute('aria-expanded', !isExpanded);
                 navMenu.classList.toggle('show');
@@ -105,7 +130,7 @@ class HMHerbsApp {
         const searchInput = document.getElementById('search-input');
         
         if (searchToggle && searchDropdown) {
-            searchToggle.addEventListener('click', () => {
+            this.addEventListenerWithCleanup(searchToggle, 'click', () => {
                 const isExpanded = searchToggle.getAttribute('aria-expanded') === 'true';
                 searchToggle.setAttribute('aria-expanded', !isExpanded);
                 searchDropdown.classList.toggle('show');
@@ -117,7 +142,7 @@ class HMHerbsApp {
         }
         
         if (searchForm) {
-            searchForm.addEventListener('submit', (e) => {
+            this.addEventListenerWithCleanup(searchForm, 'submit', (e) => {
                 e.preventDefault();
                 const query = searchInput.value.trim();
                 if (query) {
@@ -132,7 +157,7 @@ class HMHerbsApp {
         const cartClose = document.querySelector('.cart-close');
         
         if (cartToggle && cartSidebar) {
-            cartToggle.addEventListener('click', () => {
+            this.addEventListenerWithCleanup(cartToggle, 'click', () => {
                 const isExpanded = cartToggle.getAttribute('aria-expanded') === 'true';
                 cartToggle.setAttribute('aria-expanded', !isExpanded);
                 cartSidebar.classList.toggle('show');
@@ -141,7 +166,7 @@ class HMHerbsApp {
         }
         
         if (cartClose) {
-            cartClose.addEventListener('click', () => {
+            this.addEventListenerWithCleanup(cartClose, 'click', () => {
                 cartSidebar.classList.remove('show');
                 cartSidebar.setAttribute('aria-hidden', 'true');
                 cartToggle.setAttribute('aria-expanded', 'false');
@@ -150,7 +175,7 @@ class HMHerbsApp {
         
         // Smooth scrolling for anchor links
         document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-            anchor.addEventListener('click', (e) => {
+            this.addEventListenerWithCleanup(anchor, 'click', (e) => {
                 e.preventDefault();
                 const target = document.querySelector(anchor.getAttribute('href'));
                 if (target) {
@@ -277,7 +302,7 @@ class HMHerbsApp {
         });
         
         // Use event delegation to prevent memory leaks
-        newContainer.addEventListener('click', (e) => {
+        this.addEventListenerWithCleanup(newContainer, 'click', (e) => {
             if (e.target.closest('.add-to-cart-btn')) {
                 const productElement = e.target.closest('[data-product-id]');
                 if (!productElement) {
@@ -316,7 +341,7 @@ class HMHerbsApp {
         });
         
         // Use event delegation to prevent memory leaks
-        newContainer.addEventListener('click', (e) => {
+        this.addEventListenerWithCleanup(newContainer, 'click', (e) => {
             if (e.target.closest('.add-to-cart-btn')) {
                 const productElement = e.target.closest('[data-product-id]');
                 if (!productElement) {
@@ -668,8 +693,8 @@ class HMHerbsApp {
                 }
             };
             
-            // Add the event listener
-            cartContent.addEventListener('click', cartContent.cartEventListener);
+            // Add the event listener with tracking
+            this.addEventListenerWithCleanup(cartContent, 'click', cartContent.cartEventListener);
         }
     }
     
@@ -772,7 +797,7 @@ class HMHerbsApp {
         }, 100);
         
         // Add close functionality (closeBtn already created above)
-        closeBtn.addEventListener('click', () => {
+        this.addEventListenerWithCleanup(closeBtn, 'click', () => {
             // Clear the auto-close timeout when manually closed
             if (notification.autoCloseTimeout) {
                 clearTimeout(notification.autoCloseTimeout);
@@ -912,12 +937,12 @@ function initLazyLoading() {
                     const img = entry.target;
                     
                     // Add error handling for failed image loads
-                    img.addEventListener('load', () => {
+                    this.addEventListenerWithCleanup(img, 'load', () => {
                         img.classList.remove('lazy');
                         img.classList.add('loaded');
                     }, { once: true });
                     
-                    img.addEventListener('error', () => {
+                    this.addEventListenerWithCleanup(img, 'error', () => {
                         img.classList.remove('lazy');
                         img.classList.add('error');
                         console.warn('Failed to load image:', img.dataset.src);
@@ -943,12 +968,12 @@ function initLazyLoading() {
         // Fallback for browsers without IntersectionObserver
         document.querySelectorAll('img[data-src]').forEach(img => {
             // Add error handling for fallback mode too
-            img.addEventListener('load', () => {
+            this.addEventListenerWithCleanup(img, 'load', () => {
                 img.classList.remove('lazy');
                 img.classList.add('loaded');
             }, { once: true });
             
-            img.addEventListener('error', () => {
+            this.addEventListenerWithCleanup(img, 'error', () => {
                 img.classList.remove('lazy');
                 img.classList.add('error');
                 console.warn('Failed to load image:', img.dataset.src);
@@ -1063,6 +1088,20 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Register service worker for PWA features
     registerServiceWorker();
+    
+    // Setup cleanup on page unload
+    window.addEventListener('beforeunload', () => {
+        if (window.hmHerbsApp) {
+            window.hmHerbsApp.cleanup();
+        }
+    });
+    
+    // Also cleanup on page hide (for mobile)
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden' && window.hmHerbsApp) {
+            window.hmHerbsApp.cleanup();
+        }
+    });
 });
 
 // Export for potential module usage
