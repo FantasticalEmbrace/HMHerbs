@@ -383,7 +383,11 @@
                              alt="EDSA health assessment service icon" 
                              width="200" 
                              height="200"
-                             style="display: block !important; visibility: visible !important; opacity: 1 !important;">
+                             style="display: block !important; visibility: visible !important; opacity: 1 !important;"
+                             onerror="console.error('EDSA image failed to load:', this.src); this.style.border='3px solid red';"
+                             onload="console.log('EDSA image loaded successfully:', this.src); this.style.border='3px solid green';">
+                        <!-- Fallback text in case image doesn't load -->
+                        <noscript>EDSA Service Image</noscript>
                     </div>
                 </div>
             </div>
