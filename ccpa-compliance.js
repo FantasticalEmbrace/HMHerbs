@@ -13,6 +13,43 @@ class CCPACompliance {
         this.checkCCPACompliance();
     }
 
+    // Helper method to create modal structure safely
+    createModal(id, titleId, title, bodyContent) {
+        const modal = document.createElement('div');
+        modal.id = id;
+        modal.className = 'modal ccpa-modal';
+        modal.setAttribute('role', 'dialog');
+        modal.setAttribute('aria-labelledby', titleId);
+
+        const modalContent = document.createElement('div');
+        modalContent.className = 'modal-content';
+
+        const modalHeader = document.createElement('div');
+        modalHeader.className = 'modal-header';
+
+        const modalTitle = document.createElement('h2');
+        modalTitle.id = titleId;
+        modalTitle.textContent = title;
+
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'modal-close';
+        closeBtn.setAttribute('aria-label', 'Close modal');
+        closeBtn.textContent = '×';
+
+        modalHeader.appendChild(modalTitle);
+        modalHeader.appendChild(closeBtn);
+
+        const modalBody = document.createElement('div');
+        modalBody.className = 'modal-body';
+        modalBody.appendChild(bodyContent);
+
+        modalContent.appendChild(modalHeader);
+        modalContent.appendChild(modalBody);
+        modal.appendChild(modalContent);
+
+        return modal;
+    }
+
     loadCCPAPreferences() {
         try {
             const stored = localStorage.getItem('hmherbs_ccpa_preferences');
@@ -169,38 +206,69 @@ class CCPACompliance {
     }
 
     showPrivacyRights() {
-        const modal = document.createElement('div');
-        modal.id = 'ccpa-rights-modal';
-        modal.className = 'modal ccpa-modal';
-        modal.setAttribute('role', 'dialog');
-        modal.setAttribute('aria-labelledby', 'ccpa-rights-title');
-        modal.innerHTML = `
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h2 id="ccpa-rights-title">Your California Privacy Rights (CCPA)</h2>
-                    <button class="modal-close" aria-label="Close modal">&times;</button>
-                </div>
-                <div class="modal-body">
-                    <h3>Right to Know</h3>
-                    <p>You have the right to request information about the personal information we collect, use, and share.</p>
-                    
-                    <h3>Right to Delete</h3>
-                    <p>You have the right to request deletion of your personal information, subject to certain exceptions.</p>
-                    
-                    <h3>Right to Opt-Out</h3>
-                    <p>You have the right to opt-out of the sale of your personal information.</p>
-                    
-                    <h3>Right to Non-Discrimination</h3>
-                    <p>We will not discriminate against you for exercising your CCPA rights.</p>
-                    
-                    <div class="ccpa-actions">
-                        <button id="ccpa-request-info" class="btn btn-primary">Request My Information</button>
-                        <button id="ccpa-delete-data" class="btn btn-secondary">Delete My Data</button>
-                        <button id="ccpa-opt-out" class="btn btn-outline">Opt-Out of Sale</button>
-                    </div>
-                </div>
-            </div>
-        `;
+        // Create modal body content
+        const bodyContent = document.createDocumentFragment();
+        
+        // Right to Know section
+        const knowTitle = document.createElement('h3');
+        knowTitle.textContent = 'Right to Know';
+        const knowDesc = document.createElement('p');
+        knowDesc.textContent = 'You have the right to request information about the personal information we collect, use, and share.';
+        
+        // Right to Delete section
+        const deleteTitle = document.createElement('h3');
+        deleteTitle.textContent = 'Right to Delete';
+        const deleteDesc = document.createElement('p');
+        deleteDesc.textContent = 'You have the right to request deletion of your personal information, subject to certain exceptions.';
+        
+        // Right to Opt-Out section
+        const optOutTitle = document.createElement('h3');
+        optOutTitle.textContent = 'Right to Opt-Out';
+        const optOutDesc = document.createElement('p');
+        optOutDesc.textContent = 'You have the right to opt-out of the sale of your personal information.';
+        
+        // Right to Non-Discrimination section
+        const nonDiscrimTitle = document.createElement('h3');
+        nonDiscrimTitle.textContent = 'Right to Non-Discrimination';
+        const nonDiscrimDesc = document.createElement('p');
+        nonDiscrimDesc.textContent = 'We will not discriminate against you for exercising your CCPA rights.';
+        
+        // Action buttons
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'ccpa-actions';
+        
+        const requestInfoBtn = document.createElement('button');
+        requestInfoBtn.id = 'ccpa-request-info';
+        requestInfoBtn.className = 'btn btn-primary';
+        requestInfoBtn.textContent = 'Request My Information';
+        
+        const deleteDataBtn = document.createElement('button');
+        deleteDataBtn.id = 'ccpa-delete-data';
+        deleteDataBtn.className = 'btn btn-secondary';
+        deleteDataBtn.textContent = 'Delete My Data';
+        
+        const optOutBtn = document.createElement('button');
+        optOutBtn.id = 'ccpa-opt-out';
+        optOutBtn.className = 'btn btn-outline';
+        optOutBtn.textContent = 'Opt-Out of Sale';
+        
+        actionsDiv.appendChild(requestInfoBtn);
+        actionsDiv.appendChild(deleteDataBtn);
+        actionsDiv.appendChild(optOutBtn);
+        
+        // Assemble body content
+        bodyContent.appendChild(knowTitle);
+        bodyContent.appendChild(knowDesc);
+        bodyContent.appendChild(deleteTitle);
+        bodyContent.appendChild(deleteDesc);
+        bodyContent.appendChild(optOutTitle);
+        bodyContent.appendChild(optOutDesc);
+        bodyContent.appendChild(nonDiscrimTitle);
+        bodyContent.appendChild(nonDiscrimDesc);
+        bodyContent.appendChild(actionsDiv);
+        
+        // Create modal using helper method
+        const modal = this.createModal('ccpa-rights-modal', 'ccpa-rights-title', 'Your California Privacy Rights (CCPA)', bodyContent);
 
         document.body.appendChild(modal);
         modal.style.display = 'block';
@@ -321,23 +389,72 @@ class CCPACompliance {
     showEmailInputModal(title, message, callback) {
         const modal = document.createElement('div');
         modal.className = 'ccpa-modal-overlay';
-        modal.innerHTML = `
-            <div class="ccpa-modal">
-                <div class="ccpa-modal-header">
-                    <h3>${this.escapeHtml(title)}</h3>
-                    <button class="ccpa-modal-close" aria-label="Close">&times;</button>
-                </div>
-                <div class="ccpa-modal-body">
-                    <p>${this.escapeHtml(message)}</p>
-                    <input type="email" id="ccpa-email-input" placeholder="Enter your email address" required>
-                    <div class="ccpa-modal-error" id="ccpa-email-error" style="display: none; color: red; margin-top: 10px;"></div>
-                </div>
-                <div class="ccpa-modal-footer">
-                    <button class="ccpa-btn ccpa-btn-secondary" id="ccpa-cancel">Cancel</button>
-                    <button class="ccpa-btn ccpa-btn-primary" id="ccpa-submit">Submit</button>
-                </div>
-            </div>
-        `;
+        
+        // Create modal structure safely
+        const modalDiv = document.createElement('div');
+        modalDiv.className = 'ccpa-modal';
+        
+        // Header
+        const header = document.createElement('div');
+        header.className = 'ccpa-modal-header';
+        
+        const titleEl = document.createElement('h3');
+        titleEl.textContent = title;
+        
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'ccpa-modal-close';
+        closeBtn.setAttribute('aria-label', 'Close');
+        closeBtn.textContent = '×';
+        
+        header.appendChild(titleEl);
+        header.appendChild(closeBtn);
+        
+        // Body
+        const body = document.createElement('div');
+        body.className = 'ccpa-modal-body';
+        
+        const messageEl = document.createElement('p');
+        messageEl.textContent = message;
+        
+        const emailInput = document.createElement('input');
+        emailInput.type = 'email';
+        emailInput.id = 'ccpa-email-input';
+        emailInput.placeholder = 'Enter your email address';
+        emailInput.required = true;
+        
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'ccpa-modal-error';
+        errorDiv.id = 'ccpa-email-error';
+        errorDiv.style.display = 'none';
+        errorDiv.style.color = 'red';
+        errorDiv.style.marginTop = '10px';
+        
+        body.appendChild(messageEl);
+        body.appendChild(emailInput);
+        body.appendChild(errorDiv);
+        
+        // Footer
+        const footer = document.createElement('div');
+        footer.className = 'ccpa-modal-footer';
+        
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'ccpa-btn ccpa-btn-secondary';
+        cancelBtn.id = 'ccpa-cancel';
+        cancelBtn.textContent = 'Cancel';
+        
+        const submitBtn = document.createElement('button');
+        submitBtn.className = 'ccpa-btn ccpa-btn-primary';
+        submitBtn.id = 'ccpa-submit';
+        submitBtn.textContent = 'Submit';
+        
+        footer.appendChild(cancelBtn);
+        footer.appendChild(submitBtn);
+        
+        // Assemble modal
+        modalDiv.appendChild(header);
+        modalDiv.appendChild(body);
+        modalDiv.appendChild(footer);
+        modal.appendChild(modalDiv);
 
         document.body.appendChild(modal);
 
@@ -392,21 +509,56 @@ class CCPACompliance {
     showConfirmationModal(title, message, callback) {
         const modal = document.createElement('div');
         modal.className = 'ccpa-modal-overlay';
-        modal.innerHTML = `
-            <div class="ccpa-modal">
-                <div class="ccpa-modal-header">
-                    <h3>${this.escapeHtml(title)}</h3>
-                    <button class="ccpa-modal-close" aria-label="Close">&times;</button>
-                </div>
-                <div class="ccpa-modal-body">
-                    <p>${this.escapeHtml(message)}</p>
-                </div>
-                <div class="ccpa-modal-footer">
-                    <button class="ccpa-btn ccpa-btn-secondary" id="ccpa-cancel">Cancel</button>
-                    <button class="ccpa-btn ccpa-btn-danger" id="ccpa-confirm">Confirm</button>
-                </div>
-            </div>
-        `;
+        
+        // Create modal structure safely
+        const modalDiv = document.createElement('div');
+        modalDiv.className = 'ccpa-modal';
+        
+        // Header
+        const header = document.createElement('div');
+        header.className = 'ccpa-modal-header';
+        
+        const titleEl = document.createElement('h3');
+        titleEl.textContent = title;
+        
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'ccpa-modal-close';
+        closeBtn.setAttribute('aria-label', 'Close');
+        closeBtn.textContent = '×';
+        
+        header.appendChild(titleEl);
+        header.appendChild(closeBtn);
+        
+        // Body
+        const body = document.createElement('div');
+        body.className = 'ccpa-modal-body';
+        
+        const messageEl = document.createElement('p');
+        messageEl.textContent = message;
+        body.appendChild(messageEl);
+        
+        // Footer
+        const footer = document.createElement('div');
+        footer.className = 'ccpa-modal-footer';
+        
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'ccpa-btn ccpa-btn-secondary';
+        cancelBtn.id = 'ccpa-cancel';
+        cancelBtn.textContent = 'Cancel';
+        
+        const confirmBtn = document.createElement('button');
+        confirmBtn.className = 'ccpa-btn ccpa-btn-danger';
+        confirmBtn.id = 'ccpa-confirm';
+        confirmBtn.textContent = 'Confirm';
+        
+        footer.appendChild(cancelBtn);
+        footer.appendChild(confirmBtn);
+        
+        // Assemble modal
+        modalDiv.appendChild(header);
+        modalDiv.appendChild(body);
+        modalDiv.appendChild(footer);
+        modal.appendChild(modalDiv);
 
         document.body.appendChild(modal);
 
