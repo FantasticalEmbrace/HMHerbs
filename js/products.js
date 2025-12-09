@@ -404,14 +404,20 @@ class ProductsPage {
         description.textContent = product.description || '';
         
         // Inventory status
-        const inventoryStatus = document.createElement('div');
-        inventoryStatus.className = 'inventory-status';
-        inventoryStatus.innerHTML = this.getInventoryStatusHTML(product);
+        const inventoryStatus = this.createInventoryStatusElement(product);
         
         // Add to cart button
         const addToCartBtn = document.createElement('button');
         addToCartBtn.className = 'btn btn-primary add-to-cart-btn';
-        addToCartBtn.innerHTML = '<i class="fas fa-cart-plus" aria-hidden="true"></i> Add to Cart';
+        
+        // Create button content safely
+        const cartIcon = document.createElement('i');
+        cartIcon.className = 'fas fa-cart-plus';
+        cartIcon.setAttribute('aria-hidden', 'true');
+        const buttonText = document.createTextNode(' Add to Cart');
+        
+        addToCartBtn.appendChild(cartIcon);
+        addToCartBtn.appendChild(buttonText);
         
         // Disable button if out of stock
         if (product.inventory === 0 || !product.inStock) {
@@ -433,22 +439,49 @@ class ProductsPage {
         return card;
     }
     
-    getInventoryStatusHTML(product) {
+    createInventoryStatusElement(product) {
+        const statusDiv = document.createElement('div');
+        statusDiv.className = 'inventory-status';
+        
+        const icon = document.createElement('i');
+        const text = document.createElement('span');
+        
         if (typeof product.inventory === 'undefined') {
-            return product.inStock 
-                ? '<div class="inventory-status in-stock"><i class="fas fa-check-circle"></i> In Stock</div>'
-                : '<div class="inventory-status out-of-stock"><i class="fas fa-times-circle"></i> Out of Stock</div>';
+            if (product.inStock) {
+                statusDiv.classList.add('in-stock');
+                icon.className = 'fas fa-check-circle';
+                text.textContent = ' In Stock';
+            } else {
+                statusDiv.classList.add('out-of-stock');
+                icon.className = 'fas fa-times-circle';
+                text.textContent = ' Out of Stock';
+            }
+        } else {
+            const inventoryCount = parseInt(product.inventory, 10);
+            if (inventoryCount === 0) {
+                statusDiv.classList.add('out-of-stock');
+                icon.className = 'fas fa-times-circle';
+                text.textContent = ' Out of Stock';
+            } else if (inventoryCount <= (product.lowStockThreshold || 5)) {
+                statusDiv.classList.add('low-stock');
+                icon.className = 'fas fa-exclamation-triangle';
+                text.textContent = ` Only ${inventoryCount} left`;
+            } else {
+                statusDiv.classList.add('in-stock');
+                icon.className = 'fas fa-check-circle';
+                text.textContent = ' In Stock';
+            }
         }
         
-        if (product.inventory === 0) {
-            return '<div class="inventory-status out-of-stock"><i class="fas fa-times-circle"></i> Out of Stock</div>';
-        }
-        
-        if (product.inventory <= (product.lowStockThreshold || 5)) {
-            return `<div class="inventory-status low-stock"><i class="fas fa-exclamation-triangle"></i> Only ${product.inventory} left</div>`;
-        }
-        
-        return '<div class="inventory-status in-stock"><i class="fas fa-check-circle"></i> In Stock</div>';
+        statusDiv.appendChild(icon);
+        statusDiv.appendChild(text);
+        return statusDiv;
+    }
+    
+    // Legacy method for backward compatibility
+    getInventoryStatusHTML(product) {
+        const element = this.createInventoryStatusElement(product);
+        return element.outerHTML;
     }
     
     renderPagination() {
@@ -473,10 +506,17 @@ class ProductsPage {
         // Previous button
         const prevLi = document.createElement('li');
         if (this.currentPage === 1) {
-            prevLi.innerHTML = '<span class="disabled">Previous</span>';
+            const prevSpan = document.createElement('span');
+            prevSpan.className = 'disabled';
+            prevSpan.textContent = 'Previous';
+            prevLi.appendChild(prevSpan);
             prevLi.className = 'disabled';
         } else {
-            prevLi.innerHTML = `<a href="#" data-page="${this.currentPage - 1}">Previous</a>`;
+            const prevLink = document.createElement('a');
+            prevLink.href = '#';
+            prevLink.setAttribute('data-page', this.currentPage - 1);
+            prevLink.textContent = 'Previous';
+            prevLi.appendChild(prevLink);
         }
         pagination.appendChild(prevLi);
         
@@ -486,12 +526,18 @@ class ProductsPage {
         
         if (startPage > 1) {
             const firstLi = document.createElement('li');
-            firstLi.innerHTML = '<a href="#" data-page="1">1</a>';
+            const firstLink = document.createElement('a');
+            firstLink.href = '#';
+            firstLink.setAttribute('data-page', '1');
+            firstLink.textContent = '1';
+            firstLi.appendChild(firstLink);
             pagination.appendChild(firstLi);
             
             if (startPage > 2) {
                 const ellipsisLi = document.createElement('li');
-                ellipsisLi.innerHTML = '<span>...</span>';
+                const ellipsisSpan = document.createElement('span');
+                ellipsisSpan.textContent = '...';
+                ellipsisLi.appendChild(ellipsisSpan);
                 pagination.appendChild(ellipsisLi);
             }
         }
@@ -499,10 +545,17 @@ class ProductsPage {
         for (let i = startPage; i <= endPage; i++) {
             const pageLi = document.createElement('li');
             if (i === this.currentPage) {
-                pageLi.innerHTML = `<span class="active">${i}</span>`;
+                const activeSpan = document.createElement('span');
+                activeSpan.className = 'active';
+                activeSpan.textContent = i.toString();
+                pageLi.appendChild(activeSpan);
                 pageLi.className = 'active';
             } else {
-                pageLi.innerHTML = `<a href="#" data-page="${i}">${i}</a>`;
+                const pageLink = document.createElement('a');
+                pageLink.href = '#';
+                pageLink.setAttribute('data-page', i.toString());
+                pageLink.textContent = i.toString();
+                pageLi.appendChild(pageLink);
             }
             pagination.appendChild(pageLi);
         }
@@ -510,22 +563,35 @@ class ProductsPage {
         if (endPage < this.totalPages) {
             if (endPage < this.totalPages - 1) {
                 const ellipsisLi = document.createElement('li');
-                ellipsisLi.innerHTML = '<span>...</span>';
+                const ellipsisSpan = document.createElement('span');
+                ellipsisSpan.textContent = '...';
+                ellipsisLi.appendChild(ellipsisSpan);
                 pagination.appendChild(ellipsisLi);
             }
             
             const lastLi = document.createElement('li');
-            lastLi.innerHTML = `<a href="#" data-page="${this.totalPages}">${this.totalPages}</a>`;
+            const lastLink = document.createElement('a');
+            lastLink.href = '#';
+            lastLink.setAttribute('data-page', this.totalPages.toString());
+            lastLink.textContent = this.totalPages.toString();
+            lastLi.appendChild(lastLink);
             pagination.appendChild(lastLi);
         }
         
         // Next button
         const nextLi = document.createElement('li');
         if (this.currentPage === this.totalPages) {
-            nextLi.innerHTML = '<span class="disabled">Next</span>';
+            const nextSpan = document.createElement('span');
+            nextSpan.className = 'disabled';
+            nextSpan.textContent = 'Next';
+            nextLi.appendChild(nextSpan);
             nextLi.className = 'disabled';
         } else {
-            nextLi.innerHTML = `<a href="#" data-page="${this.currentPage + 1}">Next</a>`;
+            const nextLink = document.createElement('a');
+            nextLink.href = '#';
+            nextLink.setAttribute('data-page', (this.currentPage + 1).toString());
+            nextLink.textContent = 'Next';
+            nextLi.appendChild(nextLink);
         }
         pagination.appendChild(nextLi);
     }

@@ -59,27 +59,44 @@ class CCPACompliance {
         banner.className = 'ccpa-banner';
         banner.setAttribute('role', 'dialog');
         banner.setAttribute('aria-labelledby', 'ccpa-banner-title');
-        banner.innerHTML = `
-            <div class="ccpa-banner-content">
-                <h3 id="ccpa-banner-title">Your California Privacy Rights</h3>
-                <p>
-                    As a California resident, you have the right to know what personal information we collect, 
-                    use, and share. You also have the right to request deletion of your personal information 
-                    and to opt-out of the sale of your personal information.
-                </p>
-                <div class="ccpa-banner-actions">
-                    <button id="ccpa-do-not-sell" class="btn btn-primary">
-                        Do Not Sell My Personal Information
-                    </button>
-                    <button id="ccpa-privacy-rights" class="btn btn-secondary">
-                        Learn About Your Rights
-                    </button>
-                    <button id="ccpa-acknowledge" class="btn btn-outline">
-                        I Understand
-                    </button>
-                </div>
-            </div>
-        `;
+        // Create banner content safely
+        const bannerContent = document.createElement('div');
+        bannerContent.className = 'ccpa-banner-content';
+        
+        const title = document.createElement('h3');
+        title.id = 'ccpa-banner-title';
+        title.textContent = 'Your California Privacy Rights';
+        
+        const description = document.createElement('p');
+        description.textContent = 'As a California resident, you have the right to know what personal information we collect, use, and share. You also have the right to request deletion of your personal information and to opt-out of the sale of your personal information.';
+        
+        const actions = document.createElement('div');
+        actions.className = 'ccpa-banner-actions';
+        
+        const doNotSellBtn = document.createElement('button');
+        doNotSellBtn.id = 'ccpa-do-not-sell';
+        doNotSellBtn.className = 'btn btn-primary';
+        doNotSellBtn.textContent = 'Do Not Sell My Personal Information';
+        
+        const rightsBtn = document.createElement('button');
+        rightsBtn.id = 'ccpa-privacy-rights';
+        rightsBtn.className = 'btn btn-secondary';
+        rightsBtn.textContent = 'Learn About Your Rights';
+        
+        const acknowledgeBtn = document.createElement('button');
+        acknowledgeBtn.id = 'ccpa-acknowledge';
+        acknowledgeBtn.className = 'btn btn-outline';
+        acknowledgeBtn.textContent = 'I Understand';
+        
+        actions.appendChild(doNotSellBtn);
+        actions.appendChild(rightsBtn);
+        actions.appendChild(acknowledgeBtn);
+        
+        bannerContent.appendChild(title);
+        bannerContent.appendChild(description);
+        bannerContent.appendChild(actions);
+        
+        banner.appendChild(bannerContent);
 
         document.body.appendChild(banner);
         
