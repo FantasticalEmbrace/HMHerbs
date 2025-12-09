@@ -22,6 +22,9 @@ class CodeQualityOptimizer {
         this.optimizations = [];
         this.errorBoundaries = new Map();
         
+        // Track intervals for cleanup
+        this.intervals = [];
+        
         this.init();
     }
 
@@ -305,7 +308,7 @@ class CodeQualityOptimizer {
         };
         
         // Monitor for orphaned nodes
-        setInterval(() => {
+        const orphanedNodesInterval = setInterval(() => {
             let orphanedCount = 0;
             
             nodeTracker.forEach(node => {
@@ -319,6 +322,7 @@ class CodeQualityOptimizer {
                 console.warn(`Detected ${orphanedCount} orphaned DOM nodes`);
             }
         }, 30000); // Check every 30 seconds
+        this.intervals.push(orphanedNodesInterval);
     }
 
     setupGarbageCollectionOptimization() {
@@ -338,7 +342,7 @@ class CodeQualityOptimizer {
         
         // Memory pressure monitoring
         if ('memory' in performance) {
-            setInterval(() => {
+            const memoryPressureInterval = setInterval(() => {
                 const memory = performance.memory;
                 const usageRatio = memory.usedJSHeapSize / memory.jsHeapSizeLimit;
                 
@@ -347,6 +351,7 @@ class CodeQualityOptimizer {
                     this.performMemoryCleanup();
                 }
             }, 10000); // Check every 10 seconds
+            this.intervals.push(memoryPressureInterval);
         }
     }
 
@@ -647,9 +652,10 @@ class CodeQualityOptimizer {
         this.monitorErrors();
         
         // Generate quality report
-        setInterval(() => {
+        const qualityReportInterval = setInterval(() => {
             this.generateQualityReport();
         }, 60000); // Every minute
+        this.intervals.push(qualityReportInterval);
     }
 
     monitorPerformance() {
@@ -676,7 +682,7 @@ class CodeQualityOptimizer {
 
     monitorMemory() {
         if ('memory' in performance) {
-            setInterval(() => {
+            const memoryMonitorInterval = setInterval(() => {
                 const memory = performance.memory;
                 this.performanceMetrics.memoryUsage.push({
                     timestamp: Date.now(),
@@ -690,12 +696,13 @@ class CodeQualityOptimizer {
                     this.performanceMetrics.memoryUsage.shift();
                 }
             }, 5000); // Every 5 seconds
+            this.intervals.push(memoryMonitorInterval);
         }
     }
 
     monitorErrors() {
         // Error rate monitoring
-        setInterval(() => {
+        const errorMonitorInterval = setInterval(() => {
             const totalErrors = Array.from(this.performanceMetrics.errorCounts.values())
                 .reduce((sum, count) => sum + count, 0);
             
@@ -703,6 +710,7 @@ class CodeQualityOptimizer {
                 console.warn('High error rate detected:', totalErrors);
             }
         }, 30000); // Every 30 seconds
+        this.intervals.push(errorMonitorInterval);
     }
 
     generateQualityReport() {
@@ -753,6 +761,18 @@ class CodeQualityOptimizer {
         return optimizedFn;
     }
 
+    // Cleanup method to clear all intervals
+    cleanup() {
+        this.intervals.forEach(intervalId => {
+            try {
+                clearInterval(intervalId);
+            } catch (error) {
+                console.warn('Error clearing interval:', error);
+            }
+        });
+        this.intervals = [];
+    }
+
     clearMetrics() {
         this.performanceMetrics.functionCalls.clear();
         this.performanceMetrics.memoryUsage.length = 0;
@@ -765,6 +785,20 @@ class CodeQualityOptimizer {
 // Initialize Code Quality Optimizer when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     window.codeQualityOptimizer = new CodeQualityOptimizer();
+    
+    // Setup cleanup on page unload
+    window.addEventListener('beforeunload', () => {
+        if (window.codeQualityOptimizer) {
+            window.codeQualityOptimizer.cleanup();
+        }
+    });
+    
+    // Also cleanup on page hide (for mobile)
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden && window.codeQualityOptimizer) {
+            window.codeQualityOptimizer.cleanup();
+        }
+    });
 });
 
 // Export for use in other modules

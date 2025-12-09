@@ -8,6 +8,9 @@ class DeviceAdaptiveManager {
         this.adaptiveStrategies = this.getAdaptiveStrategies();
         this.resourceLoadingStrategy = null;
         
+        // Track intervals for cleanup
+        this.intervals = [];
+        
         this.init();
     }
 
@@ -614,9 +617,10 @@ class DeviceAdaptiveManager {
     setupMemoryManagement() {
         // Monitor memory usage if available
         if ('memory' in performance) {
-            setInterval(() => {
+            const memoryCheckInterval = setInterval(() => {
                 this.checkMemoryUsage();
             }, 30000); // Check every 30 seconds
+            this.intervals.push(memoryCheckInterval);
         }
         
         // Set up garbage collection hints
@@ -754,6 +758,18 @@ class DeviceAdaptiveManager {
         }
     }
 
+    // Cleanup method to clear all intervals
+    cleanup() {
+        this.intervals.forEach(intervalId => {
+            try {
+                clearInterval(intervalId);
+            } catch (error) {
+                console.warn('Error clearing interval:', error);
+            }
+        });
+        this.intervals = [];
+    }
+
     // Public API
     getDeviceCapabilities() {
         return {
@@ -780,6 +796,20 @@ class DeviceAdaptiveManager {
 // Initialize Device Adaptive Manager when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     window.deviceAdaptiveManager = new DeviceAdaptiveManager();
+    
+    // Setup cleanup on page unload
+    window.addEventListener('beforeunload', () => {
+        if (window.deviceAdaptiveManager) {
+            window.deviceAdaptiveManager.cleanup();
+        }
+    });
+    
+    // Also cleanup on page hide (for mobile)
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden && window.deviceAdaptiveManager) {
+            window.deviceAdaptiveManager.cleanup();
+        }
+    });
 });
 
 // Export for use in other modules

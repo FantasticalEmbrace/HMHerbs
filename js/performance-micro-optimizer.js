@@ -27,6 +27,9 @@ class PerformanceMicroOptimizer {
         this.optimizations = [];
         this.isOptimizing = false;
         
+        // Track intervals for cleanup
+        this.intervals = [];
+        
         this.init();
     }
 
@@ -791,9 +794,10 @@ class PerformanceMicroOptimizer {
         this.monitorMemoryUsage();
         
         // Generate performance reports
-        setInterval(() => {
+        const performanceReportInterval = setInterval(() => {
             this.generatePerformanceReport();
         }, 30000); // Every 30 seconds
+        this.intervals.push(performanceReportInterval);
     }
 
     monitorFrameRate() {
@@ -846,7 +850,7 @@ class PerformanceMicroOptimizer {
 
     monitorMemoryUsage() {
         if ('memory' in performance) {
-            setInterval(() => {
+            const memoryUsageInterval = setInterval(() => {
                 const memory = performance.memory;
                 this.metrics.memoryUsage.push({
                     used: memory.usedJSHeapSize,
@@ -860,6 +864,7 @@ class PerformanceMicroOptimizer {
                     this.metrics.memoryUsage.shift();
                 }
             }, 5000); // Every 5 seconds
+            this.intervals.push(memoryUsageInterval);
         }
     }
 
@@ -986,11 +991,37 @@ class PerformanceMicroOptimizer {
         performance.measure(name, `${name}-start`, `${name}-end`);
         return result;
     }
+
+    // Cleanup method to clear all intervals
+    cleanup() {
+        this.intervals.forEach(intervalId => {
+            try {
+                clearInterval(intervalId);
+            } catch (error) {
+                console.warn('Error clearing interval:', error);
+            }
+        });
+        this.intervals = [];
+    }
 }
 
 // Initialize Performance Micro-Optimizer when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     window.performanceMicroOptimizer = new PerformanceMicroOptimizer();
+    
+    // Setup cleanup on page unload
+    window.addEventListener('beforeunload', () => {
+        if (window.performanceMicroOptimizer) {
+            window.performanceMicroOptimizer.cleanup();
+        }
+    });
+    
+    // Also cleanup on page hide (for mobile)
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden && window.performanceMicroOptimizer) {
+            window.performanceMicroOptimizer.cleanup();
+        }
+    });
 });
 
 // Export for use in other modules
