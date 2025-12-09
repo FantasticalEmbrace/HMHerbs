@@ -378,16 +378,13 @@
                             Book EDSA Session
                         </button>
                     </div>
-                    <div class="edsa-image" style="background-color: #f0f0f0; border: 2px solid #ccc; min-height: 200px;">
-                        <img src="./images/edsa-icon-96x96.png" 
-                             alt="EDSA health assessment service icon" 
-                             width="200" 
-                             height="200"
-                             style="display: block !important; visibility: visible !important; opacity: 1 !important;"
-                             onerror="console.error('EDSA image failed to load:', this.src); this.style.border='3px solid red';"
-                             onload="console.log('EDSA image loaded successfully:', this.src); this.style.border='3px solid green';">
-                        <!-- Fallback text in case image doesn't load -->
-                        <noscript>EDSA Service Image</noscript>
+                    <div class="edsa-image">
+                        <div style="width: 200px; height: 200px; background: linear-gradient(135deg, #4ade80, #22c55e); border-radius: 16px; display: flex; align-items: center; justify-content: center; color: white; font-size: 24px; font-weight: bold; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.1);">
+                            <div>
+                                <div style="font-size: 48px; margin-bottom: 8px;">⚡</div>
+                                <div>EDSA</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
