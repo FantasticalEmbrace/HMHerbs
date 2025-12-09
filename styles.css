@@ -807,6 +807,129 @@ select:focus {
   margin: 0 auto;
 }
 
+/* EDSA Service Section */
+.edsa-service {
+  background: linear-gradient(135deg, var(--gray-50) 0%, var(--white) 100%);
+  padding: var(--space-20) 0;
+}
+
+.edsa-content {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-12);
+  align-items: center;
+}
+
+.edsa-text h2 {
+  font-size: var(--text-4xl);
+  color: var(--primary-green);
+  margin-bottom: var(--space-6);
+  line-height: 1.2;
+}
+
+.edsa-description {
+  font-size: var(--text-lg);
+  color: var(--gray-600);
+  margin-bottom: var(--space-8);
+  line-height: 1.6;
+}
+
+.edsa-features {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-bottom: var(--space-8);
+}
+
+.edsa-feature {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-base);
+  color: var(--gray-700);
+}
+
+.edsa-feature i {
+  color: var(--primary-green);
+  font-size: var(--text-lg);
+  width: 24px;
+  text-align: center;
+}
+
+.edsa-pricing {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-bottom: var(--space-6);
+}
+
+.edsa-price {
+  font-size: var(--text-3xl);
+  font-weight: 700;
+  color: var(--primary-green);
+}
+
+.edsa-price-note {
+  font-size: var(--text-base);
+  color: var(--gray-500);
+}
+
+.edsa-book-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-6);
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+.edsa-image {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.edsa-image img {
+  width: 100%;
+  max-width: 200px;
+  height: auto;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  transition: transform var(--transition-fast);
+}
+
+.edsa-image img:hover {
+  transform: scale(1.05);
+}
+
+@media (max-width: 768px) {
+  .edsa-service {
+    padding: var(--space-12) 0;
+  }
+  
+  .edsa-content {
+    grid-template-columns: 1fr;
+    gap: var(--space-8);
+    text-align: center;
+  }
+  
+  .edsa-text h2 {
+    font-size: var(--text-3xl);
+  }
+  
+  .edsa-description {
+    font-size: var(--text-base);
+  }
+  
+  .edsa-features {
+    align-items: center;
+  }
+  
+  .edsa-image img {
+    max-width: 150px;
+  }
+}
+
 /* Product Grids */
 .products-grid {
   /* Flexbox fallback for older browsers */

@@ -36,9 +36,25 @@ function execCommand(command, options = {}) {
             cwd: options.cwd || process.cwd(),
             ...options 
         });
+        console.log(`✅ Command completed successfully: ${command}`);
         return result;
     } catch (error) {
         console.error(`❌ Command failed: ${command}`);
+        console.error(`💡 Error details: ${error.message}`);
+        
+        // Provide helpful suggestions based on common errors
+        if (error.message.includes('npm')) {
+            console.error('💡 Suggestion: Make sure Node.js and npm are installed and up to date');
+            console.error('   You can download Node.js from: https://nodejs.org/');
+        } else if (error.message.includes('permission')) {
+            console.error('💡 Suggestion: Try running with elevated permissions or check file permissions');
+        } else if (error.message.includes('ENOENT')) {
+            console.error('💡 Suggestion: Check if the required files/directories exist');
+        } else if (error.message.includes('ECONNREFUSED')) {
+            console.error('💡 Suggestion: Check your internet connection or firewall settings');
+        }
+        
+        console.error('📋 For more help, please check the README.md file or contact support');
         throw error;
     }
 }

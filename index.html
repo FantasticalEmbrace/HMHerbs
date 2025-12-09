@@ -101,19 +101,19 @@
       "name": "H&M Herbs & Vitamins",
       "image": "https://hmherbs.com/images/storefront.jpg",
       "url": "https://hmherbs.com",
-      "telephone": "+1-555-HERBS-01",
+      "telephone": "+1-555-123-4567",
       "address": {
         "@type": "PostalAddress",
-        "streetAddress": "123 Wellness Way",
-        "addressLocality": "Natural City",
-        "addressRegion": "CA",
-        "postalCode": "90210",
+        "streetAddress": "123 Wellness Street",
+        "addressLocality": "Health City",
+        "addressRegion": "HC",
+        "postalCode": "12345",
         "addressCountry": "US"
       },
       "geo": {
         "@type": "GeoCoordinates",
-        "latitude": 34.0522,
-        "longitude": -118.2437
+        "latitude": "40.7128",
+        "longitude": "-74.0060"
       },
       "openingHoursSpecification": [
         {
@@ -132,7 +132,7 @@
       "priceRange": "$$",
       "paymentAccepted": "Cash, Credit Card, Debit Card",
       "currenciesAccepted": "USD",
-      "hasMap": "https://maps.google.com/?q=123+Wellness+Way,+Natural+City,+CA+90210"
+      "hasMap": "https://maps.google.com/?q=123+Wellness+Street,+Health+City,+HC+12345"
     }
     </script>
     
@@ -157,51 +157,14 @@
     
     <title>H&M Herbs & Vitamins - Premium Natural Health Products & EDSA Service</title>
     
-    <!-- CRITICAL: Immediate visual bug fixes -->
-    <style>
-        /* EMERGENCY FLICKER FIXES - Load immediately */
-        * {
-            -webkit-backface-visibility: hidden !important;
-            backface-visibility: hidden !important;
-            -webkit-transform: translateZ(0) !important;
-            transform: translateZ(0) !important;
-        }
-        
-        .product-card, .product-image, .spotlight-grid, .product-spotlight {
-            will-change: transform !important;
-            transform: translate3d(0,0,0) !important;
-            -webkit-transform: translate3d(0,0,0) !important;
-        }
-        
-        /* EMERGENCY SCROLLBAR FIX */
-        html {
-            scrollbar-gutter: stable !important;
-            overflow-y: scroll !important;
-        }
-        
-        /* EMERGENCY IMAGE LOADING FIX */
-        img {
-            opacity: 0 !important;
-            transition: opacity 0.3s ease !important;
-        }
-        
-        img.loaded, img.error, img[src*="data:"] {
-            opacity: 1 !important;
-        }
-        
-        /* Fallback for broken images */
-        img[src=""], img:not([src]), img[alt*="unavailable"] {
-            background: #f8f9fa url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iI2Y4ZjlmYSIvPgo8cmVjdCB4PSI1MCIgeT0iNTAiIHdpZHRoPSIyMDAiIGhlaWdodD0iMTAwIiBmaWxsPSIjZTllY2VmIiByeD0iOCIvPgo8Y2lyY2xlIGN4PSIxMDAiIGN5PSI4MCIgcj0iMTUiIGZpbGw9IiNkZWUyZTYiLz4KPHJlY3QgeD0iMTMwIiB5PSI3MCIgd2lkdGg9IjgwIiBoZWlnaHQ9IjgiIGZpbGw9IiNkZWUyZTYiIHJ4PSI0Ii8+CjxyZWN0IHg9IjEzMCIgeT0iODUiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2IiBmaWxsPSIjZGVlMmU2IiByeD0iMyIvPgo8dGV4dCB4PSIxNTAiIHk9IjEzMCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjEyIiBmaWxsPSIjNmM3NTdkIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5JbWFnZSB1bmF2YWlsYWJsZTwvdGV4dD4KPC9zdmc+') center/contain no-repeat !important;
-            opacity: 1 !important;
-            min-height: 200px !important;
-        }
-    </style>
+    <!-- CRITICAL: Emergency visual bug fixes -->
+    <link rel="stylesheet" href="css/emergency-fixes.css">
     
     <!-- Stylesheets -->
     <link rel="stylesheet" href="styles.css">
-  <link rel="stylesheet" href="css/browser-compatibility.css">
-  <link rel="stylesheet" href="css/performance-optimizations.css">
-  <link rel="stylesheet" href="css/accessibility-enhancements.css">
+    <link rel="stylesheet" href="css/browser-compatibility.css">
+    <link rel="stylesheet" href="css/performance-optimizations.css">
+    <link rel="stylesheet" href="css/accessibility-enhancements.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     
     <!-- Performance Optimizations -->
@@ -416,8 +379,8 @@
                         </button>
                     </div>
                     <div class="edsa-image">
-                        <img src="https://github.com/FantasticalEmbrace/HMHerbs/blob/codegen-artifacts-store/images/edsa-workspace.jpeg?raw=true" 
-                             alt="EDSA health assessment workspace with laptop and supplements" 
+                        <img src="images/edsa-icon-96x96.png" 
+                             alt="EDSA health assessment service icon" 
                              loading="lazy">
                     </div>
                 </div>
@@ -481,16 +444,16 @@
                     <p>Your trusted source for premium natural health products. We're committed to providing 
                        the highest quality herbs, vitamins, and supplements to support your wellness journey.</p>
                     <div class="social-links">
-                        <a href="#" aria-label="Follow us on Facebook">
+                        <a href="https://facebook.com/hmherbs" target="_blank" rel="noopener noreferrer" aria-label="Follow us on Facebook">
                             <i class="fab fa-facebook-f" aria-hidden="true"></i>
                         </a>
-                        <a href="#" aria-label="Follow us on Instagram">
+                        <a href="https://instagram.com/hmherbs" target="_blank" rel="noopener noreferrer" aria-label="Follow us on Instagram">
                             <i class="fab fa-instagram" aria-hidden="true"></i>
                         </a>
-                        <a href="#" aria-label="Follow us on Twitter">
+                        <a href="https://twitter.com/hmherbs" target="_blank" rel="noopener noreferrer" aria-label="Follow us on Twitter">
                             <i class="fab fa-twitter" aria-hidden="true"></i>
                         </a>
-                        <a href="#" aria-label="Subscribe to our YouTube channel">
+                        <a href="https://youtube.com/@hmherbs" target="_blank" rel="noopener noreferrer" aria-label="Subscribe to our YouTube channel">
                             <i class="fab fa-youtube" aria-hidden="true"></i>
                         </a>
                     </div>
@@ -655,8 +618,8 @@
     <script src="js/seo-optimizer.js" defer></script>
     <script src="js/code-quality-optimizer.js" defer></script>
     <script src="js/performance-micro-optimizer.js" defer></script>
-    <script src="script.js"></script>
-    <script src="gdpr-compliance.js"></script>
-    <script src="ccpa-compliance.js"></script>
+    <script src="script.js" defer></script>
+    <script src="gdpr-compliance.js" defer></script>
+    <script src="ccpa-compliance.js" defer></script>
 </body>
 </html>
