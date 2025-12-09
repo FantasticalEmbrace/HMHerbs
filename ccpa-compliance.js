@@ -4,6 +4,7 @@
 class CCPACompliance {
     constructor() {
         this.ccpaPreferences = this.loadCCPAPreferences();
+        this.eventListeners = []; // Track event listeners for cleanup
         this.init();
     }
 
@@ -48,6 +49,51 @@ class CCPACompliance {
         modal.appendChild(modalContent);
 
         return modal;
+    }
+
+    // Helper method to add event listeners with tracking
+    addEventListenerWithCleanup(element, event, handler, options = false) {
+        if (element) {
+            element.addEventListener(event, handler, options);
+            this.eventListeners.push({ element, event, handler, options });
+        }
+    }
+
+    // Cleanup method to remove all tracked event listeners
+    cleanup() {
+        this.eventListeners.forEach(({ element, event, handler, options }) => {
+            try {
+                element.removeEventListener(event, handler, options);
+            } catch (error) {
+                console.warn('Error removing CCPA event listener:', error);
+            }
+        });
+        this.eventListeners = [];
+    }
+
+    // Helper method to remove modal-specific listeners
+    removeModalListeners(modal) {
+        if (modal._ccpaListeners) {
+            modal._ccpaListeners.forEach(({ element, event, handler }) => {
+                try {
+                    if (element) {
+                        element.removeEventListener(event, handler);
+                        // Also remove from main tracking array
+                        const index = this.eventListeners.findIndex(
+                            listener => listener.element === element && 
+                                       listener.event === event && 
+                                       listener.handler === handler
+                        );
+                        if (index > -1) {
+                            this.eventListeners.splice(index, 1);
+                        }
+                    }
+                } catch (error) {
+                    console.warn('Error removing modal event listener:', error);
+                }
+            });
+            modal._ccpaListeners = [];
+        }
     }
 
     loadCCPAPreferences() {
@@ -147,7 +193,7 @@ class CCPACompliance {
         // Do Not Sell button
         const doNotSellBtn = document.getElementById('ccpa-do-not-sell');
         if (doNotSellBtn) {
-            doNotSellBtn.addEventListener('click', () => {
+            this.addEventListenerWithCleanup(doNotSellBtn, 'click', () => {
                 this.handleDoNotSell();
             });
         }
@@ -155,7 +201,7 @@ class CCPACompliance {
         // Privacy Rights button
         const privacyRightsBtn = document.getElementById('ccpa-privacy-rights');
         if (privacyRightsBtn) {
-            privacyRightsBtn.addEventListener('click', () => {
+            this.addEventListenerWithCleanup(privacyRightsBtn, 'click', () => {
                 this.showPrivacyRights();
             });
         }
@@ -163,13 +209,13 @@ class CCPACompliance {
         // Acknowledge button
         const acknowledgeBtn = document.getElementById('ccpa-acknowledge');
         if (acknowledgeBtn) {
-            acknowledgeBtn.addEventListener('click', () => {
+            this.addEventListenerWithCleanup(acknowledgeBtn, 'click', () => {
                 this.acknowledgeCCPA();
             });
         }
 
         // Handle "Do Not Sell" links in footer or privacy policy
-        document.addEventListener('click', (e) => {
+        this.addEventListenerWithCleanup(document, 'click', (e) => {
             if (e.target.matches('[data-ccpa-action="do-not-sell"]')) {
                 e.preventDefault();
                 this.handleDoNotSell();
@@ -273,30 +319,48 @@ class CCPACompliance {
         document.body.appendChild(modal);
         modal.style.display = 'block';
 
-        // Event listeners for modal
-        modal.querySelector('.modal-close').addEventListener('click', () => {
+        // Event listeners for modal with cleanup tracking
+        const closeHandler = () => {
+            this.removeModalListeners(modal);
             document.body.removeChild(modal);
-        });
+        };
 
-        modal.addEventListener('click', (e) => {
+        const clickHandler = (e) => {
             if (e.target === modal) {
+                this.removeModalListeners(modal);
                 document.body.removeChild(modal);
             }
-        });
+        };
 
-        // Action buttons
-        modal.querySelector('#ccpa-request-info').addEventListener('click', () => {
+        const requestInfoHandler = () => {
             this.handleDataRequest();
-        });
+        };
 
-        modal.querySelector('#ccpa-delete-data').addEventListener('click', () => {
+        const deleteDataHandler = () => {
             this.handleDataDeletion();
-        });
+        };
 
-        modal.querySelector('#ccpa-opt-out').addEventListener('click', () => {
+        const optOutHandler = () => {
             this.handleDoNotSell();
+            this.removeModalListeners(modal);
             document.body.removeChild(modal);
-        });
+        };
+
+        // Add tracked event listeners
+        this.addEventListenerWithCleanup(modal.querySelector('.modal-close'), 'click', closeHandler);
+        this.addEventListenerWithCleanup(modal, 'click', clickHandler);
+        this.addEventListenerWithCleanup(modal.querySelector('#ccpa-request-info'), 'click', requestInfoHandler);
+        this.addEventListenerWithCleanup(modal.querySelector('#ccpa-delete-data'), 'click', deleteDataHandler);
+        this.addEventListenerWithCleanup(modal.querySelector('#ccpa-opt-out'), 'click', optOutHandler);
+
+        // Store modal reference for cleanup
+        modal._ccpaListeners = [
+            { element: modal.querySelector('.modal-close'), event: 'click', handler: closeHandler },
+            { element: modal, event: 'click', handler: clickHandler },
+            { element: modal.querySelector('#ccpa-request-info'), event: 'click', handler: requestInfoHandler },
+            { element: modal.querySelector('#ccpa-delete-data'), event: 'click', handler: deleteDataHandler },
+            { element: modal.querySelector('#ccpa-opt-out'), event: 'click', handler: optOutHandler }
+        ];
     }
 
     acknowledgeCCPA() {
@@ -484,19 +548,20 @@ class CCPACompliance {
             callback(email);
         };
 
-        submitBtn.addEventListener('click', handleSubmit);
-        cancelBtn.addEventListener('click', closeModal);
-        closeBtn.addEventListener('click', closeModal);
+        // Add tracked event listeners for email modal
+        this.addEventListenerWithCleanup(submitBtn, 'click', handleSubmit);
+        this.addEventListenerWithCleanup(cancelBtn, 'click', closeModal);
+        this.addEventListenerWithCleanup(closeBtn, 'click', closeModal);
         
         // Handle Enter key
-        emailInput.addEventListener('keypress', (e) => {
+        this.addEventListenerWithCleanup(emailInput, 'keypress', (e) => {
             if (e.key === 'Enter') {
                 handleSubmit();
             }
         });
 
         // Handle Escape key
-        modal.addEventListener('keydown', (e) => {
+        this.addEventListenerWithCleanup(modal, 'keydown', (e) => {
             if (e.key === 'Escape') {
                 closeModal();
             }
@@ -570,16 +635,17 @@ class CCPACompliance {
             document.body.removeChild(modal);
         };
 
-        confirmBtn.addEventListener('click', () => {
+        // Add tracked event listeners for confirmation modal
+        this.addEventListenerWithCleanup(confirmBtn, 'click', () => {
             closeModal();
             callback();
         });
 
-        cancelBtn.addEventListener('click', closeModal);
-        closeBtn.addEventListener('click', closeModal);
+        this.addEventListenerWithCleanup(cancelBtn, 'click', closeModal);
+        this.addEventListenerWithCleanup(closeBtn, 'click', closeModal);
 
         // Handle Escape key
-        modal.addEventListener('keydown', (e) => {
+        this.addEventListenerWithCleanup(modal, 'keydown', (e) => {
             if (e.key === 'Escape') {
                 closeModal();
             }
@@ -673,6 +739,20 @@ class CCPACompliance {
 // Initialize CCPA compliance when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     window.ccpaCompliance = new CCPACompliance();
+    
+    // Setup cleanup on page unload
+    window.addEventListener('beforeunload', () => {
+        if (window.ccpaCompliance) {
+            window.ccpaCompliance.cleanup();
+        }
+    });
+    
+    // Also cleanup on page hide (for mobile)
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden' && window.ccpaCompliance) {
+            window.ccpaCompliance.cleanup();
+        }
+    });
 });
 
 // Export for module systems

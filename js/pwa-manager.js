@@ -16,6 +16,7 @@ class PWAManager {
         this.syncInProgress = false;
         this.installPromptEvent = null;
         this.isOnline = navigator.onLine;
+        this.eventListeners = []; // Track event listeners for cleanup
         
         this.init();
     }
@@ -51,6 +52,26 @@ class PWAManager {
         this.setupPeriodicSync();
     }
 
+    // Helper method to add event listeners with tracking
+    addEventListenerWithCleanup(element, event, handler, options = false) {
+        if (element) {
+            element.addEventListener(event, handler, options);
+            this.eventListeners.push({ element, event, handler, options });
+        }
+    }
+
+    // Cleanup method to remove all tracked event listeners
+    cleanup() {
+        this.eventListeners.forEach(({ element, event, handler, options }) => {
+            try {
+                element.removeEventListener(event, handler, options);
+            } catch (error) {
+                console.warn('Error removing PWA event listener:', error);
+            }
+        });
+        this.eventListeners = [];
+    }
+
     async registerServiceWorker() {
         if ('serviceWorker' in navigator) {
             try {
@@ -61,9 +82,9 @@ class PWAManager {
                 console.log('Advanced Service Worker registered:', registration);
                 
                 // Handle service worker updates
-                registration.addEventListener('updatefound', () => {
+                this.addEventListenerWithCleanup(registration, 'updatefound', () => {
                     const newWorker = registration.installing;
-                    newWorker.addEventListener('statechange', () => {
+                    this.addEventListenerWithCleanup(newWorker, 'statechange', () => {
                         if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
                             this.showUpdateAvailable();
                         }
@@ -83,13 +104,13 @@ class PWAManager {
     // Offline Sync Implementation
     initializeOfflineSync() {
         // Listen for online/offline events
-        window.addEventListener('online', () => {
+        this.addEventListenerWithCleanup(window, 'online', () => {
             this.isOnline = true;
             this.processOfflineQueue();
             this.showConnectionRestored();
         });
         
-        window.addEventListener('offline', () => {
+        this.addEventListenerWithCleanup(window, 'offline', () => {
             this.isOnline = false;
             this.showOfflineMode();
         });
@@ -102,7 +123,7 @@ class PWAManager {
     }
 
     interceptFormSubmissions() {
-        document.addEventListener('submit', (event) => {
+        this.addEventListenerWithCleanup(document, 'submit', (event) => {
             if (!this.isOnline) {
                 event.preventDefault();
                 this.queueFormSubmission(event.target);
@@ -337,13 +358,13 @@ class PWAManager {
 
     // App Install Implementation
     initializeAppInstall() {
-        window.addEventListener('beforeinstallprompt', (event) => {
+        this.addEventListenerWithCleanup(window, 'beforeinstallprompt', (event) => {
             event.preventDefault();
             this.installPromptEvent = event;
             this.showInstallPrompt();
         });
         
-        window.addEventListener('appinstalled', () => {
+        this.addEventListenerWithCleanup(window, 'appinstalled', () => {
             this.hideInstallPrompt();
             this.trackAppInstall();
         });
@@ -399,11 +420,11 @@ class PWAManager {
         document.body.appendChild(installBanner);
         
         // Add event listeners
-        document.getElementById('install-app-btn').addEventListener('click', () => {
+        this.addEventListenerWithCleanup(installBtn, 'click', () => {
             this.promptAppInstall();
         });
         
-        document.getElementById('dismiss-install-btn').addEventListener('click', () => {
+        this.addEventListenerWithCleanup(dismissBtn, 'click', () => {
             this.hideInstallPrompt();
         });
         
@@ -469,7 +490,7 @@ class PWAManager {
             this.adaptToConnectionQuality(connectionInfo);
         };
         
-        connection.addEventListener('change', updateConnectionInfo);
+        this.addEventListenerWithCleanup(connection, 'change', updateConnectionInfo);
         updateConnectionInfo(); // Initial check
     }
 
@@ -572,11 +593,11 @@ class PWAManager {
         
         document.body.appendChild(updateBanner);
         
-        document.getElementById('update-app-btn').addEventListener('click', () => {
+        this.addEventListenerWithCleanup(updateBtn, 'click', () => {
             window.location.reload();
         });
         
-        document.getElementById('dismiss-update-btn').addEventListener('click', () => {
+        this.addEventListenerWithCleanup(dismissBtn, 'click', () => {
             updateBanner.remove();
         });
     }
@@ -669,6 +690,20 @@ class PWAManager {
 // Initialize PWA Manager when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     window.pwaManager = new PWAManager();
+    
+    // Setup cleanup on page unload
+    window.addEventListener('beforeunload', () => {
+        if (window.pwaManager) {
+            window.pwaManager.cleanup();
+        }
+    });
+    
+    // Also cleanup on page hide (for mobile)
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden' && window.pwaManager) {
+            window.pwaManager.cleanup();
+        }
+    });
 });
 
 // Export for use in other modules

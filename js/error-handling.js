@@ -7,6 +7,8 @@ class ErrorHandler {
         this.retryAttempts = new Map();
         this.maxRetries = 3;
         this.retryDelay = 1000; // 1 second base delay
+        this.eventListeners = []; // Track event listeners for cleanup
+        this.globalHandlersAdded = false; // Prevent duplicate global handlers
         
         this.init();
     }
@@ -19,9 +21,35 @@ class ErrorHandler {
         this.setupOfflineHandling();
     }
 
+    // Helper method to add event listeners with tracking
+    addEventListenerWithCleanup(element, event, handler, options = false) {
+        if (element) {
+            element.addEventListener(event, handler, options);
+            this.eventListeners.push({ element, event, handler, options });
+        }
+    }
+
+    // Cleanup method to remove all tracked event listeners
+    cleanup() {
+        this.eventListeners.forEach(({ element, event, handler, options }) => {
+            try {
+                element.removeEventListener(event, handler, options);
+            } catch (error) {
+                console.warn('Error removing error handler event listener:', error);
+            }
+        });
+        this.eventListeners = [];
+        this.globalHandlersAdded = false; // Reset flag for potential re-initialization
+    }
+
     setupGlobalErrorHandlers() {
+        // Prevent duplicate global handlers
+        if (this.globalHandlersAdded) {
+            return;
+        }
+
         // Catch JavaScript errors
-        window.addEventListener('error', (event) => {
+        this.addEventListenerWithCleanup(window, 'error', (event) => {
             this.handleJavaScriptError({
                 message: event.message,
                 filename: event.filename,
@@ -32,7 +60,7 @@ class ErrorHandler {
         });
 
         // Catch unhandled promise rejections
-        window.addEventListener('unhandledrejection', (event) => {
+        this.addEventListenerWithCleanup(window, 'unhandledrejection', (event) => {
             this.handlePromiseRejection({
                 reason: event.reason,
                 promise: event.promise
@@ -40,8 +68,8 @@ class ErrorHandler {
             event.preventDefault(); // Prevent console error
         });
 
-        // Catch resource loading errors
-        window.addEventListener('error', (event) => {
+        // Catch resource loading errors (using capture phase)
+        this.addEventListenerWithCleanup(window, 'error', (event) => {
             if (event.target !== window) {
                 this.handleResourceError({
                     element: event.target,
@@ -50,6 +78,8 @@ class ErrorHandler {
                 });
             }
         }, true);
+
+        this.globalHandlersAdded = true;
     }
 
     setupNetworkErrorHandling() {
@@ -86,7 +116,7 @@ class ErrorHandler {
 
     setupUIErrorHandling() {
         // Handle form submission errors
-        document.addEventListener('submit', (event) => {
+        this.addEventListenerWithCleanup(document, 'submit', (event) => {
             const form = event.target;
             if (form.tagName === 'FORM') {
                 this.handleFormSubmission(form, event);
@@ -94,7 +124,7 @@ class ErrorHandler {
         });
 
         // Handle click errors on interactive elements
-        document.addEventListener('click', (event) => {
+        this.addEventListenerWithCleanup(document, 'click', (event) => {
             const element = event.target;
             if (element.matches('button, a, [role="button"]')) {
                 this.wrapInteractiveElement(element, event);
@@ -125,12 +155,12 @@ class ErrorHandler {
     }
 
     setupOfflineHandling() {
-        window.addEventListener('online', () => {
+        this.addEventListenerWithCleanup(window, 'online', () => {
             this.showNotification('Connection restored', 'success');
             this.retryFailedRequests();
         });
 
-        window.addEventListener('offline', () => {
+        this.addEventListenerWithCleanup(window, 'offline', () => {
             this.showNotification('You are currently offline. Some features may not work.', 'warning', 0);
         });
     }
@@ -349,12 +379,12 @@ class ErrorHandler {
         notification.appendChild(container);
 
         // Close button functionality (reuse the closeButton variable)
-        closeButton.addEventListener('click', () => {
+        this.addEventListenerWithCleanup(closeButton, 'click', () => {
             this.removeNotification(notification);
         });
 
         // Click to dismiss
-        notification.addEventListener('click', (e) => {
+        this.addEventListenerWithCleanup(notification, 'click', (e) => {
             if (e.target !== closeButton) {
                 this.removeNotification(notification);
             }
@@ -526,6 +556,20 @@ document.head.appendChild(style);
 // Initialize error handler when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     window.errorHandler = new ErrorHandler();
+    
+    // Setup cleanup on page unload
+    window.addEventListener('beforeunload', () => {
+        if (window.errorHandler) {
+            window.errorHandler.cleanup();
+        }
+    });
+    
+    // Also cleanup on page hide (for mobile)
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden' && window.errorHandler) {
+            window.errorHandler.cleanup();
+        }
+    });
 });
 
 // Export for use in other modules
