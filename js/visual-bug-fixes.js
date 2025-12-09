@@ -15,6 +15,7 @@ class VisualBugFixer {
         this.loadingImages = new Set();
         this.flickerElements = new WeakSet();
         this.initialized = false;
+        this.eventListeners = []; // Track event listeners for cleanup
         
         this.init();
     }
@@ -45,10 +46,30 @@ class VisualBugFixer {
         
         // Initialize on DOM ready
         if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => this.applyFixes());
+            this.addEventListenerWithCleanup(document, 'DOMContentLoaded', () => this.applyFixes());
         } else {
             this.applyFixes();
         }
+    }
+
+    // Helper method to add event listeners with tracking
+    addEventListenerWithCleanup(element, event, handler, options = false) {
+        if (element) {
+            element.addEventListener(event, handler, options);
+            this.eventListeners.push({ element, event, handler, options });
+        }
+    }
+
+    // Cleanup method to remove all tracked event listeners
+    cleanup() {
+        this.eventListeners.forEach(({ element, event, handler, options }) => {
+            try {
+                element.removeEventListener(event, handler, options);
+            } catch (error) {
+                console.warn('Error removing VisualBugFixer event listener:', error);
+            }
+        });
+        this.eventListeners = [];
     }
 
     // Fix Carousel Flickering
@@ -306,7 +327,7 @@ class VisualBugFixer {
         };
         
         // Use passive listeners for better performance
-        window.addEventListener('scroll', optimizedScrollHandler, { passive: true });
+        this.addEventListenerWithCleanup(window, 'scroll', optimizedScrollHandler, { passive: true });
         
         // Add CSS for scroll optimization
         const scrollOptimizationCSS = document.createElement('style');
@@ -462,8 +483,8 @@ class VisualBugFixer {
             }
         } else {
             // Set up listeners for images still loading
-            img.addEventListener('load', handleLoad, { once: true });
-            img.addEventListener('error', handleError, { once: true });
+            this.addEventListenerWithCleanup(img, 'load', handleLoad, { once: true });
+            this.addEventListenerWithCleanup(img, 'error', handleError, { once: true });
             
             // Timeout fallback
             setTimeout(() => {
@@ -636,6 +657,20 @@ class VisualBugFixer {
             }
         });
     }
+    
+    // Setup cleanup on page unload
+    window.addEventListener('beforeunload', () => {
+        if (window.visualBugFixer) {
+            window.visualBugFixer.cleanup();
+        }
+    });
+    
+    // Also cleanup on page hide (for mobile)
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden' && window.visualBugFixer) {
+            window.visualBugFixer.cleanup();
+        }
+    });
 })();
 
 // Export for use in other modules

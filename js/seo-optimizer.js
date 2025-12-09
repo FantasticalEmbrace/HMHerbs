@@ -25,6 +25,7 @@ class SEOOptimizer {
         
         this.optimizations = [];
         this.criticalResources = [];
+        this.eventListeners = []; // Track event listeners for cleanup
         
         this.init();
     }
@@ -68,6 +69,26 @@ class SEOOptimizer {
         
         // Initialize search engine features
         this.setupSearchEngineFeatures();
+    }
+
+    // Helper method to add event listeners with tracking
+    addEventListenerWithCleanup(element, event, handler, options = false) {
+        if (element) {
+            element.addEventListener(event, handler, options);
+            this.eventListeners.push({ element, event, handler, options });
+        }
+    }
+
+    // Cleanup method to remove all tracked event listeners
+    cleanup() {
+        this.eventListeners.forEach(({ element, event, handler, options }) => {
+            try {
+                element.removeEventListener(event, handler, options);
+            } catch (error) {
+                console.warn('Error removing SEOOptimizer event listener:', error);
+            }
+        });
+        this.eventListeners = [];
     }
 
     initializeCoreWebVitalsOptimization() {
@@ -190,7 +211,7 @@ class SEOOptimizer {
         // Example: Break up form validation
         const forms = document.querySelectorAll('form');
         forms.forEach(form => {
-            form.addEventListener('submit', (e) => {
+            this.addEventListenerWithCleanup(form, 'submit', (e) => {
                 e.preventDefault();
                 
                 // Break validation into chunks
@@ -896,6 +917,20 @@ class SEOOptimizer {
 // Initialize SEO Optimizer when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     window.seoOptimizer = new SEOOptimizer();
+    
+    // Setup cleanup on page unload
+    window.addEventListener('beforeunload', () => {
+        if (window.seoOptimizer) {
+            window.seoOptimizer.cleanup();
+        }
+    });
+    
+    // Also cleanup on page hide (for mobile)
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden' && window.seoOptimizer) {
+            window.seoOptimizer.cleanup();
+        }
+    });
 });
 
 // Export for use in other modules
