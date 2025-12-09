@@ -1,0 +1,68 @@
+[
+    {
+        "id": "hs-03",
+        "name": "Our Father's Healing Antiseptic Salve",
+        "price": 18.99,
+        "image": "https://hmherbs.com/application/files/cache/thumbnails/our-fathers-healing-antiseptic-salve-2oz-60fefe12ef7ac85568c785fc398bc266.jpg",
+        "inventory": 25,
+        "lowStockThreshold": 5,
+        "featured": true,
+        "description": "Premium healing salve made with natural ingredients for cuts, scrapes, and skin irritations. 2oz jar.",
+        "url": "https://hmherbs.com/index.php/products/our-fathers-healing-herbs-healing-antiseptic-salve-2oz"
+    },
+    {
+        "id": "hs-01",
+        "name": "Our Father's Bone, Flesh & Cartilage Salve",
+        "price": 18.99,
+        "image": "https://hmherbs.com/application/files/cache/thumbnails/our-fathers-bone-flesh-cartilage-salve-2oz-jar-b7516adf6e40fdd6a123dbc4c0ad0976.jpg",
+        "inventory": 18,
+        "lowStockThreshold": 5,
+        "featured": true,
+        "description": "Specialized healing salve for bone, flesh and cartilage support. Natural herbal formula in 2oz jar.",
+        "url": "https://hmherbs.com/index.php/products/our-fathers-healing-herbs-bone-flesh-and-cartilage-salve-2oz"
+    },
+    {
+        "id": "eve2oz3",
+        "name": "Eve's Generational Formula",
+        "price": 24.99,
+        "image": "https://hmherbs.com/application/files/cache/thumbnails/eves-generational-formula-b7516adf6e40fdd6a123dbc4c0ad0976.jpg",
+        "inventory": 32,
+        "lowStockThreshold": 5,
+        "featured": true,
+        "description": "Traditional herbal formula passed down through generations for women's health and wellness.",
+        "url": "https://hmherbs.com/index.php/products/hm-eves-generational-formula-1"
+    },
+    {
+        "id": "14202",
+        "name": "Happy PMS Cream",
+        "price": 22.99,
+        "image": "https://hmherbs.com/application/files/cache/thumbnails/happy-pms-cream-b7516adf6e40fdd6a123dbc4c0ad0976.jpg",
+        "inventory": 22,
+        "lowStockThreshold": 5,
+        "featured": true,
+        "description": "Natural cream formulated to help support comfort during monthly cycles. Made with caring ingredients.",
+        "url": "https://hmherbs.com/index.php/products/hm-happy-pms-cream-jar-2"
+    },
+    {
+        "id": "hs-06",
+        "name": "Our Father's Cayenne Deep Heat Salve",
+        "price": 18.99,
+        "image": "https://hmherbs.com/application/files/cache/thumbnails/our-fathers-cayenne-deep-heat-salve-2oz-jar-b7516adf6e40fdd6a123dbc4c0ad0976.jpg",
+        "inventory": 15,
+        "lowStockThreshold": 5,
+        "featured": true,
+        "description": "Warming salve with cayenne for deep heat therapy. Perfect for sore muscles and joints. 2oz jar.",
+        "url": "https://hmherbs.com/index.php/products/our-fathers-healing-herbs-cayenne-deep-heat-salve"
+    },
+    {
+        "id": "e1-7h2u-wdec",
+        "name": "Women's Touch Natural Progesterone Cream",
+        "price": 29.99,
+        "image": "https://hmherbs.com/application/files/cache/thumbnails/womens-touch-natural-progesterone-cream-b7516adf6e40fdd6a123dbc4c0ad0976.jpg",
+        "inventory": 20,
+        "lowStockThreshold": 5,
+        "featured": true,
+        "description": "Natural progesterone cream specially formulated for women's hormonal balance and wellness.",
+        "url": "https://hmherbs.com/index.php/products/hm-womens-touch-body-cream"
+    }
+]
