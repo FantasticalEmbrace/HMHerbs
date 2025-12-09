@@ -138,7 +138,7 @@ class InventoryService {
             
         } catch (error) {
             await connection.rollback();
-            console.error(`❌ Failed to adjust inventory:`, error);
+            logger.logError('Failed to adjust inventory', error, { productId, variantId, quantity });
             throw error;
         } finally {
             connection.release();
@@ -146,15 +146,16 @@ class InventoryService {
     }
 
     /**
-     * Internal method to deduct inventory with audit trail
+     * Internal method to deduct inventory with audit trail and row-level locking
      */
     async _deductInventory(connection, productId, variantId, quantity, type, referenceType, referenceId, reason, createdBy = null) {
-        // Get current inventory
-        let currentInventory, tableName, idField;
+        // Get current inventory with row-level locking to prevent race conditions
+        let currentInventory, tableName, idField, product;
         
         if (variantId) {
+            // Lock the variant row for update
             const [variants] = await connection.execute(
-                'SELECT inventory_quantity FROM product_variants WHERE id = ? AND product_id = ?',
+                'SELECT inventory_quantity FROM product_variants WHERE id = ? AND product_id = ? FOR UPDATE',
                 [variantId, productId]
             );
             
@@ -166,8 +167,9 @@ class InventoryService {
             tableName = 'product_variants';
             idField = 'id';
         } else {
+            // Lock the product row for update
             const [products] = await connection.execute(
-                'SELECT inventory_quantity, track_inventory, allow_backorder FROM products WHERE id = ?',
+                'SELECT inventory_quantity, track_inventory, allow_backorder FROM products WHERE id = ? FOR UPDATE',
                 [productId]
             );
             
@@ -175,14 +177,14 @@ class InventoryService {
                 throw new Error(`Product ${productId} not found`);
             }
             
-            const product = products[0];
+            product = products[0];
             currentInventory = product.inventory_quantity;
             tableName = 'products';
             idField = 'id';
             
             // Check if we should track inventory
             if (!product.track_inventory) {
-                console.log(`⚠️ Product ${productId} doesn't track inventory, skipping deduction`);
+                logger.info(`Product ${productId} doesn't track inventory, skipping deduction`, { productId, variantId });
                 return { productId, variantId, skipped: true, reason: 'Inventory tracking disabled' };
             }
             
@@ -194,8 +196,8 @@ class InventoryService {
         
         const newInventory = currentInventory - quantity;
         
-        // Update inventory
-        await connection.execute(
+        // Update inventory atomically
+        const [updateResult] = await connection.execute(
             `UPDATE ${tableName} SET inventory_quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE ${idField} = ?`,
             [newInventory, variantId || productId]
         );
@@ -219,15 +221,16 @@ class InventoryService {
     }
 
     /**
-     * Internal method to add inventory with audit trail
+     * Internal method to add inventory with audit trail and row-level locking
      */
     async _addInventory(connection, productId, variantId, quantity, type, referenceType, referenceId, reason, createdBy = null) {
-        // Get current inventory
+        // Get current inventory with row-level locking to prevent race conditions
         let currentInventory, tableName, idField;
         
         if (variantId) {
+            // Lock the variant row for update
             const [variants] = await connection.execute(
-                'SELECT inventory_quantity FROM product_variants WHERE id = ? AND product_id = ?',
+                'SELECT inventory_quantity FROM product_variants WHERE id = ? AND product_id = ? FOR UPDATE',
                 [variantId, productId]
             );
             
@@ -239,8 +242,9 @@ class InventoryService {
             tableName = 'product_variants';
             idField = 'id';
         } else {
+            // Lock the product row for update
             const [products] = await connection.execute(
-                'SELECT inventory_quantity, track_inventory FROM products WHERE id = ?',
+                'SELECT inventory_quantity, track_inventory FROM products WHERE id = ? FOR UPDATE',
                 [productId]
             );
             
@@ -255,15 +259,15 @@ class InventoryService {
             
             // Check if we should track inventory
             if (!product.track_inventory) {
-                console.log(`⚠️ Product ${productId} doesn't track inventory, skipping addition`);
+                logger.info(`Product ${productId} doesn't track inventory, skipping addition`, { productId, variantId });
                 return { productId, variantId, skipped: true, reason: 'Inventory tracking disabled' };
             }
         }
         
         const newInventory = currentInventory + quantity;
         
-        // Update inventory
-        await connection.execute(
+        // Update inventory atomically
+        const [updateResult] = await connection.execute(
             `UPDATE ${tableName} SET inventory_quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE ${idField} = ?`,
             [newInventory, variantId || productId]
         );

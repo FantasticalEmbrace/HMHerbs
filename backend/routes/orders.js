@@ -87,7 +87,7 @@ router.post('/', async (req, res) => {
         }
 
     } catch (error) {
-        console.error('Order creation error:', error);
+        logger.logError('Order creation error', error, { userId: req.user?.id });
         res.status(500).json({ error: 'Failed to create order' });
     }
 });
@@ -143,7 +143,7 @@ router.post('/:orderId/complete', async (req, res) => {
 
             await connection.commit();
 
-            console.log(`✅ Order ${orderId} completed and inventory deducted`);
+            logger.info(`Order ${orderId} completed and inventory deducted`, { orderId, userId: req.user?.id });
 
             res.json({
                 success: true,

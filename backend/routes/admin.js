@@ -38,25 +38,26 @@ const adminAuthLimiter = rateLimit({
     legacyHeaders: false,
 });
 
-// Admin authentication middleware
+// Import secure authentication middleware
+const { verifyToken, generateToken } = require('../middleware/auth');
+
+// Admin authentication middleware with database validation
 const authenticateAdmin = async (req, res, next) => {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
-
-    if (!token) {
-        return res.status(401).json({ error: 'Admin access token required' });
-    }
-
-    if (!process.env.JWT_SECRET) {
-        logger.error('CRITICAL: JWT_SECRET environment variable is not set');
-        return res.status(500).json({ error: 'Server configuration error' });
-    }
-
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const authHeader = req.headers['authorization'];
+        const token = authHeader && authHeader.split(' ')[1];
+
+        if (!token) {
+            return res.status(401).json({ error: 'Admin access token required' });
+        }
+
+        // Use secure token verification
+        const decoded = verifyToken(token);
+        
+        // Validate admin exists in database
         const [rows] = await req.pool.execute(
             'SELECT id, email, first_name, last_name, role, is_active FROM admin_users WHERE id = ? AND is_active = 1',
-            [decoded.adminId]
+            [decoded.adminId || decoded.userId]
         );
 
         if (rows.length === 0) {
@@ -64,9 +65,25 @@ const authenticateAdmin = async (req, res, next) => {
         }
 
         req.admin = rows[0];
+        req.user = {
+            id: rows[0].id,
+            email: rows[0].email,
+            isAdmin: true
+        };
         next();
     } catch (error) {
-        return res.status(403).json({ error: 'Invalid admin token' });
+        logger.logError('Admin authentication failed', error, { 
+            ip: req.ip,
+            path: req.path
+        });
+        
+        if (error.message === 'Token expired') {
+            return res.status(401).json({ error: 'Token expired', message: 'Please log in again' });
+        } else if (error.message === 'Invalid token') {
+            return res.status(401).json({ error: 'Invalid token', message: 'Please log in again' });
+        } else {
+            return res.status(403).json({ error: 'Invalid admin token' });
+        }
     }
 };
 
@@ -121,16 +138,13 @@ router.post('/auth/login', adminAuthLimiter, adminLoginValidation, async (req, r
             [admin.id]
         );
 
-        if (!process.env.JWT_SECRET) {
-            logger.error('CRITICAL: JWT_SECRET environment variable is not set');
-            return res.status(500).json({ error: 'Server configuration error' });
-        }
-
-        const token = jwt.sign(
-            { adminId: admin.id },
-            process.env.JWT_SECRET,
-            { expiresIn: '8h' }
-        );
+        // Generate secure token
+        const token = generateToken({
+            userId: admin.id,
+            adminId: admin.id,
+            email: admin.email,
+            isAdmin: true
+        });
 
         res.json({
             message: 'Admin login successful',
@@ -275,7 +289,7 @@ router.get('/products', authenticateAdmin, async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Admin products fetch error:', error);
+        logger.logError('Admin products fetch error', error, { adminId: req.admin?.id });
         res.status(500).json({ error: 'Internal server error' });
     }
 });
@@ -375,7 +389,7 @@ router.post('/products', authenticateAdmin, requirePermission('manager'), produc
         }
 
     } catch (error) {
-        console.error('Product creation error:', error);
+        logger.logError('Product creation error', error, { adminId: req.admin?.id });
         res.status(500).json({ error: 'Internal server error' });
     }
 });

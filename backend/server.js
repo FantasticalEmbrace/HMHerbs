@@ -33,9 +33,15 @@ const dbConfig = {
 
 const pool = mysql.createPool(dbConfig);
 
+// Import enhanced middleware
+const { securityHeaders, generalLimiter, authLimiter, sanitizeInput, securityLogger } = require('./middleware/security');
+const { globalErrorHandler, notFoundHandler, gracefulShutdown } = require('./middleware/error-handler');
+
 // Middleware
-app.use(helmet());
+app.use(securityHeaders());
 app.use(compression());
+app.use(sanitizeInput);
+app.use(securityLogger);
 // CORS configuration with support for multiple origins
 const allowedOrigins = [
     'http://localhost:8000',
@@ -93,6 +99,9 @@ const authLimiter = rateLimit({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Apply general rate limiting to all requests
+app.use(generalLimiter);
+
 // Static files
 app.use('/uploads', express.static('uploads'));
 
@@ -123,22 +132,20 @@ const upload = multer({
     }
 });
 
-// Authentication middleware
+// Import secure authentication middleware
+const { verifyToken, authenticateUser, generateToken } = require('./middleware/auth');
+
+// Authentication middleware using secure token verification
 const authenticateToken = async (req, res, next) => {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
-
-    if (!token) {
-        return res.status(401).json({ error: 'Access token required' });
-    }
-
-    if (!process.env.JWT_SECRET) {
-        logger.error('CRITICAL: JWT_SECRET environment variable is not set');
-        return res.status(500).json({ error: 'Server configuration error' });
-    }
-
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const authHeader = req.headers['authorization'];
+        const token = authHeader && authHeader.split(' ')[1];
+
+        if (!token) {
+            return res.status(401).json({ error: 'Access token required' });
+        }
+
+        const decoded = verifyToken(token);
         const [rows] = await pool.execute(
             'SELECT id, email, first_name, last_name, is_active FROM users WHERE id = ? AND is_active = 1',
             [decoded.userId]
@@ -151,26 +158,35 @@ const authenticateToken = async (req, res, next) => {
         req.user = rows[0];
         next();
     } catch (error) {
-        return res.status(403).json({ error: 'Invalid token' });
+        logger.logError('User authentication failed', error, { 
+            ip: req.ip,
+            path: req.path
+        });
+        
+        if (error.message === 'Token expired') {
+            return res.status(401).json({ error: 'Token expired', message: 'Please log in again' });
+        } else if (error.message === 'Invalid token') {
+            return res.status(401).json({ error: 'Invalid token', message: 'Please log in again' });
+        } else {
+            return res.status(403).json({ error: 'Invalid token' });
+        }
     }
 };
 
-// Admin authentication middleware
-const authenticateAdmin = async (req, res, next) => {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
+// Import secure admin authentication middleware
+const { authenticateAdmin } = require('./middleware/auth');
 
-    if (!token) {
-        return res.status(401).json({ error: 'Access token required' });
-    }
-
-    if (!process.env.JWT_SECRET) {
-        console.error('CRITICAL: JWT_SECRET environment variable is not set');
-        return res.status(500).json({ error: 'Server configuration error' });
-    }
-
+// Legacy admin authentication middleware (kept for compatibility)
+const authenticateAdminLegacy = async (req, res, next) => {
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const authHeader = req.headers['authorization'];
+        const token = authHeader && authHeader.split(' ')[1];
+
+        if (!token) {
+            return res.status(401).json({ error: 'Access token required' });
+        }
+
+        const decoded = verifyToken(token);
         const [rows] = await pool.execute(
             'SELECT id, email, first_name, last_name, role, is_active FROM admin_users WHERE id = ? AND is_active = 1',
             [decoded.adminId]
@@ -181,9 +197,25 @@ const authenticateAdmin = async (req, res, next) => {
         }
 
         req.admin = rows[0];
+        req.user = {
+            id: rows[0].id,
+            email: rows[0].email,
+            isAdmin: true
+        };
         next();
     } catch (error) {
-        return res.status(403).json({ error: 'Invalid admin token' });
+        logger.logError('Admin authentication failed', error, { 
+            ip: req.ip,
+            path: req.path
+        });
+        
+        if (error.message === 'Token expired') {
+            return res.status(401).json({ error: 'Token expired', message: 'Please log in again' });
+        } else if (error.message === 'Invalid token') {
+            return res.status(401).json({ error: 'Invalid token', message: 'Please log in again' });
+        } else {
+            return res.status(403).json({ error: 'Invalid admin token' });
+        }
     }
 };
 
@@ -239,17 +271,12 @@ app.post('/api/auth/register', authLimiter, userRegistrationValidation, async (r
             [email, passwordHash, firstName, lastName, phone || null]
         );
 
-        // Generate JWT token
-        if (!process.env.JWT_SECRET) {
-            logger.error('CRITICAL: JWT_SECRET environment variable is not set');
-            return res.status(500).json({ error: 'Server configuration error' });
-        }
-        
-        const token = jwt.sign(
-            { userId: result.insertId },
-            process.env.JWT_SECRET,
-            { expiresIn: '7d' }
-        );
+        // Generate secure JWT token
+        const token = generateToken({
+            userId: result.insertId,
+            email: email,
+            isAdmin: false
+        });
 
         res.status(201).json({
             message: 'User created successfully',
@@ -262,7 +289,7 @@ app.post('/api/auth/register', authLimiter, userRegistrationValidation, async (r
             }
         });
     } catch (error) {
-        console.error('Registration error:', error);
+        logger.logError('Registration error', error, { email });
         res.status(500).json({ error: 'Internal server error' });
     }
 });
@@ -304,16 +331,11 @@ app.post('/api/auth/login', authLimiter, userLoginValidation, async (req, res) =
             [user.id]
         );
 
-        // Generate JWT token
-        if (!process.env.JWT_SECRET) {
-            logger.error('CRITICAL: JWT_SECRET environment variable is not set');
-            return res.status(500).json({ error: 'Server configuration error' });
-        }
-        
-        const token = jwt.sign(
-            { userId: user.id },
-            process.env.JWT_SECRET,
-            { expiresIn: '7d' }
+        // Generate secure JWT token
+        const token = generateToken({
+            userId: user.id,
+            email: user.email,
+            isAdmin: false
         );
 
         res.json({
@@ -327,7 +349,7 @@ app.post('/api/auth/login', authLimiter, userLoginValidation, async (req, res) =
             }
         });
     } catch (error) {
-        console.error('Login error:', error);
+        logger.logError('Login error', error, { email });
         res.status(500).json({ error: 'Internal server error' });
     }
 });
@@ -575,20 +597,18 @@ app.use('/api/orders', require('./routes/orders'));
 app.use('/api/edsa', edsaRoutes);
 app.use('/api/admin', adminRoutes);
 
-// Error handling middleware
-app.use((error, req, res, next) => {
-    console.error('Unhandled error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-});
+// 404 handler for undefined routes
+app.use(notFoundHandler);
 
-// 404 handler
-app.use('*', (req, res) => {
-    res.status(404).json({ error: 'Route not found' });
-});
+// Global error handling middleware (must be last)
+app.use(globalErrorHandler);
 
 // Start server
-app.listen(PORT, () => {
-    console.log(`H&M Herbs API Server running on port ${PORT}`);
-    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:8000'}`);
+const server = app.listen(PORT, () => {
+    logger.info(`H&M Herbs API Server running on port ${PORT}`);
+    logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
+    logger.info(`Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:8000'}`);
 });
+
+// Setup graceful shutdown
+gracefulShutdown(server, pool);
