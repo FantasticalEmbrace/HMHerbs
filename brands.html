@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Browse by Brand - H&M Herbs & Vitamins</title>
+    <meta name="description"
+        content="Browse our complete collection of natural health products organized by trusted brands">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="css/products.css">
+    <link rel="stylesheet" href="css/brands-categories.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+    <!-- Top Bar -->
+    <div class="top-bar">
+        <div class="container">
+            <div class="top-bar-content">
+                <div class="shipping-notice">
+                    <i class="fas fa-truck" aria-hidden="true"></i>
+                    <span>Free shipping on orders over $50</span>
+                </div>
+                <div class="top-links">
+                    <a href="tel:+17068619454" class="top-link">
+                        <i class="fas fa-phone" aria-hidden="true"></i>
+                        <span>706-861-9454</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Header -->
+    <div class="main-header">
+        <div class="container">
+            <nav class="navbar" role="navigation" aria-label="Main navigation">
+                <!-- Logo -->
+                <div class="logo">
+                    <a href="index.html" aria-label="H&M Herbs & Vitamins - Home">
+                        <i class="fas fa-leaf" aria-hidden="true"></i>
+                        <span class="logo-text">
+                            <span class="brand-name">H&M Herbs</span>
+                            <span class="brand-tagline">& Vitamins</span>
+                        </span>
+                    </a>
+                </div>
+
+                <!-- Mobile Menu Toggle -->
+                <button class="mobile-menu-toggle" aria-expanded="false" aria-controls="nav-menu"
+                    aria-label="Toggle navigation menu" onclick="toggleMobileMenu(event)">
+                    <span class="hamburger-line"></span>
+                    <span class="hamburger-line"></span>
+                    <span class="hamburger-line"></span>
+                </button>
+
+                <!-- Navigation Menu -->
+                <ul class="nav-menu" id="nav-menu" role="menubar">
+                    <li role="none"><a href="index.html" role="menuitem">Home</a></li>
+                    <li role="none"><a href="products.html" role="menuitem">Products</a></li>
+                    <li role="none"><a href="index.html#edsa-service" role="menuitem" class="edsa-nav-link">EDSA
+                            Service</a></li>
+                    <li role="none"><a href="index.html#about" role="menuitem">About</a></li>
+                    <li role="none"><a href="index.html#contact" role="menuitem">Contact</a></li>
+                </ul>
+
+                <!-- Header Actions -->
+                <div class="header-actions">
+                    <!-- Search -->
+                    <div class="search-container">
+                        <button class="search-toggle" aria-label="Search" aria-expanded="false">
+                            <i class="fas fa-search" aria-hidden="true"></i>
+                        </button>
+                    </div>
+
+                    <!-- Cart -->
+                    <button class="cart-toggle" aria-label="Shopping cart" aria-expanded="false">
+                        <i class="fas fa-shopping-cart" aria-hidden="true"></i>
+                        <span class="cart-count" id="cart-count">0</span>
+                    </button>
+                </div>
+            </nav>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <main id="main-content" role="main">
+        <!-- Page Header -->
+        <section class="landing-header">
+            <div class="container">
+                <div class="landing-header-content">
+                    <h1 class="landing-title">Browse by Brand</h1>
+                    <p class="landing-subtitle">Discover products from trusted brands committed to your health and
+                        wellness</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Brands Grid -->
+        <section class="brands-categories-grid">
+            <div class="container">
+                <div class="grid-wrapper" id="brands-grid">
+                    <!-- Brands will be dynamically loaded here -->
+                    <div class="loading-state">
+                        <div class="loading-spinner">
+                            <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                        </div>
+                        <p>Loading brands...</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer" role="contentinfo">
+        <div class="container">
+            <div class="footer-content">
+                <!-- Company Info & Social -->
+                <div class="footer-section">
+                    <h3>H&M Herbs & Vitamins</h3>
+                    <p>Your trusted source for premium natural health products. We're committed to providing
+                        the highest quality herbs, vitamins, and supplements to support your wellness journey.</p>
+                </div>
+
+                <!-- Visit Us -->
+                <div class="footer-section">
+                    <h4>Visit Us</h4>
+                    <div class="footer-contact">
+                        <div class="footer-address">
+                            <i class="fas fa-map-marker-alt" aria-hidden="true"></i>
+                            <div class="address-text">
+                                <p>1140 Battlefield Pkwy</p>
+                                <p>Fort Oglethorpe, GA 30742</p>
+                                <p>United States</p>
+                            </div>
+                        </div>
+                        <p class="footer-link">
+                            <a href="https://maps.google.com/?q=1140+Battlefield+Pkwy,+Fort+Oglethorpe,+GA+30742"
+                                target="_blank" rel="noopener noreferrer">
+                                Get Directions <i class="fas fa-external-link-alt" aria-hidden="true"></i>
+                            </a>
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Get in Touch -->
+                <div class="footer-section">
+                    <h4>Get in Touch</h4>
+                    <div class="footer-contact">
+                        <p>
+                            <i class="fas fa-phone" aria-hidden="true"></i>
+                            <a href="tel:+17068619454">706-861-9454</a>
+                        </p>
+                        <p>
+                            <i class="fas fa-envelope" aria-hidden="true"></i>
+                            <a href="mailto:hmherbs1@gmail.com">hmherbs1@gmail.com</a>
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Information & Operating Hours -->
+                <div class="footer-section">
+                    <h4>Information</h4>
+                    <ul>
+                        <li><a href="index.html#about">About Us</a></li>
+                        <li><a href="products.html#shipping">Shipping & Returns</a></li>
+                        <li><a href="index.html#contact">Contact Us</a></li>
+                    </ul>
+
+                    <h4 class="footer-hours-title">Operating Hours</h4>
+                    <div class="footer-hours">
+                        <p>Mon-Fri: 10am-6pm</p>
+                        <p>Sat: 10am-3pm</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer Bottom -->
+            <div class="footer-bottom">
+                <div class="footer-bottom-content">
+                    <p>&copy; 2024 H&M Herbs & Vitamins. All rights reserved.</p>
+                    <div class="footer-bottom-links">
+                        <a href="ccpa-privacy-rights.html">Do Not Sell My Personal Information</a>
+                        <span class="separator">|</span>
+                        <button id="cookie-preferences" class="link-button">Cookie Preferences</button>
+                        <span class="separator">|</span>
+                        <a href="admin.html" class="admin-link">Admin</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="js/visual-bug-fixes.js"></script>
+    <script src="js/brands-categories.js"></script>
+    <script src="script.js"></script>
+</body>
+
+</html>

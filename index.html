@@ -1,0 +1,1259 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <!-- Remove preload warnings and manifest link for file:// protocol - MUST BE FIRST -->
+    <script>
+        // Run immediately to prevent preload warnings and CORS errors
+        if (window.location.protocol === 'file:') {
+            // Function to remove preload links and manifest link
+            function removeProblematicLinks() {
+                if (document.head) {
+                    // Remove preload links (including Google Fonts)
+                    const preloadLinks = document.querySelectorAll('link[rel="preload"]');
+                    preloadLinks.forEach(link => {
+                        const href = link.href || link.getAttribute('href') || '';
+                        if (href.includes('styles.css') || href.includes('script.js') || href.includes('fonts.googleapis.com')) {
+                            link.remove();
+                        }
+                    });
+
+                    // Remove manifest link to prevent CORS error
+                    const manifestLinks = document.querySelectorAll('link[rel="manifest"]');
+                    manifestLinks.forEach(link => {
+                        link.remove();
+                    });
+
+                    // Remove prefetch links to prevent file:// errors
+                    const prefetchLinks = document.querySelectorAll('link[rel="prefetch"]');
+                    prefetchLinks.forEach(link => {
+                        link.remove();
+                    });
+                }
+            }
+
+            // Remove immediately
+            removeProblematicLinks();
+
+            // Also monitor for new ones
+            if (document.head) {
+                const observer = new MutationObserver(removeProblematicLinks);
+                observer.observe(document.head, { childList: true, subtree: true });
+            } else {
+                document.addEventListener('DOMContentLoaded', () => {
+                    removeProblematicLinks();
+                    const observer = new MutationObserver(removeProblematicLinks);
+                    observer.observe(document.head, { childList: true, subtree: true });
+                });
+            }
+        }
+    </script>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description"
+        content="H&M Herbs & Vitamins - Premium natural health products, herbs, vitamins, and wellness supplements. Over 10,000 products organized by health conditions.">
+    <meta name="keywords"
+        content="herbs, vitamins, supplements, natural health, wellness, organic, HM Herbs, blood pressure, heart health, allergies, EDSA, electro dermal stress analysis">
+    <meta name="author" content="H&M Herbs & Vitamins">
+    <meta name="robots" content="index, follow">
+    <meta property="og:title" content="H&M Herbs & Vitamins - Premium Natural Health Products">
+    <meta property="og:description"
+        content="Discover over 10,000 premium herbs, vitamins, and natural health supplements organized by health conditions. Plus EDSA service available.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://hmherbs.com">
+    <meta property="og:image" content="https://hmherbs.com/images/og-image.jpg">
+    <meta property="og:site_name" content="H&M Herbs & Vitamins">
+    <meta property="og:locale" content="en_US">
+
+    <!-- Twitter Card Tags -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="H&M Herbs & Vitamins - Premium Natural Health Products">
+    <meta name="twitter:description"
+        content="Discover over 10,000 premium herbs, vitamins, and natural health supplements organized by health conditions. Plus EDSA service available.">
+    <meta name="twitter:image" content="https://hmherbs.com/images/twitter-card.jpg">
+
+    <!-- Additional SEO Meta Tags -->
+    <meta name="theme-color" content="#2d5a27">
+    <meta name="msapplication-TileColor" content="#2d5a27">
+    <meta name="application-name" content="H&M Herbs & Vitamins">
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json">
+
+    <!-- Apple Touch Icons -->
+    <link rel="apple-touch-icon" sizes="152x152" href="/images/icon-152x152.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/images/icon-180x180.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="HM Herbs">
+
+    <link rel="canonical" href="https://hmherbs.com">
+    <link rel="alternate" hreflang="en" href="https://hmherbs.com">
+
+    <!-- Structured Data - Organization Schema -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "H&M Herbs & Vitamins",
+      "alternateName": "HM Herbs",
+      "url": "https://hmherbs.com",
+      "logo": "https://hmherbs.com/images/logo.png",
+      "description": "Premium natural health products, herbs, vitamins, and wellness supplements with over 10,000 products organized by health conditions.",
+      "foundingDate": "2010",
+      "contactPoint": {
+        "@type": "ContactPoint",
+        "telephone": "+1-706-861-9454",
+        "contactType": "customer service",
+        "availableLanguage": "English"
+      },
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "1140 Battlefield Pkwy",
+        "addressLocality": "Fort Oglethorpe",
+        "addressRegion": "GA",
+        "postalCode": "30742",
+        "addressCountry": "US"
+      },
+      "sameAs": [
+        "https://www.facebook.com/hmherbs",
+        "https://www.instagram.com/hmherbs",
+        "https://twitter.com/hmherbs"
+      ],
+      "hasOfferCatalog": {
+        "@type": "OfferCatalog",
+        "name": "Natural Health Products",
+        "itemListElement": [
+          {
+            "@type": "OfferCatalog",
+            "name": "Herbs & Botanicals",
+            "numberOfItems": "5000+"
+          },
+          {
+            "@type": "OfferCatalog", 
+            "name": "Vitamins & Minerals",
+            "numberOfItems": "3000+"
+          },
+          {
+            "@type": "OfferCatalog",
+            "name": "Supplements",
+            "numberOfItems": "2000+"
+          }
+        ]
+      }
+    }
+    </script>
+
+    <!-- Structured Data - Local Business Schema -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "HealthAndBeautyBusiness",
+      "name": "H&M Herbs & Vitamins",
+      "image": "https://hmherbs.com/images/storefront.jpg",
+      "url": "https://hmherbs.com",
+      "telephone": "+1-706-861-9454",
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "1140 Battlefield Pkwy",
+        "addressLocality": "Fort Oglethorpe",
+        "addressRegion": "GA",
+        "postalCode": "30742",
+        "addressCountry": "US"
+      },
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": "34.9487",
+        "longitude": "-85.2569"
+      },
+      "openingHoursSpecification": [
+        {
+          "@type": "OpeningHoursSpecification",
+          "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+          "opens": "10:00",
+          "closes": "18:00"
+        },
+        {
+          "@type": "OpeningHoursSpecification",
+          "dayOfWeek": "Saturday",
+          "opens": "10:00",
+          "closes": "15:00"
+        }
+      ],
+      "priceRange": "$$",
+      "paymentAccepted": "Cash, Credit Card, Debit Card",
+      "currenciesAccepted": "USD",
+        "hasMap": "https://maps.google.com/?q=1140+Battlefield+Pkwy,+Fort+Oglethorpe,+GA+30742"
+    }
+    </script>
+
+    <!-- Structured Data - Website Schema -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "H&M Herbs & Vitamins",
+      "alternateName": "HM Herbs",
+      "url": "https://hmherbs.com",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": {
+          "@type": "EntryPoint",
+          "urlTemplate": "https://hmherbs.com/search?q={search_term_string}"
+        },
+        "query-input": "required name=search_term_string"
+      }
+    }
+    </script>
+
+    <title>H&M Herbs & Vitamins - Natural Health Products</title>
+
+    <!-- CRITICAL: Emergency visual bug fixes -->
+    <link rel="stylesheet" href="css/emergency-fixes.css">
+
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="css/browser-compatibility.css">
+    <link rel="stylesheet" href="css/edsa-booking.css">
+    <link rel="stylesheet" href="css/customer-auth.css">
+    <link rel="stylesheet" href="css/performance-optimizations.css">
+    <link rel="stylesheet" href="css/accessibility-enhancements.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+
+    <!-- Performance Optimizations -->
+    <link rel="dns-prefetch" href="//fonts.googleapis.com">
+    <link rel="dns-prefetch" href="//fonts.gstatic.com">
+    <link rel="dns-prefetch" href="//cdnjs.cloudflare.com">
+
+    <!-- Fonts with performance optimization -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600&display=swap"
+        rel="stylesheet">
+
+    <!-- Remove preload warnings for file:// protocol -->
+    <script>
+        // Run immediately to prevent preload warnings
+        (function () {
+            if (window.location.protocol === 'file:') {
+                // Function to remove preload links
+                function removePreloadLinks() {
+                    const preloadLinks = document.querySelectorAll('link[rel="preload"]');
+                    preloadLinks.forEach(link => {
+                        const href = link.href || link.getAttribute('href') || '';
+                        if (href.includes('styles.css') || href.includes('script.js') || href.includes('fonts.googleapis.com')) {
+                            link.remove();
+                        }
+                    });
+                }
+
+                // Remove immediately if head exists
+                if (document.head) {
+                    removePreloadLinks();
+                }
+
+                // Also remove after a short delay to catch any dynamically added ones
+                setTimeout(removePreloadLinks, 0);
+
+                // Monitor for new preload links
+                const observer = new MutationObserver(removePreloadLinks);
+                if (document.head) {
+                    observer.observe(document.head, { childList: true, subtree: true });
+                } else {
+                    document.addEventListener('DOMContentLoaded', () => {
+                        observer.observe(document.head, { childList: true, subtree: true });
+                    });
+                }
+            }
+        })();
+    </script>
+
+    <!-- Resource hints for better performance -->
+    <!-- Prefetch links removed for file:// protocol compatibility -->
+    <script>
+        // Only add prefetch links if not on file:// protocol and files exist
+        // Removed prefetch for non-existent pages to prevent 404 errors
+        // if (window.location.protocol !== 'file:') {
+        //     const prefetchLinks = [
+        //         { href: '/categories/herbs', rel: 'prefetch' },
+        //         { href: '/categories/vitamins', rel: 'prefetch' },
+        //         { href: '/services/edsa', rel: 'prefetch' }
+        //     ];
+        //     prefetchLinks.forEach(link => {
+        //         const linkEl = document.createElement('link');
+        //         linkEl.rel = link.rel;
+        //         linkEl.href = link.href;
+        //         document.head.appendChild(linkEl);
+        //     });
+        // }
+    </script>
+
+    <!-- Mobile Menu Toggle - Must be in head to be available immediately -->
+    <script>
+        // Mobile menu toggle function - same pattern as admin.html
+        // Wait for DOM to be ready
+        function initMobileMenu() {
+            const mobileMenuToggle = document.getElementById('mobileMenuToggle');
+            const mobileMenuOverlay = document.getElementById('mobileMenuOverlay');
+            const navMenu = document.querySelector('.nav-menu');
+
+            if (!mobileMenuToggle || !navMenu) {
+                // Retry if elements aren't ready yet
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', initMobileMenu);
+                }
+                return;
+            }
+
+            // Check if mobile device
+            function isMobile() {
+                return window.matchMedia('(max-width: 768px)').matches;
+            }
+
+            // Ensure menu is hidden by default on mobile
+            if (isMobile()) {
+                navMenu.classList.remove('show');
+                if (mobileMenuOverlay) {
+                    mobileMenuOverlay.classList.remove('active');
+                }
+                mobileMenuToggle.setAttribute('aria-expanded', 'false');
+            }
+
+            // Mobile menu toggle
+            function toggleMobileMenu(e) {
+                if (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+
+                if (!isMobile()) return;
+
+                const isExpanded = mobileMenuToggle.getAttribute('aria-expanded') === 'true';
+                const newExpanded = !isExpanded;
+                mobileMenuToggle.setAttribute('aria-expanded', newExpanded);
+
+                // Toggle the show class
+                navMenu.classList.toggle('show');
+
+                // Toggle overlay
+                if (mobileMenuOverlay) {
+                    mobileMenuOverlay.classList.toggle('active');
+                }
+
+                // Update icon
+                const icon = mobileMenuToggle.querySelector('i');
+                if (icon) {
+                    if (newExpanded) {
+                        icon.className = 'fas fa-times';
+                    } else {
+                        icon.className = 'fas fa-bars';
+                    }
+                }
+
+                // Clear inline styles when closing
+                if (!navMenu.classList.contains('show')) {
+                    navMenu.style.cssText = '';
+                    navMenu.querySelectorAll('li').forEach(li => li.style.cssText = '');
+                    navMenu.querySelectorAll('a').forEach(a => a.style.cssText = '');
+                }
+            }
+
+            // Attach event listeners
+            if (mobileMenuToggle) {
+                mobileMenuToggle.addEventListener('click', toggleMobileMenu);
+                mobileMenuToggle.addEventListener('touchend', function (e) {
+                    e.preventDefault();
+                    toggleMobileMenu(e);
+                });
+            }
+
+            // Close menu when clicking overlay
+            if (mobileMenuOverlay) {
+                mobileMenuOverlay.addEventListener('click', function () {
+                    navMenu.classList.remove('show');
+                    mobileMenuOverlay.classList.remove('active');
+                    mobileMenuToggle.setAttribute('aria-expanded', 'false');
+                    const icon = mobileMenuToggle.querySelector('i');
+                    if (icon) icon.className = 'fas fa-bars';
+                });
+            }
+
+            // Close menu when clicking a nav link
+            const navLinks = navMenu.querySelectorAll('a');
+            navLinks.forEach(link => {
+                link.addEventListener('click', function () {
+                    if (isMobile()) {
+                        navMenu.classList.remove('show');
+                        if (mobileMenuOverlay) {
+                            mobileMenuOverlay.classList.remove('active');
+                        }
+                        mobileMenuToggle.setAttribute('aria-expanded', 'false');
+                        const icon = mobileMenuToggle.querySelector('i');
+                        if (icon) icon.className = 'fas fa-bars';
+                    }
+                });
+            });
+
+            // Close menu on window resize if it becomes desktop size
+            window.addEventListener('resize', function () {
+                if (window.innerWidth > 768 && navMenu.classList.contains('show')) {
+                    navMenu.classList.remove('show');
+                    if (mobileMenuOverlay) {
+                        mobileMenuOverlay.classList.remove('active');
+                    }
+                    mobileMenuToggle.setAttribute('aria-expanded', 'false');
+                    const icon = mobileMenuToggle.querySelector('i');
+                    if (icon) icon.className = 'fas fa-bars';
+                    // Clear inline styles
+                    navMenu.style.cssText = '';
+                    navMenu.querySelectorAll('li').forEach(li => li.style.cssText = '');
+                    navMenu.querySelectorAll('a').forEach(a => a.style.cssText = '');
+                } else if (isMobile() && navMenu.classList.contains('show')) {
+                    // Ensure menu stays hidden on mobile resize unless explicitly opened
+                    // This is handled by the toggle function
+                }
+            });
+
+            // Make function globally available for backward compatibility
+            window.toggleMobileMenu = toggleMobileMenu;
+        }
+
+        // Initialize immediately if DOM is ready, otherwise wait
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initMobileMenu);
+        } else {
+            initMobileMenu();
+        }
+
+        // Also attach event listeners when DOM is ready (for backward compatibility)
+        function setupEventListeners() {
+
+            // EDSA booking button
+            const edsaBtn = document.querySelector('[data-action="open-edsa-booking"]');
+            if (edsaBtn && typeof openEDSABooking === 'function') {
+                edsaBtn.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    openEDSABooking();
+                });
+            }
+
+            // EDSA image load/error handlers
+            const edsaImage = document.querySelector('[data-edsa-image]');
+            if (edsaImage) {
+                edsaImage.addEventListener('load', function () {
+                    this.classList.add('loaded');
+                });
+                edsaImage.addEventListener('error', function () {
+                    console.error('Failed to load EDSA image:', this.src);
+                });
+            }
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', setupEventListeners);
+        } else {
+            // DOM already loaded
+            setupEventListeners();
+        }
+
+        // Add a resize listener to clear inline styles when switching to desktop
+        window.addEventListener('resize', function () {
+            const menu = document.querySelector('.nav-menu');
+            const toggle = document.querySelector('.mobile-menu-toggle');
+            if (window.innerWidth > 768 && menu && toggle) {
+                if (menu.classList.contains('show')) {
+                    menu.classList.remove('show');
+                    toggle.setAttribute('aria-expanded', 'false');
+                }
+                menu.style.cssText = ''; // Clear all inline styles
+                menu.querySelectorAll('li').forEach(li => li.style.cssText = '');
+                menu.querySelectorAll('a').forEach(a => a.style.cssText = '');
+                console.log('Resized to desktop, mobile menu closed and inline styles cleared.');
+            }
+        });
+    </script>
+</head>
+
+<body>
+    <!-- Skip Navigation Link for Accessibility -->
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    <!-- Header -->
+    <header class="header" role="banner">
+        <!-- Top Bar -->
+        <div class="top-bar">
+            <div class="container">
+                <div class="top-bar-content">
+                    <div class="shipping-notice">
+                        <i class="fas fa-truck" aria-hidden="true"></i>
+                        <span>Free shipping on orders over $50!</span>
+                    </div>
+                    <div class="top-links">
+                        <a href="privacy-policy.html" class="top-link">Privacy</a>
+                        <a href="ccpa-privacy-rights.html" class="top-link">Your Privacy Rights</a>
+                        <a href="privacy-policy.html#accessibility" class="top-link">Accessibility</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Header -->
+        <div class="main-header">
+            <div class="container">
+                <nav class="navbar" role="navigation" aria-label="Main navigation">
+                    <!-- Logo -->
+                    <div class="logo">
+                        <a href="#" aria-label="H&M Herbs & Vitamins - Home">
+                            <i class="fas fa-leaf" aria-hidden="true"></i>
+                            <span class="logo-text">
+                                <span class="brand-name">H&M Herbs</span>
+                                <span class="brand-tagline">& Vitamins</span>
+                            </span>
+                        </a>
+                    </div>
+
+                    <!-- Mobile Menu Toggle -->
+                    <button class="mobile-menu-toggle" id="mobileMenuToggle" aria-expanded="false"
+                        aria-controls="nav-menu" aria-label="Toggle navigation menu" data-action="toggle-mobile-menu">
+                        <i class="fas fa-bars"></i>
+                    </button>
+
+                    <!-- Mobile Menu Overlay -->
+                    <div class="mobile-menu-overlay" id="mobileMenuOverlay"></div>
+
+                    <!-- Navigation Menu -->
+                    <ul class="nav-menu" id="nav-menu" role="menubar">
+                        <li role="none"><a href="#home" role="menuitem">Home</a></li>
+                        <li role="none"><a href="products.html" role="menuitem">Products</a></li>
+                        <li role="none"><a href="#edsa-service" role="menuitem" class="edsa-nav-link">EDSA Service</a>
+                        </li>
+                        <li role="none"><a href="#about" role="menuitem">About</a></li>
+                        <li role="none"><a href="#contact" role="menuitem">Contact</a></li>
+                    </ul>
+
+                    <!-- Header Actions -->
+                    <div class="header-actions">
+                        <!-- Search -->
+                        <div class="search-container">
+                            <button class="search-toggle" aria-expanded="false" aria-controls="search-dropdown"
+                                aria-label="Toggle search">
+                                <i class="fas fa-search" aria-hidden="true"></i>
+                            </button>
+                            <div class="search-dropdown" id="search-dropdown" aria-hidden="true">
+                                <form class="search-form" role="search">
+                                    <label for="search-input" class="sr-only">Search products</label>
+                                    <input type="search" id="search-input" placeholder="Search products..."
+                                        aria-label="Search products">
+                                    <button type="submit" aria-label="Submit search">
+                                        <i class="fas fa-search" aria-hidden="true"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- Customer Account/Login -->
+                        <div class="customer-auth-container">
+                            <button class="auth-btn" id="customer-login-btn" aria-label="Sign in">
+                                <i class="fas fa-sign-in-alt" aria-hidden="true"></i>
+                                <span class="auth-btn-text">Sign In</span>
+                            </button>
+                            <button class="auth-btn" id="customer-register-btn" aria-label="Create account">
+                                <i class="fas fa-user-plus" aria-hidden="true"></i>
+                                <span class="auth-btn-text">Register</span>
+                            </button>
+                            <div class="account-dropdown" id="customer-account-btn" style="display: none;">
+                                <button class="account-toggle" aria-label="Account menu" aria-expanded="false"
+                                    id="account-menu-toggle">
+                                    <i class="fas fa-user-circle" aria-hidden="true"></i>
+                                    <span class="account-name" id="customer-name-display">Account</span>
+                                    <i class="fas fa-chevron-down" aria-hidden="true"></i>
+                                </button>
+                                <div class="account-menu" id="customer-account-dropdown" style="display: none;">
+                                    <a href="account.html" class="account-menu-item">
+                                        <i class="fas fa-user" aria-hidden="true"></i>
+                                        My Account
+                                    </a>
+                                    <a href="account.html#orders" class="account-menu-item">
+                                        <i class="fas fa-shopping-bag" aria-hidden="true"></i>
+                                        My Orders
+                                    </a>
+                                    <a href="account.html#addresses" class="account-menu-item">
+                                        <i class="fas fa-map-marker-alt" aria-hidden="true"></i>
+                                        Addresses
+                                    </a>
+                                    <button class="account-menu-item" id="customer-logout-btn">
+                                        <i class="fas fa-sign-out-alt" aria-hidden="true"></i>
+                                        Sign Out
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Shopping Cart -->
+                        <button class="cart-toggle" aria-expanded="false" aria-controls="cart-sidebar"
+                            aria-label="Open shopping cart">
+                            <i class="fas fa-shopping-cart" aria-hidden="true"></i>
+                            <span class="cart-count" id="cart-count" aria-label="Items in cart">0</span>
+                        </button>
+                    </div>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <!-- Breadcrumb Navigation -->
+    <nav aria-label="Breadcrumb" class="breadcrumb-nav">
+        <div class="container">
+            <ol class="breadcrumb" itemscope itemtype="https://schema.org/BreadcrumbList">
+                <li class="breadcrumb-item" itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
+                    <a href="/" itemprop="item">
+                        <span itemprop="name">Home</span>
+                    </a>
+                    <meta itemprop="position" content="1" />
+                </li>
+            </ol>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main id="main-content" role="main">
+        <!-- Hero Section -->
+        <section class="hero" id="home" aria-labelledby="hero-heading">
+            <div class="container">
+                <div class="hero-content">
+                    <div class="hero-text">
+                        <h1 id="hero-heading">Premium Natural Health Products</h1>
+                        <p class="hero-description">
+                            Discover over 10,000 carefully curated herbs, vitamins, and natural supplements
+                            organized by health conditions and brands. Plus professional EDSA health analysis service.
+                            Quality you can trust, results you can feel.
+                        </p>
+                        <div class="hero-actions">
+                            <a href="products.html" class="btn btn-primary">Shop Now</a>
+                            <a href="#health-categories" class="btn btn-secondary">Health Conditions</a>
+                            <a href="#edsa-service" class="btn btn-accent">EDSA Service</a>
+                        </div>
+                    </div>
+                    <div class="hero-image">
+                        <img src="https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80"
+                            alt="Natural herbs and supplements arranged beautifully" loading="eager">
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Product Spotlight Section -->
+        <section class="product-spotlight" id="products" aria-labelledby="spotlight-heading">
+            <div class="container">
+                <div class="section-header">
+                    <h2 id="spotlight-heading">H&M Herbs Signature Products</h2>
+                    <p>Our premium line of natural health solutions, crafted with care and expertise</p>
+                </div>
+                <div class="spotlight-grid" id="spotlight-products-grid" role="region"
+                    aria-label="H&M Herbs signature products">
+                    <!-- Spotlight products will be loaded here -->
+                </div>
+                <div class="spotlight-cta">
+                    <a href="products.html" class="btn btn-outline-primary btn-lg">
+                        <i class="fas fa-th-large" aria-hidden="true"></i>
+                        View All Products
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <!-- Health Categories Section -->
+        <section class="health-categories" id="health-categories" aria-labelledby="health-categories-heading">
+            <div class="container">
+                <div class="section-header">
+                    <h2 id="health-categories-heading">Category</h2>
+                    <p>Find products specifically for your health needs - organized by condition</p>
+                </div>
+                <div class="health-categories-grid" id="health-categories-grid">
+                    <!-- Health categories will be dynamically loaded here -->
+                </div>
+            </div>
+        </section>
+
+        <!-- EDSA Service Section -->
+        <section class="edsa-service" id="edsa-service" aria-labelledby="edsa-heading">
+            <div class="container">
+                <div class="edsa-content">
+                    <div class="edsa-text">
+                        <h2 id="edsa-heading">EDSA - Electro Dermal Stress Analysis</h2>
+                        <p class="edsa-description">
+                            Experience our professional EDSA service - a non-invasive health assessment technique
+                            that provides valuable insights into your body's stress levels and overall wellness.
+                        </p>
+                        <div class="edsa-features">
+                            <div class="edsa-feature">
+                                <i class="fas fa-stethoscope" aria-hidden="true"></i>
+                                <span>Non-invasive assessment</span>
+                            </div>
+                            <div class="edsa-feature">
+                                <i class="fas fa-chart-line" aria-hidden="true"></i>
+                                <span>Detailed stress analysis</span>
+                            </div>
+                            <div class="edsa-feature">
+                                <i class="fas fa-user-md" aria-hidden="true"></i>
+                                <span>Professional consultation</span>
+                            </div>
+                        </div>
+                        <div class="edsa-pricing">
+                            <span class="edsa-price">$75.00</span>
+                            <span class="edsa-price-note">per session</span>
+                        </div>
+                        <button class="btn btn-primary edsa-book-btn" data-action="open-edsa-booking">
+                            <i class="fas fa-calendar-plus" aria-hidden="true"></i>
+                            Book EDSA Session
+                        </button>
+                    </div>
+                    <div class="edsa-image">
+                        <img src="images/edsa.jpg" alt="EDSA health assessment service" loading="eager"
+                            data-skip-error-handling="true" data-edsa-image>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- About Section -->
+        <section class="about" id="about" aria-labelledby="about-heading">
+            <div class="container">
+                <div class="section-header">
+                    <h2 id="about-heading">About H&M Herbs & Vitamins</h2>
+                    <p>Your trusted partner in natural health and wellness</p>
+                </div>
+                <div class="about-content">
+                    <p>H&M Herbs & Vitamins has been serving the community since 2010, providing premium natural health
+                        products, herbs, vitamins, and wellness supplements. We're committed to offering over 10,000
+                        carefully curated products organized by health conditions and trusted brands.</p>
+                    <p>Our mission is to help you achieve optimal health through natural solutions, backed by
+                        professional consultation and our unique EDSA health analysis service.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Contact Section -->
+        <section class="contact" id="contact" aria-labelledby="contact-heading">
+            <div class="container">
+                <div class="section-header">
+                    <h2 id="contact-heading">Contact Us</h2>
+                    <p>We're here to help with your health and wellness needs</p>
+                </div>
+                <div class="contact-content">
+                    <div class="contact-info">
+                        <div class="contact-item">
+                            <i class="fas fa-envelope" aria-hidden="true"></i>
+                            <div>
+                                <h4>Email</h4>
+                                <a href="mailto:hmherbs1@gmail.com">hmherbs1@gmail.com</a>
+                            </div>
+                        </div>
+                        <div class="contact-item">
+                            <i class="fas fa-phone" aria-hidden="true"></i>
+                            <div>
+                                <h4>Phone</h4>
+                                <a href="tel:+17068619454">706-861-9454</a>
+                            </div>
+                        </div>
+                        <div class="contact-item">
+                            <i class="fas fa-map-marker-alt" aria-hidden="true"></i>
+                            <div>
+                                <h4>Address</h4>
+                                <p>1140 Battlefield Pkwy<br>Fort Oglethorpe, GA 30742</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Testimonials Section -->
+        <section class="testimonials" aria-labelledby="testimonials-heading">
+            <div class="container">
+                <div class="section-header">
+                    <h2 id="testimonials-heading">What Our Customers Say</h2>
+                    <p>Real experiences from real customers</p>
+                </div>
+                <div class="testimonials-grid">
+                    <div class="testimonial-card">
+                        <div class="testimonial-content">
+                            <p>"I've been using H&M Herbs products for over a year now, and the quality is exceptional.
+                                The Eve's Generational Formula has made such a difference in my daily wellness routine.
+                                Highly recommend!"</p>
+                        </div>
+                        <div class="testimonial-author">
+                            <div class="author-info">
+                                <h4>Stephen B.</h4>
+                                <div class="rating" aria-label="5 out of 5 stars">
+                                    <i class="fas fa-star" aria-hidden="true"></i>
+                                    <i class="fas fa-star" aria-hidden="true"></i>
+                                    <i class="fas fa-star" aria-hidden="true"></i>
+                                    <i class="fas fa-star" aria-hidden="true"></i>
+                                    <i class="fas fa-star" aria-hidden="true"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer" role="contentinfo">
+        <div class="container">
+            <div class="footer-content">
+                <!-- Company Info & Social -->
+                <div class="footer-section">
+                    <h3>H&M Herbs & Vitamins</h3>
+                    <p>Your trusted source for premium natural health products. We're committed to providing
+                        the highest quality herbs, vitamins, and supplements to support your wellness journey.</p>
+                    <div class="social-links">
+                        <a href="https://facebook.com/hmherbs" target="_blank" rel="noopener noreferrer"
+                            aria-label="Follow us on Facebook">
+                            <i class="fab fa-facebook-f" aria-hidden="true"></i>
+                        </a>
+                        <a href="https://instagram.com/hmherbs" target="_blank" rel="noopener noreferrer"
+                            aria-label="Follow us on Instagram">
+                            <i class="fab fa-instagram" aria-hidden="true"></i>
+                        </a>
+                        <a href="https://twitter.com/hmherbs" target="_blank" rel="noopener noreferrer"
+                            aria-label="Follow us on Twitter">
+                            <i class="fab fa-twitter" aria-hidden="true"></i>
+                        </a>
+                        <a href="https://youtube.com/@hmherbs" target="_blank" rel="noopener noreferrer"
+                            aria-label="Subscribe to our YouTube channel">
+                            <i class="fab fa-youtube" aria-hidden="true"></i>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Visit Us -->
+                <div class="footer-section">
+                    <h4>Visit Us</h4>
+                    <div class="footer-contact">
+                        <div class="footer-address">
+                            <i class="fas fa-map-marker-alt" aria-hidden="true"></i>
+                            <div class="address-text">
+                                <p>1140 Battlefield Pkwy</p>
+                                <p>Fort Oglethorpe, GA 30742</p>
+                                <p>United States</p>
+                            </div>
+                        </div>
+                        <p class="footer-link">
+                            <a href="https://maps.google.com/?q=1140+Battlefield+Pkwy,+Fort+Oglethorpe,+GA+30742"
+                                target="_blank" rel="noopener noreferrer">
+                                Get Directions <i class="fas fa-external-link-alt" aria-hidden="true"></i>
+                            </a>
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Get in Touch -->
+                <div class="footer-section">
+                    <h4>Get in Touch</h4>
+                    <div class="footer-contact">
+                        <p>
+                            <i class="fas fa-phone" aria-hidden="true"></i>
+                            <a href="tel:+17068619454">706-861-9454</a>
+                        </p>
+                        <p>
+                            <i class="fas fa-envelope" aria-hidden="true"></i>
+                            <a href="mailto:hmherbs1@gmail.com">hmherbs1@gmail.com</a>
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Information & Operating Hours -->
+                <div class="footer-section">
+                    <h4>Information</h4>
+                    <ul>
+                        <li><a href="#about">About Us</a></li>
+                        <li><a href="products.html#shipping">Shipping & Returns</a></li>
+                        <li><a href="#contact">Contact Us</a></li>
+                    </ul>
+
+                    <h4 class="footer-hours-title">Operating Hours</h4>
+                    <div class="footer-hours">
+                        <p>Mon-Fri: 10am-6pm</p>
+                        <p>Sat: 10am-3pm</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer Bottom -->
+            <div class="footer-bottom">
+                <div class="footer-bottom-content">
+                    <p>&copy; 2024 H&M Herbs & Vitamins. All rights reserved.</p>
+                    <div class="footer-bottom-links">
+                        <a href="ccpa-privacy-rights.html">Do Not Sell My Personal Information</a>
+                        <span class="separator">|</span>
+                        <button id="cookie-preferences" class="link-button">Cookie Preferences</button>
+                        <span class="separator">|</span>
+                        <a href="admin.html" class="admin-link">Admin</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Cart Overlay -->
+    <div class="cart-overlay" id="cart-overlay"></div>
+
+    <!-- Shopping Cart Sidebar -->
+    <div class="cart-sidebar" id="cart-sidebar" aria-hidden="true" role="dialog" aria-labelledby="cart-title">
+        <div class="cart-header">
+            <h3 id="cart-title">Shopping Cart</h3>
+            <button class="cart-close" aria-label="Close shopping cart">
+                <i class="fas fa-times" aria-hidden="true"></i>
+            </button>
+        </div>
+        <div class="cart-content" id="cart-content">
+            <!-- Cart items will be dynamically loaded here -->
+        </div>
+        <div class="cart-footer" id="cart-footer">
+            <div class="cart-total">
+                <span>Total: <span id="cart-total">$0.00</span></span>
+            </div>
+            <button class="btn btn-primary checkout-btn">
+                <i class="fas fa-credit-card" aria-hidden="true"></i>
+                Checkout
+            </button>
+        </div>
+    </div>
+
+    <!-- Cookie Consent Banner -->
+    <div class="cookie-banner" id="cookie-banner" aria-hidden="true" role="dialog" aria-labelledby="cookie-title">
+        <div class="cookie-content">
+            <div class="cookie-text">
+                <h3 id="cookie-title">We Value Your Privacy</h3>
+                <p>We use cookies to enhance your browsing experience and provide personalized content.
+                    You can choose which cookies to accept.</p>
+            </div>
+            <div class="cookie-actions">
+                <button id="cookie-accept" class="btn btn-secondary">Accept All</button>
+                <button id="cookie-reject" class="btn btn-secondary">Essential Only</button>
+                <button id="cookie-settings" class="btn btn-outline">Customize</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cookie Settings Modal -->
+    <div class="modal" id="cookie-modal" aria-hidden="true" role="dialog" aria-labelledby="cookie-modal-title">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="cookie-modal-title">Cookie Preferences</h3>
+                <button class="modal-close" aria-label="Close cookie preferences">
+                    <i class="fas fa-times" aria-hidden="true"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="cookie-category">
+                    <div class="cookie-category-header">
+                        <h4>Essential Cookies</h4>
+                        <span class="cookie-required">Required</span>
+                    </div>
+                    <p>These cookies are necessary for the website to function and cannot be disabled.</p>
+                </div>
+
+                <div class="cookie-category">
+                    <div class="cookie-category-header">
+                        <h4>Analytics Cookies</h4>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="analytics-cookies">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <p>Help us understand how visitors interact with our website to improve user experience.</p>
+                </div>
+
+                <div class="cookie-category">
+                    <div class="cookie-category-header">
+                        <h4>Marketing Cookies</h4>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="marketing-cookies">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <p>Used to deliver personalized advertisements and track advertising effectiveness.</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="save-cookie-preferences" class="btn btn-primary">Save Preferences</button>
+                <button id="accept-all-cookies" class="btn btn-secondary">Accept All</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Customer Authentication Modals -->
+    <!-- Login Modal -->
+    <div id="customer-login-modal" class="auth-modal" aria-hidden="true" role="dialog" aria-modal="true"
+        aria-labelledby="login-modal-title">
+        <div class="auth-modal-content">
+            <div class="auth-modal-header">
+                <h2 id="login-modal-title">Sign In</h2>
+                <button class="auth-modal-close" aria-label="Close login form">
+                    <i class="fas fa-times" aria-hidden="true"></i>
+                </button>
+            </div>
+            <div class="auth-modal-body">
+                <form id="customer-login-form">
+                    <div class="form-group">
+                        <input type="email" id="login-email" class="form-input" placeholder="Email address" required
+                            autocomplete="email">
+                    </div>
+                    <div class="form-group">
+                        <input type="password" id="login-password" class="form-input" placeholder="Password" required
+                            autocomplete="current-password">
+                    </div>
+                    <div class="auth-error" style="display: none;"></div>
+                    <button type="submit" class="btn btn-primary btn-full-width">Sign In</button>
+                    <p class="auth-switch-text">
+                        Don't have an account? <a href="#" id="show-register-link">Create one here</a>
+                    </p>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Register Modal -->
+    <div id="customer-register-modal" class="auth-modal" aria-hidden="true" role="dialog" aria-modal="true"
+        aria-labelledby="register-modal-title">
+        <div class="auth-modal-content">
+            <div class="auth-modal-header">
+                <h2 id="register-modal-title">Create Account</h2>
+                <button class="auth-modal-close" aria-label="Close registration form">
+                    <i class="fas fa-times" aria-hidden="true"></i>
+                </button>
+            </div>
+            <div class="auth-modal-body">
+                <form id="customer-register-form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <input type="text" id="register-first-name" class="form-input" placeholder="First name"
+                                required autocomplete="given-name">
+                        </div>
+                        <div class="form-group">
+                            <input type="text" id="register-last-name" class="form-input" placeholder="Last name"
+                                required autocomplete="family-name">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <input type="email" id="register-email" class="form-input" placeholder="Email address" required
+                            autocomplete="email">
+                    </div>
+                    <div class="form-group">
+                        <input type="tel" id="register-phone" class="form-input" placeholder="Phone (optional)"
+                            autocomplete="tel">
+                    </div>
+                    <div class="form-group">
+                        <input type="password" id="register-password" class="form-input" placeholder="Password" required
+                            autocomplete="new-password">
+                    </div>
+                    <div class="form-group">
+                        <input type="password" id="register-confirm-password" class="form-input"
+                            placeholder="Confirm password" required autocomplete="new-password">
+                        <small class="form-help">Must be 8+ characters with uppercase, lowercase, number, and special
+                            character</small>
+                    </div>
+                    <div class="auth-error" style="display: none;"></div>
+                    <button type="submit" class="btn btn-primary btn-full-width">Create Account</button>
+                    <p class="auth-switch-text">
+                        Already have an account? <a href="#" id="show-login-link">Sign in here</a>
+                    </p>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- CRITICAL: Force cart closed immediately and prevent scroll restoration -->
+    <script>
+        (function () {
+            // Prevent automatic scroll restoration
+            if ('scrollRestoration' in history) {
+                history.scrollRestoration = 'manual';
+            }
+
+            // Force scroll to top immediately (before any content loads)
+            window.scrollTo(0, 0);
+            document.documentElement.scrollTop = 0;
+            document.body.scrollTop = 0;
+
+            // Prevent any focus from causing scroll in the first 5 seconds
+            let pageLoadTime = Date.now();
+            const originalFocus = HTMLElement.prototype.focus;
+            HTMLElement.prototype.focus = function (options) {
+                const timeSinceLoad = Date.now() - pageLoadTime;
+                if (timeSinceLoad < 5000 && !window.location.hash) {
+                    // Prevent focus scroll for first 5 seconds unless there's a hash
+                    const preventScroll = options && typeof options === 'object' ?
+                        { ...options, preventScroll: true } :
+                        { preventScroll: true };
+                    originalFocus.call(this, preventScroll);
+                    // Immediately scroll back to top
+                    setTimeout(() => {
+                        window.scrollTo(0, 0);
+                        document.documentElement.scrollTop = 0;
+                        document.body.scrollTop = 0;
+                    }, 0);
+                } else {
+                    originalFocus.call(this, options);
+                }
+            };
+
+            // Force cart closed before any other scripts run
+            document.addEventListener('DOMContentLoaded', function () {
+                // Ensure we're at the top
+                if (!window.location.hash) {
+                    window.scrollTo(0, 0);
+                    document.documentElement.scrollTop = 0;
+                    document.body.scrollTop = 0;
+                }
+
+                const cartSidebar = document.getElementById('cart-sidebar');
+                const cartOverlay = document.getElementById('cart-overlay');
+                if (cartSidebar) {
+                    cartSidebar.classList.remove('show', 'open');
+                    cartSidebar.setAttribute('aria-hidden', 'true');
+                    cartSidebar.style.cssText = 'transform: translateX(100%) !important; visibility: hidden !important; opacity: 0 !important;';
+                }
+                if (cartOverlay) {
+                    cartOverlay.classList.remove('active');
+                    cartOverlay.style.cssText = 'opacity: 0 !important; visibility: hidden !important;';
+                }
+                document.body.style.overflow = '';
+                document.documentElement.style.overflow = '';
+            });
+
+            // Also run immediately if DOM is already loaded
+            if (document.readyState === 'loading') {
+                // Wait for DOM
+            } else {
+                // DOM already loaded, run immediately
+                if (!window.location.hash) {
+                    window.scrollTo(0, 0);
+                }
+                const cartSidebar = document.getElementById('cart-sidebar');
+                const cartOverlay = document.getElementById('cart-overlay');
+                if (cartSidebar) {
+                    cartSidebar.classList.remove('show', 'open');
+                    cartSidebar.setAttribute('aria-hidden', 'true');
+                    cartSidebar.style.cssText = 'transform: translateX(100%) !important; visibility: hidden !important; opacity: 0 !important;';
+                }
+                if (cartOverlay) {
+                    cartOverlay.classList.remove('active');
+                    cartOverlay.style.cssText = 'opacity: 0 !important; visibility: hidden !important;';
+                }
+                document.body.style.overflow = '';
+                document.documentElement.style.overflow = '';
+            }
+
+            // Only prevent scroll restoration on initial load, not user scrolling
+            // Ensure page starts at top on initial load only (not after user scrolls)
+            let hasUserScrolled = false;
+
+            // Track if user has manually scrolled
+            window.addEventListener('scroll', function () {
+                if (window.scrollY > 10) {
+                    hasUserScrolled = true;
+                }
+            }, { passive: true, once: true });
+
+            // Only ensure top on initial window load (before user interaction)
+            window.addEventListener('load', function () {
+                if (!window.location.hash && !hasUserScrolled) {
+                    // Only scroll to top once on initial load
+                    window.scrollTo(0, 0);
+                }
+            }, { passive: true });
+        })();
+    </script>
+
+    <!-- CRITICAL: Visual Bug Fixes MUST load first -->
+    <script src="js/visual-bug-fixes.js"></script>
+
+    <!-- Other Scripts -->
+    <script src="js/structured-data.js" defer></script>
+    <script src="js/error-handling.js" defer></script>
+    <script src="js/advanced-analytics.js" defer></script>
+    <script src="js/pwa-manager.js" defer></script>
+    <script src="js/device-adaptive.js" defer></script>
+    <script src="js/seo-optimizer.js" defer></script>
+    <script src="js/code-quality-optimizer.js" defer></script>
+    <script src="js/performance-micro-optimizer.js" defer></script>
+    <script src="script.js" defer></script>
+    <script src="js/edsa-booking.js" defer></script>
+    <script src="js/customer-auth.js" defer></script>
+    <script src="js/brands-categories.js" defer></script>
+    <script src="gdpr-compliance.js" defer></script>
+    <script src="ccpa-compliance.js" defer></script>
+
+    <!-- Ensure EDSA image loads correctly -->
+    <script>
+        (function () {
+            // Wait for DOM to be ready
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', ensureEDSALoads);
+            } else {
+                ensureEDSALoads();
+            }
+
+            function ensureEDSALoads() {
+                const edsaImg = document.querySelector('.edsa-image img');
+                if (!edsaImg) return;
+
+                // Ensure the image is visible
+                edsaImg.classList.add('loaded');
+                edsaImg.style.opacity = '1';
+                edsaImg.style.display = 'block';
+
+                // If image hasn't loaded yet, force it
+                if (!edsaImg.complete || edsaImg.naturalWidth === 0) {
+                    const originalSrc = edsaImg.src;
+                    const img = new Image();
+
+                    img.onload = function () {
+                        edsaImg.src = originalSrc;
+                        edsaImg.classList.add('loaded');
+                        edsaImg.style.opacity = '1';
+                    };
+
+                    img.onerror = function () {
+                        console.error('EDSA image failed to load from:', originalSrc);
+                        // Try alternative path formats
+                        const altPaths = [
+                            './images/edsa.jpg',
+                            'images/edsa.jpg',
+                            '/images/edsa.jpg'
+                        ];
+
+                        let pathIndex = 0;
+                        const tryNextPath = () => {
+                            if (pathIndex < altPaths.length) {
+                                const testImg = new Image();
+                                testImg.onload = () => {
+                                    edsaImg.src = altPaths[pathIndex];
+                                    edsaImg.classList.add('loaded');
+                                    edsaImg.style.opacity = '1';
+                                };
+                                testImg.onerror = () => {
+                                    pathIndex++;
+                                    tryNextPath();
+                                };
+                                testImg.src = altPaths[pathIndex];
+                            }
+                        };
+                        tryNextPath();
+                    };
+
+                    img.src = originalSrc;
+                }
+            }
+        })();
+    </script>
+</body>
+
+</html>

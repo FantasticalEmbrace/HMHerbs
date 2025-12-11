@@ -1,0 +1,1591 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HM Herbs Admin Panel</title>
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Browser Compatibility -->
+    <link rel="stylesheet" href="css/browser-compatibility.css">
+
+    <style>
+        /* Admin Panel Styles - Matching Frontend Design */
+        :root {
+            --primary-green: #2d5a27;
+            --secondary-sage: #87a96b;
+            --accent-gold: #d4af37;
+            --light-green: #f0f7ed;
+            --dark-green: #1a3d16;
+
+            --gray-50: #f9fafb;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-300: #d1d5db;
+            --gray-400: #9ca3af;
+            --gray-500: #6b7280;
+            --gray-600: #4b5563;
+            --gray-700: #374151;
+            --gray-800: #1f2937;
+            --gray-900: #111827;
+
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --info: #3b82f6;
+
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+
+            --border-radius: 0.5rem;
+            --border-radius-lg: 0.75rem;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--gray-50);
+            color: var(--gray-900);
+            line-height: 1.6;
+        }
+
+        /* Layout */
+        .admin-container {
+            display: flex !important;
+            min-height: 100vh;
+            visibility: visible !important;
+            opacity: 1 !important;
+        }
+
+        /* Sidebar - Auto-hide until mouse is at left edge */
+        .sidebar {
+            width: 280px !important;
+            background: linear-gradient(135deg, var(--primary-green) 0%, var(--dark-green) 100%) !important;
+            color: white !important;
+            padding: 2rem 0 !important;
+            box-shadow: var(--shadow-lg) !important;
+            position: fixed !important;
+            top: 0 !important;
+            bottom: 0 !important;
+            left: 0 !important;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+            z-index: 1000 !important;
+            transform: translateX(-100%) !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            display: block !important;
+            transition: transform 0.3s ease !important;
+        }
+
+        /* Show sidebar when .show class is added */
+        .sidebar.show {
+            transform: translateX(0) !important;
+        }
+
+        .sidebar-header {
+            padding: 0 2rem 2rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 2rem;
+        }
+
+        .sidebar-logo {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            font-family: 'Playfair Display', serif;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .sidebar-logo i {
+            font-size: 2rem;
+            color: var(--accent-gold);
+        }
+
+        .sidebar-nav {
+            padding: 0 1rem;
+        }
+
+        .nav-section {
+            margin-bottom: 2rem;
+        }
+
+        .nav-section-title {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: rgba(255, 255, 255, 0.6);
+            margin-bottom: 0.5rem;
+            padding: 0 1rem;
+        }
+
+        .nav-item {
+            margin-bottom: 0.25rem;
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            color: rgba(255, 255, 255, 0.8);
+            text-decoration: none;
+            border-radius: var(--border-radius);
+            transition: all 0.2s ease;
+            font-weight: 500;
+        }
+
+        .nav-link:hover,
+        .nav-link.active {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            transform: translateX(4px);
+        }
+
+        .nav-link.active {
+            background: var(--accent-gold);
+            color: var(--primary-green);
+        }
+
+        .nav-link i {
+            width: 1.25rem;
+            text-align: center;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            margin-left: 280px;
+            padding: 2rem;
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+        }
+
+        /* Header */
+        .content-header {
+            background: white;
+            padding: 1.5rem 2rem;
+            border-radius: var(--border-radius-lg);
+            box-shadow: var(--shadow-sm);
+            margin-bottom: 2rem;
+            display: flex;
+            justify-content: between;
+            align-items: center;
+        }
+
+        .page-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 2rem;
+            font-weight: 600;
+            color: var(--primary-green);
+            margin: 0;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .user-avatar {
+            width: 2.5rem;
+            height: 2.5rem;
+            border-radius: 50%;
+            background: var(--secondary-sage);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+        }
+
+        /* Cards */
+        .card {
+            background: white;
+            border-radius: var(--border-radius-lg);
+            box-shadow: var(--shadow-sm);
+            overflow: hidden;
+            margin-bottom: 2rem;
+        }
+
+        .card-header {
+            padding: 1.5rem 2rem;
+            border-bottom: 1px solid var(--gray-200);
+            background: var(--gray-50);
+        }
+
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--gray-900);
+            margin: 0;
+        }
+
+        .card-content {
+            padding: 2rem;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: var(--border-radius-lg);
+            box-shadow: var(--shadow-sm);
+            border-left: 4px solid var(--primary-green);
+        }
+
+        .stat-card.success {
+            border-left-color: var(--success);
+        }
+
+        .stat-card.warning {
+            border-left-color: var(--warning);
+        }
+
+        .stat-card.info {
+            border-left-color: var(--info);
+        }
+
+        .stat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-title {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--gray-600);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .stat-icon {
+            width: 2.5rem;
+            height: 2.5rem;
+            border-radius: 50%;
+            background: var(--light-green);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary-green);
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--gray-900);
+            margin-bottom: 0.25rem;
+        }
+
+        .stat-change {
+            font-size: 0.875rem;
+            color: var(--gray-500);
+        }
+
+        /* Tables */
+        .table-container {
+            overflow-x: auto;
+        }
+
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .table th,
+        .table td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        .table th {
+            background: var(--gray-50);
+            font-weight: 600;
+            color: var(--gray-700);
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .table tr:hover {
+            background: var(--gray-50);
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.875rem 1.5rem;
+            border: none;
+            font-weight: 500;
+            font-size: 0.9375rem;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            border-radius: var(--border-radius);
+            border-radius: var(--border-radius);
+            font-weight: 500;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.875rem;
+        }
+
+        .btn-primary {
+            background: var(--primary-green);
+            color: white;
+            box-shadow: 0 2px 4px rgba(45, 90, 39, 0.2);
+        }
+
+        .btn-primary:hover {
+            background: var(--dark-green);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(45, 90, 39, 0.3);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+            box-shadow: 0 1px 2px rgba(45, 90, 39, 0.2);
+        }
+
+        .btn-secondary {
+            background: var(--gray-200);
+            color: var(--gray-700);
+        }
+
+        .btn-secondary:hover {
+            background: var(--gray-300);
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+
+        .btn-warning {
+            background: var(--warning);
+            color: white;
+        }
+
+        .btn-danger {
+            background: var(--error);
+            color: white;
+        }
+
+        .btn-sm {
+            padding: 0.5rem 1rem;
+            font-size: 0.75rem;
+        }
+
+        /* Forms */
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            font-weight: 500;
+            color: var(--gray-700);
+            margin-bottom: 0.5rem;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--gray-300);
+            border-radius: var(--border-radius);
+            font-size: 0.875rem;
+            transition: border-color 0.2s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary-green);
+            box-shadow: 0 0 0 3px rgba(45, 90, 39, 0.1);
+        }
+
+        /* Status Badges */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .badge-success {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+        }
+
+        .badge-warning {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--warning);
+        }
+
+        .badge-danger {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--error);
+        }
+
+        .badge-info {
+            background: rgba(59, 130, 246, 0.1);
+            color: var(--info);
+        }
+
+        /* Loading States */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            color: var(--gray-500);
+        }
+
+        .spinner {
+            width: 2rem;
+            height: 2rem;
+            border: 2px solid var(--gray-200);
+            border-top: 2px solid var(--primary-green);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 0.5rem;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Responsive */
+        /* Mobile Menu Toggle Button */
+        .mobile-menu-toggle {
+            display: none;
+            position: fixed;
+            top: 1rem;
+            left: 1rem;
+            z-index: 1002;
+            background: var(--primary-green);
+            color: white;
+            border: none;
+            width: 3rem;
+            height: 3rem;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            box-shadow: var(--shadow-lg);
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+        }
+
+        .mobile-menu-toggle:hover {
+            background: var(--dark-green);
+        }
+
+        /* Sidebar Overlay for Mobile */
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .sidebar-overlay.active {
+            display: block;
+            opacity: 1;
+        }
+
+        @media (max-width: 768px) {
+
+            /* Show mobile menu toggle */
+            .mobile-menu-toggle {
+                display: flex;
+            }
+
+            /* Sidebar mobile behavior */
+            .sidebar {
+                transform: translateX(-100%) !important;
+                transition: transform 0.3s ease !important;
+                width: 280px !important;
+                z-index: 1001 !important;
+            }
+
+            .sidebar.open {
+                transform: translateX(0) !important;
+            }
+
+            /* Disable auto-hide on mobile - use toggle instead */
+            .sidebar.show {
+                transform: translateX(0) !important;
+            }
+
+            /* Main content full width on mobile */
+            .main-content {
+                margin-left: 0 !important;
+                padding: 1rem !important;
+                padding-top: 5rem !important;
+                /* Space for mobile menu button */
+            }
+
+            /* Header adjustments */
+            .content-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 1rem;
+                padding: 1rem !important;
+            }
+
+            .page-title {
+                font-size: 1.5rem !important;
+            }
+
+            .user-info {
+                width: 100%;
+                justify-content: space-between;
+            }
+
+            /* Stats grid single column */
+            .stats-grid {
+                grid-template-columns: 1fr !important;
+                gap: 1rem !important;
+            }
+
+            /* Tables - horizontal scroll on mobile */
+            .table-container {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+                margin: 0 -1rem;
+                padding: 0 1rem;
+            }
+
+            .table {
+                min-width: 600px;
+                /* Ensure table doesn't get too cramped */
+                font-size: 0.875rem;
+            }
+
+            .table th,
+            .table td {
+                padding: 0.75rem 0.5rem !important;
+            }
+
+            /* Buttons - larger touch targets */
+            .btn {
+                min-height: 44px;
+                /* iOS recommended touch target */
+                padding: 0.75rem 1.25rem !important;
+                font-size: 1rem !important;
+            }
+
+            /* Form improvements */
+            .form-group {
+                margin-bottom: 1.25rem;
+            }
+
+            .form-label {
+                font-size: 0.9375rem;
+                margin-bottom: 0.5rem;
+            }
+
+            .form-input,
+            .form-select,
+            .form-textarea {
+                font-size: 1rem !important;
+                /* Prevents zoom on iOS */
+                padding: 0.875rem !important;
+                min-height: 44px;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr !important;
+                gap: 1rem !important;
+            }
+
+            .form-actions {
+                flex-direction: column !important;
+                gap: 0.75rem;
+            }
+
+            .form-actions button {
+                width: 100%;
+            }
+
+            /* Card adjustments */
+            .card-header {
+                padding: 1rem 1.25rem !important;
+            }
+
+            .card-content {
+                padding: 1.25rem !important;
+            }
+
+            .card-title {
+                font-size: 1.125rem !important;
+            }
+
+            /* Stat cards */
+            .stat-card {
+                padding: 1.25rem !important;
+            }
+
+            .stat-value {
+                font-size: 1.75rem !important;
+            }
+
+            /* Action buttons in tables */
+            .btn-sm {
+                min-height: 36px;
+                padding: 0.5rem 0.75rem !important;
+                font-size: 0.875rem !important;
+            }
+
+            /* Sidebar nav items */
+            .nav-link {
+                padding: 1rem 1.5rem !important;
+                font-size: 0.9375rem;
+            }
+
+            .sidebar-header {
+                padding: 1.5rem 1.5rem 1rem !important;
+            }
+
+            .sidebar-logo {
+                font-size: 1.125rem !important;
+            }
+
+            /* Login form mobile */
+            .login-container {
+                padding: 1rem !important;
+            }
+
+            .login-card {
+                padding: 1.5rem !important;
+            }
+
+            /* Modal improvements */
+            .modal-content {
+                width: 95% !important;
+                margin: 5% auto !important;
+                max-height: 90vh;
+                overflow-y: auto;
+                padding: 1.5rem !important;
+            }
+
+            .modal-header {
+                padding: 1rem 0 !important;
+                margin-bottom: 1rem !important;
+            }
+
+            .modal-body {
+                padding: 0 !important;
+            }
+
+            /* Search and filter bars */
+            .search-bar,
+            .filter-bar {
+                flex-direction: column;
+                gap: 0.75rem;
+            }
+
+            .search-bar input,
+            .filter-bar select {
+                width: 100%;
+                min-height: 44px;
+            }
+
+            /* Pagination */
+            .pagination {
+                flex-wrap: wrap;
+                gap: 0.5rem;
+            }
+
+            .pagination button {
+                min-width: 44px;
+                min-height: 44px;
+            }
+
+            /* Notification improvements */
+            .notification {
+                max-width: calc(100% - 2rem);
+                margin: 1rem;
+                padding: 1rem !important;
+            }
+        }
+
+        /* Small mobile devices (max-width: 480px) */
+        @media (max-width: 480px) {
+            .main-content {
+                padding: 0.75rem !important;
+                padding-top: 4.5rem !important;
+            }
+
+            .page-title {
+                font-size: 1.25rem !important;
+            }
+
+            .stats-grid {
+                gap: 0.75rem !important;
+            }
+
+            .stat-card {
+                padding: 1rem !important;
+            }
+
+            .card-content {
+                padding: 1rem !important;
+            }
+
+            .table {
+                min-width: 500px;
+                font-size: 0.8125rem;
+            }
+
+            .table th,
+            .table td {
+                padding: 0.5rem 0.375rem !important;
+            }
+
+            .modal-content {
+                padding: 1.25rem !important;
+            }
+
+            .sidebar {
+                width: 260px !important;
+            }
+        }
+
+        /* Ensure sidebar visibility on desktop */
+        @media (min-width: 769px) {
+            .sidebar {
+                visibility: visible !important;
+                opacity: 1 !important;
+            }
+
+            /* Show sidebar when .show class is added */
+            .sidebar.show {
+                transform: translateX(0) !important;
+            }
+        }
+
+        /* Login Form */
+        .login-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, var(--primary-green) 0%, var(--dark-green) 100%);
+            padding: 2rem;
+        }
+
+        .login-card {
+            background: white;
+            padding: 2.5rem;
+            border-radius: var(--border-radius-lg);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .login-logo {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.75rem;
+            font-weight: 600;
+            color: var(--primary-green);
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .login-logo i {
+            font-size: 2rem;
+            color: var(--secondary-sage);
+        }
+
+        .login-subtitle {
+            color: var(--gray-600);
+            font-size: 0.875rem;
+            margin: 0;
+        }
+
+        /* Hidden by default */
+        .content-section {
+            display: none;
+        }
+
+        .content-section.active {
+            display: block;
+        }
+
+        .btn-full-width {
+            width: 100%;
+            margin-top: 1rem;
+        }
+
+        .login-error {
+            margin-top: 1rem;
+            padding: 0.75rem;
+            background-color: rgba(239, 68, 68, 0.1);
+            color: var(--error);
+            text-align: center;
+            border-radius: var(--border-radius);
+            font-size: 0.875rem;
+            display: none;
+        }
+
+        .login-error.show {
+            display: block;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 1rem;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 2% auto;
+            padding: 0;
+            border-radius: var(--border-radius-lg);
+            box-shadow: var(--shadow-lg);
+            width: 90%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
+            animation: modalSlideIn 0.3s ease-out;
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-50px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .modal-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--gray-200);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: var(--light-green);
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            color: var(--primary-green);
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--gray-500);
+            padding: 0.25rem;
+            border-radius: 50%;
+            width: 2rem;
+            height: 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .modal-close:hover {
+            background-color: var(--gray-100);
+            color: var(--gray-700);
+        }
+
+        .modal-body {
+            padding: 1.5rem;
+        }
+
+        .progress-bar-container {
+            width: 100%;
+            background-color: var(--gray-200);
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-bar {
+            height: 30px;
+            background: var(--primary-green);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 500;
+            font-size: 0.875rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: var(--gray-700);
+            font-size: 0.875rem;
+        }
+
+        .form-group input,
+        .form-group textarea,
+        .form-group select,
+        .form-input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--gray-300);
+            border-radius: var(--border-radius);
+            font-size: 0.875rem;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+            font-family: inherit;
+        }
+
+        .form-group input::placeholder,
+        .form-input::placeholder {
+            color: var(--gray-400);
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: var(--primary-green);
+            box-shadow: 0 0 0 3px rgba(45, 90, 39, 0.1);
+        }
+
+        .form-group input:hover {
+            border-color: var(--gray-400);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .form-group input[type="checkbox"] {
+            width: auto;
+            margin-right: 0.5rem;
+        }
+
+        .form-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.75rem;
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--gray-200);
+        }
+
+        .form-actions button {
+            padding: 0.75rem 1.5rem;
+            border-radius: var(--border-radius);
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .form-actions button[type="button"] {
+            background-color: var(--gray-100);
+            border: 1px solid var(--gray-300);
+            color: var(--gray-700);
+        }
+
+        .form-actions button[type="button"]:hover {
+            background-color: var(--gray-200);
+        }
+
+        .form-actions button[type="submit"] {
+            background-color: var(--primary-green);
+            border: 1px solid var(--primary-green);
+            color: white;
+        }
+
+        .form-actions button[type="submit"]:hover {
+            background-color: var(--dark-green);
+        }
+
+        /* Duplicate media query removed - styles are now in the main mobile section above */
+    </style>
+</head>
+
+<body>
+    <!-- Login Screen -->
+    <div id="loginScreen" class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <div class="login-logo">
+                    <i class="fas fa-leaf"></i>
+                    HM Herbs Admin
+                </div>
+                <p class="login-subtitle">Sign in to your admin account</p>
+            </div>
+
+            <form id="loginForm">
+                <div class="form-group">
+                    <input type="email" id="email" class="form-input" placeholder="Email" required autocomplete="email">
+                </div>
+
+                <div class="form-group">
+                    <input type="password" id="password" class="form-input" placeholder="Password" required
+                        autocomplete="current-password">
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-full-width" style="margin-top: 0.5rem;">
+                    <i class="fas fa-sign-in-alt"></i>
+                    Sign In
+                </button>
+
+                <div style="text-align: center; margin-top: 1rem;">
+                    <a href="#" id="forgotPasswordLink"
+                        style="color: var(--primary-green); text-decoration: none; font-size: 0.875rem;">
+                        Forgot Password?
+                    </a>
+                </div>
+            </form>
+
+            <div id="loginError" class="login-error"></div>
+        </div>
+    </div>
+
+    <!-- Forgot Password Modal -->
+    <div id="forgotPasswordModal" class="modal"
+        style="display: none; position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); align-items: center; justify-content: center;">
+        <div class="modal-content"
+            style="background: white; padding: 2rem; border-radius: var(--radius-lg); max-width: 500px; width: 90%; position: relative;">
+            <div
+                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 1px solid var(--gray-200); padding-bottom: 1rem;">
+                <h3 style="margin: 0; color: var(--primary-green);">Reset Password</h3>
+                <button class="modal-close" id="closeForgotPasswordModal"
+                    style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--gray-500);">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div>
+                <p style="margin-bottom: 1.5rem; color: var(--gray-600);">
+                    Enter your email address and we'll send you a link to reset your password.
+                </p>
+                <form id="forgotPasswordForm">
+                    <div class="form-group">
+                        <input type="email" id="forgotPasswordEmail" class="form-input" placeholder="hmherbs1@gmail.com"
+                            required autocomplete="email">
+                    </div>
+                    <div id="forgotPasswordError" class="login-error" style="display: none;"></div>
+                    <div id="forgotPasswordSuccess"
+                        style="display: none; padding: 1rem; background: rgba(5, 150, 105, 0.1); border: 1px solid var(--success); border-radius: var(--radius-md); color: var(--success); margin-bottom: 1rem;">
+                        <i class="fas fa-check-circle"></i> Password reset link sent! Check your email.
+                    </div>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button type="button" class="btn btn-secondary" id="cancelForgotPassword"
+                            style="flex: 1;">Cancel</button>
+                        <button type="submit" class="btn btn-primary" style="flex: 1;">Send Reset Link</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin Dashboard -->
+    <div id="adminDashboard" class="admin-container" style="display: none;">
+        <!-- Sidebar -->
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-logo">
+                    <i class="fas fa-leaf"></i>
+                    <span>HM Herbs Admin</span>
+                </div>
+            </div>
+
+            <div class="sidebar-nav">
+                <div class="nav-section">
+                    <div class="nav-section-title">Overview</div>
+                    <div class="nav-item">
+                        <a href="#" class="nav-link active" data-section="dashboard">
+                            <i class="fas fa-chart-line"></i>
+                            Dashboard
+                        </a>
+                    </div>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">Catalog</div>
+                    <div class="nav-item">
+                        <a href="#" class="nav-link" data-section="products">
+                            <i class="fas fa-boxes"></i>
+                            Products
+                        </a>
+                    </div>
+                    <div class="nav-item">
+                        <a href="#" class="nav-link" data-section="import">
+                            <i class="fas fa-upload"></i>
+                            Import Products
+                        </a>
+                    </div>
+                    <div class="nav-item">
+                        <a href="#" class="nav-link" data-section="categories">
+                            <i class="fas fa-tags"></i>
+                            Categories
+                        </a>
+                    </div>
+                    <div class="nav-item">
+                        <a href="#" class="nav-link" data-section="brands">
+                            <i class="fas fa-trademark"></i>
+                            Brands
+                        </a>
+                    </div>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">Sales</div>
+                    <div class="nav-item">
+                        <a href="#" class="nav-link" data-section="orders">
+                            <i class="fas fa-shopping-cart"></i>
+                            Orders
+                        </a>
+                    </div>
+                    <div class="nav-item">
+                        <a href="#" class="nav-link" data-section="customers">
+                            <i class="fas fa-users"></i>
+                            Customers
+                        </a>
+                    </div>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">Services</div>
+                    <div class="nav-item">
+                        <a href="#" class="nav-link" data-section="edsa">
+                            <i class="fas fa-stethoscope"></i>
+                            EDSA Bookings
+                        </a>
+                    </div>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">System</div>
+                    <div class="nav-item">
+                        <a href="#" class="nav-link" data-section="settings">
+                            <i class="fas fa-cog"></i>
+                            Settings
+                        </a>
+                    </div>
+                    <div class="nav-item">
+                        <a href="#" class="nav-link" onclick="logout()">
+                            <i class="fas fa-sign-out-alt"></i>
+                            Logout
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Mobile Menu Toggle -->
+        <button class="mobile-menu-toggle" id="mobileMenuToggle" aria-label="Toggle menu">
+            <i class="fas fa-bars"></i>
+        </button>
+
+        <!-- Sidebar Overlay for Mobile -->
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Dashboard Section -->
+            <section id="dashboard" class="content-section active">
+                <div class="content-header">
+                    <h1 class="page-title">Dashboard</h1>
+                    <div class="user-info">
+                        <div class="user-avatar">
+                            <i class="fas fa-user"></i>
+                        </div>
+                        <span id="userName">Admin User</span>
+                    </div>
+                </div>
+
+                <!-- Stats Grid -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div class="stat-title">Total Products</div>
+                            <div class="stat-icon">
+                                <i class="fas fa-boxes"></i>
+                            </div>
+                        </div>
+                        <div class="stat-value" id="totalProducts">-</div>
+                        <div class="stat-change">Active products in catalog</div>
+                    </div>
+
+                    <div class="stat-card success">
+                        <div class="stat-header">
+                            <div class="stat-title">Orders (30 days)</div>
+                            <div class="stat-icon">
+                                <i class="fas fa-shopping-cart"></i>
+                            </div>
+                        </div>
+                        <div class="stat-value" id="totalOrders">-</div>
+                        <div class="stat-change">Recent order activity</div>
+                    </div>
+
+                    <div class="stat-card info">
+                        <div class="stat-header">
+                            <div class="stat-title">EDSA Bookings</div>
+                            <div class="stat-icon">
+                                <i class="fas fa-stethoscope"></i>
+                            </div>
+                        </div>
+                        <div class="stat-value" id="totalBookings">-</div>
+                        <div class="stat-change">Pending appointments</div>
+                    </div>
+
+                    <div class="stat-card warning">
+                        <div class="stat-header">
+                            <div class="stat-title">Low Stock</div>
+                            <div class="stat-icon">
+                                <i class="fas fa-exclamation-triangle"></i>
+                            </div>
+                        </div>
+                        <div class="stat-value" id="lowStockProducts">-</div>
+                        <div class="stat-change">Products need restocking</div>
+                    </div>
+                </div>
+
+                <!-- Recent Activity -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Recent Activity</h2>
+                    </div>
+                    <div class="card-content">
+                        <div id="recentActivity" class="loading">
+                            <div class="spinner"></div>
+                            Loading recent activity...
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Products Section -->
+            <section id="products" class="content-section">
+                <div class="content-header">
+                    <h1 class="page-title">Products</h1>
+                    <div class="button-group">
+                        <button type="button" class="btn btn-secondary" onclick="scrapeProducts()">
+                            <i class="fas fa-download"></i>
+                            Scrape HM Herbs
+                        </button>
+                        <button type="button" class="btn btn-primary" onclick="showAddProduct()">
+                            <i class="fas fa-plus"></i>
+                            Add Product
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-content">
+                        <div id="productsTable" class="loading">
+                            <div class="spinner"></div>
+                            Loading products...
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Import Section -->
+            <section id="import" class="content-section">
+                <div class="content-header">
+                    <h1 class="page-title">Import Products</h1>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Bulk Product Import</h2>
+                    </div>
+                    <div class="card-content">
+                        <div class="form-group">
+                            <label class="form-label" for="csvFile">Select CSV File</label>
+                            <input type="file" id="csvFile" class="form-input" accept=".csv">
+                        </div>
+
+                        <button type="button" class="btn btn-primary" onclick="importProducts()">
+                            <i class="fas fa-upload"></i>
+                            Import Products
+                        </button>
+
+                        <div id="importProgress" style="margin-top: 1rem; display: none;">
+                            <div class="loading">
+                                <div class="spinner"></div>
+                                Importing products...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Orders Section -->
+            <section id="orders" class="content-section">
+                <div class="content-header">
+                    <h1 class="page-title">Orders</h1>
+                </div>
+
+                <div class="card">
+                    <div class="card-content">
+                        <div id="ordersTable" class="loading">
+                            <div class="spinner"></div>
+                            Loading orders...
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Customers Section -->
+            <section id="customers" class="content-section">
+                <div class="content-header">
+                    <h1 class="page-title">Customers</h1>
+                </div>
+
+                <div class="card">
+                    <div class="card-content">
+                        <div style="text-align: center; padding: 2rem; color: var(--gray-500);">
+                            <p>Customer management coming soon...</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- EDSA Bookings Section -->
+            <section id="edsa" class="content-section">
+                <div class="content-header">
+                    <h1 class="page-title">EDSA Bookings</h1>
+                </div>
+
+                <div class="card">
+                    <div class="card-content">
+                        <div id="edsaBookingsTable" class="loading">
+                            <div class="spinner"></div>
+                            Loading EDSA bookings...
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Settings Section -->
+            <section id="settings" class="content-section">
+                <div class="content-header">
+                    <h1 class="page-title">Settings</h1>
+                </div>
+
+                <div class="card">
+                    <div class="card-content">
+                        <div style="text-align: center; padding: 2rem; color: var(--gray-500);">
+                            <p>System settings coming soon...</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Scraping Progress Modal -->
+    <div id="scrapingProgressModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2>Scraping Products</h2>
+                <button class="modal-close" onclick="closeScrapingProgress()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="scrapingStatus" style="margin-bottom: 1rem; font-weight: 500; color: var(--gray-700);">
+                    Initializing...
+                </div>
+                <div class="progress-bar-container" style="margin-bottom: 1rem;">
+                    <div class="progress-bar" id="scrapingProgressBar" style="width: 0%;">
+                        <span id="progressPercentage">0%</span>
+                    </div>
+                </div>
+                <div id="scrapingDetails" style="font-size: 0.9rem; color: var(--gray-600);">
+                    <div>Total Products Found: <span id="totalProducts">0</span></div>
+                    <div>Products Scraped: <span id="scrapedCount">0</span></div>
+                    <div>Valid Products: <span id="validProducts">0</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="admin-app.js"></script>
+    <script>
+        // Auto-hide sidebar - show when mouse is at left edge (desktop only)
+        (function () {
+            const sidebar = document.querySelector('.sidebar');
+            const mobileMenuToggle = document.getElementById('mobileMenuToggle');
+            const sidebarOverlay = document.getElementById('sidebarOverlay');
+            if (!sidebar) return;
+
+            // Check if mobile device
+            function isMobile() {
+                return window.matchMedia('(max-width: 768px)').matches;
+            }
+
+            // Mobile menu toggle
+            if (mobileMenuToggle) {
+                mobileMenuToggle.addEventListener('click', function () {
+                    sidebar.classList.toggle('open');
+                    if (sidebarOverlay) {
+                        sidebarOverlay.classList.toggle('active');
+                    }
+                    // Update icon
+                    const icon = this.querySelector('i');
+                    if (sidebar.classList.contains('open')) {
+                        icon.className = 'fas fa-times';
+                    } else {
+                        icon.className = 'fas fa-bars';
+                    }
+                });
+            }
+
+            // Close sidebar when clicking overlay
+            if (sidebarOverlay) {
+                sidebarOverlay.addEventListener('click', function () {
+                    sidebar.classList.remove('open');
+                    sidebarOverlay.classList.remove('active');
+                    if (mobileMenuToggle) {
+                        const icon = mobileMenuToggle.querySelector('i');
+                        if (icon) icon.className = 'fas fa-bars';
+                    }
+                });
+            }
+
+            // Desktop auto-hide behavior (only on desktop)
+            let hoverTimeout;
+            const EDGE_THRESHOLD = 15; // pixels from left edge
+
+            function handleDesktopHover() {
+                if (isMobile()) return;
+
+                // Show sidebar when mouse is at left edge
+                document.addEventListener('mousemove', function (e) {
+                    if (isMobile()) return;
+                    if (e.clientX <= EDGE_THRESHOLD) {
+                        clearTimeout(hoverTimeout);
+                        sidebar.classList.add('show');
+                    } else if (!sidebar.matches(':hover')) {
+                        // Hide after a delay if not hovering over sidebar
+                        hoverTimeout = setTimeout(function () {
+                            sidebar.classList.remove('show');
+                        }, 300);
+                    }
+                });
+
+                // Keep sidebar visible when hovering over it
+                sidebar.addEventListener('mouseenter', function () {
+                    if (isMobile()) return;
+                    clearTimeout(hoverTimeout);
+                    sidebar.classList.add('show');
+                });
+
+                sidebar.addEventListener('mouseleave', function () {
+                    if (isMobile()) return;
+                    hoverTimeout = setTimeout(function () {
+                        sidebar.classList.remove('show');
+                    }, 300);
+                });
+            }
+
+            // Initialize desktop hover behavior
+            handleDesktopHover();
+
+            // Close mobile menu when clicking a nav link
+            const navLinks = sidebar.querySelectorAll('.nav-link');
+            navLinks.forEach(link => {
+                link.addEventListener('click', function () {
+                    if (isMobile()) {
+                        sidebar.classList.remove('open');
+                        if (sidebarOverlay) {
+                            sidebarOverlay.classList.remove('active');
+                        }
+                        if (mobileMenuToggle) {
+                            const icon = mobileMenuToggle.querySelector('i');
+                            if (icon) icon.className = 'fas fa-bars';
+                        }
+                    }
+                });
+            });
+        })();
+    </script>
+</body>
+
+</html>

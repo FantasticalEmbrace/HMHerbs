@@ -1,0 +1,330 @@
+/* EDSA Booking Modal Styles */
+
+.edsa-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: var(--z-modal);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity var(--transition-normal), visibility var(--transition-normal);
+}
+
+.edsa-modal.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+.edsa-modal-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+}
+
+.edsa-modal-content {
+    position: relative;
+    background-color: var(--white);
+    border-radius: var(--radius-2xl);
+    box-shadow: var(--shadow-xl);
+    max-width: 900px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+    z-index: 1;
+    transform: scale(0.9);
+    transition: transform var(--transition-normal);
+}
+
+.edsa-modal.show .edsa-modal-content {
+    transform: scale(1);
+}
+
+.edsa-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-6);
+    border-bottom: 1px solid var(--gray-200);
+}
+
+.edsa-modal-header h2 {
+    margin: 0;
+    color: var(--primary-green);
+    font-size: var(--text-2xl);
+}
+
+.edsa-modal-close {
+    background: none;
+    border: none;
+    font-size: var(--text-xl);
+    color: var(--gray-600);
+    cursor: pointer;
+    padding: var(--space-2);
+    border-radius: var(--radius-md);
+    transition: all var(--transition-fast);
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.edsa-modal-close:hover {
+    background-color: var(--gray-100);
+    color: var(--gray-900);
+}
+
+.edsa-modal-body {
+    padding: var(--space-6);
+}
+
+.edsa-booking-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-8);
+}
+
+/* Calendar Styles */
+.edsa-calendar-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.edsa-calendar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-4);
+}
+
+.edsa-calendar-header h3 {
+    margin: 0;
+    font-size: var(--text-xl);
+    color: var(--gray-900);
+}
+
+.edsa-calendar-nav {
+    background: var(--gray-100);
+    border: none;
+    border-radius: var(--radius-md);
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    color: var(--gray-700);
+}
+
+.edsa-calendar-nav:hover {
+    background: var(--primary-green);
+    color: var(--white);
+}
+
+.edsa-calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: var(--space-2);
+    margin-bottom: var(--space-4);
+}
+
+.calendar-day-header {
+    text-align: center;
+    font-weight: 600;
+    font-size: var(--text-sm);
+    color: var(--gray-600);
+    padding: var(--space-2);
+}
+
+.calendar-day {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    font-size: var(--text-sm);
+    background-color: var(--white);
+}
+
+.calendar-day:hover:not(.disabled):not(.selected) {
+    background-color: var(--gray-50);
+    border-color: var(--primary-green);
+}
+
+.calendar-day.today {
+    background-color: var(--primary-green);
+    color: var(--white);
+    font-weight: 600;
+    border-color: var(--primary-green);
+}
+
+.calendar-day.selected {
+    background-color: var(--primary-green);
+    color: var(--white);
+    font-weight: 600;
+    border-color: var(--primary-green);
+    box-shadow: 0 0 0 2px rgba(45, 90, 39, 0.2);
+}
+
+.calendar-day.disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    background-color: var(--gray-100);
+}
+
+.calendar-day.empty {
+    border: none;
+    background: transparent;
+    cursor: default;
+}
+
+/* Time Slots */
+.edsa-time-slots {
+    margin-top: var(--space-4);
+}
+
+.edsa-time-slots h4 {
+    margin-bottom: var(--space-3);
+    color: var(--gray-900);
+    font-size: var(--text-lg);
+}
+
+.time-slots-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-2);
+}
+
+.time-slot-btn {
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--gray-300);
+    border-radius: var(--radius-md);
+    background-color: var(--white);
+    color: var(--gray-700);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    font-size: var(--text-sm);
+    font-weight: 500;
+}
+
+.time-slot-btn:hover:not(:disabled) {
+    background-color: var(--primary-green);
+    color: var(--white);
+    border-color: var(--primary-green);
+}
+
+.time-slot-btn.selected {
+    background-color: var(--primary-green);
+    color: var(--white);
+    border-color: var(--primary-green);
+    font-weight: 600;
+}
+
+.time-slot-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background-color: var(--gray-100);
+}
+
+.no-date-selected,
+.no-slots {
+    text-align: center;
+    color: var(--gray-500);
+    padding: var(--space-4);
+    font-style: italic;
+}
+
+/* Form Styles */
+.edsa-form-section {
+    display: flex;
+    flex-direction: column;
+}
+
+.form-group {
+    margin-bottom: var(--space-4);
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: var(--space-2);
+    color: var(--gray-700);
+    font-weight: 500;
+    font-size: var(--text-sm);
+}
+
+.form-group input,
+.form-group textarea {
+    width: 100%;
+    padding: var(--space-3);
+    border: 1px solid var(--gray-300);
+    border-radius: var(--radius-md);
+    font-size: var(--text-base);
+    font-family: inherit;
+    transition: all var(--transition-fast);
+    box-sizing: border-box;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: var(--primary-green);
+    box-shadow: 0 0 0 3px rgba(45, 90, 39, 0.1);
+}
+
+.form-group textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+}
+
+.form-actions .btn {
+    flex: 1;
+    padding: var(--space-4);
+    font-size: var(--text-base);
+    font-weight: 600;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .edsa-booking-container {
+        grid-template-columns: 1fr;
+    }
+
+    .edsa-modal-content {
+        width: 95%;
+        max-height: 95vh;
+    }
+
+    .time-slots-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .edsa-calendar-grid {
+        gap: var(--space-1);
+    }
+
+    .calendar-day {
+        font-size: var(--text-xs);
+        padding: var(--space-1);
+    }
+}
+

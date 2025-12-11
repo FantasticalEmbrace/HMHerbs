@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Account - H&M Herbs & Vitamins</title>
+    <meta name="description" content="Manage your account, orders, and preferences at H&M Herbs & Vitamins">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="css/customer-auth.css">
+    <link rel="stylesheet" href="css/browser-compatibility.css">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <style>
+        .account-page {
+            min-height: 100vh;
+            background: var(--gray-50);
+            padding: var(--space-8) 0;
+        }
+
+        .account-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 var(--space-4);
+        }
+
+        .account-header {
+            background: var(--white);
+            padding: var(--space-6);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-sm);
+            margin-bottom: var(--space-6);
+        }
+
+        .account-header h1 {
+            color: var(--primary-green);
+            font-family: var(--font-display);
+            font-size: var(--text-3xl);
+            margin-bottom: var(--space-2);
+        }
+
+        .account-header p {
+            color: var(--gray-600);
+            font-size: var(--text-base);
+        }
+
+        .account-layout {
+            display: grid;
+            grid-template-columns: 250px 1fr;
+            gap: var(--space-6);
+        }
+
+        .account-sidebar {
+            background: var(--white);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-sm);
+            padding: var(--space-4);
+            height: fit-content;
+            position: sticky;
+            top: var(--space-8);
+        }
+
+        .account-nav {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .account-nav-item {
+            margin-bottom: var(--space-2);
+        }
+
+        .account-nav-link {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            padding: var(--space-3) var(--space-4);
+            color: var(--gray-700);
+            text-decoration: none;
+            border-radius: var(--radius-md);
+            transition: all var(--transition-fast);
+        }
+
+        .account-nav-link:hover,
+        .account-nav-link.active {
+            background: var(--gray-50);
+            color: var(--primary-green);
+        }
+
+        .account-nav-link i {
+            width: 20px;
+            text-align: center;
+        }
+
+        .account-content {
+            background: var(--white);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-sm);
+            padding: var(--space-6);
+        }
+
+        .account-section {
+            display: none;
+        }
+
+        .account-section.active {
+            display: block;
+        }
+
+        .section-title {
+            color: var(--primary-green);
+            font-family: var(--font-display);
+            font-size: var(--text-2xl);
+            margin-bottom: var(--space-6);
+            padding-bottom: var(--space-4);
+            border-bottom: 2px solid var(--gray-200);
+        }
+
+        .profile-form {
+            max-width: 600px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: var(--space-2);
+            font-weight: 500;
+            color: var(--gray-700);
+            font-size: var(--text-sm);
+        }
+
+        .form-actions {
+            display: flex;
+            gap: var(--space-3);
+            margin-top: var(--space-6);
+        }
+
+        .orders-list {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-4);
+        }
+
+        .order-card {
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-md);
+            padding: var(--space-4);
+            transition: all var(--transition-fast);
+        }
+
+        .order-card:hover {
+            box-shadow: var(--shadow-md);
+            border-color: var(--primary-green);
+        }
+
+        .order-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: var(--space-4);
+        }
+
+        .order-number {
+            font-weight: 600;
+            color: var(--gray-900);
+        }
+
+        .order-date {
+            color: var(--gray-600);
+            font-size: var(--text-sm);
+        }
+
+        .order-status {
+            display: inline-block;
+            padding: var(--space-1) var(--space-3);
+            border-radius: var(--radius-full);
+            font-size: var(--text-xs);
+            font-weight: 500;
+        }
+
+        .order-status.pending {
+            background: rgba(217, 119, 6, 0.1);
+            color: var(--warning);
+        }
+
+        .order-status.completed {
+            background: rgba(5, 150, 105, 0.1);
+            color: var(--success);
+        }
+
+        .order-status.cancelled {
+            background: rgba(220, 38, 38, 0.1);
+            color: var(--error);
+        }
+
+        .addresses-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: var(--space-4);
+        }
+
+        .address-card {
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-md);
+            padding: var(--space-4);
+            position: relative;
+        }
+
+        .address-card.default {
+            border-color: var(--primary-green);
+            background: rgba(45, 90, 39, 0.05);
+        }
+
+        .address-actions {
+            display: flex;
+            gap: var(--space-2);
+            margin-top: var(--space-4);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: var(--space-12);
+            color: var(--gray-500);
+        }
+
+        .empty-state i {
+            font-size: var(--text-5xl);
+            margin-bottom: var(--space-4);
+            color: var(--gray-300);
+        }
+
+        @media (max-width: 768px) {
+            .account-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .account-sidebar {
+                position: static;
+            }
+
+            .account-nav {
+                display: flex;
+                overflow-x: auto;
+                gap: var(--space-2);
+            }
+
+            .account-nav-item {
+                margin-bottom: 0;
+            }
+
+            .addresses-list {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header (same as index.html) -->
+    <header class="header" role="banner">
+        <div class="main-header">
+            <div class="container">
+                <nav class="navbar" role="navigation" aria-label="Main navigation">
+                    <div class="logo">
+                        <a href="index.html" aria-label="H&M Herbs & Vitamins - Home">
+                            <i class="fas fa-leaf" aria-hidden="true"></i>
+                            <span class="logo-text">
+                                <span class="brand-name">H&M Herbs</span>
+                                <span class="brand-tagline">& Vitamins</span>
+                            </span>
+                        </a>
+                    </div>
+
+                    <div class="header-actions">
+                        <div class="customer-auth-container">
+                            <button class="auth-btn" id="customer-login-btn" aria-label="Sign in">
+                                <i class="fas fa-sign-in-alt" aria-hidden="true"></i>
+                                <span class="auth-btn-text">Sign In</span>
+                            </button>
+                            <button class="auth-btn" id="customer-register-btn" aria-label="Create account">
+                                <i class="fas fa-user-plus" aria-hidden="true"></i>
+                                <span class="auth-btn-text">Register</span>
+                            </button>
+                            <div class="account-dropdown" id="customer-account-btn" style="display: none;">
+                                <button class="account-toggle" aria-label="Account menu" aria-expanded="false" id="account-menu-toggle">
+                                    <i class="fas fa-user-circle" aria-hidden="true"></i>
+                                    <span class="account-name" id="customer-name-display">Account</span>
+                                    <i class="fas fa-chevron-down" aria-hidden="true"></i>
+                                </button>
+                                <div class="account-menu" id="customer-account-dropdown" style="display: none;">
+                                    <a href="account.html" class="account-menu-item">
+                                        <i class="fas fa-user" aria-hidden="true"></i>
+                                        My Account
+                                    </a>
+                                    <a href="account.html#orders" class="account-menu-item">
+                                        <i class="fas fa-shopping-bag" aria-hidden="true"></i>
+                                        My Orders
+                                    </a>
+                                    <a href="account.html#addresses" class="account-menu-item">
+                                        <i class="fas fa-map-marker-alt" aria-hidden="true"></i>
+                                        Addresses
+                                    </a>
+                                    <button class="account-menu-item" id="customer-logout-btn">
+                                        <i class="fas fa-sign-out-alt" aria-hidden="true"></i>
+                                        Sign Out
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <!-- Account Page Content -->
+    <main class="account-page" id="main-content">
+        <div class="account-container">
+            <div class="account-header">
+                <h1>My Account</h1>
+                <p id="account-welcome-message">Welcome back!</p>
+            </div>
+
+            <div class="account-layout">
+                <!-- Sidebar Navigation -->
+                <aside class="account-sidebar">
+                    <ul class="account-nav">
+                        <li class="account-nav-item">
+                            <a href="#profile" class="account-nav-link active" data-section="profile">
+                                <i class="fas fa-user" aria-hidden="true"></i>
+                                Profile
+                            </a>
+                        </li>
+                        <li class="account-nav-item">
+                            <a href="#orders" class="account-nav-link" data-section="orders">
+                                <i class="fas fa-shopping-bag" aria-hidden="true"></i>
+                                Orders
+                            </a>
+                        </li>
+                        <li class="account-nav-item">
+                            <a href="#addresses" class="account-nav-link" data-section="addresses">
+                                <i class="fas fa-map-marker-alt" aria-hidden="true"></i>
+                                Addresses
+                            </a>
+                        </li>
+                    </ul>
+                </aside>
+
+                <!-- Main Content -->
+                <div class="account-content">
+                    <!-- Profile Section -->
+                    <section id="profile" class="account-section active">
+                        <h2 class="section-title">Profile Information</h2>
+                        <form id="profile-form" class="profile-form">
+                            <div class="form-group">
+                                <label for="profile-first-name">First Name</label>
+                                <input type="text" id="profile-first-name" class="form-input" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="profile-last-name">Last Name</label>
+                                <input type="text" id="profile-last-name" class="form-input" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="profile-email">Email</label>
+                                <input type="email" id="profile-email" class="form-input" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="profile-phone">Phone</label>
+                                <input type="tel" id="profile-phone" class="form-input">
+                            </div>
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn-primary">Save Changes</button>
+                                <button type="button" class="btn btn-secondary" id="change-password-btn">Change Password</button>
+                            </div>
+                        </form>
+                    </section>
+
+                    <!-- Orders Section -->
+                    <section id="orders" class="account-section">
+                        <h2 class="section-title">My Orders</h2>
+                        <div id="orders-container" class="orders-list">
+                            <div class="empty-state">
+                                <i class="fas fa-shopping-bag" aria-hidden="true"></i>
+                                <p>No orders yet</p>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Addresses Section -->
+                    <section id="addresses" class="account-section">
+                        <h2 class="section-title">Saved Addresses</h2>
+                        <div id="addresses-container" class="addresses-list">
+                            <div class="empty-state">
+                                <i class="fas fa-map-marker-alt" aria-hidden="true"></i>
+                                <p>No saved addresses</p>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary" id="add-address-btn" style="margin-top: var(--space-4);">
+                            <i class="fas fa-plus" aria-hidden="true"></i>
+                            Add New Address
+                        </button>
+                    </section>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Scripts -->
+    <script src="js/customer-auth.js" defer></script>
+    <script src="js/account.js" defer></script>
+</body>
+</html>
+
