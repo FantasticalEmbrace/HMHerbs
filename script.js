@@ -170,6 +170,11 @@ class HMHerbsApp {
         }
 
         // Mobile menu toggle (fallback)
+        // Skip mobile menu if enhanced version is active
+        if (document.body.getAttribute("data-enhanced-mobile-menu") === "true") {
+            return;
+        }
+
         const mobileMenuToggle = document.querySelector('.mobile-menu-toggle');
         const navMenu = document.querySelector('.nav-menu');
 

@@ -296,6 +296,11 @@
         // Mobile menu toggle function - same pattern as admin.html
         // Wait for DOM to be ready
         function initMobileMenu() {
+            // Skip if enhanced mobile menu is already active
+            if (document.body.getAttribute('data-enhanced-mobile-menu') === 'true') {
+                return;
+            }
+            
             const mobileMenuToggle = document.getElementById('mobileMenuToggle');
             const mobileMenuOverlay = document.getElementById('mobileMenuOverlay');
             const navMenu = document.querySelector('.nav-menu');

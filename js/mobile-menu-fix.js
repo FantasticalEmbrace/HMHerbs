@@ -23,9 +23,20 @@
             return;
         }
 
+        // Disable any existing mobile menu implementations to prevent conflicts
+        // Remove all existing event listeners by cloning elements
+        const cleanToggle = mobileMenuToggle.cloneNode(true);
+        mobileMenuToggle.parentNode.replaceChild(cleanToggle, mobileMenuToggle);
+        
+        // Update references to the clean elements
+        const toggle = document.querySelector('.mobile-menu-toggle');
+        
+        // Mark that our enhanced mobile menu is active
+        document.body.setAttribute('data-enhanced-mobile-menu', 'true');
+
         // Function to open mobile menu
         function openMobileMenu() {
-            mobileMenuToggle.setAttribute('aria-expanded', 'true');
+            toggle.setAttribute('aria-expanded', 'true');
             navMenu.classList.add('show');
             
             // Show overlay if it exists
@@ -43,7 +54,7 @@
 
         // Function to close mobile menu
         function closeMobileMenu() {
-            mobileMenuToggle.setAttribute('aria-expanded', 'false');
+            toggle.setAttribute('aria-expanded', 'false');
             navMenu.classList.remove('show');
             
             // Hide overlay if it exists
@@ -59,19 +70,12 @@
             document.body.classList.remove('mobile-menu-open');
         }
 
-        // Remove any existing event listeners to prevent conflicts
-        const existingToggle = mobileMenuToggle.cloneNode(true);
-        mobileMenuToggle.parentNode.replaceChild(existingToggle, mobileMenuToggle);
-        
-        // Update reference to the new element
-        const newMobileMenuToggle = document.querySelector('.mobile-menu-toggle');
-
         // Toggle mobile menu on button click
-        newMobileMenuToggle.addEventListener('click', function(e) {
+        toggle.addEventListener('click', function(e) {
             e.preventDefault();
             e.stopPropagation();
             
-            const isExpanded = newMobileMenuToggle.getAttribute('aria-expanded') === 'true';
+            const isExpanded = toggle.getAttribute('aria-expanded') === 'true';
             if (isExpanded) {
                 closeMobileMenu();
             } else {
@@ -119,4 +123,3 @@
         console.log('Mobile menu enhancement initialized successfully');
     }
 })();
-
