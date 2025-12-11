@@ -65,6 +65,50 @@ body.mobile-menu-open {
     position: relative !important;
 }
 
+/* DESKTOP STICKY NAVBAR ENHANCEMENT - Ensure reliable sticky behavior */
+@media (min-width: 769px) {
+    .main-header {
+        position: -webkit-sticky !important;
+        position: sticky !important;
+        top: 0 !important;
+        z-index: 1020 !important;
+        background-color: var(--white) !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+        width: 100% !important;
+        margin: 0 !important;
+        will-change: transform !important;
+        backface-visibility: hidden !important;
+        -webkit-backface-visibility: hidden !important;
+        transform: translateZ(0) !important;
+        -webkit-transform: translateZ(0) !important;
+    }
+    
+    /* Ensure container doesn't interfere with sticky behavior */
+    .main-header .container {
+        position: relative !important;
+        width: 100% !important;
+        max-width: 1200px !important;
+        margin: 0 auto !important;
+    }
+    
+    /* Ensure navbar has proper background and spacing */
+    .main-header .navbar {
+        background-color: var(--white) !important;
+        padding: var(--space-3) 0 !important;
+        width: 100% !important;
+    }
+    
+    /* Add smooth transition for sticky state changes */
+    .main-header {
+        transition: box-shadow 0.3s ease, background-color 0.3s ease !important;
+    }
+    
+    /* Enhanced sticky state with better shadow */
+    .main-header.scrolled {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+    }
+}
+
 .product-card,
 .product-image,
 .spotlight-grid,
