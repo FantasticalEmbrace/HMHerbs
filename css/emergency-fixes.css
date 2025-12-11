@@ -58,11 +58,18 @@ body.mobile-menu-open {
     height: 100% !important;
 }
 
-/* Ensure mobile menu toggle is always clickable */
+/* Ensure mobile menu toggle is always clickable and visible on mobile */
 .mobile-menu-toggle {
     pointer-events: auto !important;
     z-index: 1002 !important;
     position: relative !important;
+}
+
+/* Force mobile menu toggle to show on mobile screens */
+@media (max-width: 768px) {
+    .mobile-menu-toggle {
+        display: flex !important;
+    }
 }
 
 /* DESKTOP STICKY NAVBAR ENHANCEMENT - Ensure reliable sticky behavior */
