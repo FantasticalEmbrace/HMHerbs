@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Mobile Menu & Sticky Navbar</title>
+    <style>
+        /* Basic test styles */
+        body { margin: 0; font-family: Arial, sans-serif; }
+        .test-content { height: 2000px; padding: 20px; background: linear-gradient(to bottom, #f0f0f0, #e0e0e0); }
+        .test-section { margin: 50px 0; padding: 20px; background: white; border-radius: 8px; }
+        
+        /* Include our mobile menu CSS */
+        .mobile-menu-overlay {
+            position: fixed !important;
+            top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important;
+            background: rgba(0, 0, 0, 0.5) !important;
+            z-index: 999 !important;
+            opacity: 0 !important; visibility: hidden !important;
+            transition: opacity 0.3s ease, visibility 0.3s ease !important;
+            pointer-events: none !important;
+        }
+        .mobile-menu-overlay.active {
+            opacity: 1 !important; visibility: visible !important; pointer-events: auto !important;
+        }
+        body.mobile-menu-open {
+            overflow: hidden !important; position: fixed !important; width: 100% !important; height: 100% !important;
+        }
+        .mobile-menu-toggle {
+            pointer-events: auto !important; z-index: 1002 !important; position: relative !important;
+            background: #007cba; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer;
+        }
+        
+        /* Include our sticky navbar CSS */
+        @media (min-width: 769px) {
+            .main-header {
+                position: -webkit-sticky !important; position: sticky !important; top: 0 !important;
+                z-index: 1020 !important; background-color: white !important;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+                width: 100% !important; margin: 0 !important;
+                transition: box-shadow 0.3s ease, background-color 0.3s ease !important;
+            }
+            .main-header.scrolled {
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+            }
+        }
+        
+        /* Basic header styling */
+        .main-header { background: white; padding: 15px 20px; border-bottom: 1px solid #ddd; }
+        .navbar { display: flex; justify-content: space-between; align-items: center; }
+        .logo { font-size: 24px; font-weight: bold; color: #007cba; }
+        .nav-menu { list-style: none; margin: 0; padding: 0; display: flex; gap: 20px; }
+        .nav-menu li a { text-decoration: none; color: #333; padding: 8px 12px; }
+        
+        /* Mobile menu styles */
+        @media (max-width: 768px) {
+            .nav-menu { 
+                position: fixed; top: 70px; left: -100%; width: 80%; height: calc(100vh - 70px);
+                background: white; flex-direction: column; padding: 20px; z-index: 1001;
+                transition: left 0.3s ease; box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            }
+            .nav-menu.show { left: 0; }
+            .mobile-menu-toggle { display: block; }
+        }
+        @media (min-width: 769px) {
+            .mobile-menu-toggle { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Main Header -->
+    <div class="main-header">
+        <nav class="navbar">
+            <div class="logo">🌿 H&M Herbs Test</div>
+            
+            <!-- Mobile Menu Toggle -->
+            <button class="mobile-menu-toggle" aria-expanded="false" aria-controls="nav-menu" aria-label="Toggle navigation menu">
+                ☰ Menu
+            </button>
+            
+            <!-- Navigation Menu -->
+            <ul class="nav-menu" id="nav-menu">
+                <li><a href="#home">Home</a></li>
+                <li><a href="#products">Products</a></li>
+                <li><a href="#about">About</a></li>
+                <li><a href="#contact">Contact</a></li>
+            </ul>
+        </nav>
+    </div>
+    
+    <!-- Mobile Menu Overlay -->
+    <div class="mobile-menu-overlay"></div>
+    
+    <!-- Test Content -->
+    <div class="test-content">
+        <div class="test-section">
+            <h2>🧪 Functionality Test Results</h2>
+            <div id="test-results">
+                <p>⏳ Running tests...</p>
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <h3>📱 Mobile Menu Test</h3>
+            <p>On mobile (or when window width < 769px):</p>
+            <ul>
+                <li>Click the hamburger menu button (☰ Menu)</li>
+                <li>Menu should slide in from the left</li>
+                <li>Overlay should appear with dark background</li>
+                <li>Body scrolling should be locked</li>
+                <li>Click overlay or press Escape to close</li>
+            </ul>
+        </div>
+        
+        <div class="test-section">
+            <h3>💻 Desktop Sticky Navbar Test</h3>
+            <p>On desktop (window width >= 769px):</p>
+            <ul>
+                <li>Scroll down this page</li>
+                <li>Header should stay fixed at the top</li>
+                <li>Shadow should become more prominent when scrolled</li>
+                <li>Scroll back to top to see shadow fade</li>
+            </ul>
+        </div>
+        
+        <div class="test-section">
+            <h3>📊 Current Status</h3>
+            <p><strong>Window Width:</strong> <span id="window-width">-</span>px</p>
+            <p><strong>Device Type:</strong> <span id="device-type">-</span></p>
+            <p><strong>Scroll Position:</strong> <span id="scroll-pos">-</span>px</p>
+            <p><strong>Header Classes:</strong> <span id="header-classes">-</span></p>
+        </div>
+        
+        <!-- More content to enable scrolling -->
+        <div class="test-section"><h3>Section 1</h3><p>Scroll content...</p></div>
+        <div class="test-section"><h3>Section 2</h3><p>More scroll content...</p></div>
+        <div class="test-section"><h3>Section 3</h3><p>Even more scroll content...</p></div>
+        <div class="test-section"><h3>Section 4</h3><p>Keep scrolling...</p></div>
+        <div class="test-section"><h3>Section 5</h3><p>Final section</p></div>
+    </div>
+
+    <!-- Include our JavaScript files -->
+    <script src="js/mobile-menu-fix.js"></script>
+    <script src="js/sticky-navbar-enhancement.js"></script>
+    
+    <!-- Test monitoring script -->
+    <script>
+        function updateStatus() {
+            const width = window.innerWidth;
+            const scrollPos = window.pageYOffset || document.documentElement.scrollTop;
+            const header = document.querySelector('.main-header');
+            
+            document.getElementById('window-width').textContent = width;
+            document.getElementById('device-type').textContent = width >= 769 ? 'Desktop' : 'Mobile';
+            document.getElementById('scroll-pos').textContent = scrollPos;
+            document.getElementById('header-classes').textContent = header.className || 'main-header';
+        }
+        
+        // Update status regularly
+        setInterval(updateStatus, 100);
+        window.addEventListener('scroll', updateStatus);
+        window.addEventListener('resize', updateStatus);
+        
+        // Test results
+        setTimeout(() => {
+            const results = document.getElementById('test-results');
+            const mobileMenuScript = document.querySelector('script[src="js/mobile-menu-fix.js"]');
+            const stickyNavScript = document.querySelector('script[src="js/sticky-navbar-enhancement.js"]');
+            const overlay = document.querySelector('.mobile-menu-overlay');
+            const toggle = document.querySelector('.mobile-menu-toggle');
+            const header = document.querySelector('.main-header');
+            
+            let testResults = [];
+            
+            // Check if scripts loaded
+            testResults.push(mobileMenuScript ? '✅ Mobile menu script loaded' : '❌ Mobile menu script missing');
+            testResults.push(stickyNavScript ? '✅ Sticky navbar script loaded' : '❌ Sticky navbar script missing');
+            
+            // Check if elements exist
+            testResults.push(overlay ? '✅ Mobile menu overlay found' : '❌ Mobile menu overlay missing');
+            testResults.push(toggle ? '✅ Mobile menu toggle found' : '❌ Mobile menu toggle missing');
+            testResults.push(header ? '✅ Main header found' : '❌ Main header missing');
+            
+            // Check if event listeners are attached
+            const toggleHasListener = toggle && toggle.onclick !== null;
+            testResults.push('ℹ️ Toggle click handler: ' + (toggleHasListener ? 'Detected' : 'Check console for initialization'));
+            
+            results.innerHTML = testResults.map(result => `<p>${result}</p>`).join('');
+        }, 1000);
+    </script>
+</body>
+</html>
+
