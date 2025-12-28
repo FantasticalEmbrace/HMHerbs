@@ -1,0 +1,77 @@
+# H&M Herbs & Vitamins - Robots.txt
+# Updated: December 4, 2024
+
+# Allow all search engines to crawl the site
+User-agent: *
+Allow: /
+
+# Disallow admin and private areas
+Disallow: /admin/
+Disallow: /backend/
+Disallow: /api/admin/
+Disallow: /private/
+Disallow: /temp/
+Disallow: /cache/
+
+# Disallow customer account pages (privacy)
+Disallow: /account/
+Disallow: /checkout/
+Disallow: /cart/
+Disallow: /order-history/
+Disallow: /wishlist/
+
+# Disallow search result pages with parameters
+Disallow: /search?*
+Disallow: /*?q=*
+Disallow: /*?search=*
+Disallow: /*?filter=*
+Disallow: /*?sort=*
+
+# Disallow duplicate content
+Disallow: /*?page=*
+Disallow: /*?utm_*
+Disallow: /*?ref=*
+Disallow: /*?source=*
+
+# Disallow email campaign tracking URLs
+Disallow: /*?email=*
+Disallow: /*?campaign=*
+Disallow: /*?newsletter=*
+
+# Allow specific important search pages
+Allow: /search$
+Allow: /categories/
+Allow: /health-conditions/
+Allow: /brands/
+
+# Special rules for major search engines
+User-agent: Googlebot
+Allow: /
+Crawl-delay: 1
+
+User-agent: Bingbot
+Allow: /
+Crawl-delay: 2
+
+User-agent: Slurp
+Allow: /
+Crawl-delay: 2
+
+# Block aggressive crawlers
+User-agent: AhrefsBot
+Disallow: /
+
+User-agent: MJ12bot
+Disallow: /
+
+User-agent: DotBot
+Disallow: /
+
+# Sitemap location
+Sitemap: https://hmherbs.com/sitemap.xml
+
+# Additional sitemaps (if you create them later)
+# Sitemap: https://hmherbs.com/sitemap-products.xml
+# Sitemap: https://hmherbs.com/sitemap-blog.xml
+# Sitemap: https://hmherbs.com/sitemap-images.xml
+

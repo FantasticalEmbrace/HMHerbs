@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Product - H&M Herbs & Vitamins</title>
+    <meta name="description" content="Premium natural health product from H&M Herbs & Vitamins">
+    
+    <!-- Content Security Policy Meta Tag (fallback for development) -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data: https: blob: http:; connect-src 'self' http://localhost:3000 http://localhost:3001 http://localhost:3002 http://localhost:8080 http://127.0.0.1:3000 http://127.0.0.1:3001 http://127.0.0.1:3002 http://127.0.0.1:8080 https://fonts.googleapis.com https://fonts.gstatic.com https://cdnjs.cloudflare.com https://hmherbs.com https://*.hmherbs.com https://images.unsplash.com ws: wss:;">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="css/products.css">
+    <link rel="stylesheet" href="css/mobile-enhancements.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <!-- Skip to main content for accessibility -->
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    <!-- Top Bar -->
+    <div class="top-bar">
+        <div class="container">
+            <div class="top-bar-content">
+                <div class="shipping-notice">
+                    <i class="fas fa-truck" aria-hidden="true"></i>
+                    <span>Free shipping on orders over $50</span>
+                </div>
+                <div class="top-links">
+                    <a href="tel:+17068619454" class="top-link">
+                        <i class="fas fa-phone" aria-hidden="true"></i>
+                        <span>706-861-9454</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Header -->
+    <div class="main-header">
+        <div class="container">
+            <nav class="navbar" role="navigation" aria-label="Main navigation">
+                <!-- Logo -->
+                <div class="logo">
+                    <a href="index.html" aria-label="H&M Herbs & Vitamins - Home">
+                        <i class="fas fa-leaf" aria-hidden="true"></i>
+                        <span class="logo-text">
+                            <span class="brand-name">H&M Herbs</span>
+                            <span class="brand-tagline">& Vitamins</span>
+                        </span>
+                    </a>
+                </div>
+
+                <!-- Mobile Menu Toggle -->
+                <button class="mobile-menu-toggle" aria-expanded="false" aria-controls="nav-menu"
+                    aria-label="Toggle navigation menu" onclick="toggleMobileMenu(event)">
+                    <span class="hamburger-line"></span>
+                    <span class="hamburger-line"></span>
+                    <span class="hamburger-line"></span>
+                </button>
+
+                <!-- Navigation Menu -->
+                <ul class="nav-menu" id="nav-menu" role="menubar">
+                    <li role="none"><a href="index.html" role="menuitem">Home</a></li>
+                    <li role="none"><a href="products.html" role="menuitem">Products</a></li>
+                    <li role="none"><a href="index.html#edsa-service" role="menuitem" class="edsa-nav-link">EDSA Service</a></li>
+                    <li role="none"><a href="index.html#about" role="menuitem">About</a></li>
+                    <li role="none"><a href="index.html#contact" role="menuitem">Contact</a></li>
+                </ul>
+
+                <!-- Header Actions -->
+                <div class="header-actions">
+                    <!-- Search -->
+                    <div class="search-container">
+                        <button class="search-toggle" aria-label="Search" aria-expanded="false">
+                            <i class="fas fa-search" aria-hidden="true"></i>
+                        </button>
+                    </div>
+
+                    <!-- Cart -->
+                    <button class="cart-toggle" aria-label="Shopping cart" aria-expanded="false">
+                        <i class="fas fa-shopping-cart" aria-hidden="true"></i>
+                        <span class="cart-count" id="cart-count">0</span>
+                    </button>
+                </div>
+            </nav>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <main id="main-content" role="main">
+        <!-- Breadcrumb Navigation -->
+        <nav class="breadcrumb-nav" aria-label="Breadcrumb">
+            <div class="container">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="index.html">
+                            <i class="fas fa-home" aria-hidden="true"></i>
+                            Home
+                        </a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <a href="products.html">Products</a>
+                    </li>
+                    <li class="breadcrumb-item active" aria-current="page" id="breadcrumb-product">
+                        Loading...
+                    </li>
+                </ol>
+            </div>
+        </nav>
+
+        <!-- Product Detail Section -->
+        <section class="product-detail-section">
+            <div class="container">
+                <!-- Loading State -->
+                <div class="loading-state" id="product-loading">
+                    <div class="loading-spinner">
+                        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                    </div>
+                    <p>Loading product...</p>
+                </div>
+
+                <!-- Product Content -->
+                <div class="product-detail-wrapper" id="product-content" style="display: none;">
+                    <div class="product-detail-grid">
+                        <!-- Product Images -->
+                        <div class="product-images">
+                            <div class="product-main-image">
+                                <img id="product-main-image" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Crect width='100%25' height='100%25' fill='%23f8f9fa'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='Arial' font-size='14' fill='%236c757d'%3ELoading...%3C/text%3E%3C/svg%3E" alt="Loading product image" class="product-image-main" data-skip-error-handling="true">
+                            </div>
+                            <div class="product-image-gallery" id="product-image-gallery">
+                                <!-- Thumbnail images will be loaded here -->
+                            </div>
+                        </div>
+
+                        <!-- Product Info -->
+                        <div class="product-info">
+                            <div class="product-header">
+                                <h1 class="product-title" id="product-title">Product Name</h1>
+                                <div class="product-sku" id="product-sku">SKU: <span id="product-sku-value"></span></div>
+                            </div>
+
+                            <div class="product-price-section">
+                                <div class="product-price" id="product-price">$0.00</div>
+                                <div class="product-compare-price" id="product-compare-price" style="display: none;"></div>
+                            </div>
+
+                            <div class="product-short-description" id="product-short-description">
+                                <!-- Short description will be loaded here -->
+                            </div>
+
+                            <!-- Product Variants -->
+                            <div class="product-variants" id="product-variants" style="display: none;">
+                                <label for="variant-select" class="variant-label">Select Option:</label>
+                                <select id="variant-select" class="variant-select">
+                                    <!-- Variants will be loaded here -->
+                                </select>
+                            </div>
+
+                            <!-- Add to Cart Section -->
+                            <div class="product-actions">
+                                <div class="quantity-selector">
+                                    <label for="product-quantity" class="sr-only">Quantity</label>
+                                    <button type="button" class="quantity-btn" id="quantity-decrease" aria-label="Decrease quantity">
+                                        <i class="fas fa-minus" aria-hidden="true"></i>
+                                    </button>
+                                    <input type="number" id="product-quantity" class="quantity-input" value="1" min="1" aria-label="Quantity">
+                                    <button type="button" class="quantity-btn" id="quantity-increase" aria-label="Increase quantity">
+                                        <i class="fas fa-plus" aria-hidden="true"></i>
+                                    </button>
+                                </div>
+                                <button type="button" class="btn btn-primary btn-add-to-cart" id="add-to-cart-btn">
+                                    <i class="fas fa-shopping-cart" aria-hidden="true"></i>
+                                    Add to Cart
+                                </button>
+                            </div>
+
+                            <!-- Stock Status -->
+                            <div class="product-stock" id="product-stock">
+                                <!-- Stock status will be displayed here -->
+                            </div>
+
+                            <!-- Product Meta -->
+                            <div class="product-meta">
+                                <div class="meta-item" id="product-brand" style="display: none;">
+                                    <span class="meta-label">Brand:</span>
+                                    <span class="meta-value" id="product-brand-value"></span>
+                                </div>
+                                <div class="meta-item" id="product-category" style="display: none;">
+                                    <span class="meta-label">Category:</span>
+                                    <span class="meta-value" id="product-category-value"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Product Description Section -->
+                    <div class="product-description-section">
+                        <h2 class="section-title">Product Description</h2>
+                        <div class="product-description-content" id="product-description">
+                            <!-- Full description will be loaded here -->
+                        </div>
+                    </div>
+
+                    <!-- Disclaimer Section -->
+                    <div class="product-disclaimer">
+                        <p><strong>DISCLAIMER:</strong></p>
+                        <p>*These statements have not been evaluated by the Food & Drug Administration. These products are not intended to diagnose, treat, cure, or prevent any disease.</p>
+                    </div>
+                </div>
+
+                <!-- Error State -->
+                <div class="error-state" id="product-error" style="display: none;">
+                    <div class="error-content">
+                        <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+                        <h3>Product Not Found</h3>
+                        <p>The product you're looking for doesn't exist or is no longer available.</p>
+                        <a href="products.html" class="btn btn-primary">Browse All Products</a>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Shopping Cart Sidebar -->
+    <aside class="cart-sidebar" id="cart-sidebar" aria-label="Shopping cart"
+        style="transform: translateX(100%); visibility: hidden; opacity: 0;" aria-hidden="true">
+        <div class="cart-header">
+            <h2 class="cart-title">Shopping Cart</h2>
+            <button class="cart-close" aria-label="Close cart">
+                <i class="fas fa-times" aria-hidden="true"></i>
+            </button>
+        </div>
+
+        <div class="cart-content">
+            <div class="cart-items" id="cart-items">
+                <!-- Cart items will be dynamically loaded here -->
+            </div>
+
+            <div class="cart-empty" id="cart-empty">
+                <i class="fas fa-shopping-cart" aria-hidden="true"></i>
+                <p>Your cart is empty</p>
+                <a href="products.html" class="btn btn-primary">Continue Shopping</a>
+            </div>
+        </div>
+
+        <div class="cart-footer">
+            <div class="cart-total">
+                <span class="total-label">Total: </span>
+                <span class="total-amount" id="cart-total">$0.00</span>
+            </div>
+            <button type="button" class="btn btn-primary btn-block checkout-btn" id="checkout-btn"
+                onclick="if(window.hmHerbsApp && window.hmHerbsApp.proceedToCheckout) { window.hmHerbsApp.proceedToCheckout(); return false; } else if(window.productsPage && window.productsPage.proceedToCheckout) { window.productsPage.proceedToCheckout(); return false; } else { console.error('Checkout handler not available'); } return false;">
+                <i class="fas fa-credit-card" aria-hidden="true"></i>
+                Proceed to Checkout
+            </button>
+        </div>
+    </aside>
+
+    <!-- Cart Overlay -->
+    <div class="cart-overlay" id="cart-overlay" style="opacity: 0; visibility: hidden;"></div>
+
+    <!-- Footer -->
+    <footer class="footer" role="contentinfo">
+        <div class="container">
+            <div class="footer-content">
+                <!-- Company Info & Social -->
+                <div class="footer-section">
+                    <h3>H&M Herbs & Vitamins</h3>
+                    <p>Your trusted source for premium natural health products. We're committed to providing
+                        the highest quality herbs, vitamins, and supplements to support your wellness journey.</p>
+                </div>
+
+                <!-- Visit Us -->
+                <div class="footer-section">
+                    <h4>Visit Us</h4>
+                    <div class="footer-contact">
+                        <div class="footer-address">
+                            <i class="fas fa-map-marker-alt" aria-hidden="true"></i>
+                            <div class="address-text">
+                                <p>1140 Battlefield Pkwy</p>
+                                <p>Fort Oglethorpe, GA 30742</p>
+                                <p>United States</p>
+                            </div>
+                        </div>
+                        <p class="footer-link">
+                            <a href="https://maps.google.com/?q=1140+Battlefield+Pkwy,+Fort+Oglethorpe,+GA+30742"
+                                target="_blank" rel="noopener noreferrer">
+                                Get Directions <i class="fas fa-external-link-alt" aria-hidden="true"></i>
+                            </a>
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Get in Touch -->
+                <div class="footer-section">
+                    <h4>Get in Touch</h4>
+                    <div class="footer-contact">
+                        <p>
+                            <i class="fas fa-phone" aria-hidden="true"></i>
+                            <a href="tel:+17068619454">706-861-9454</a>
+                        </p>
+                        <p>
+                            <i class="fas fa-envelope" aria-hidden="true"></i>
+                            <a href="mailto:hmherbs1@gmail.com">hmherbs1@gmail.com</a>
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Information & Operating Hours -->
+                <div class="footer-section">
+                    <h4>Information</h4>
+                    <ul>
+                        <li><a href="index.html#about">About Us</a></li>
+                        <li><a href="shipping-returns.html">Shipping & Returns</a></li>
+                        <li><a href="index.html#contact">Contact Us</a></li>
+                    </ul>
+
+                    <h4 class="footer-hours-title">Operating Hours</h4>
+                    <div class="footer-hours">
+                        <p>Mon-Fri: 10am-6pm</p>
+                        <p>Sat: 10am-3pm</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer Bottom -->
+            <div class="footer-bottom">
+                <div class="footer-bottom-content">
+                    <p>&copy; 2024 H&M Herbs & Vitamins. All rights reserved.</p>
+                    <div class="footer-bottom-links">
+                        <a href="ccpa-privacy-rights.html">Do Not Sell My Personal Information</a>
+                        <span class="separator">|</span>
+                        <button id="cookie-preferences" class="link-button">Cookie Preferences</button>
+                        <span class="separator">|</span>
+                        <a href="admin.html" class="admin-link">Admin</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="js/visual-bug-fixes.js"></script>
+    <script src="js/product-detail.js"></script>
+    <script src="script.js" defer></script>
+    <script src="gdpr-compliance.js" defer></script>
+</body>
+
+</html>
+
