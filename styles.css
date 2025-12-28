@@ -2502,6 +2502,30 @@ select:focus {
   gap: var(--space-3);
 }
 
+.footer-contact p {
+  color: var(--white) !important;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.footer-contact p a {
+  color: var(--white) !important;
+  text-decoration: none;
+}
+
+.footer-contact p a:hover,
+.footer-contact p a:focus {
+  color: var(--white) !important;
+  text-decoration: underline;
+}
+
+.footer-contact p i {
+  color: var(--primary-green-light) !important;
+  flex-shrink: 0;
+}
+
 .footer-address {
   display: flex;
   align-items: flex-start;
