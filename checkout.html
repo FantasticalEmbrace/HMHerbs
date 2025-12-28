@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description"
+        content="Complete your order at H&M Herbs & Vitamins - Secure checkout for natural health products">
+    <title>Checkout - H&M Herbs & Vitamins</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;600;700&display=swap"
+        rel="stylesheet">
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="css/mobile-enhancements.css">
+    <link rel="stylesheet" href="css/customer-auth.css">
+
+    <style>
+        .checkout-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: var(--space-6) var(--space-4);
+        }
+
+        .checkout-header {
+            text-align: center;
+            margin-bottom: var(--space-8);
+        }
+
+        .checkout-header h1 {
+            font-size: var(--text-3xl);
+            color: var(--gray-900);
+            margin-bottom: var(--space-2);
+        }
+
+        .checkout-header p {
+            color: var(--gray-600);
+        }
+
+        .checkout-content {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: var(--space-8);
+        }
+
+        @media (min-width: 1024px) {
+            .checkout-content {
+                grid-template-columns: 2fr 1fr;
+            }
+        }
+
+        .checkout-form-section {
+            background: var(--white);
+            border-radius: var(--radius-xl);
+            padding: var(--space-6);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .checkout-form-section h2 {
+            font-size: var(--text-xl);
+            color: var(--gray-900);
+            margin-bottom: var(--space-6);
+            padding-bottom: var(--space-4);
+            border-bottom: 2px solid var(--gray-200);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: var(--space-4);
+            margin-bottom: var(--space-4);
+        }
+
+        @media (min-width: 640px) {
+            .form-row {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        .form-group {
+            margin-bottom: var(--space-4);
+        }
+
+        .form-group label {
+            display: block;
+            font-weight: 500;
+            color: var(--gray-700);
+            margin-bottom: var(--space-2);
+            font-size: var(--text-sm);
+        }
+
+        .form-group label .required {
+            color: var(--error);
+            margin-left: var(--space-1);
+        }
+
+        .form-input,
+        .form-select {
+            width: 100%;
+            padding: var(--space-3) var(--space-4);
+            border: 2px solid var(--gray-300);
+            border-radius: var(--radius-lg);
+            font-size: var(--text-base);
+            transition: all 0.2s ease;
+            box-sizing: border-box;
+        }
+
+        .form-input:focus,
+        .form-select:focus {
+            outline: none;
+            border-color: var(--primary-green);
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+        }
+
+        .form-input:disabled,
+        .form-input[readonly] {
+            background-color: var(--gray-100);
+            cursor: not-allowed;
+        }
+
+        #epi-payment-fields,
+        #bank-account-fields {
+            margin-top: var(--space-4);
+            padding-top: var(--space-4);
+            border-top: 1px solid var(--gray-200);
+        }
+
+        #epi-payment-fields .form-input,
+        #bank-account-fields .form-input,
+        #bank-account-fields .form-select {
+            background-color: var(--white);
+            cursor: text;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: var(--space-4);
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+            margin-right: var(--space-2);
+        }
+
+        .order-summary {
+            background: var(--white);
+            border-radius: var(--radius-xl);
+            padding: var(--space-6);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            position: sticky;
+            top: var(--space-6);
+            height: fit-content;
+        }
+
+        .order-summary h2 {
+            font-size: var(--text-xl);
+            color: var(--gray-900);
+            margin-bottom: var(--space-6);
+            padding-bottom: var(--space-4);
+            border-bottom: 2px solid var(--gray-200);
+        }
+
+        .order-items {
+            margin-bottom: var(--space-6);
+        }
+
+        .order-item {
+            display: flex;
+            gap: var(--space-4);
+            padding: var(--space-4) 0;
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        .order-item:last-child {
+            border-bottom: none;
+        }
+
+        .order-item-image {
+            width: 60px;
+            height: 60px;
+            object-fit: cover;
+            border-radius: var(--radius-md);
+        }
+
+        .order-item-details {
+            flex: 1;
+        }
+
+        .order-item-name {
+            font-weight: 500;
+            color: var(--gray-900);
+            margin-bottom: var(--space-1);
+        }
+
+        .order-item-price {
+            color: var(--gray-600);
+            font-size: var(--text-sm);
+        }
+
+        .order-item-quantity {
+            color: var(--gray-600);
+            font-size: var(--text-sm);
+        }
+
+        .order-item-remove {
+            background: none;
+            border: none;
+            color: var(--gray-400);
+            cursor: pointer;
+            padding: var(--space-1);
+            transition: color 0.2s ease;
+            font-size: var(--text-sm);
+            display: flex;
+            align-items: center;
+            gap: var(--space-1);
+            margin-top: var(--space-2);
+        }
+
+        .order-item-remove:hover {
+            color: var(--error);
+        }
+
+        .order-totals {
+            border-top: 2px solid var(--gray-200);
+            padding-top: var(--space-4);
+        }
+
+        .order-total-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: var(--space-2);
+            color: var(--gray-700);
+        }
+
+        .order-total-row.final {
+            font-size: var(--text-xl);
+            font-weight: 600;
+            color: var(--gray-900);
+            margin-top: var(--space-4);
+            padding-top: var(--space-4);
+            border-top: 2px solid var(--gray-200);
+        }
+
+        .empty-cart-message {
+            text-align: center;
+            padding: var(--space-12);
+            color: var(--gray-600);
+        }
+
+        .empty-cart-message i {
+            font-size: var(--text-5xl);
+            color: var(--gray-400);
+            margin-bottom: var(--space-4);
+        }
+
+        .btn-checkout {
+            width: 100%;
+            padding: var(--space-4);
+            background: var(--primary-green);
+            color: var(--white);
+            border: none;
+            border-radius: var(--radius-lg);
+            font-size: var(--text-lg);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-top: var(--space-6);
+        }
+
+        .btn-checkout:hover {
+            background: var(--primary-green-dark);
+        }
+
+        .btn-checkout:disabled {
+            background: var(--gray-400);
+            cursor: not-allowed;
+        }
+
+        .error-message {
+            color: var(--error);
+            font-size: var(--text-sm);
+            margin-top: var(--space-1);
+            display: none;
+        }
+
+        .form-group.error .form-input,
+        .form-group.error .form-select {
+            border-color: var(--error);
+        }
+
+        .form-group.error .error-message {
+            display: block;
+        }
+
+        .loading-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 9999;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .loading-overlay.active {
+            display: flex;
+        }
+
+        .loading-spinner {
+            background: var(--white);
+            padding: var(--space-8);
+            border-radius: var(--radius-xl);
+            text-align: center;
+        }
+
+        .loading-spinner i {
+            font-size: var(--text-4xl);
+            color: var(--primary-green);
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+
+            to {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <a href="index.html" class="logo">
+                    <i class="fas fa-leaf" aria-hidden="true"></i>
+                    <div class="logo-text">
+                        <span class="logo-main">H&M Herbs</span>
+                        <span class="logo-sub">& Vitamins</span>
+                    </div>
+                </a>
+                <nav class="nav-menu" id="nav-menu">
+                    <a href="index.html" class="nav-link">Home</a>
+                    <a href="products.html" class="nav-link">Products</a>
+                    <a href="index.html#edsa-service" class="nav-link">EDSA Service</a>
+                    <a href="index.html#about" class="nav-link">About</a>
+                    <a href="index.html#contact" class="nav-link">Contact</a>
+                </nav>
+                <div class="header-actions">
+                    <!-- Customer Account/Login -->
+                    <div class="customer-auth-container">
+                        <button class="auth-btn" id="customer-login-btn" aria-label="Sign in">
+                            <i class="fas fa-sign-in-alt" aria-hidden="true"></i>
+                            <span class="auth-btn-text">Sign In</span>
+                        </button>
+                        <button class="auth-btn" id="customer-register-btn" aria-label="Create account">
+                            <i class="fas fa-user-plus" aria-hidden="true"></i>
+                            <span class="auth-btn-text">Register</span>
+                        </button>
+                        <div class="account-dropdown hidden" id="customer-account-btn">
+                            <button class="account-toggle" aria-label="Account menu" aria-expanded="false"
+                                id="account-menu-toggle">
+                                <i class="fas fa-user-circle" aria-hidden="true"></i>
+                                <span class="account-name" id="customer-name-display">Account</span>
+                                <i class="fas fa-chevron-down" aria-hidden="true"></i>
+                            </button>
+                            <div class="account-menu hidden" id="customer-account-dropdown">
+                                <a href="account.html" class="account-menu-item">
+                                    <i class="fas fa-user" aria-hidden="true"></i>
+                                    My Account
+                                </a>
+                                <a href="account.html#orders" class="account-menu-item">
+                                    <i class="fas fa-shopping-bag" aria-hidden="true"></i>
+                                    My Orders
+                                </a>
+                                <a href="account.html#addresses" class="account-menu-item">
+                                    <i class="fas fa-map-marker-alt" aria-hidden="true"></i>
+                                    Addresses
+                                </a>
+                                <button class="account-menu-item" id="customer-logout-btn">
+                                    <i class="fas fa-sign-out-alt" aria-hidden="true"></i>
+                                    Sign Out
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <button class="mobile-menu-toggle" id="mobile-menu-toggle" aria-label="Toggle menu"
+                    aria-expanded="false">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="checkout-container">
+            <div class="checkout-header">
+                <h1>Checkout</h1>
+                <p>Complete your order below</p>
+            </div>
+
+            <div class="checkout-content" id="checkout-content">
+                <!-- Checkout Form -->
+                <div class="checkout-form-section">
+                    <form id="checkout-form">
+                        <!-- Customer Information -->
+                        <h2>Customer Information</h2>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="first-name">First Name <span class="required">*</span></label>
+                                <input type="text" id="first-name" name="first_name" class="form-input" required
+                                    autocomplete="given-name">
+                                <span class="error-message">Please enter your first name</span>
+                            </div>
+                            <div class="form-group">
+                                <label for="last-name">Last Name <span class="required">*</span></label>
+                                <input type="text" id="last-name" name="last_name" class="form-input" required
+                                    autocomplete="family-name">
+                                <span class="error-message">Please enter your last name</span>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="email">Email <span class="required">*</span></label>
+                            <input type="email" id="email" name="email" class="form-input" required
+                                autocomplete="email">
+                            <span class="error-message">Please enter a valid email address</span>
+                        </div>
+                        <div class="form-group">
+                            <label for="phone">Phone <span class="required">*</span></label>
+                            <input type="tel" id="phone" name="phone" class="form-input" required autocomplete="tel">
+                            <span class="error-message">Please enter a valid phone number</span>
+                        </div>
+
+                        <!-- Shipping Address -->
+                        <h2 style="margin-top: var(--space-8);">Shipping Address</h2>
+                        <div class="form-group">
+                            <label for="shipping-address-1">Address Line 1 <span class="required">*</span></label>
+                            <input type="text" id="shipping-address-1" name="shipping_address_1" class="form-input"
+                                required autocomplete="street-address">
+                            <span class="error-message">Please enter your address</span>
+                        </div>
+                        <div class="form-group">
+                            <label for="shipping-address-2">Address Line 2</label>
+                            <input type="text" id="shipping-address-2" name="shipping_address_2" class="form-input"
+                                autocomplete="address-line2">
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="shipping-city">City <span class="required">*</span></label>
+                                <input type="text" id="shipping-city" name="shipping_city" class="form-input" required
+                                    autocomplete="address-level2">
+                                <span class="error-message">Please enter your city</span>
+                            </div>
+                            <div class="form-group">
+                                <label for="shipping-state">State <span class="required">*</span></label>
+                                <input type="text" id="shipping-state" name="shipping_state" class="form-input" required
+                                    autocomplete="address-level1">
+                                <span class="error-message">Please enter your state</span>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="shipping-zip">ZIP Code <span class="required">*</span></label>
+                                <input type="text" id="shipping-zip" name="shipping_zip" class="form-input" required
+                                    autocomplete="postal-code">
+                                <span class="error-message">Please enter your ZIP code</span>
+                            </div>
+                            <div class="form-group">
+                                <label for="shipping-country">Country <span class="required">*</span></label>
+                                <select id="shipping-country" name="shipping_country" class="form-select" required
+                                    autocomplete="country">
+                                    <option value="United States" selected>United States</option>
+                                    <option value="Canada">Canada</option>
+                                    <option value="Mexico">Mexico</option>
+                                </select>
+                                <span class="error-message">Please select your country</span>
+                            </div>
+                        </div>
+
+                        <!-- Billing Address -->
+                        <h2 style="margin-top: var(--space-8);">Billing Address</h2>
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="same-as-shipping" checked>
+                            <label for="same-as-shipping">Same as shipping address</label>
+                        </div>
+                        <div id="billing-address-fields" style="display: none;">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="billing-address-1">Address Line 1 <span
+                                            class="required">*</span></label>
+                                    <input type="text" id="billing-address-1" name="billing_address_1"
+                                        class="form-input" autocomplete="billing street-address">
+                                    <span class="error-message">Please enter your billing address</span>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="billing-address-2">Address Line 2</label>
+                                <input type="text" id="billing-address-2" name="billing_address_2" class="form-input"
+                                    autocomplete="billing address-line2">
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="billing-city">City <span class="required">*</span></label>
+                                    <input type="text" id="billing-city" name="billing_city" class="form-input"
+                                        autocomplete="billing address-level2">
+                                    <span class="error-message">Please enter your billing city</span>
+                                </div>
+                                <div class="form-group">
+                                    <label for="billing-state">State <span class="required">*</span></label>
+                                    <input type="text" id="billing-state" name="billing_state" class="form-input"
+                                        autocomplete="billing address-level1">
+                                    <span class="error-message">Please enter your billing state</span>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="billing-zip">ZIP Code <span class="required">*</span></label>
+                                    <input type="text" id="billing-zip" name="billing_zip" class="form-input"
+                                        autocomplete="billing postal-code">
+                                    <span class="error-message">Please enter your billing ZIP code</span>
+                                </div>
+                                <div class="form-group">
+                                    <label for="billing-country">Country <span class="required">*</span></label>
+                                    <select id="billing-country" name="billing_country" class="form-select"
+                                        autocomplete="billing country">
+                                        <option value="United States" selected>United States</option>
+                                        <option value="Canada">Canada</option>
+                                        <option value="Mexico">Mexico</option>
+                                    </select>
+                                    <span class="error-message">Please select your billing country</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Payment Method -->
+                        <h2 style="margin-top: var(--space-8);">Payment Method</h2>
+                        <div class="form-group">
+                            <label for="payment-method">Payment Method <span class="required">*</span></label>
+                            <select id="payment-method" name="payment_method" class="form-select" required>
+                                <option value="">Select payment method</option>
+                                <option value="credit_card">Credit Card (via EPI)</option>
+                                <option value="debit_card">Debit Card (via EPI)</option>
+                                <option value="bank_account">Bank Account (via EPI)</option>
+                            </select>
+                            <span class="error-message">Please select a payment method</span>
+                        </div>
+                        
+                        <!-- EPI Payment Fields (shown when credit/debit card is selected) -->
+                        <div id="epi-payment-fields" style="display: none;">
+                            <div class="form-group">
+                                <label for="card-number">Card Number <span class="required">*</span></label>
+                                <input type="text" id="card-number" name="card_number" class="form-input" 
+                                    placeholder="1234 5678 9012 3456" maxlength="19" autocomplete="cc-number">
+                                <span class="error-message">Please enter a valid card number</span>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="card-expiry">Expiry Date <span class="required">*</span></label>
+                                    <input type="text" id="card-expiry" name="card_expiry" class="form-input" 
+                                        placeholder="MM/YY" maxlength="5" autocomplete="cc-exp">
+                                    <span class="error-message">Please enter expiry date (MM/YY)</span>
+                                </div>
+                                <div class="form-group">
+                                    <label for="card-cvv">CVV <span class="required">*</span></label>
+                                    <input type="text" id="card-cvv" name="card_cvv" class="form-input" 
+                                        placeholder="123" maxlength="4" autocomplete="cc-csc">
+                                    <span class="error-message">Please enter CVV</span>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="cardholder-name">Cardholder Name <span class="required">*</span></label>
+                                <input type="text" id="cardholder-name" name="cardholder_name" class="form-input" 
+                                    placeholder="Name as it appears on card" autocomplete="cc-name">
+                                <span class="error-message">Please enter cardholder name</span>
+                            </div>
+                        </div>
+
+                        <!-- Bank Account Fields (shown when bank account is selected) -->
+                        <div id="bank-account-fields" style="display: none;">
+                            <div class="form-group">
+                                <label for="account-holder-name">Account Holder Name <span class="required">*</span></label>
+                                <input type="text" id="account-holder-name" name="account_holder_name" class="form-input" 
+                                    placeholder="Name as it appears on bank account" autocomplete="name">
+                                <span class="error-message">Please enter account holder name</span>
+                            </div>
+                            <div class="form-group">
+                                <label for="account-type">Account Type <span class="required">*</span></label>
+                                <select id="account-type" name="account_type" class="form-select">
+                                    <option value="">Select account type</option>
+                                    <option value="checking">Checking</option>
+                                    <option value="savings">Savings</option>
+                                </select>
+                                <span class="error-message">Please select account type</span>
+                            </div>
+                            <div class="form-group">
+                                <label for="routing-number">Routing Number <span class="required">*</span></label>
+                                <input type="text" id="routing-number" name="routing_number" class="form-input" 
+                                    placeholder="123456789" maxlength="9" autocomplete="off">
+                                <span class="error-message">Please enter a valid routing number (9 digits)</span>
+                            </div>
+                            <div class="form-group">
+                                <label for="account-number">Account Number <span class="required">*</span></label>
+                                <input type="text" id="account-number" name="account_number" class="form-input" 
+                                    placeholder="Account number" autocomplete="off">
+                                <span class="error-message">Please enter account number</span>
+                            </div>
+                            <div class="form-group">
+                                <label for="confirm-account-number">Confirm Account Number <span class="required">*</span></label>
+                                <input type="text" id="confirm-account-number" name="confirm_account_number" class="form-input" 
+                                    placeholder="Re-enter account number" autocomplete="off">
+                                <span class="error-message">Account numbers do not match</span>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="order-notes">Order Notes (Optional)</label>
+                            <textarea id="order-notes" name="order_notes" class="form-input" rows="4"
+                                placeholder="Special instructions or notes for your order..."></textarea>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Order Summary -->
+                <div class="order-summary">
+                    <h2>Order Summary</h2>
+                    <div id="order-items-container">
+                        <div class="empty-cart-message">
+                            <i class="fas fa-shopping-cart"></i>
+                            <p>Your cart is empty</p>
+                            <a href="products.html" class="btn btn-primary" style="margin-top: var(--space-4);">Continue
+                                Shopping</a>
+                        </div>
+                    </div>
+                    <div id="order-totals-container" style="display: none;">
+                        <div class="order-totals">
+                            <div class="order-total-row">
+                                <span>Subtotal</span>
+                                <span id="subtotal">$0.00</span>
+                            </div>
+                            <div class="order-total-row">
+                                <span>Shipping</span>
+                                <span id="shipping">$0.00</span>
+                            </div>
+                            <div class="order-total-row">
+                                <span>Tax</span>
+                                <span id="tax">$0.00</span>
+                            </div>
+                            <div class="order-total-row final">
+                                <span>Total</span>
+                                <span id="total">$0.00</span>
+                            </div>
+                        </div>
+                        <button type="submit" form="checkout-form" class="btn-checkout" id="submit-order-btn">
+                            <i class="fas fa-lock" aria-hidden="true"></i> Place Order
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loading-overlay">
+        <div class="loading-spinner">
+            <i class="fas fa-spinner"></i>
+            <p>Processing your order...</p>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer" role="contentinfo">
+        <div class="container">
+            <div class="footer-content">
+                <!-- Company Info & Social -->
+                <div class="footer-section">
+                    <h3>H&M Herbs & Vitamins</h3>
+                    <p>Your trusted source for premium natural health products. We're committed to providing
+                        the highest quality herbs, vitamins, and supplements to support your wellness journey.</p>
+                    <div class="social-links">
+                        <a href="https://facebook.com/hmherbs" target="_blank" rel="noopener noreferrer"
+                            aria-label="Follow us on Facebook">
+                            <i class="fab fa-facebook-f" aria-hidden="true"></i>
+                        </a>
+                        <a href="https://instagram.com/hmherbs" target="_blank" rel="noopener noreferrer"
+                            aria-label="Follow us on Instagram">
+                            <i class="fab fa-instagram" aria-hidden="true"></i>
+                        </a>
+                        <a href="https://twitter.com/hmherbs" target="_blank" rel="noopener noreferrer"
+                            aria-label="Follow us on Twitter">
+                            <i class="fab fa-twitter" aria-hidden="true"></i>
+                        </a>
+                        <a href="https://youtube.com/@hmherbs" target="_blank" rel="noopener noreferrer"
+                            aria-label="Subscribe to our YouTube channel">
+                            <i class="fab fa-youtube" aria-hidden="true"></i>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Visit Us -->
+                <div class="footer-section">
+                    <h4>Visit Us</h4>
+                    <div class="footer-contact">
+                        <div class="footer-address">
+                            <i class="fas fa-map-marker-alt" aria-hidden="true"></i>
+                            <div class="address-text">
+                                <p>1140 Battlefield Pkwy</p>
+                                <p>Fort Oglethorpe, GA 30742</p>
+                                <p>United States</p>
+                            </div>
+                        </div>
+                        <p class="footer-link">
+                            <a href="https://maps.google.com/?q=1140+Battlefield+Pkwy,+Fort+Oglethorpe,+GA+30742"
+                                target="_blank" rel="noopener noreferrer">
+                                Get Directions <i class="fas fa-external-link-alt" aria-hidden="true"></i>
+                            </a>
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Get in Touch -->
+                <div class="footer-section">
+                    <h4>Get in Touch</h4>
+                    <div class="footer-contact">
+                        <p>
+                            <i class="fas fa-phone" aria-hidden="true"></i>
+                            <a href="tel:+17068619454">706-861-9454</a>
+                        </p>
+                        <p>
+                            <i class="fas fa-envelope" aria-hidden="true"></i>
+                            <a href="mailto:hmherbs1@gmail.com">hmherbs1@gmail.com</a>
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Information & Operating Hours -->
+                <div class="footer-section">
+                    <h4>Information</h4>
+                    <ul>
+                        <li><a href="index.html#about">About Us</a></li>
+                        <li><a href="shipping-returns.html">Shipping & Returns</a></li>
+                        <li><a href="index.html#contact">Contact Us</a></li>
+                    </ul>
+
+                    <h4 class="footer-hours-title">Operating Hours</h4>
+                    <div class="footer-hours">
+                        <p>Mon-Fri: 10am-6pm</p>
+                        <p>Sat: 10am-3pm</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer Bottom -->
+            <div class="footer-bottom">
+                <div class="footer-bottom-content">
+                    <p>&copy; 2024 H&M Herbs & Vitamins. All rights reserved.</p>
+                    <div class="footer-bottom-links">
+                        <a href="ccpa-privacy-rights.html">Do Not Sell My Personal Information</a>
+                        <span class="separator">|</span>
+                        <button id="cookie-preferences" class="link-button">Cookie Preferences</button>
+                        <span class="separator">|</span>
+                        <a href="admin.html" class="admin-link">Admin</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Login Modal -->
+    <div id="customer-login-modal" class="auth-modal" aria-hidden="true" role="dialog" aria-modal="true"
+        aria-labelledby="login-modal-title">
+        <div class="auth-modal-content">
+            <div class="auth-modal-header">
+                <h2 id="login-modal-title">Sign In</h2>
+                <button class="auth-modal-close" aria-label="Close login form">
+                    <i class="fas fa-times" aria-hidden="true"></i>
+                </button>
+            </div>
+            <div class="auth-modal-body">
+                <form id="customer-login-form">
+                    <div class="form-group">
+                        <input type="email" id="login-email" class="form-input" placeholder="Email address" required
+                            autocomplete="email">
+                    </div>
+                    <div class="form-group">
+                        <input type="password" id="login-password" class="form-input" placeholder="Password" required
+                            autocomplete="current-password">
+                    </div>
+                    <div class="auth-error hidden"></div>
+                    <button type="submit" class="btn btn-primary btn-full-width">Sign In</button>
+                    <p class="auth-switch-text">
+                        Don't have an account? <a href="#" id="show-register-link">Create one here</a>
+                    </p>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Register Modal -->
+    <div id="customer-register-modal" class="auth-modal" aria-hidden="true" role="dialog" aria-modal="true"
+        aria-labelledby="register-modal-title">
+        <div class="auth-modal-content">
+            <div class="auth-modal-header">
+                <h2 id="register-modal-title">Create Account</h2>
+                <button class="auth-modal-close" aria-label="Close registration form">
+                    <i class="fas fa-times" aria-hidden="true"></i>
+                </button>
+            </div>
+            <div class="auth-modal-body">
+                <form id="customer-register-form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <input type="text" id="register-first-name" class="form-input" placeholder="First name"
+                                required autocomplete="given-name">
+                        </div>
+                        <div class="form-group">
+                            <input type="text" id="register-last-name" class="form-input" placeholder="Last name"
+                                required autocomplete="family-name">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <input type="email" id="register-email" class="form-input" placeholder="Email address" required
+                            autocomplete="email">
+                    </div>
+                    <div class="form-group">
+                        <input type="tel" id="register-phone" class="form-input" placeholder="Phone (optional)"
+                            autocomplete="tel">
+                    </div>
+                    <div class="form-group">
+                        <input type="password" id="register-password" class="form-input" placeholder="Password" required
+                            autocomplete="new-password">
+                    </div>
+                    <div class="form-group">
+                        <input type="password" id="register-confirm-password" class="form-input"
+                            placeholder="Confirm password" required autocomplete="new-password">
+                        <small class="form-help">Must be 8+ characters with uppercase, lowercase, number, and special
+                            character</small>
+                    </div>
+                    <div class="auth-error hidden"></div>
+                    <button type="submit" class="btn btn-primary btn-full-width">Create Account</button>
+                    <p class="auth-switch-text">
+                        Already have an account? <a href="#" id="show-login-link">Sign in here</a>
+                    </p>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/mobile-menu.js"></script>
+    <script src="js/visual-bug-fixes.js"></script>
+    <script src="js/customer-auth.js" defer></script>
+    <script src="js/checkout.js"></script>
+    <script src="script.js" defer></script>
+    <script src="gdpr-compliance.js" defer></script>
+</body>
+
+</html>

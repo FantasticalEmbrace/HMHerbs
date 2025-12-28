@@ -1,0 +1,1681 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HM Herbs Admin Panel</title>
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Browser Compatibility -->
+    <link rel="stylesheet" href="css/browser-compatibility.css">
+
+    <style>
+        /* Admin Panel Styles - Matching Frontend Design */
+        :root {
+            --primary-green: #2d5a27;
+            --secondary-sage: #87a96b;
+            --accent-gold: #d4af37;
+            --light-green: #f0f7ed;
+            --dark-green: #1a3d16;
+
+            --gray-50: #f9fafb;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-300: #d1d5db;
+            --gray-400: #9ca3af;
+            --gray-500: #6b7280;
+            --gray-600: #4b5563;
+            --gray-700: #374151;
+            --gray-800: #1f2937;
+            --gray-900: #111827;
+
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --info: #3b82f6;
+
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+
+            --border-radius: 0.5rem;
+            --border-radius-lg: 0.75rem;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--gray-50);
+            color: var(--gray-900);
+            line-height: 1.6;
+        }
+
+        /* Layout */
+        .admin-container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 280px;
+            background: linear-gradient(135deg, var(--primary-green) 0%, var(--dark-green) 100%);
+            color: white;
+            padding: 2rem 0;
+            box-shadow: var(--shadow-lg);
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            z-index: 1000;
+        }
+
+        .sidebar-header {
+            padding: 0 2rem 2rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 2rem;
+        }
+
+        .sidebar-logo {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            font-family: 'Playfair Display', serif;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .sidebar-logo i {
+            font-size: 2rem;
+            color: var(--accent-gold);
+        }
+
+        .sidebar-nav {
+            padding: 0 1rem;
+        }
+
+        .nav-section {
+            margin-bottom: 2rem;
+        }
+
+        .nav-section-title {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: rgba(255, 255, 255, 0.6);
+            margin-bottom: 0.5rem;
+            padding: 0 1rem;
+        }
+
+        .nav-item {
+            margin-bottom: 0.25rem;
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            color: rgba(255, 255, 255, 0.8);
+            text-decoration: none;
+            border-radius: var(--border-radius);
+            transition: all 0.2s ease;
+            font-weight: 500;
+        }
+
+        .nav-link:hover,
+        .nav-link.active {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            transform: translateX(4px);
+        }
+
+        .nav-link.active {
+            background: var(--accent-gold);
+            color: var(--primary-green);
+        }
+
+        .nav-link i {
+            width: 1.25rem;
+            text-align: center;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            margin-left: 280px;
+            padding: 2rem;
+            transition: margin-left 0.3s ease;
+        }
+
+        .main-content.sidebar-collapsed {
+            margin-left: 0;
+        }
+
+        .sidebar.collapsed {
+            transform: translateX(-100%);
+        }
+
+        .sidebar-toggle-btn {
+            position: fixed;
+            top: 1rem;
+            left: 1rem;
+            z-index: 1001;
+            background: var(--primary-green);
+            color: white;
+            border: none;
+            padding: 0.75rem;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            box-shadow: var(--shadow-md);
+            display: block;
+            min-width: 44px;
+            min-height: 44px;
+        }
+
+        .sidebar-toggle-btn:hover {
+            background: var(--dark-green);
+        }
+
+        @media (min-width: 1025px) {
+            .sidebar-toggle-btn {
+                display: block;
+            }
+        }
+
+        /* Header */
+        .content-header {
+            background: white;
+            padding: 1.5rem 2rem;
+            border-radius: var(--border-radius-lg);
+            box-shadow: var(--shadow-sm);
+            margin-bottom: 2rem;
+            display: flex;
+            justify-content: between;
+            align-items: center;
+        }
+
+        .page-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 2rem;
+            font-weight: 600;
+            color: var(--primary-green);
+            margin: 0;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .user-avatar {
+            width: 2.5rem;
+            height: 2.5rem;
+            border-radius: 50%;
+            background: var(--secondary-sage);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+        }
+
+        /* Cards */
+        .card {
+            background: white;
+            border-radius: var(--border-radius-lg);
+            box-shadow: var(--shadow-sm);
+            overflow: hidden;
+            margin-bottom: 2rem;
+        }
+
+        .card-header {
+            padding: 1.5rem 2rem;
+            border-bottom: 1px solid var(--gray-200);
+            background: var(--gray-50);
+        }
+
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--gray-900);
+            margin: 0;
+        }
+
+        .card-content {
+            padding: 2rem;
+        }
+
+        /* Activity List Styles */
+        .activity-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .activity-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+            padding: 1rem;
+            background: var(--gray-50);
+            border-radius: var(--radius-md);
+            border-left: 3px solid var(--primary-green);
+            transition: all 0.2s ease;
+        }
+
+        .activity-item:hover {
+            background: var(--gray-100);
+            transform: translateX(4px);
+        }
+
+        .activity-icon {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--primary-green);
+            color: white;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .activity-icon i {
+            font-size: 1rem;
+        }
+
+        .activity-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .activity-title {
+            font-weight: 600;
+            color: var(--gray-900);
+            margin-bottom: 0.25rem;
+            font-size: 0.9375rem;
+        }
+
+        .activity-description {
+            color: var(--gray-600);
+            font-size: 0.875rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .activity-status {
+            display: inline-block;
+            margin-top: 0.25rem;
+        }
+
+        .activity-time {
+            color: var(--gray-500);
+            font-size: 0.8125rem;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: var(--border-radius-lg);
+            box-shadow: var(--shadow-sm);
+            border-left: 4px solid var(--primary-green);
+        }
+
+        .stat-card.success {
+            border-left-color: var(--success);
+        }
+
+        .stat-card.warning {
+            border-left-color: var(--warning);
+        }
+
+        .stat-card.info {
+            border-left-color: var(--info);
+        }
+
+        .stat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-title {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--gray-600);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .stat-icon {
+            width: 2.5rem;
+            height: 2.5rem;
+            border-radius: 50%;
+            background: var(--light-green);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary-green);
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--gray-900);
+            margin-bottom: 0.25rem;
+        }
+
+        .stat-change {
+            font-size: 0.875rem;
+            color: var(--gray-500);
+        }
+
+        /* Tables */
+        .table-container {
+            overflow-x: auto;
+        }
+
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .table th,
+        .table td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        .table th {
+            background: var(--gray-50);
+            font-weight: 600;
+            color: var(--gray-700);
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .table tr:hover {
+            background: var(--gray-50);
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.875rem 1.5rem;
+            border: none;
+            font-weight: 500;
+            font-size: 0.875rem;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            border-radius: var(--border-radius);
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: var(--primary-green);
+            color: white;
+            box-shadow: 0 2px 4px rgba(45, 90, 39, 0.2);
+        }
+
+        .btn-primary:hover {
+            background: var(--dark-green);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(45, 90, 39, 0.3);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+            box-shadow: 0 1px 2px rgba(45, 90, 39, 0.2);
+        }
+
+        .btn-secondary {
+            background: var(--gray-200);
+            color: var(--gray-700);
+        }
+
+        .btn-secondary:hover {
+            background: var(--gray-300);
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+
+        .btn-warning {
+            background: var(--warning);
+            color: white;
+        }
+
+        .btn-danger {
+            background: var(--error);
+            color: white;
+        }
+
+        .btn-sm {
+            padding: 0.5rem 1rem;
+            font-size: 0.75rem;
+        }
+
+        /* Forms */
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            font-weight: 500;
+            color: var(--gray-700);
+            margin-bottom: 0.5rem;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--gray-300);
+            border-radius: var(--border-radius);
+            font-size: 0.875rem;
+            transition: border-color 0.2s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary-green);
+            box-shadow: 0 0 0 3px rgba(45, 90, 39, 0.1);
+        }
+
+        /* Status Badges */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .badge-success {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+        }
+
+        .badge-warning {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--warning);
+        }
+
+        .badge-danger {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--error);
+        }
+
+        .badge-info {
+            background: rgba(59, 130, 246, 0.1);
+            color: var(--info);
+        }
+
+        /* Loading States */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            color: var(--gray-500);
+        }
+
+        .spinner {
+            width: 2rem;
+            height: 2rem;
+            border: 2px solid var(--gray-200);
+            border-top: 2px solid var(--primary-green);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 0.5rem;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+            }
+
+            .sidebar.open {
+                transform: translateX(0);
+            }
+
+            .main-content {
+                margin-left: 0;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Login Form */
+        .login-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, var(--primary-green) 0%, var(--dark-green) 100%);
+            padding: 2rem;
+        }
+
+        .login-card {
+            background: white;
+            padding: 2.5rem;
+            border-radius: var(--border-radius-lg);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .login-logo {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.75rem;
+            font-weight: 600;
+            color: var(--primary-green);
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .login-logo i {
+            font-size: 2rem;
+            color: var(--secondary-sage);
+        }
+
+        .login-subtitle {
+            color: var(--gray-600);
+            font-size: 0.875rem;
+            margin: 0;
+        }
+
+        /* Hidden by default */
+        .content-section {
+            display: none;
+        }
+
+        .content-section.active {
+            display: block;
+        }
+
+        .btn-full-width {
+            width: 100%;
+            margin-top: 1rem;
+        }
+
+        .login-error {
+            margin-top: 1rem;
+            padding: 0.75rem;
+            background-color: rgba(239, 68, 68, 0.1);
+            color: var(--error);
+            text-align: center;
+            border-radius: var(--border-radius);
+            font-size: 0.875rem;
+            display: none;
+        }
+
+        .login-error.show {
+            display: block;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 1rem;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 2% auto;
+            padding: 0;
+            border-radius: var(--border-radius-lg);
+            box-shadow: var(--shadow-lg);
+            width: 90%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
+            animation: modalSlideIn 0.3s ease-out;
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-50px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .modal-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--gray-200);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: var(--light-green);
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            color: var(--primary-green);
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--gray-500);
+            padding: 0.25rem;
+            border-radius: 50%;
+            width: 2rem;
+            height: 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .modal-close:hover {
+            background-color: var(--gray-100);
+            color: var(--gray-700);
+        }
+
+        .modal-body {
+            padding: 1.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 0.75rem;
+            font-weight: 500;
+            color: var(--gray-700);
+            font-size: 0.875rem;
+            width: 100%;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.75rem;
+            font-weight: 500;
+            color: var(--gray-700);
+            font-size: 0.875rem;
+            width: 100%;
+        }
+
+        .form-group input,
+        .form-group textarea,
+        .form-group select,
+        .form-input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--gray-300);
+            border-radius: var(--border-radius);
+            font-size: 0.875rem;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+            font-family: inherit;
+        }
+
+        .form-group input::placeholder,
+        .form-input::placeholder {
+            color: var(--gray-400);
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: var(--primary-green);
+            box-shadow: 0 0 0 3px rgba(45, 90, 39, 0.1);
+        }
+
+        .form-group input:hover {
+            border-color: var(--gray-400);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .form-group input[type="checkbox"] {
+            width: auto;
+            margin-right: 0.5rem;
+        }
+
+        .form-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.75rem;
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--gray-200);
+        }
+
+        .form-actions button {
+            padding: 0.75rem 1.5rem;
+            border-radius: var(--border-radius);
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .form-actions button[type="button"] {
+            background-color: var(--gray-100);
+            border: 1px solid var(--gray-300);
+            color: var(--gray-700);
+        }
+
+        .form-actions button[type="button"]:hover {
+            background-color: var(--gray-200);
+        }
+
+        .form-actions button[type="submit"] {
+            background-color: var(--primary-green);
+            border: 1px solid var(--primary-green);
+            color: white;
+        }
+
+        .form-actions button[type="submit"]:hover {
+            background-color: var(--dark-green);
+        }
+
+        /* Improved spacing for sections */
+        .content-section {
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Better table spacing */
+        .table-container {
+            margin-top: 1rem;
+        }
+
+        .table {
+            font-size: 0.875rem;
+        }
+
+        .table th {
+            padding: 1rem 0.75rem;
+            font-weight: 600;
+        }
+
+        .table td {
+            padding: 0.875rem 0.75rem;
+            vertical-align: middle;
+        }
+
+        /* Card improvements */
+        .card {
+            margin-bottom: 2rem;
+            transition: box-shadow 0.2s ease;
+        }
+
+        .card:hover {
+            box-shadow: var(--shadow-md);
+        }
+
+        .card-content {
+            padding: 1.5rem;
+        }
+
+        /* Button group spacing */
+        .button-group {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+        }
+
+        /* Content header improvements */
+        .content-header {
+            margin-bottom: 1.5rem;
+            padding: 1.5rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        /* Section spacing */
+        .content-section {
+            padding-bottom: 2rem;
+        }
+
+        /* Empty state improvements */
+        .empty-state {
+            text-align: center;
+            padding: 3rem 2rem;
+            color: var(--gray-500);
+        }
+
+        .empty-state i {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            color: var(--gray-400);
+        }
+
+        /* Loading state improvements */
+        .loading {
+            padding: 3rem 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            color: var(--gray-500);
+        }
+
+        .spinner {
+            width: 2.5rem;
+            height: 2.5rem;
+        }
+
+        /* Responsive improvements */
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+                z-index: 1001;
+            }
+
+            .sidebar.show {
+                transform: translateX(0);
+            }
+
+            .main-content {
+                margin-left: 0;
+                width: 100%;
+            }
+
+            .admin-container {
+                position: relative;
+            }
+
+            /* Mobile menu toggle for sidebar */
+            .mobile-sidebar-toggle {
+                display: block;
+                position: fixed;
+                top: 1rem;
+                left: 1rem;
+                z-index: 1002;
+                background: var(--primary-green);
+                color: white;
+                border: none;
+                padding: 0.75rem;
+                border-radius: var(--border-radius);
+                cursor: pointer;
+                min-width: 44px;
+                min-height: 44px;
+            }
+
+            .modal-content {
+                width: 95%;
+                margin: 5% auto;
+                max-height: 90vh;
+                overflow-y: auto;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+
+            .form-actions {
+                flex-direction: column;
+                gap: 0.75rem;
+            }
+
+            .form-actions button {
+                width: 100%;
+            }
+
+            .content-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 1rem;
+            }
+
+            .button-group {
+                width: 100%;
+                justify-content: flex-start;
+                flex-wrap: wrap;
+            }
+
+            .table-container {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+                margin: 0 -1rem;
+                padding: 0 1rem;
+            }
+
+            .table {
+                min-width: 600px;
+                font-size: 0.875rem;
+            }
+
+            .table th,
+            .table td {
+                padding: 0.75rem 0.5rem;
+            }
+
+            .btn {
+                min-width: 44px;
+                min-height: 44px;
+                padding: 0.625rem 1rem;
+                font-size: 0.875rem;
+            }
+
+            .btn-sm {
+                min-width: 36px;
+                min-height: 36px;
+                padding: 0.5rem 0.75rem;
+                font-size: 0.8125rem;
+            }
+
+            input,
+            textarea,
+            select {
+                font-size: 16px;
+                min-height: 44px;
+            }
+
+            .content-section {
+                padding: 1rem;
+            }
+
+            .section-header h2 {
+                font-size: 1.5rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .modal-content {
+                width: 98%;
+                margin: 2% auto;
+            }
+
+            .table {
+                font-size: 0.8125rem;
+            }
+
+            .table th,
+            .table td {
+                padding: 0.5rem 0.375rem;
+            }
+
+            .btn {
+                width: 100%;
+                margin-bottom: 0.5rem;
+            }
+
+            .content-header h1 {
+                font-size: 1.25rem;
+            }
+        }
+
+        /* Action buttons spacing */
+        .table td:last-child {
+            white-space: nowrap;
+        }
+
+        .table td:last-child .btn {
+            margin-right: 0.25rem;
+        }
+
+        .table td:last-child .btn:last-child {
+            margin-right: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Login Screen -->
+    <div id="loginScreen" class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <div class="login-logo">
+                    <i class="fas fa-leaf"></i>
+                    HM Herbs Admin
+                </div>
+                <p class="login-subtitle">Sign in to your admin account</p>
+            </div>
+
+            <form id="loginForm">
+                <div class="form-group">
+                    <input type="email" id="email" class="form-input" placeholder="Email" required autocomplete="email">
+                </div>
+
+                <div class="form-group">
+                    <input type="password" id="password" class="form-input" placeholder="Password" required
+                        autocomplete="current-password">
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-full-width" style="margin-top: 0.5rem;">
+                    <i class="fas fa-sign-in-alt"></i>
+                    Sign In
+                </button>
+
+                <div style="text-align: center; margin-top: 1rem;">
+                    <a href="#" id="forgotPasswordLink"
+                        style="color: var(--primary-green); text-decoration: none; font-size: 0.875rem;">
+                        Forgot Password?
+                    </a>
+                </div>
+            </form>
+
+            <div id="loginError" class="login-error"></div>
+        </div>
+    </div>
+
+    <!-- Forgot Password Modal -->
+    <div id="forgotPasswordModal" class="modal"
+        style="display: none; position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); align-items: center; justify-content: center;">
+        <div class="modal-content"
+            style="background: white; padding: 2rem; border-radius: var(--radius-lg); max-width: 500px; width: 90%; position: relative;">
+            <div
+                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 1px solid var(--gray-200); padding-bottom: 1rem;">
+                <h3 style="margin: 0; color: var(--primary-green);">Reset Password</h3>
+                <button class="modal-close" id="closeForgotPasswordModal"
+                    style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--gray-500);">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div>
+                <p style="margin-bottom: 1.5rem; color: var(--gray-600);">
+                    Enter your email address and we'll send you a link to reset your password.
+                </p>
+                <form id="forgotPasswordForm">
+                    <div class="form-group">
+                        <input type="email" id="forgotPasswordEmail" class="form-input" placeholder="hmherbs1@gmail.com"
+                            required autocomplete="email">
+                    </div>
+                    <div id="forgotPasswordError" class="login-error" style="display: none;"></div>
+                    <div id="forgotPasswordSuccess"
+                        style="display: none; padding: 1rem; background: rgba(5, 150, 105, 0.1); border: 1px solid var(--success); border-radius: var(--radius-md); color: var(--success); margin-bottom: 1rem;">
+                        <i class="fas fa-check-circle"></i> Password reset link sent! Check your email.
+                    </div>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button type="button" class="btn btn-secondary" id="cancelForgotPassword"
+                            style="flex: 1;">Cancel</button>
+                        <button type="submit" class="btn btn-primary" style="flex: 1;">Send Reset Link</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin Dashboard -->
+    <div id="adminDashboard" class="admin-container" style="display: none;">
+        <!-- Sidebar Toggle Button -->
+        <button class="sidebar-toggle-btn" id="sidebarToggleBtn" aria-label="Toggle sidebar">
+            <i class="fas fa-bars" id="sidebarToggleIcon"></i>
+        </button>
+
+        <!-- Mobile Sidebar Toggle -->
+        <button class="mobile-sidebar-toggle" id="mobileSidebarToggle" aria-label="Toggle sidebar"
+            style="display: none;">
+            <i class="fas fa-bars"></i>
+        </button>
+
+        <!-- Sidebar -->
+        <nav class="sidebar" id="adminSidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-logo">
+                    <i class="fas fa-leaf"></i>
+                    <span>HM Herbs Admin</span>
+                </div>
+            </div>
+
+            <div class="sidebar-nav">
+                <div class="nav-section">
+                    <div class="nav-item">
+                        <a href="index.html" class="nav-link"
+                            style="background: rgba(255, 255, 255, 0.15); margin-bottom: 1rem;">
+                            <i class="fas fa-home"></i>
+                            Back to Home
+                        </a>
+                    </div>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">Overview</div>
+                    <div class="nav-item">
+                        <a href="#" class="nav-link active" data-section="dashboard">
+                            <i class="fas fa-chart-line"></i>
+                            Dashboard
+                        </a>
+                    </div>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">Catalog</div>
+                    <div class="nav-item">
+                        <a href="#" class="nav-link" data-section="products">
+                            <i class="fas fa-boxes"></i>
+                            Products
+                        </a>
+                    </div>
+                    <div class="nav-item">
+                        <a href="#" class="nav-link" data-section="import">
+                            <i class="fas fa-upload"></i>
+                            Import Products
+                        </a>
+                    </div>
+                    <div class="nav-item">
+                        <a href="#" class="nav-link" data-section="categories">
+                            <i class="fas fa-tags"></i>
+                            Categories
+                        </a>
+                    </div>
+                    <div class="nav-item">
+                        <a href="#" class="nav-link" data-section="brands">
+                            <i class="fas fa-trademark"></i>
+                            Brands
+                        </a>
+                    </div>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">Sales</div>
+                    <div class="nav-item">
+                        <a href="#" class="nav-link" data-section="orders">
+                            <i class="fas fa-shopping-cart"></i>
+                            Orders
+                        </a>
+                    </div>
+                    <div class="nav-item">
+                        <a href="#" class="nav-link" data-section="customers">
+                            <i class="fas fa-users"></i>
+                            Customers
+                        </a>
+                    </div>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">Services</div>
+                    <div class="nav-item">
+                        <a href="#" class="nav-link" data-section="edsa">
+                            <i class="fas fa-stethoscope"></i>
+                            EDSA Bookings
+                        </a>
+                    </div>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">System</div>
+                    <div class="nav-item">
+                        <a href="#" class="nav-link" data-section="settings">
+                            <i class="fas fa-cog"></i>
+                            Settings
+                        </a>
+                    </div>
+                    <div class="nav-item">
+                        <a href="#" class="nav-link" onclick="logout()">
+                            <i class="fas fa-sign-out-alt"></i>
+                            Logout
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Dashboard Section -->
+            <section id="dashboard" class="content-section active">
+                <div class="content-header">
+                    <h1 class="page-title">Dashboard</h1>
+                    <div class="user-info">
+                        <div class="user-avatar">
+                            <i class="fas fa-user"></i>
+                        </div>
+                        <span id="userName">Admin User</span>
+                    </div>
+                </div>
+
+                <!-- Stats Grid -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div class="stat-title">Total Products</div>
+                            <div class="stat-icon">
+                                <i class="fas fa-boxes"></i>
+                            </div>
+                        </div>
+                        <div class="stat-value" id="totalProducts">-</div>
+                        <div class="stat-change">Active products in catalog</div>
+                    </div>
+
+                    <div class="stat-card success">
+                        <div class="stat-header">
+                            <div class="stat-title">Orders (30 days)</div>
+                            <div class="stat-icon">
+                                <i class="fas fa-shopping-cart"></i>
+                            </div>
+                        </div>
+                        <div class="stat-value" id="totalOrders">-</div>
+                        <div class="stat-change">Recent order activity</div>
+                    </div>
+
+                    <div class="stat-card info">
+                        <div class="stat-header">
+                            <div class="stat-title">EDSA Bookings</div>
+                            <div class="stat-icon">
+                                <i class="fas fa-stethoscope"></i>
+                            </div>
+                        </div>
+                        <div class="stat-value" id="totalBookings">-</div>
+                        <div class="stat-change">Pending appointments</div>
+                    </div>
+
+                    <div class="stat-card warning">
+                        <div class="stat-header">
+                            <div class="stat-title">Low Stock</div>
+                            <div class="stat-icon">
+                                <i class="fas fa-exclamation-triangle"></i>
+                            </div>
+                        </div>
+                        <div class="stat-value" id="lowStockProducts">-</div>
+                        <div class="stat-change">Products need restocking</div>
+                    </div>
+                </div>
+
+                <!-- Recent Activity -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Recent Activity</h2>
+                    </div>
+                    <div class="card-content">
+                        <div id="recentActivity" class="loading">
+                            <div class="spinner"></div>
+                            Loading recent activity...
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Products Section -->
+            <section id="products" class="content-section">
+                <div class="content-header">
+                    <h1 class="page-title">Products</h1>
+                    <div class="button-group">
+                        <button type="button" class="btn btn-secondary" onclick="scrapeProducts()">
+                            <i class="fas fa-download"></i>
+                            Scrape HM Herbs
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="matchProductsToBrands()"
+                            id="matchBrandsBtn">
+                            <i class="fas fa-link"></i>
+                            Match Products to Brands
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="matchProductsToCategories()"
+                            id="matchCategoriesBtn">
+                            <i class="fas fa-tags"></i>
+                            Match Products to Categories
+                        </button>
+                        <button type="button" class="btn btn-primary" onclick="showAddProduct()">
+                            <i class="fas fa-plus"></i>
+                            Add Product
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-content">
+                        <div
+                            style="margin-bottom: 1.5rem; display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-end;">
+                            <div style="position: relative; flex: 1; min-width: 250px; max-width: 400px;">
+                                <input type="text" id="productsSearchInput" class="form-input"
+                                    placeholder="Search products by name, SKU, brand, or category..."
+                                    style="padding-left: 2.5rem; width: 100%;">
+                                <i class="fas fa-search"
+                                    style="position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); color: var(--gray-500); pointer-events: none;"></i>
+                                <button type="button" id="clearProductsSearch" class="btn btn-sm btn-secondary"
+                                    style="position: absolute; right: 0.5rem; top: 50%; transform: translateY(-50%); display: none; padding: 0.25rem 0.5rem; min-width: auto;">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                            <div style="min-width: 200px;">
+                                <label for="productsBrandFilter"
+                                    style="display: block; margin-bottom: 0.5rem; font-size: 0.875rem; font-weight: 500; color: var(--gray-700);">Filter
+                                    by Brand</label>
+                                <select id="productsBrandFilter" class="form-input" style="width: 100%;">
+                                    <option value="">All Brands</option>
+                                </select>
+                            </div>
+                            <div style="min-width: 200px;">
+                                <label for="productsCategoryFilter"
+                                    style="display: block; margin-bottom: 0.5rem; font-size: 0.875rem; font-weight: 500; color: var(--gray-700);">Filter
+                                    by Category</label>
+                                <select id="productsCategoryFilter" class="form-input" style="width: 100%;">
+                                    <option value="">All Categories</option>
+                                </select>
+                            </div>
+                            <div style="min-width: 180px;">
+                                <label for="productsFeaturedFilter"
+                                    style="display: block; margin-bottom: 0.5rem; font-size: 0.875rem; font-weight: 500; color: var(--gray-700);">Filter
+                                    by Featured</label>
+                                <select id="productsFeaturedFilter" class="form-input" style="width: 100%;">
+                                    <option value="">All Products</option>
+                                    <option value="true">Featured Only</option>
+                                    <option value="false">Not Featured</option>
+                                </select>
+                            </div>
+                            <div style="min-width: 150px;">
+                                <label for="productsPerPage"
+                                    style="display: block; margin-bottom: 0.5rem; font-size: 0.875rem; font-weight: 500; color: var(--gray-700);">Per
+                                    Page</label>
+                                <select id="productsPerPage" class="form-input" style="width: 100%;">
+                                    <option value="25">25</option>
+                                    <option value="50" selected>50</option>
+                                    <option value="100">100</option>
+                                    <option value="200">200</option>
+                                    <option value="500">500</option>
+                                </select>
+                            </div>
+                            <div>
+                                <button type="button" id="clearProductsFilters" class="btn btn-secondary"
+                                    style="display: none;">
+                                    <i class="fas fa-times"></i> Clear Filters
+                                </button>
+                            </div>
+                        </div>
+                        <div id="productsTable" class="loading">
+                            <div class="spinner"></div>
+                            Loading products...
+                        </div>
+                        <div id="productsPagination"></div>
+                </div>
+            </section>
+
+            <!-- Import Section -->
+            <section id="import" class="content-section">
+                <div class="content-header">
+                    <h1 class="page-title">Import Products</h1>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Bulk Product Import</h2>
+                    </div>
+                    <div class="card-content">
+                        <div class="form-group">
+                            <label class="form-label" for="csvFile">Select CSV File</label>
+                            <input type="file" id="csvFile" class="form-input" accept=".csv">
+                        </div>
+
+                        <button type="button" class="btn btn-primary" onclick="importProducts()">
+                            <i class="fas fa-upload"></i>
+                            Import Products
+                        </button>
+
+                        <div id="importProgress" style="margin-top: 1rem; display: none;">
+                            <div class="loading">
+                                <div class="spinner"></div>
+                                Importing products...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Orders Section -->
+            <section id="orders" class="content-section">
+                <div class="content-header">
+                    <h1 class="page-title">Orders</h1>
+                </div>
+
+                <div class="card">
+                    <div class="card-content">
+                        <div id="ordersTable" class="loading">
+                            <div class="spinner"></div>
+                            Loading orders...
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Customers Section -->
+            <section id="customers" class="content-section">
+                <div class="content-header">
+                    <h1 class="page-title">Customers</h1>
+                </div>
+
+                <div class="card">
+                    <div class="card-content">
+                        <div style="text-align: center; padding: 2rem; color: var(--gray-500);">
+                            <p>Customer management coming soon...</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- EDSA Bookings Section -->
+            <section id="edsa" class="content-section">
+                <div class="content-header">
+                    <h1 class="page-title">EDSA Bookings</h1>
+                </div>
+
+                <div class="card">
+                    <div class="card-content">
+                        <div id="edsaBookingsTable" class="loading">
+                            <div class="spinner"></div>
+                            Loading EDSA bookings...
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Categories Section -->
+            <section id="categories" class="content-section">
+                <div class="content-header">
+                    <h1 class="page-title">Categories</h1>
+                    <div class="button-group">
+                        <button type="button" class="btn btn-primary" onclick="showAddCategory()">
+                            <i class="fas fa-plus"></i>
+                            Add Category
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-content">
+                        <div
+                            style="margin-bottom: 1.5rem; display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-end;">
+                            <div style="position: relative; flex: 1; min-width: 250px; max-width: 400px;">
+                                <input type="text" id="categoriesSearchInput" class="form-input"
+                                    placeholder="Search categories by name or slug..."
+                                    style="padding-left: 2.5rem; width: 100%;">
+                                <i class="fas fa-search"
+                                    style="position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); color: var(--gray-500); pointer-events: none;"></i>
+                                <button type="button" id="clearCategoriesSearch" class="btn btn-sm btn-secondary"
+                                    style="position: absolute; right: 0.5rem; top: 50%; transform: translateY(-50%); display: none; padding: 0.25rem 0.5rem; min-width: auto;">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                            <div style="min-width: 200px;">
+                                <label for="categoriesParentFilter"
+                                    style="display: block; margin-bottom: 0.5rem; font-size: 0.875rem; font-weight: 500; color: var(--gray-700);">Filter
+                                    by Parent</label>
+                                <select id="categoriesParentFilter" class="form-input" style="width: 100%;">
+                                    <option value="">All Categories</option>
+                                </select>
+                            </div>
+                            <div style="min-width: 150px;">
+                                <label for="categoriesStatusFilter"
+                                    style="display: block; margin-bottom: 0.5rem; font-size: 0.875rem; font-weight: 500; color: var(--gray-700);">Filter
+                                    by Status</label>
+                                <select id="categoriesStatusFilter" class="form-input" style="width: 100%;">
+                                    <option value="">All Status</option>
+                                    <option value="active">Active</option>
+                                    <option value="inactive">Inactive</option>
+                                </select>
+                            </div>
+                            <div style="min-width: 150px;">
+                                <label for="categoriesPerPage"
+                                    style="display: block; margin-bottom: 0.5rem; font-size: 0.875rem; font-weight: 500; color: var(--gray-700);">Per
+                                    Page</label>
+                                <select id="categoriesPerPage" class="form-input" style="width: 100%;">
+                                    <option value="25">25</option>
+                                    <option value="50" selected>50</option>
+                                    <option value="100">100</option>
+                                    <option value="200">200</option>
+                                    <option value="500">500</option>
+                                </select>
+                            </div>
+                            <div>
+                                <button type="button" id="clearCategoriesFilters" class="btn btn-secondary"
+                                    style="display: none;">
+                                    <i class="fas fa-times"></i> Clear Filters
+                                </button>
+                            </div>
+                        </div>
+                        <div id="categoriesTable" class="loading">
+                            <div class="spinner"></div>
+                            Loading categories...
+                        </div>
+                        <div id="categoriesPagination"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Brands Section -->
+            <section id="brands" class="content-section">
+                <div class="content-header">
+                    <h1 class="page-title">Brands</h1>
+                    <div class="button-group">
+                        <button type="button" class="btn btn-primary" onclick="showAddBrand()">
+                            <i class="fas fa-plus"></i>
+                            Add Brand
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-content">
+                        <div id="brandsTable" class="loading">
+                            <div class="spinner"></div>
+                            Loading brands...
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Settings Section -->
+            <section id="settings" class="content-section">
+                <div class="content-header">
+                    <h1 class="page-title">Settings</h1>
+                </div>
+
+                <div class="card">
+                    <div class="card-content">
+                        <div style="text-align: center; padding: 2rem; color: var(--gray-500);">
+                            <p>System settings coming soon...</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+
+
+    <!-- jsPDF for PDF generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="admin-app.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,88 @@
+/* Emergency Visual Bug Fixes for HM Herbs */
+/* These styles fix critical rendering issues and should load immediately */
+
+/* FLICKER PREVENTION - Hardware acceleration for smooth rendering */
+* {
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+}
+
+/* EXCEPTION: Products page menu - must allow translateY transforms */
+.navbar-menu {
+    transform: translateY(-10px) translateZ(0) !important;
+    -webkit-transform: translateY(-10px) translateZ(0) !important;
+}
+
+.navbar-menu.show {
+    transform: translateY(0) translateZ(0) !important;
+    -webkit-transform: translateY(0) translateZ(0) !important;
+}
+
+/* EXCEPTION: Index.html nav-menu links - remove transforms to fix visibility */
+.nav-menu.show a,
+.nav-menu.show li {
+    transform: none !important;
+    -webkit-transform: none !important;
+    backface-visibility: visible !important;
+    -webkit-backface-visibility: visible !important;
+}
+
+/* EXCEPTION: Testimonials carousel track - must allow translateX transforms */
+/* Don't apply the global translateZ(0) transform to the carousel track */
+.testimonials-track {
+    backface-visibility: visible !important;
+    -webkit-backface-visibility: visible !important;
+    /* Allow JavaScript to set transform via inline styles */
+}
+
+.product-card,
+.product-image,
+.spotlight-grid,
+.product-spotlight {
+    will-change: transform;
+    transform: translate3d(0, 0, 0);
+    -webkit-transform: translate3d(0, 0, 0);
+}
+
+/* SCROLLBAR STABILITY - Prevent layout shifts */
+html {
+    scrollbar-gutter: stable;
+    overflow-y: scroll;
+}
+
+/* IMAGE LOADING OPTIMIZATION - Smooth image appearance */
+img {
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    /* Prevent layout shift by reserving space */
+    max-width: 100%;
+    height: auto;
+    /* Prevent CLS - reserve space for images without dimensions */
+    display: block;
+}
+
+img.loaded,
+img.error,
+img[src*="data:"],
+.edsa-image img,
+img[data-skip-error-handling] {
+    opacity: 1;
+}
+
+/* CLS Prevention - Reserve space for images without explicit dimensions */
+img:not([width]):not([height]):not([style*="aspect-ratio"]) {
+    /* Use a safe default aspect ratio to prevent layout shift */
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+}
+
+/* FALLBACK FOR BROKEN IMAGES - Professional placeholder */
+img[src=""],
+img:not([src]),
+img[alt*="unavailable"] {
+    background: #f8f9fa url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iI2Y4ZjlmYSIvPgo8cmVjdCB4PSI1MCIgeT0iNTAiIHdpZHRoPSIyMDAiIGhlaWdodD0iMTAwIiBmaWxsPSIjZTllY2VmIiByeD0iOCIvPgo8Y2lyY2xlIGN4PSIxMDAiIGN5PSI4MCIgcj0iMTUiIGZpbGw9IiNkZWUyZTYiLz4KPHJlY3QgeD0iMTMwIiB5PSI3MCIgd2lkdGg9IjgwIiBoZWlnaHQ9IjgiIGZpbGw9IiNkZWUyZTYiIHJ4PSI0Ii8+CjxyZWN0IHg9IjEzMCIgeT0iODUiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2IiBmaWxsPSIjZGVlMmU2IiByeD0iMyIvPgo8dGV4dCB4PSIxNTAiIHk9IjEzMCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjEyIiBmaWxsPSIjNmM3NTdkIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5JbWFnZSB1bmF2YWlsYWJsZTwvdGV4dD4KPC9zdmc+') center/contain no-repeat;
+    opacity: 1;
+    min-height: 200px;
+}
