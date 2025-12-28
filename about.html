@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About Us - H&M Herbs & Vitamins</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="css/accessibility-enhancements.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+
+<body>
+    <!-- Skip Navigation Link for Accessibility -->
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    <!-- Header -->
+    <header class="header" role="banner">
+        <!-- Top Bar -->
+        <div class="top-bar">
+            <div class="container">
+                <div class="top-bar-content">
+                    <div class="shipping-notice">
+                        <i class="fas fa-truck" aria-hidden="true"></i>
+                        <span>Free shipping on orders over $50!</span>
+                    </div>
+                    <div class="top-links">
+                        <a href="privacy-policy.html" class="top-link">Privacy</a>
+                        <a href="ccpa-privacy-rights.html" class="top-link">Your Privacy Rights</a>
+                        <a href="privacy-policy.html#accessibility" class="top-link">Accessibility</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Header -->
+        <div class="main-header">
+            <div class="container">
+                <nav class="navbar" role="navigation" aria-label="Main navigation">
+                    <!-- Logo -->
+                    <div class="logo">
+                        <a href="index.html" aria-label="H&M Herbs & Vitamins - Home">
+                            <i class="fas fa-leaf" aria-hidden="true"></i>
+                            <span class="logo-text">
+                                <span class="brand-name">H&M Herbs</span>
+                                <span class="brand-tagline">& Vitamins</span>
+                            </span>
+                        </a>
+                    </div>
+
+                    <!-- Mobile Menu Toggle -->
+                    <button class="mobile-menu-toggle" aria-expanded="false" aria-controls="nav-menu"
+                        aria-label="Toggle navigation menu">
+                        <span class="hamburger-line"></span>
+                        <span class="hamburger-line"></span>
+                        <span class="hamburger-line"></span>
+                    </button>
+
+                    <!-- Navigation Menu -->
+                    <ul class="nav-menu" id="nav-menu" role="menubar">
+                        <li role="none"><a href="index.html" role="menuitem">Home</a></li>
+                        <li role="none"><a href="products.html" role="menuitem">Products</a></li>
+                        <li role="none"><a href="index.html#edsa-service" role="menuitem" class="edsa-nav-link">EDSA
+                                Service</a></li>
+                        <li role="none"><a href="about.html" role="menuitem">About</a></li>
+                        <li role="none"><a href="index.html#contact" role="menuitem">Contact</a></li>
+                    </ul>
+
+                    <!-- Header Actions -->
+                    <div class="header-actions">
+                        <!-- Customer Account/Login -->
+                        <div class="customer-auth-container">
+                            <button class="auth-btn" id="customer-login-btn" aria-label="Sign in">
+                                <i class="fas fa-sign-in-alt" aria-hidden="true"></i>
+                                <span class="auth-btn-text">Sign In</span>
+                            </button>
+                            <button class="auth-btn" id="customer-register-btn" aria-label="Create account">
+                                <i class="fas fa-user-plus" aria-hidden="true"></i>
+                                <span class="auth-btn-text">Register</span>
+                            </button>
+                            <div class="account-dropdown hidden" id="customer-account-btn">
+                                <button class="account-toggle" aria-label="Account menu" aria-expanded="false"
+                                    id="account-menu-toggle">
+                                    <i class="fas fa-user-circle" aria-hidden="true"></i>
+                                    <span class="account-name" id="customer-name-display">Account</span>
+                                    <i class="fas fa-chevron-down" aria-hidden="true"></i>
+                                </button>
+                                <div class="account-menu hidden" id="customer-account-dropdown">
+                                    <a href="account.html" class="account-menu-item">
+                                        <i class="fas fa-user" aria-hidden="true"></i>
+                                        My Account
+                                    </a>
+                                    <a href="account.html#orders" class="account-menu-item">
+                                        <i class="fas fa-shopping-bag" aria-hidden="true"></i>
+                                        My Orders
+                                    </a>
+                                    <a href="account.html#addresses" class="account-menu-item">
+                                        <i class="fas fa-map-marker-alt" aria-hidden="true"></i>
+                                        Addresses
+                                    </a>
+                                    <button class="account-menu-item" id="customer-logout-btn">
+                                        <i class="fas fa-sign-out-alt" aria-hidden="true"></i>
+                                        Sign Out
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Cart Toggle -->
+                        <button class="cart-toggle" id="cart-toggle" aria-label="Shopping cart" aria-expanded="false">
+                            <i class="fas fa-shopping-cart" aria-hidden="true"></i>
+                            <span class="cart-count" id="cart-count" aria-live="polite">0</span>
+                        </button>
+                    </div>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main id="main-content">
+        <div class="about-container">
+            <a href="index.html" class="back-link">← Back to Home</a>
+
+            <div class="about-header">
+                <h1>About H&M Herbs & Vitamins</h1>
+                <p><strong>Welcome to H&M Herbs & Vitamins</strong></p>
+            </div>
+
+            <div class="about-section">
+                <p>H&M Herbs & Vitamins, established on May 1, 1995, specializes in providing high-quality herbal
+                    supplements and vitamins to support overall health and wellness. In addition to our extensive
+                    product range, we offer EDSA Biofeedback Testing and Foot Bath services, designed to enhance the
+                    body's natural healing processes and promote relaxation. Customers can trust H&M to deliver
+                    effective solutions tailored to their individual health needs.</p>
+            </div>
+
+            <div class="about-section">
+                <h2>Our Products</h2>
+                <p>Here at H&M Herbs & Vitamins, we offer a variety of different brands of all natural, nutritional
+                    health products. This includes amino acids, antioxidants, herbs, vitamins, as well as, energy and
+                    weight loss products. We carry many products in our store-front that are not offered on our website.
+                    If you want something that you do not see on our website, call our Toll Free Order Line, <a
+                        href="tel:18664619454">1-866-461-9454</a>, and talk with one of our employees to see if we have
+                    or can get what you are looking for.</p>
+            </div>
+
+            <div class="about-section">
+                <h2>Premium Wellness Products</h2>
+                <p>We also offer a diverse range of premium wellness products designed to enhance your well-being. The
+                    Herbs for Life Gummies provide a delicious and convenient way to incorporate herbal benefits into
+                    your daily routine. Hemp Bombs Gummies deliver a potent dose of CBD, perfect for relaxation and
+                    stress relief. Hippyie Jacks CBD Oils are crafted for those seeking natural support, while Regalabs
+                    Cannabis Care Cream offers soothing relief for targeted areas. Each product is formulated with
+                    high-quality ingredients to ensure efficacy and satisfaction.</p>
+            </div>
+
+            <div class="contact-info-box">
+                <h3>Need Help Finding a Product?</h3>
+                <p>If you're looking for something specific that you don't see on our website, don't hesitate to reach
+                    out! Our knowledgeable staff is here to help you find exactly what you need.</p>
+                <p><strong>Toll Free Order Line:</strong> <a href="tel:18664619454">1-866-461-9454</a></p>
+                <p><strong>Store Hours:</strong> Monday-Friday 10:00 AM - 6:00 PM, Saturday 10:00 AM - 3:00 PM</p>
+                <p><strong>Location:</strong> <a
+                        href="https://maps.google.com/?q=1140+Battlefield+Pkwy,+Fort+Oglethorpe,+GA+30742"
+                        target="_blank" rel="noopener noreferrer">1140 Battlefield Pkwy, Fort Oglethorpe, GA 30742</a>
+                </p>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer" role="contentinfo">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h3>H&M Herbs & Vitamins</h3>
+                    <p>Your trusted partner in natural health and wellness since 1995.</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Quick Links</h4>
+                    <ul>
+                        <li><a href="about.html">About Us</a></li>
+                        <li><a href="shipping-returns.html">Shipping & Returns</a></li>
+                        <li><a href="index.html#contact">Contact Us</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4>Contact</h4>
+                    <p><a href="https://maps.google.com/?q=1140+Battlefield+Pkwy,+Fort+Oglethorpe,+GA+30742"
+                            target="_blank" rel="noopener noreferrer">1140 Battlefield Pkwy<br>Fort Oglethorpe, GA
+                            30742</a></p>
+                    <p><a href="tel:+17068619454">706-861-9454</a></p>
+                    <p><a href="mailto:hmherbs1@gmail.com">hmherbs1@gmail.com</a></p>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 H&M Herbs & Vitamins. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Cart Sidebar -->
+    <aside class="cart-sidebar" id="cart-sidebar" aria-label="Shopping cart" aria-hidden="true">
+        <div class="cart-header">
+            <h2>Shopping Cart</h2>
+            <button class="cart-close" id="cart-close" aria-label="Close cart">
+                <i class="fas fa-times" aria-hidden="true"></i>
+            </button>
+        </div>
+        <div class="cart-content" id="cart-content">
+            <div id="cart-empty" class="cart-empty">
+                <i class="fas fa-shopping-cart" aria-hidden="true"></i>
+                <p>Your cart is empty</p>
+            </div>
+            <div id="cart-items" class="cart-items" style="display: none;"></div>
+        </div>
+        <div class="cart-footer" id="cart-footer" style="display: none;">
+            <div class="cart-total">
+                <strong>Total: <span id="cart-total">$0.00</span></strong>
+            </div>
+            <button class="btn btn-primary btn-block" id="checkout-btn">Proceed to Checkout</button>
+        </div>
+    </aside>
+
+    <!-- Scripts -->
+    <script src="js/file-protocol-handler.js"></script>
+    <script src="js/mobile-menu.js"></script>
+    <script src="script.js"></script>
+</body>
+
+</html>

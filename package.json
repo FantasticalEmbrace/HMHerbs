@@ -1,0 +1,51 @@
+{
+  "name": "hmherbs-fullstack",
+  "version": "1.0.0",
+  "description": "H&M Herbs & Vitamins - Full Stack E-Commerce Platform",
+  "private": true,
+  "workspaces": [
+    "backend"
+  ],
+  "scripts": {
+    "start": "node start.js",
+    "start:backend": "cd backend && npm start",
+    "dev": "npm run dev:backend",
+    "dev:backend": "cd backend && npm run dev",
+    "install:backend": "cd backend && npm install",
+    "test": "cd backend && npm test",
+    "build": "echo 'Frontend is static HTML/CSS/JS - no build step required'",
+    "serve": "python3 -m http.server 8000 || python -m SimpleHTTPServer 8000",
+    "setup": "node setup.js",
+    "reset-password": "cd backend && node scripts/reset-admin-password.js",
+    "scrape": "cd backend && node scripts/scrape-hmherbs.js",
+    "download-images": "cd backend && node scripts/download-product-images.js",
+    "update-images": "cd backend && node scripts/update-product-images.js"
+  },
+  "keywords": [
+    "herbs",
+    "vitamins",
+    "supplements",
+    "ecommerce",
+    "health",
+    "wellness",
+    "fullstack",
+    "nodejs",
+    "express",
+    "mysql"
+  ],
+  "author": "H&M Herbs & Vitamins",
+  "license": "MIT",
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/FantasticalEmbrace/HMHerbs.git"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "eslint": "^8.55.0",
+    "prettier": "^3.1.1"
+  }
+}

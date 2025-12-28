@@ -1,0 +1,328 @@
+/* Customer Authentication Styles */
+
+/* Auth Buttons in Header */
+.customer-auth-container {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.auth-btn {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    background: transparent;
+    border: 1px solid var(--gray-300);
+    border-radius: var(--radius-md);
+    color: var(--gray-700);
+    font-size: var(--text-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    white-space: nowrap;
+}
+
+.auth-btn:hover {
+    background: var(--gray-50);
+    border-color: var(--primary-green);
+    color: var(--primary-green);
+}
+
+.auth-btn i {
+    font-size: var(--text-base);
+}
+
+.auth-btn-text {
+    display: none;
+}
+
+@media (min-width: 768px) {
+    .auth-btn-text {
+        display: inline;
+    }
+}
+
+/* Account Dropdown */
+.account-dropdown {
+    position: relative;
+}
+
+.account-toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    background: transparent;
+    border: 1px solid var(--gray-300);
+    border-radius: var(--radius-md);
+    color: var(--gray-700);
+    font-size: var(--text-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    white-space: nowrap;
+}
+
+.account-toggle:hover {
+    background: var(--gray-50);
+    border-color: var(--primary-green);
+}
+
+.account-toggle i:first-child {
+    font-size: var(--text-lg);
+    color: var(--primary-green);
+}
+
+.account-name {
+    display: none;
+    font-weight: 500;
+}
+
+@media (min-width: 768px) {
+    .account-name {
+        display: inline;
+    }
+}
+
+.account-menu {
+    position: absolute;
+    top: calc(100% + var(--space-2));
+    right: 0;
+    background: var(--white);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    min-width: 200px;
+    z-index: var(--z-dropdown);
+    overflow: hidden;
+}
+
+.account-menu-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    width: 100%;
+    padding: var(--space-3) var(--space-4);
+    background: none;
+    border: none;
+    text-align: left;
+    color: var(--gray-700);
+    font-size: var(--text-sm);
+    cursor: pointer;
+    transition: background var(--transition-fast);
+    text-decoration: none;
+}
+
+.account-menu-item:hover {
+    background: var(--gray-50);
+    color: var(--primary-green);
+}
+
+.account-menu-item i {
+    width: 20px;
+    text-align: center;
+    color: var(--gray-500);
+}
+
+.account-menu-item:hover i {
+    color: var(--primary-green);
+}
+
+/* Authentication Modals */
+.auth-modal {
+    display: none;
+    position: fixed;
+    z-index: var(--z-modal);
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(5px);
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity var(--transition-normal);
+}
+
+.auth-modal.show {
+    display: flex;
+    opacity: 1;
+}
+
+.auth-modal-content {
+    background-color: var(--white);
+    margin: auto;
+    padding: var(--space-8);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-xl);
+    width: 90%;
+    max-width: 500px;
+    position: relative;
+    transform: translateY(-20px);
+    transition: transform var(--transition-normal);
+}
+
+.auth-modal.show .auth-modal-content {
+    transform: translateY(0);
+}
+
+.auth-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--gray-200);
+    padding-bottom: var(--space-4);
+    margin-bottom: var(--space-6);
+}
+
+.auth-modal-header h2 {
+    color: var(--primary-green);
+    font-size: var(--text-2xl);
+    font-family: var(--font-display);
+    margin: 0;
+}
+
+.auth-modal-close {
+    color: var(--gray-500);
+    font-size: var(--text-xl);
+    cursor: pointer;
+    background: none;
+    border: none;
+    padding: var(--space-2);
+    border-radius: var(--radius-md);
+    transition: all var(--transition-fast);
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.auth-modal-close:hover {
+    background-color: var(--gray-100);
+    color: var(--gray-700);
+}
+
+.auth-modal-body {
+    padding-top: var(--space-4);
+}
+
+/* Form Styles */
+.form-group {
+    margin-bottom: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-3);
+}
+
+.form-input {
+    width: 100%;
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--gray-300);
+    border-radius: var(--radius-md);
+    font-size: var(--text-base);
+    transition: all var(--transition-fast);
+    font-family: inherit;
+    box-sizing: border-box;
+}
+
+.form-input:focus {
+    outline: none;
+    border-color: var(--primary-green);
+    box-shadow: 0 0 0 3px rgba(45, 90, 39, 0.1);
+}
+
+.form-input::placeholder {
+    color: var(--gray-400);
+}
+
+/* Help text spacing - only applies when directly after an input */
+.form-input + .form-help {
+    display: block;
+    margin-top: 0.5rem;
+    margin-bottom: 0;
+    font-size: var(--text-xs);
+    color: var(--gray-500);
+    line-height: 1.5;
+    width: 100%;
+}
+
+/* Ensure help text only appears after confirm password field */
+#register-password + .form-help {
+    display: none !important;
+}
+
+#register-confirm-password + .form-help {
+    display: block !important;
+    margin-top: 0.5rem;
+    margin-bottom: 0;
+}
+
+.form-help {
+    display: block;
+    font-size: var(--text-xs);
+    color: var(--gray-500);
+    line-height: 1.5;
+}
+
+.auth-error {
+    padding: var(--space-3);
+    background-color: rgba(220, 38, 38, 0.1);
+    border: 1px solid var(--error);
+    border-radius: var(--radius-md);
+    color: var(--error);
+    font-size: var(--text-sm);
+    margin-bottom: var(--space-4);
+    display: none;
+}
+
+.auth-switch-text {
+    text-align: center;
+    margin-top: var(--space-4);
+    font-size: var(--text-sm);
+    color: var(--gray-600);
+}
+
+.auth-switch-text a {
+    color: var(--primary-green);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.auth-switch-text a:hover {
+    text-decoration: underline;
+}
+
+.btn-full-width {
+    width: 100%;
+    margin-top: var(--space-2);
+}
+
+/* Mobile Responsive */
+@media (max-width: 767px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+
+    .auth-modal-content {
+        padding: var(--space-6);
+        max-width: 95%;
+    }
+
+    .customer-auth-container {
+        gap: var(--space-1);
+    }
+
+    .auth-btn {
+        padding: var(--space-2);
+        min-width: 44px;
+    }
+}
+

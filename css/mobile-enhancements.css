@@ -1,0 +1,413 @@
+/* Mobile Enhancements - Comprehensive Mobile Optimization */
+/* This file enhances mobile responsiveness across all pages */
+
+/* ============================================
+   GLOBAL MOBILE IMPROVEMENTS
+   ============================================ */
+
+/* Ensure proper viewport handling */
+@supports (-webkit-touch-callout: none) {
+    /* iOS specific fixes */
+    body {
+        -webkit-text-size-adjust: 100%;
+        -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+    }
+}
+
+/* ============================================
+   MOBILE NAVIGATION ENHANCEMENTS
+   ============================================ */
+
+@media (max-width: 768px) {
+    /* Enhanced mobile menu toggle */
+    .mobile-menu-toggle {
+        min-width: 48px !important;
+        min-height: 48px !important;
+        padding: 12px !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+        align-items: center !important;
+        gap: 5px !important;
+        background: transparent !important;
+        border: 2px solid transparent !important;
+        border-radius: 8px !important;
+        transition: all 0.2s ease !important;
+        -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1) !important;
+        touch-action: manipulation !important;
+    }
+
+    .mobile-menu-toggle:active {
+        background: rgba(0, 0, 0, 0.05) !important;
+        transform: scale(0.95) !important;
+    }
+
+    .mobile-menu-toggle[aria-expanded="true"] {
+        background: rgba(0, 0, 0, 0.05) !important;
+    }
+
+    .hamburger-line {
+        width: 24px !important;
+        height: 3px !important;
+        background-color: currentColor !important;
+        border-radius: 2px !important;
+        transition: all 0.3s ease !important;
+        display: block !important;
+    }
+
+    /* Animated hamburger when menu is open */
+    .mobile-menu-toggle[aria-expanded="true"] .hamburger-line:nth-child(1) {
+        transform: rotate(45deg) translate(7px, 7px) !important;
+    }
+
+    .mobile-menu-toggle[aria-expanded="true"] .hamburger-line:nth-child(2) {
+        opacity: 0 !important;
+    }
+
+    .mobile-menu-toggle[aria-expanded="true"] .hamburger-line:nth-child(3) {
+        transform: rotate(-45deg) translate(7px, -7px) !important;
+    }
+
+    /* Enhanced mobile menu - handled by main styles.css now */
+    /* Menu items styling is handled in main styles.css */
+}
+
+/* ============================================
+   TOUCH TARGET IMPROVEMENTS
+   ============================================ */
+
+@media (max-width: 768px) {
+    /* Minimum touch target size (44x44px recommended by Apple/Google) */
+    button,
+    .btn,
+    a.btn,
+    input[type="button"],
+    input[type="submit"],
+    .search-toggle,
+    .cart-toggle,
+    .auth-btn,
+    .account-toggle {
+        min-width: 44px !important;
+        min-height: 44px !important;
+        padding: 12px 16px !important;
+    }
+
+    /* Larger touch targets for important actions */
+    .btn-primary,
+    .btn-secondary,
+    .btn-danger {
+        min-height: 48px !important;
+        padding: 14px 24px !important;
+        font-size: 16px !important;
+    }
+
+    /* Form inputs - prevent zoom on iOS */
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="search"],
+    input[type="tel"],
+    input[type="number"],
+    textarea,
+    select {
+        font-size: 16px !important;
+        min-height: 48px !important;
+        padding: 12px 16px !important;
+    }
+}
+
+/* ============================================
+   HEADER MOBILE IMPROVEMENTS
+   ============================================ */
+
+@media (max-width: 768px) {
+    .main-header {
+        padding: var(--space-3) 0 !important;
+    }
+
+    .navbar {
+        gap: var(--space-2) !important;
+        padding: 0 var(--space-3) !important;
+    }
+
+    .logo {
+        max-width: 140px !important;
+    }
+
+    .logo .brand-name {
+        font-size: 18px !important;
+    }
+
+    .logo .brand-tagline {
+        font-size: 11px !important;
+    }
+
+    .header-actions {
+        gap: var(--space-2) !important;
+    }
+
+    .header-actions .auth-btn-text {
+        display: none !important;
+    }
+
+    /* Top bar mobile */
+    .top-bar {
+        font-size: 12px !important;
+        padding: var(--space-2) 0 !important;
+    }
+
+    .top-bar-content {
+        flex-direction: column !important;
+        gap: var(--space-1) !important;
+        text-align: center !important;
+    }
+
+    .top-links {
+        flex-wrap: wrap !important;
+        justify-content: center !important;
+        gap: var(--space-2) !important;
+    }
+
+    .top-links a {
+        font-size: 11px !important;
+        padding: 4px 8px !important;
+    }
+}
+
+/* ============================================
+   CONTENT MOBILE IMPROVEMENTS
+   ============================================ */
+
+@media (max-width: 768px) {
+    .container {
+        padding-left: var(--space-4) !important;
+        padding-right: var(--space-4) !important;
+    }
+
+    /* Hero section */
+    .hero {
+        padding: var(--space-8) 0 var(--space-6) !important;
+    }
+
+    .hero h1 {
+        font-size: 28px !important;
+        line-height: 1.2 !important;
+    }
+
+    .hero p {
+        font-size: 16px !important;
+    }
+
+    /* Sections */
+    .section {
+        padding: var(--space-8) 0 !important;
+    }
+
+    .section-header h2 {
+        font-size: 24px !important;
+    }
+
+    /* Cards */
+    .card,
+    .product-card,
+    .category-card {
+        padding: var(--space-4) !important;
+        margin-bottom: var(--space-4) !important;
+    }
+
+    /* Grids */
+    .products-grid,
+    .categories-grid {
+        grid-template-columns: 1fr !important;
+        gap: var(--space-4) !important;
+    }
+
+    @media (min-width: 480px) {
+        .products-grid,
+        .categories-grid {
+            grid-template-columns: repeat(2, 1fr) !important;
+        }
+    }
+}
+
+/* ============================================
+   FOOTER MOBILE IMPROVEMENTS
+   ============================================ */
+
+@media (max-width: 768px) {
+    .footer {
+        padding: var(--space-8) 0 var(--space-6) !important;
+    }
+
+    .footer-content {
+        grid-template-columns: 1fr !important;
+        gap: var(--space-6) !important;
+        text-align: center !important;
+    }
+
+    .footer-section {
+        margin-bottom: var(--space-4) !important;
+    }
+
+    .footer-section h3 {
+        font-size: 18px !important;
+        margin-bottom: var(--space-3) !important;
+    }
+
+    .footer-section a {
+        display: block !important;
+        padding: var(--space-2) 0 !important;
+        min-height: 44px !important;
+    }
+}
+
+/* ============================================
+   MODAL MOBILE IMPROVEMENTS
+   ============================================ */
+
+@media (max-width: 768px) {
+    .modal-content {
+        width: 95% !important;
+        max-width: 95% !important;
+        margin: var(--space-4) auto !important;
+        max-height: 90vh !important;
+        overflow-y: auto !important;
+    }
+
+    .modal-header {
+        padding: var(--space-4) !important;
+    }
+
+    .modal-body {
+        padding: var(--space-4) !important;
+    }
+
+    .modal-close {
+        min-width: 44px !important;
+        min-height: 44px !important;
+        font-size: 24px !important;
+    }
+}
+
+/* ============================================
+   TABLES MOBILE IMPROVEMENTS
+   ============================================ */
+
+@media (max-width: 768px) {
+    .table-container {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        -webkit-overflow-scrolling: smooth !important;
+    }
+
+    .table {
+        min-width: 600px !important;
+        font-size: 14px !important;
+    }
+
+    .table th,
+    .table td {
+        padding: var(--space-2) var(--space-3) !important;
+    }
+}
+
+/* ============================================
+   FORMS MOBILE IMPROVEMENTS
+   ============================================ */
+
+@media (max-width: 768px) {
+    .form-group {
+        margin-bottom: var(--space-5) !important;
+    }
+
+    .form-row {
+        flex-direction: column !important;
+        gap: var(--space-4) !important;
+    }
+
+    .form-actions {
+        flex-direction: column !important;
+        gap: var(--space-3) !important;
+    }
+
+    .form-actions button {
+        width: 100% !important;
+    }
+}
+
+/* ============================================
+   VERY SMALL SCREENS (320px - 480px)
+   ============================================ */
+
+@media (max-width: 480px) {
+    .container {
+        padding-left: var(--space-3) !important;
+        padding-right: var(--space-3) !important;
+    }
+
+    .hero h1 {
+        font-size: 24px !important;
+    }
+
+    .section-header h2 {
+        font-size: 20px !important;
+    }
+
+    .btn {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+
+    .navbar {
+        padding: 0 var(--space-2) !important;
+    }
+
+    .logo {
+        max-width: 120px !important;
+    }
+}
+
+/* ============================================
+   LANDSCAPE ORIENTATION
+   ============================================ */
+
+@media (max-width: 768px) and (orientation: landscape) {
+    .hero {
+        padding: var(--space-6) 0 !important;
+    }
+
+    .nav-menu {
+        padding-top: 60px !important;
+    }
+}
+
+/* ============================================
+   PREVENT TEXT SIZE ADJUSTMENT ON IOS
+   ============================================ */
+
+@media (max-width: 768px) {
+    html {
+        -webkit-text-size-adjust: 100%;
+        text-size-adjust: 100%;
+    }
+
+    body {
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }
+}
+
+/* ============================================
+   SMOOTH SCROLLING
+   ============================================ */
+
+@media (max-width: 768px) {
+    html {
+        scroll-behavior: smooth;
+    }
+
+    * {
+        -webkit-overflow-scrolling: touch;
+    }
+}
+
