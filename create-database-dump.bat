@@ -57,8 +57,8 @@ if %ERRORLEVEL% EQU 0 (
     echo ========================================
     echo File: %DUMP_FILE%
     echo.
-    echo You can now upload this file to SiteGround
-    echo and import it using phpMyAdmin.
+    echo You can now import this file on your production server
+    echo using phpMyAdmin or your hosting database tool.
 ) else (
     echo.
     echo ========================================
