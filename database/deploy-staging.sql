@@ -1,6 +1,6 @@
 -- =============================================================================
 -- HM Herbs — STAGING DEPLOY BUNDLE (auto-generated)
--- Generated: 2026-05-25T18:30:56.828Z
+-- Generated: 2026-05-28T22:56:35.903Z
 -- DO NOT EDIT BY HAND — run: npm run db:build-staging
 --
 -- Import (Linode Managed MySQL):
