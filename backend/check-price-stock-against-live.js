@@ -1,6 +1,7 @@
 // Check products missing price or stock against hmherbs.com
 // Compares database values with live website and reports/updates discrepancies
 
+require('dotenv').config();
 const mysql = require('mysql2/promise');
 const axios = require('axios');
 const cheerio = require('cheerio');
@@ -29,7 +30,7 @@ class PriceStockChecker {
         const config = {
             host: process.env.DB_HOST || 'localhost',
             user: process.env.DB_USER || 'root',
-            password: process.env.DB_PASSWORD || '***DB_PASSWORD_REMOVED***',
+            password: process.env.DB_PASSWORD,
             database: process.env.DB_NAME || 'hmherbs'
         };
         
