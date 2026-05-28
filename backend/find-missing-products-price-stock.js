@@ -1,6 +1,7 @@
 // Find missing products and get their prices and stock from hmherbs.com
 // Uses multiple search strategies to locate products that weren't found by slug
 
+require('dotenv').config();
 const mysql = require('mysql2/promise');
 const axios = require('axios');
 const cheerio = require('cheerio');
@@ -26,7 +27,7 @@ class MissingProductsFinder {
         const config = {
             host: process.env.DB_HOST || 'localhost',
             user: process.env.DB_USER || 'root',
-            password: process.env.DB_PASSWORD || '***DB_PASSWORD_REMOVED***',
+            password: process.env.DB_PASSWORD,
             database: process.env.DB_NAME || 'hmherbs'
         };
         return await mysql.createConnection(config);

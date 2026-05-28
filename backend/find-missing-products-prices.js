@@ -1,6 +1,7 @@
 // Find prices and quantities for products that weren't found on the website
 // Uses search functionality and alternative URL patterns to locate products
 
+require('dotenv').config();
 const mysql = require('mysql2/promise');
 const axios = require('axios');
 const cheerio = require('cheerio');
@@ -26,7 +27,7 @@ class MissingProductsFinder {
         const config = {
             host: process.env.DB_HOST || 'localhost',
             user: process.env.DB_USER || 'root',
-            password: process.env.DB_PASSWORD || '***DB_PASSWORD_REMOVED***',
+            password: process.env.DB_PASSWORD,
             database: process.env.DB_NAME || 'hmherbs'
         };
         

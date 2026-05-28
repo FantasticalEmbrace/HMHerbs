@@ -1,9 +1,10 @@
+require('dotenv').config();
 const mysql = require('mysql2/promise');
 const fs = require('fs');
 const axios = require('axios');
 const cheerio = require('cheerio');
 
-const dbConfig = { host: 'localhost', user: 'root', password: '***DB_PASSWORD_REMOVED***', database: 'hmherbs' };
+const dbConfig = { host: process.env.DB_HOST || 'localhost', user: process.env.DB_USER || 'root', password: process.env.DB_PASSWORD, database: process.env.DB_NAME || 'hmherbs' };
 
 const missing = JSON.parse(fs.readFileSync('all-products-missing-image-info.json'));
 
