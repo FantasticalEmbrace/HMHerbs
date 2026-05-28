@@ -1,5 +1,5 @@
 /**
- * US phone display mask: (601) 398-5600 — 10 digits, fixed punctuation.
+ * US phone display mask: (555) 555-0100 — 10 digits, fixed punctuation.
  * Binds to input[type="tel"] and input[data-phone-us].
  */
 (function (global) {
@@ -34,7 +34,7 @@
         input.setAttribute('inputmode', 'numeric');
         input.setAttribute('maxlength', '14');
         if (!input.getAttribute('placeholder')) {
-            input.setAttribute('placeholder', '(601) 398-5600');
+            input.setAttribute('placeholder', '(555) 555-0100');
         }
 
         function syncFromDigits() {

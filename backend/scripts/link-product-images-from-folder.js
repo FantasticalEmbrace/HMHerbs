@@ -22,6 +22,7 @@
  *
  * Env: DB_* from backend/.env (same as other scripts)
  */
+const { loadBackendEnv, createPool, createConnection } = require('../utils/dbConfig');
 const fs = require('fs').promises;
 const path = require('path');
 const mysql = require('mysql2/promise');
@@ -179,16 +180,10 @@ async function setPrimary(pool, productId, name, url, dryRun) {
 }
 
 (async () => {
+    loadBackendEnv();
     const { dryRun } = parseArgs();
 
-    const pool = mysql.createPool({
-        host: process.env.DB_HOST || 'localhost',
-        user: process.env.DB_USER || 'root',
-        password: process.env.DB_PASSWORD || '',
-        database: process.env.DB_NAME || 'hmherbs',
-        waitForConnections: true,
-        connectionLimit: 5
-    });
+    const pool = createPool({ connectionLimit: 5 });
 
     const [rows] = await pool.query(
         'SELECT id, sku, name, slug FROM products WHERE COALESCE(TRIM(slug), "") <> "" OR COALESCE(TRIM(sku), "") <> ""'

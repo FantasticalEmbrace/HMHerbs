@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# First-time HM Herbs Droplet setup (Ubuntu 22.04).
+# First-time HM Herbs Linode setup (Ubuntu 22.04).
 #
 # Prerequisites:
 #   export REPO_URL=https://github.com/YOUR_USER/hmherbs.git
 #   export APP_DIR=/var/www/hmherbs          # optional
 #   export DEPLOY_USER=www-data               # optional, owner of app files
 #
-# Run on the Droplet:
-#   curl -fsSL .../bootstrap-droplet.sh | sudo bash
+# Run on the Linode:
+#   curl -fsSL .../bootstrap-linode.sh | sudo bash
 #   # or after cloning:
-#   sudo bash deploy/bootstrap-droplet.sh
+#   sudo bash deploy/bootstrap-linode.sh
 #
 set -euo pipefail
 
@@ -60,9 +60,9 @@ cd backend && npm install && cd ..
 
 mkdir -p backend/certs backend/uploads
 if [[ ! -f backend/.env ]]; then
-    cp backend/.env.digitalocean.example backend/.env
+    cp backend/.env.linode.example backend/.env
     echo ""
-    echo "*** Edit $APP_DIR/backend/.env with your DigitalOcean MySQL credentials ***"
+    echo "*** Edit $APP_DIR/backend/.env with your Linode Managed MySQL credentials ***"
     echo "*** Place CA cert at backend/certs/ca-certificate.crt ***"
 fi
 

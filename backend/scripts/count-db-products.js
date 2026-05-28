@@ -1,5 +1,8 @@
+const { loadBackendEnv, createPool, createConnection } = require('../utils/dbConfig');
+loadBackendEnv();
+
 // Quick script to count products in the database
-require('dotenv').config();
+
 const mysql = require('mysql2/promise');
 
 async function countProducts() {

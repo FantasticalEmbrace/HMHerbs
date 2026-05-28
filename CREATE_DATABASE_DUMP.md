@@ -69,7 +69,7 @@ Depending on your data:
 
 1. Optionally update `database/build-deploy-bundle.js` to use your new backup filename.
 2. Run `npm run db:build-staging` to produce `database/deploy-staging.sql`.
-3. Import into **DigitalOcean Managed MySQL** — see **[database/DEPLOY-DATABASE.md](./database/DEPLOY-DATABASE.md)**.
+3. Import into **Linode Managed MySQL** — see **[database/DEPLOY-DATABASE.md](./database/DEPLOY-DATABASE.md)**.
 
 ## Troubleshooting
 

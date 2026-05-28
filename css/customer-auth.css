@@ -2,13 +2,36 @@
 
 /* Auth Buttons in Header */
 .customer-auth-container {
-    display: flex;
+    display: grid;
+    grid-template-columns: auto;
     align-items: center;
     gap: var(--space-4);
     position: relative;
     z-index: 3;
     flex-shrink: 0;
     pointer-events: auto;
+}
+
+/* Stack guest/user panels in one cell so an inactive panel cannot sit on top */
+#customer-auth-guest,
+#customer-auth-user {
+    grid-column: 1;
+    grid-row: 1;
+}
+
+/* When one panel is active, the other must not intercept clicks (children default to auto) */
+.customer-auth-container:has(#customer-auth-user:not([hidden])) #customer-auth-guest,
+.customer-auth-container:has(#customer-auth-user:not([hidden])) #customer-auth-guest * {
+    display: none !important;
+    pointer-events: none !important;
+    visibility: hidden !important;
+}
+
+.customer-auth-container:has(#customer-auth-guest:not([hidden])) #customer-auth-user,
+.customer-auth-container:has(#customer-auth-guest:not([hidden])) #customer-auth-user * {
+    display: none !important;
+    pointer-events: none !important;
+    visibility: hidden !important;
 }
 
 /* Keep clear spacing between Sign In and Register */
@@ -90,10 +113,11 @@
 .navbar .header-actions a.auth-btn,
 .navbar .header-actions button {
     position: relative;
-    z-index: 1;
-    pointer-events: auto;
-    cursor: pointer;
+    z-index: 2;
+    pointer-events: auto !important;
+    cursor: pointer !important;
     box-sizing: border-box;
+    touch-action: manipulation;
 }
 
 /* mobile-enhancements.css pads all buttons — reset header tools so cart is not a double box */
@@ -124,7 +148,7 @@
     align-items: center;
     flex-shrink: 0;
     max-width: none;
-    width: auto;
+    width: max-content;
     min-width: fit-content;
     overflow: visible;
     box-sizing: border-box;

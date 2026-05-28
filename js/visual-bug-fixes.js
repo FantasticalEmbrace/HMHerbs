@@ -286,6 +286,12 @@ class VisualBugFixer {
             body.scrolling * {
                 pointer-events: auto;
             }
+
+            /* Header account/cart controls must stay hoverable and clickable while scrolling */
+            body.scrolling .header,
+            body.scrolling .header * {
+                pointer-events: auto !important;
+            }
             
             /* Prevent scrollbar layout shifts */
             html {
@@ -327,11 +333,10 @@ class VisualBugFixer {
                 backface-visibility: visible !important;
             }
 
-            /* Wishlist modal (js/wishlist-add.js): Cancel / Add use .btn — same block above would apply
-               translateZ(0) + perspective to them after this stylesheet, breaking compositing with the
-               centered fixed panel. Strip transforms inside the modal only. */
+            /* Modals: .btn rules above break fixed panels + overflow; keep modal trees transform-clean. */
             .wishlist-modal .btn,
-            .acct-modal-floating .btn {
+            .acct-modal-floating .btn,
+            .edsa-modal .btn {
                 transform: none !important;
                 -webkit-transform: none !important;
                 backface-visibility: visible !important;
@@ -635,7 +640,7 @@ class VisualBugFixer {
     const criticalCSS = document.createElement('style');
     criticalCSS.textContent = `
         /* IMMEDIATE FLICKER FIXES — same exclusions as css/emergency-fixes.css (wishlist modal + dim must stay transform-clean) */
-        *:not(img):not(picture):not(video):not(svg):not(canvas):not(.auth-modal):not(.hm-age-gate):not(.newsletter-popup):not(.cart-sidebar):not(.cart-overlay):not(.auth-icon-svg):not(.header-actions):not(.header-actions *):not(.acct-modal-backdrop):not(.hm-wl-picker-backdrop):not(.acct-modal):not(.wishlist-modal):not(.hm-wl-picker-dim):not(.acct-modal-dim) {
+        *:not(img):not(picture):not(video):not(svg):not(canvas):not(.auth-modal):not(.hm-age-gate):not(.newsletter-popup):not(.cart-sidebar):not(.cart-overlay):not(.auth-icon-svg):not(.header-actions):not(.header-actions *):not(.acct-modal-backdrop):not(.hm-wl-picker-backdrop):not(.acct-modal):not(.wishlist-modal):not(.hm-wl-picker-dim):not(.acct-modal-dim):not(.edsa-modal):not(.edsa-modal *) {
             -webkit-backface-visibility: hidden !important;
             backface-visibility: hidden !important;
             -webkit-transform: translateZ(0) !important;

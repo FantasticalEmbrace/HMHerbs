@@ -7,6 +7,7 @@
  *        node scripts/seo-migration/generate-slug-alias-redirects.js --write-report
  */
 
+const { loadBackendEnv, createPool, createConnection } = require('../../backend/utils/dbConfig');
 const fs = require('fs');
 const path = require('path');
 const mysql = require('mysql2/promise');
@@ -187,17 +188,12 @@ function matchOldToDb(oldSlug, products, titlesByOldSlug) {
 }
 
 async function main() {
+    loadBackendEnv(path.join(__dirname, '..', '..', 'backend', '.env'));
     const writeReport = process.argv.includes('--write-report');
     const oldRows = loadOldProductRedirects();
     const titlesByOldSlug = loadConcreteTitles();
 
-    const pool = mysql.createPool({
-        host: process.env.DB_HOST || 'localhost',
-        user: process.env.DB_USER || 'root',
-        password: process.env.DB_PASSWORD || '',
-        database: process.env.DB_NAME || 'hmherbs',
-        connectionLimit: 2
-    });
+    const pool = createPool({ connectionLimit: 5 });
 
     const [products] = await pool.query(
         `SELECT id, slug, name, sku FROM products WHERE is_active = 1 AND TRIM(slug) <> ""`

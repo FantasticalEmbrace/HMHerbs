@@ -1609,7 +1609,7 @@ class CheckoutManager {
             }
         }
 
-        // Phone: US display format (601) 398-5600
+        // Phone: US display format (555) 555-0100
         if (field.type === 'tel') {
             const t = field.value.trim();
             if (!t) {

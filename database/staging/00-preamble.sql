@@ -1,6 +1,6 @@
 -- =============================================================================
 -- HM Herbs — Staging database import (preamble)
--- Import into your DigitalOcean Managed MySQL database (see DEPLOY-DATABASE.md)
+-- Import into your Linode Managed MySQL database (see DEPLOY-DATABASE.md)
 -- =============================================================================
 
 SET NAMES utf8mb4;

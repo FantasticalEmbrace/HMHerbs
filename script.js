@@ -425,6 +425,13 @@ class HMHerbsApp {
 
         // Monitor for any focus events that might cause scrolling (home page load quirk only)
         document.addEventListener('focusin', (e) => {
+            if (e.target.closest('.edsa-modal, .auth-modal, .modal, [role="dialog"]')) {
+                return;
+            }
+            if (document.body.classList.contains('edsa-modal-open')) {
+                return;
+            }
+
             const rect = e.target.getBoundingClientRect();
             const viewportHeight = window.innerHeight;
             const documentHeight = document.documentElement.scrollHeight;

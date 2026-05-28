@@ -22,8 +22,7 @@
  */
 const fs = require('fs').promises;
 const path = require('path');
-const mysql = require('mysql2/promise');
-require('dotenv').config({ path: path.join(__dirname, '../.env') });
+const { loadBackendEnv, createPool } = require('../utils/dbConfig');
 const {
     effectivePrimaryImageUrl,
     catalogPrimaryImageForProduct,
@@ -99,16 +98,10 @@ async function checkLocalFile(fsRelative) {
 }
 
 (async () => {
+    loadBackendEnv();
     const { csv, json, limit, dbOnly } = parseArgs();
 
-    const pool = mysql.createPool({
-        host: process.env.DB_HOST || 'localhost',
-        user: process.env.DB_USER || 'root',
-        password: process.env.DB_PASSWORD || '',
-        database: process.env.DB_NAME || 'hmherbs',
-        waitForConnections: true,
-        connectionLimit: 5
-    });
+    const pool = createPool({ connectionLimit: 5 });
 
     let sql = `
         SELECT p.id, p.sku, p.slug, p.name, p.price AS product_price,

@@ -23,7 +23,9 @@
     "catalog-health": "node scripts/sync-catalog-primary-images-to-db.js --dry-run && node scripts/report-product-image-gaps.js",
     "test:nmi-connectivity": "node scripts/test-nmi-connectivity.js",
     "verify:nmi-parse": "node scripts/verify-nmi-gateway-parse.js",
-    "set-customer-password": "node scripts/set-customer-password.js"
+    "set-customer-password": "node scripts/set-customer-password.js",
+    "db:test": "node scripts/test-db-connection.js",
+    "db:check": "node check-credentials.js"
   },
   "keywords": [
     "herbs",

@@ -407,6 +407,12 @@ li {
     pointer-events: none;
   }
 
+  .navbar .nav-menu li,
+  .navbar #nav-menu li,
+  .navbar #navbar-menu li {
+    pointer-events: none;
+  }
+
   .navbar .nav-menu a,
   .navbar #nav-menu a,
   .navbar #navbar-menu a,
@@ -1442,6 +1448,20 @@ select:focus {
     min-width: fit-content;
     display: flex;
     align-items: center;
+    position: relative;
+    z-index: 10002 !important;
+    isolation: isolate;
+    pointer-events: auto !important;
+  }
+
+  .navbar .header-actions .auth-btn,
+  .navbar .header-actions .cart-toggle,
+  .navbar .header-actions a.auth-btn,
+  .navbar .header-actions button {
+    pointer-events: auto !important;
+    cursor: pointer !important;
+    position: relative;
+    z-index: 1;
   }
 
   .navbar .header-actions .auth-btn {
@@ -1742,6 +1762,11 @@ select:focus {
   font-weight: 600;
 }
 
+.edsa-manage-link {
+  margin-top: 0.75rem;
+  font-size: 0.9rem;
+}
+
 .edsa-image {
   display: flex;
   justify-content: center;
@@ -1754,12 +1779,13 @@ select:focus {
   height: auto;
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-lg);
-  transition: transform var(--transition-fast);
-  opacity: 1 !important;
-  /* Ensure it's always visible */
-  display: block !important;
-  /* Ensure it displays */
   object-fit: contain;
+  opacity: 0;
+  transition: opacity 0.3s ease, transform var(--transition-fast);
+}
+
+.edsa-image img.loaded {
+  opacity: 1;
 }
 
 .edsa-image img:hover {

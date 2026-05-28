@@ -125,13 +125,36 @@ Make sure `.env` is in `.gitignore`:
 backend/.env
 ```
 
-## Example .env File
+## Linode Managed MySQL (production)
+
+Copy `backend/.env.linode.example` to `backend/.env` on the server and fill in values from **Cloud Manager → Databases → Connection Details**.
+
+```env
+DB_HOST=lin-xxxxx-xxxx.servers.linodedb.net
+DB_PORT=3306
+DB_USER=akmadmin
+DB_PASSWORD=your_managed_password
+DB_NAME=hmherbs
+DB_SSL=true
+DB_SSL_CA_PATH=./certs/ca-certificate.crt
+```
+
+Test from the server after placing the CA file:
+
+```bash
+cd backend && npm run db:test
+```
+
+See **[LINODE_DEPLOY.md](../LINODE_DEPLOY.md)** for full deployment.
+
+## Example .env File (local development)
 
 Here's a complete example (replace with your actual values):
 
 ```env
 # Database
 DB_HOST=localhost
+DB_PORT=3306
 DB_USER=root
 DB_PASSWORD=MySecurePassword123!
 DB_NAME=hmherbs

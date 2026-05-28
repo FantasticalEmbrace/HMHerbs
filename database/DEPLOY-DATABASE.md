@@ -1,4 +1,4 @@
-# Database deploy (DigitalOcean Managed MySQL)
+# Database deploy (Linode Managed MySQL)
 
 ## Build the import bundle
 
@@ -10,31 +10,42 @@ Output: **`database/deploy-staging.sql`** (~0.3 MB) — backup + migrations in o
 
 ## Import from your computer
 
-1. In DigitalOcean → **Databases** → your cluster → add your **public IP** to trusted sources (temporary).
+1. In Cloud Manager → **Databases** → your cluster → **Manage Access Controls** → add your **public IP** (temporary).
 2. Install MySQL client locally if needed.
-3. Run:
+3. Copy `deploy/db-connection.env.example` → `deploy/db-connection.env` and fill in values.
+4. Run:
 
 ```bash
-mysql -h db-mysql-nyc3-xxxxx.db.ondigitalocean.com \
-  -P 25060 \
-  -u doadmin \
+# Windows
+.\deploy\import-database.ps1
+
+# Linux / macOS
+bash deploy/import-database.sh database/deploy-staging.sql
+```
+
+Or manually:
+
+```bash
+mysql -h lin-xxxxx-xxxx.servers.linodedb.net \
+  -P 3306 \
+  -u akmadmin \
   -p \
   --ssl-mode=REQUIRED \
   hmherbs < database/deploy-staging.sql
 ```
 
-Use the host, port, user, and database name from the control panel.
+Use the host, port, user, and database name from Connection Details.
 
-## Import from a Droplet (recommended for production)
+## Import from a Linode (recommended for production)
 
-1. Add the Droplet as a **trusted source** on the database cluster.
+1. Add the Linode’s public IP to the database **allow list**.
 2. Upload the SQL file:
 
 ```bash
-scp database/deploy-staging.sql user@YOUR_DROPLET_IP:/tmp/
+scp database/deploy-staging.sql user@YOUR_LINODE_IP:/tmp/
 ```
 
-3. On the Droplet:
+3. On the Linode:
 
 ```bash
 bash deploy/import-database.sh /tmp/deploy-staging.sql

@@ -4,6 +4,7 @@
  * Strategies: inactive SKU match, strip -1/-2 suffix, brand prefix, fuzzy slug, EDSA/gift specials, search, catalog.
  */
 
+const { loadBackendEnv, createPool, createConnection } = require('../../backend/utils/dbConfig');
 const fs = require('fs');
 const path = require('path');
 const mysql = require('mysql2/promise');
@@ -239,6 +240,7 @@ function resolveOne(oldSlug, ctx) {
 }
 
 async function main() {
+    loadBackendEnv(path.join(__dirname, '..', '..', 'backend', '.env'));
     const reportPath = path.join(__dirname, 'output', 'slug-alias-report.json');
     const unmatchedCsv = path.join(__dirname, 'output', 'unmatched-old-slugs.csv');
 
@@ -261,13 +263,7 @@ async function main() {
         return;
     }
 
-    const pool = mysql.createPool({
-        host: process.env.DB_HOST || 'localhost',
-        user: process.env.DB_USER || 'root',
-        password: process.env.DB_PASSWORD || '',
-        database: process.env.DB_NAME || 'hmherbs',
-        connectionLimit: 2
-    });
+    const pool = createPool({ connectionLimit: 5 });
 
     const [allProducts] = await pool.query(
         `SELECT p.id, p.slug, p.name, p.sku, p.is_active, p.brand_id, b.slug AS brand_slug

@@ -1,23 +1,16 @@
 // Product Import Script for HM Herbs
 // Handles bulk import of products from CSV/Excel files
 
-const mysql = require('mysql2/promise');
 const fs = require('fs').promises;
 const csv = require('csv-parser');
 const path = require('path');
-require('dotenv').config();
+const { loadBackendEnv, createPool } = require('../utils/dbConfig');
+
+loadBackendEnv();
 
 class ProductImporter {
     constructor() {
-        this.pool = mysql.createPool({
-            host: process.env.DB_HOST || 'localhost',
-            user: process.env.DB_USER || 'root',
-            password: process.env.DB_PASSWORD || '',
-            database: process.env.DB_NAME || 'hmherbs',
-            waitForConnections: true,
-            connectionLimit: 10,
-            queueLimit: 0
-        });
+        this.pool = createPool({ connectionLimit: 10, queueLimit: 0 });
 
         this.importStats = {
             total: 0,

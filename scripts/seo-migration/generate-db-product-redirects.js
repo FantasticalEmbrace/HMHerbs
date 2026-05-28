@@ -4,6 +4,7 @@
  * (covers products whose slugs changed since the Concrete crawl export).
  */
 
+const { loadBackendEnv, createPool, createConnection } = require('../../backend/utils/dbConfig');
 const fs = require('fs');
 const path = require('path');
 const mysql = require('mysql2/promise');
@@ -17,13 +18,8 @@ function escapeCsv(cell) {
 }
 
 async function main() {
-    const pool = mysql.createPool({
-        host: process.env.DB_HOST || 'localhost',
-        user: process.env.DB_USER || 'root',
-        password: process.env.DB_PASSWORD || '',
-        database: process.env.DB_NAME || 'hmherbs',
-        connectionLimit: 2
-    });
+    loadBackendEnv(path.join(__dirname, '..', '..', 'backend', '.env'));
+    const pool = createPool({ connectionLimit: 5 });
 
     const [products] = await pool.query(
         'SELECT slug FROM products WHERE is_active = 1 AND TRIM(slug) <> "" ORDER BY slug'

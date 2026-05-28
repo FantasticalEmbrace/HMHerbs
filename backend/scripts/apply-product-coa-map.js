@@ -5,8 +5,8 @@
  * Usage (from backend/): node scripts/apply-product-coa-map.js
  * Optional: --dry-run
  */
-require('dotenv').config();
-const mysql = require('mysql2/promise');
+
+const { loadBackendEnv, createPool } = require('../utils/dbConfig');
 
 /** slug -> public path + batch date on COA where known */
 const MAP = [
@@ -55,13 +55,9 @@ const MAP = [
 ];
 
 (async () => {
+    loadBackendEnv();
     const dryRun = process.argv.includes('--dry-run');
-    const pool = mysql.createPool({
-        host: process.env.DB_HOST || 'localhost',
-        user: process.env.DB_USER || 'root',
-        password: process.env.DB_PASSWORD || '',
-        database: process.env.DB_NAME || 'hmherbs'
-    });
+    const pool = createPool({ connectionLimit: 2 });
 
     console.log(dryRun ? 'DRY RUN\n' : 'Applying COA map…\n');
 

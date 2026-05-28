@@ -5,6 +5,7 @@
  *
  * Usage (from backend/): node scripts/fix-buried-treasure-images.js
  */
+const { loadBackendEnv, createPool, createConnection } = require('../utils/dbConfig');
 const axios = require('axios');
 const fs = require('fs').promises;
 const path = require('path');
@@ -60,16 +61,10 @@ async function downloadBinary(url) {
 }
 
 (async () => {
+    loadBackendEnv();
     await fs.mkdir(IMAGES_DIR, { recursive: true });
 
-    const pool = mysql.createPool({
-        host: process.env.DB_HOST || 'localhost',
-        user: process.env.DB_USER || 'root',
-        password: process.env.DB_PASSWORD || '',
-        database: process.env.DB_NAME || 'hmherbs',
-        waitForConnections: true,
-        connectionLimit: 2
-    });
+    const pool = createPool({ connectionLimit: 5 });
 
     const skus = Object.keys(SKU_TO_IMAGE_URL);
     const [rows] = await pool.execute(

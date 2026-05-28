@@ -10,18 +10,10 @@
  * Loads backend/.env for DB_* (same as other backend scripts).
  */
 
-const path = require('path');
 const bcrypt = require('bcrypt');
-const mysql = require('mysql2/promise');
+const { loadBackendEnv, createPool } = require('../utils/dbConfig');
 
-require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
-
-const dbConfig = {
-    host: process.env.DB_HOST || 'localhost',
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'hmherbs'
-};
+loadBackendEnv();
 
 function parseArgs(argv) {
     const out = { email: null, password: null };
@@ -47,7 +39,7 @@ async function main() {
         process.exit(1);
     }
 
-    const pool = await mysql.createPool({ ...dbConfig, waitForConnections: true, connectionLimit: 2 });
+    const pool = createPool({ connectionLimit: 2 });
     try {
         const [rows] = await pool.execute(
             'SELECT id, email FROM users WHERE LOWER(TRIM(email)) = ? AND is_active = 1',

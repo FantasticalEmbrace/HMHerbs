@@ -1,6 +1,6 @@
 'use strict';
 
-/** Display format: (601) 398-5600 */
+/** Display format: (555) 555-0100 */
 const US_PHONE_DISPLAY_RE = /^\(\d{3}\) \d{3}-\d{4}$/;
 
 function isUsPhoneDisplay(value) {

@@ -1,9 +1,11 @@
 // Setup default newsletter campaign with 15% discount offer
+const { loadBackendEnv, createPool, createConnection } = require('../utils/dbConfig');
 const mysql = require('mysql2/promise');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 (async () => {
+    loadBackendEnv();
     let connection;
     try {
         // Connect to database

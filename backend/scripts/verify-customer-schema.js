@@ -1,6 +1,7 @@
 // Verification: customer / gift-card / loyalty schema, wishlists, and user order aggregates.
 // Run from backend: node scripts/verify-customer-schema.js
-require('dotenv').config();
+
+const { loadBackendEnv, createPool, createConnection } = require('../utils/dbConfig');
 const mysql = require('mysql2/promise');
 
 async function tableExists(conn, name) {
@@ -22,6 +23,7 @@ async function columnExists(conn, table, column) {
 }
 
 (async () => {
+    loadBackendEnv();
     const conn = await mysql.createConnection({
         host: process.env.DB_HOST || 'localhost',
         port: process.env.DB_PORT ? parseInt(process.env.DB_PORT, 10) : 3306,

@@ -1,4 +1,4 @@
-# HM Herbs — Nginx site (DigitalOcean Droplet)
+# HM Herbs — Nginx site (Linode app server)
 # sudo cp deploy/nginx/hmherbs.conf.example /etc/nginx/sites-available/hmherbs
 # Edit server_name and root path, then enable and reload nginx.
 

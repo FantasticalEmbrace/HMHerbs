@@ -29,6 +29,7 @@
         document.documentElement.style.overflow = '';
         document.body.classList.remove(
             'auth-modal-open',
+            'edsa-modal-open',
             'modal-open',
             'no-scroll',
             'cart-open',

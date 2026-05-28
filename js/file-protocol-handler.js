@@ -48,19 +48,6 @@
             });
         }
 
-        // Attach listener for EDSA button (defer scripts may not have run yet — retry like edsa-image-handler)
-        function attachEDSABookingClick() {
-            const edsaBookBtn = document.getElementById('edsa-book-btn');
-            if (edsaBookBtn && typeof window.openEDSABooking === 'function') {
-                edsaBookBtn.addEventListener('click', function (e) {
-                    e.preventDefault();
-                    window.openEDSABooking();
-                });
-            } else if (edsaBookBtn) {
-                setTimeout(attachEDSABookingClick, 100);
-            }
-        }
-        attachEDSABookingClick();
     }
 })();
 

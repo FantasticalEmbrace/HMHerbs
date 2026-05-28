@@ -1,3 +1,6 @@
+const { loadBackendEnv, createPool, createConnection } = require('../utils/dbConfig');
+loadBackendEnv();
+
 /**
  * Script to fetch product images from brand websites
  * For products without images, searches brand websites and downloads product images
@@ -543,15 +546,7 @@ async function updateProductImage(pool, productId, imageUrl, allowBanners = fals
  * Main function to fetch images for products without images
  */
 async function fetchProductImages() {
-    const pool = mysql.createPool({
-        host: process.env.DB_HOST || 'localhost',
-        user: process.env.DB_USER || 'root',
-        password: process.env.DB_PASSWORD || '',
-        database: process.env.DB_NAME || 'hmherbs',
-        waitForConnections: true,
-        connectionLimit: 10,
-        queueLimit: 0
-    });
+    const pool = createPool({ connectionLimit: 5 });
 
     try {
         console.log('🚀 Starting product image fetch process...\n');

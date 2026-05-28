@@ -6,16 +6,12 @@
  * This does not fetch or upload PDFs — COAs must come from your supplier/lab files
  * or URLs you already have, then use Admin → product → COA upload or bulk tooling.
  */
-require('dotenv').config();
-const mysql = require('mysql2/promise');
+
+const { loadBackendEnv, createPool } = require('../utils/dbConfig');
 
 (async () => {
-    const pool = mysql.createPool({
-        host: process.env.DB_HOST || 'localhost',
-        user: process.env.DB_USER || 'root',
-        password: process.env.DB_PASSWORD || '',
-        database: process.env.DB_NAME || 'hmherbs'
-    });
+    loadBackendEnv();
+    const pool = createPool({ connectionLimit: 2 });
 
     try {
         const [rows] = await pool.query(`

@@ -10,18 +10,11 @@
  *   node scripts/reset-admin-password.js --email admin@hmherbs.com --password newpassword123
  */
 
-const mysql = require('mysql2/promise');
 const bcrypt = require('bcrypt');
 const readline = require('readline');
-require('dotenv').config();
+const { loadBackendEnv, createConnection } = require('../utils/dbConfig');
 
-// Database configuration
-const dbConfig = {
-    host: process.env.DB_HOST || 'localhost',
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'hmherbs'
-};
+loadBackendEnv();
 
 // Command line interface
 const rl = readline.createInterface({
@@ -74,7 +67,7 @@ async function resetAdminPassword() {
         console.log('\n🔄 Connecting to database...');
         
         // Connect to database
-        const connection = await mysql.createConnection(dbConfig);
+        const connection = await createConnection();
         
         console.log('✅ Connected to database');
         

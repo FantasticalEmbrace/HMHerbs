@@ -631,7 +631,12 @@ class ErrorHandler {
     handleFormSubmission(form, event) {
         // customer-auth.js owns these (capture-phase handlers + preventDefault).
         // Skip loading/validation here so we never fight that flow or the header UI.
-        if (form.id === 'customer-login-form' || form.id === 'customer-register-form' || form.id === 'customer-forgot-password-form') {
+        if (
+            form.id === 'customer-login-form' ||
+            form.id === 'customer-register-form' ||
+            form.id === 'customer-forgot-password-form' ||
+            form.id === 'edsa-booking-form'
+        ) {
             return;
         }
         try {

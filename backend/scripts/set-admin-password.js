@@ -5,22 +5,16 @@
  * Usage: node set-admin-password.js
  */
 
-const mysql = require('mysql2/promise');
 const bcrypt = require('bcrypt');
-require('dotenv').config();
+const { loadBackendEnv, createConnection } = require('../utils/dbConfig');
+
+loadBackendEnv();
 
 async function setAdminPassword() {
     console.log('🔑 Setting admin password to "admin1"...\n');
-    
-    const dbConfig = {
-        host: process.env.DB_HOST || 'localhost',
-        user: process.env.DB_USER || 'root',
-        password: process.env.DB_PASSWORD || '',
-        database: process.env.DB_NAME || 'hmherbs'
-    };
 
     try {
-        const connection = await mysql.createConnection(dbConfig);
+        const connection = await createConnection();
         console.log('✅ Connected to database\n');
 
         // Hash the password

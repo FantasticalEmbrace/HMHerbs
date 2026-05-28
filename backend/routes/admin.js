@@ -10,6 +10,19 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs').promises;
 const logger = require('../utils/logger');
+const {
+    sendAdminResolutionEmail,
+    sendStaffCancelledCustomerEmail,
+    sendStaffRescheduledCustomerEmail
+} = require('../services/edsaAppointmentEmail');
+const {
+    loadBookingRowById,
+    deleteBookingCalendarEvent,
+    syncBookingCalendarEvent,
+    bookingEmailPayload,
+    appointmentSnapshot,
+    normalizeDateYmd
+} = require('../utils/edsaBookingOps');
 
 // Configure multer for brand logo uploads
 const brandLogoStorage = multer.diskStorage({
@@ -2236,7 +2249,7 @@ router.patch('/orders/:id', authenticateAdmin, async (req, res) => {
 // EDSA Booking Management
 router.get('/edsa/bookings', authenticateAdmin, async (req, res) => {
     try {
-        const { page = 1, limit = 20, status, date } = req.query;
+        const { page = 1, limit = 20, status, date, from, to } = req.query;
         const pageInt = parseInt(page, 10) || 1;
         const limitInt = parseInt(limit, 10) || 20;
         const offset = (pageInt - 1) * limitInt;
@@ -2251,6 +2264,16 @@ router.get('/edsa/bookings', authenticateAdmin, async (req, res) => {
         if (date) {
             whereConditions.push('preferred_date = ?');
             queryParams.push(date);
+        }
+        if (from) {
+            const fromYmd = normalizeDateYmd(from) || from;
+            whereConditions.push('preferred_date >= ?');
+            queryParams.push(fromYmd);
+        }
+        if (to) {
+            const toYmd = normalizeDateYmd(to) || to;
+            whereConditions.push('preferred_date <= ?');
+            queryParams.push(toYmd);
         }
 
         const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
@@ -2269,7 +2292,9 @@ router.get('/edsa/bookings', authenticateAdmin, async (req, res) => {
             SELECT 
                 id, first_name, last_name, email, phone,
                 preferred_date, preferred_time, alternative_date, alternative_time,
-                confirmed_date, confirmed_time, status, notes, admin_notes, created_at
+                confirmed_date, confirmed_time, status, notes, admin_notes, created_at,
+                customer_request_type, customer_request_notes,
+                requested_date, requested_time, customer_request_at
             FROM edsa_bookings
             ${whereClause}
             ORDER BY preferred_date ASC, preferred_time ASC
@@ -2286,23 +2311,121 @@ router.get('/edsa/bookings', authenticateAdmin, async (req, res) => {
     }
 });
 
-// Update EDSA Booking Status
+// Update EDSA booking (staff) — syncs calendar and emails customer when changed
 router.put('/edsa/bookings/:id', authenticateAdmin, async (req, res) => {
     try {
-        const { id } = req.params;
-        const { status, confirmed_date, confirmed_time, admin_notes } = req.body;
+        const bookingId = Number(req.params.id);
+        if (!Number.isFinite(bookingId) || bookingId < 1) {
+            return res.status(400).json({ error: 'Invalid booking id' });
+        }
 
-        const [result] = await req.pool.execute(`
-            UPDATE edsa_bookings 
-            SET status = ?, confirmed_date = ?, confirmed_time = ?, admin_notes = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-        `, [status, confirmed_date || null, confirmed_time || null, admin_notes || null, id]);
-
-        if (result.affectedRows === 0) {
+        const before = await loadBookingRowById(req.pool, bookingId);
+        if (!before) {
             return res.status(404).json({ error: 'Booking not found' });
         }
 
-        res.json({ message: 'Booking updated successfully' });
+        const {
+            status,
+            preferred_date,
+            preferred_time,
+            confirmed_date,
+            confirmed_time,
+            admin_notes,
+            notify_customer: notifyCustomer = true
+        } = req.body;
+
+        const nextStatus = status != null ? String(status) : before.status;
+        const nextDate =
+            preferred_date != null
+                ? normalizeDateYmd(preferred_date) || preferred_date
+                : normalizeDateYmd(before.preferred_date);
+        const nextTime =
+            preferred_time != null
+                ? String(preferred_time).slice(0, 5)
+                : String(before.preferred_time || '').slice(0, 5);
+
+        const beforeSnap = appointmentSnapshot(before);
+        const wasCancelled = String(before.status).toLowerCase() === 'cancelled';
+        const nowCancelled = String(nextStatus).toLowerCase() === 'cancelled';
+        const timeChanged = beforeSnap.date !== nextDate || beforeSnap.time !== nextTime;
+        const statusChanged = String(before.status) !== String(nextStatus);
+
+        const clearCalendarOnCancel = nowCancelled && !wasCancelled;
+
+        await req.pool.execute(
+            `UPDATE edsa_bookings
+                SET status = ?,
+                    preferred_date = ?,
+                    preferred_time = ?,
+                    confirmed_date = ?,
+                    confirmed_time = ?,
+                    admin_notes = ?,
+                    google_calendar_event_id = CASE WHEN ? THEN NULL ELSE google_calendar_event_id END,
+                    customer_request_type = 'none',
+                    customer_request_notes = NULL,
+                    requested_date = NULL,
+                    requested_time = NULL,
+                    customer_request_at = NULL,
+                    updated_at = CURRENT_TIMESTAMP
+              WHERE id = ?`,
+            [
+                nextStatus,
+                nextDate,
+                nextTime,
+                confirmed_date != null
+                    ? normalizeDateYmd(confirmed_date) || confirmed_date
+                    : nextStatus === 'confirmed'
+                      ? nextDate
+                      : before.confirmed_date,
+                confirmed_time != null
+                    ? String(confirmed_time).slice(0, 5)
+                    : nextStatus === 'confirmed'
+                      ? nextTime
+                      : before.confirmed_time,
+                admin_notes != null ? admin_notes : before.admin_notes,
+                clearCalendarOnCancel ? 1 : 0,
+                bookingId
+            ]
+        );
+
+        const after = await loadBookingRowById(req.pool, bookingId);
+        const emailPayload = bookingEmailPayload(after || before);
+
+        if (nowCancelled) {
+            if (before.google_calendar_event_id) {
+                await deleteBookingCalendarEvent(req.pool, before.google_calendar_event_id);
+            }
+            if (notifyCustomer && !wasCancelled) {
+                void sendStaffCancelledCustomerEmail(emailPayload);
+            }
+        } else {
+            await syncBookingCalendarEvent(req.pool, after);
+            if (notifyCustomer && timeChanged) {
+                void sendStaffRescheduledCustomerEmail(
+                    emailPayload,
+                    beforeSnap.date,
+                    beforeSnap.time
+                );
+            } else if (
+                notifyCustomer &&
+                statusChanged &&
+                String(nextStatus).toLowerCase() === 'confirmed' &&
+                !timeChanged
+            ) {
+                void sendAdminResolutionEmail({
+                    ...emailPayload,
+                    status: nextStatus,
+                    confirmedDate: after?.confirmed_date,
+                    confirmedTime: after?.confirmed_time
+                });
+            }
+        }
+
+        res.json({
+            message: 'Booking updated successfully',
+            booking: after,
+            customerNotified: Boolean(notifyCustomer)
+        });
     } catch (error) {
         logger.error('EDSA booking update error:', error);
         res.status(500).json({ error: 'Internal server error' });
@@ -2494,9 +2617,15 @@ router.get('/settings/google-business/callback', async (req, res) => {
         GoogleBusinessProfileService.verifyOAuthState(state);
         await GoogleBusinessProfileService.exchangeCodeAndStore(req.pool, code, req);
 
-        const locations = await GoogleBusinessProfileService.listLocations(req.pool, req);
-        if (locations.length === 1) {
-            await GoogleBusinessProfileService.saveLocationName(req.pool, locations[0].name);
+        try {
+            const locations = await GoogleBusinessProfileService.listLocations(req.pool, req);
+            if (locations.length === 1) {
+                await GoogleBusinessProfileService.saveLocationName(req.pool, locations[0].name);
+            }
+        } catch (listErr) {
+            logger.warn('[integration][google-business] Connected but could not list locations', {
+                error: listErr.message,
+            });
         }
 
         return res.redirect(`${adminAppBase}?gbp=connected#settings`);

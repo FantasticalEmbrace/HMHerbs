@@ -13,6 +13,7 @@
  *   node scripts/restore-all-product-images.js --dry-run
  *   node scripts/restore-all-product-images.js
  */
+const { loadBackendEnv, createPool, createConnection } = require('../utils/dbConfig');
 const fs = require('fs').promises;
 const path = require('path');
 const mysql = require('mysql2/promise');
@@ -233,16 +234,10 @@ async function setPrimary(pool, productId, name, url, dryRun, verboseDry) {
 }
 
 (async () => {
+    loadBackendEnv();
     const { dryRun } = parseArgs();
 
-    const pool = mysql.createPool({
-        host: process.env.DB_HOST || 'localhost',
-        user: process.env.DB_USER || 'root',
-        password: process.env.DB_PASSWORD || '',
-        database: process.env.DB_NAME || 'hmherbs',
-        waitForConnections: true,
-        connectionLimit: 5
-    });
+    const pool = createPool({ connectionLimit: 5 });
 
     const [rows] = await pool.query(`
         SELECT p.id, p.sku, p.name, p.slug, pi.id AS image_row_id, pi.image_url

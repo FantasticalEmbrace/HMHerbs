@@ -1,3 +1,6 @@
+const { loadBackendEnv, createPool, createConnection } = require('../utils/dbConfig');
+loadBackendEnv();
+
 /**
  * Update product prices and stock from hmherbs.com
  * For products with missing/zero price or stock
@@ -212,15 +215,7 @@ class HMHerbsPriceStockUpdater {
     }
 
     async updateProducts() {
-        const pool = mysql.createPool({
-            host: process.env.DB_HOST || 'localhost',
-            user: process.env.DB_USER || 'root',
-            password: process.env.DB_PASSWORD || '',
-            database: process.env.DB_NAME || 'hmherbs',
-            waitForConnections: true,
-            connectionLimit: 10,
-            queueLimit: 0
-        });
+        const pool = createPool({ connectionLimit: 5 });
 
         try {
             console.log('🔍 Finding products with missing price or stock...\n');

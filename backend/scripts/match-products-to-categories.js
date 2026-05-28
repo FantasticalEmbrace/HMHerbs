@@ -3,22 +3,14 @@
  * Uses keyword matching to intelligently assign products to the correct category
  */
 
-const mysql = require('mysql2/promise');
-const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+const { loadBackendEnv, createPool } = require('../utils/dbConfig');
 const logger = require('../utils/logger');
+
+loadBackendEnv();
 
 class ProductCategoryMatcher {
     constructor() {
-        this.pool = mysql.createPool({
-            host: process.env.DB_HOST,
-            user: process.env.DB_USER,
-            password: process.env.DB_PASSWORD,
-            database: process.env.DB_NAME,
-            waitForConnections: true,
-            connectionLimit: 10,
-            queueLimit: 0
-        });
+        this.pool = createPool({ connectionLimit: 10, queueLimit: 0 });
 
         // Category keyword mappings - products matching these keywords will be assigned to the category
         this.categoryKeywords = {
@@ -191,6 +183,7 @@ class ProductCategoryMatcher {
 
 if (require.main === module) {
     (async () => {
+    loadBackendEnv();
         try {
             const matcher = new ProductCategoryMatcher();
             const result = await matcher.matchAndAssignCategories();

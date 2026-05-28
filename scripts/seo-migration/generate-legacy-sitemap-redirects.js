@@ -4,6 +4,7 @@
  * Writes repo-root redirects-legacy-sitemap.csv (loaded with redirects-301.csv by the server).
  */
 
+const { loadBackendEnv, createPool, createConnection } = require('../../backend/utils/dbConfig');
 const fs = require('fs');
 const path = require('path');
 const mysql = require('mysql2/promise');
@@ -41,6 +42,7 @@ function escapeCsv(cell) {
 }
 
 async function main() {
+    loadBackendEnv(path.join(__dirname, '..', '..', 'backend', '.env'));
     const rows = [['from_path', 'to_path']];
     const seen = new Set();
 
@@ -53,13 +55,7 @@ async function main() {
 
     for (const [from, to] of STATIC_LEGACY) add(from, to);
 
-    const pool = mysql.createPool({
-        host: process.env.DB_HOST || 'localhost',
-        user: process.env.DB_USER || 'root',
-        password: process.env.DB_PASSWORD || '',
-        database: process.env.DB_NAME || 'hmherbs',
-        connectionLimit: 2
-    });
+    const pool = createPool({ connectionLimit: 5 });
 
     try {
         const [brands] = await pool.query(

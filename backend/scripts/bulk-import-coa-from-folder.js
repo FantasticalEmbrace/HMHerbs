@@ -11,10 +11,10 @@
  *
  * Env: same DB vars as the rest of the backend (.env in backend/).
  */
-require('dotenv').config();
+
+const { loadBackendEnv, createPool } = require('../utils/dbConfig');
 const fs = require('fs').promises;
 const path = require('path');
-const mysql = require('mysql2/promise');
 
 const UPLOADS_COA = path.join(__dirname, '..', 'uploads', 'coa');
 
@@ -27,6 +27,7 @@ function parseArgs() {
 }
 
 (async () => {
+    loadBackendEnv();
     const { dir, dryRun, setCannabis } = parseArgs();
     if (!dir) {
         console.error('Usage: node scripts/bulk-import-coa-from-folder.js <folder-with-PDFs> [--dry-run] [--set-cannabis]');
@@ -48,12 +49,7 @@ function parseArgs() {
         process.exit(0);
     }
 
-    const pool = mysql.createPool({
-        host: process.env.DB_HOST || 'localhost',
-        user: process.env.DB_USER || 'root',
-        password: process.env.DB_PASSWORD || '',
-        database: process.env.DB_NAME || 'hmherbs'
-    });
+    const pool = createPool({ connectionLimit: 2 });
 
     if (!dryRun) {
         await fs.mkdir(UPLOADS_COA, { recursive: true });
