@@ -575,3 +575,23 @@ body.edsa-modal-open {
     }
 }
 
+/* EDSA confirm dialog (showEdsConfirm) — layout + focus fix only */
+html.edsa-ui-scroll-locked,
+body.edsa-ui-scroll-locked {
+    overflow: hidden;
+}
+
+.eds-confirm-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--space-3);
+    padding: 0 var(--space-6) var(--space-6);
+}
+
+/* Global .btn:focus uses green; override on destructive confirm only */
+.eds-confirm-modal .eds-confirm-actions .btn-danger:focus,
+.eds-confirm-modal .eds-confirm-actions .btn-danger:focus-visible {
+    outline-color: #b91c1c;
+}
+

@@ -11,6 +11,7 @@ const googleCalendar = require('../services/google-calendar');
 const { isUsPhoneDisplay } = require('../utils/usPhoneDisplay');
 const {
     sendBookingReceivedEmail,
+    sendBookingReceivedStoreEmail,
     sendAppointmentCancelledEmail,
     sendAppointmentCancelledStoreEmail,
     sendAppointmentRescheduledEmail,
@@ -405,13 +406,23 @@ router.post('/book', edsaBookingValidation, async (req, res) => {
         }
 
         const bookingId = Number(result.insertId);
-        void sendBookingReceivedEmail({
+        const emailPayload = {
             bookingId: Number.isFinite(bookingId) ? bookingId : result.insertId,
             firstName,
+            lastName,
             email,
+            phone,
             preferredDate,
             preferredTime
-        });
+        };
+        try {
+            await Promise.all([
+                sendBookingReceivedEmail(emailPayload),
+                sendBookingReceivedStoreEmail(emailPayload)
+            ]);
+        } catch (emailErr) {
+            logger.error('EDSA booking notification email error (booking saved):', emailErr);
+        }
 
         res.status(201).json({
             message: 'EDSA appointment booking submitted successfully',
@@ -538,8 +549,14 @@ router.post('/bookings/:id/cancel-appointment', edsaCustomerEmailValidation, asy
             await deleteBookingCalendarEvent(req.pool, booking.google_calendar_event_id);
         }
 
-        void sendAppointmentCancelledEmail(prevPayload);
-        void sendAppointmentCancelledStoreEmail(prevPayload);
+        try {
+            await Promise.all([
+                sendAppointmentCancelledEmail(prevPayload),
+                sendAppointmentCancelledStoreEmail(prevPayload)
+            ]);
+        } catch (emailErr) {
+            logger.error('EDSA cancellation email error (cancel saved):', emailErr);
+        }
 
         res.json({
             message: 'Your appointment has been cancelled.',
@@ -617,8 +634,14 @@ router.post('/bookings/:id/reschedule-appointment', edsaCustomerRescheduleValida
         }
 
         const emailPayload = bookingEmailPayload(updated || booking);
-        void sendAppointmentRescheduledEmail(emailPayload, previousDate, previousTime);
-        void sendAppointmentRescheduledStoreEmail(emailPayload, previousDate, previousTime);
+        try {
+            await Promise.all([
+                sendAppointmentRescheduledEmail(emailPayload, previousDate, previousTime),
+                sendAppointmentRescheduledStoreEmail(emailPayload, previousDate, previousTime)
+            ]);
+        } catch (emailErr) {
+            logger.error('EDSA reschedule email error (reschedule saved):', emailErr);
+        }
 
         res.json({
             message: 'Your appointment has been rescheduled.',

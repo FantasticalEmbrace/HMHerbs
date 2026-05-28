@@ -2,6 +2,7 @@ const { google } = require('googleapis');
 const fs = require('fs');
 const path = require('path');
 const logger = require('../utils/logger');
+const { isSmtpConfigured } = require('../utils/smtpConfig');
 const GoogleCalendarOAuthService = require('./google-calendar-oauth');
 const {
     buildStoreCalendarDateTime,
@@ -89,10 +90,16 @@ class GoogleCalendarService {
         return this.initialized && this.calendar !== null;
     }
 
-    /** Calendar events must not include guests — otherwise Google sends its own invite/cancel emails. */
-    calendarEventOptions() {
+    /**
+     * Store calendar only — no customer guest emails from Google.
+     * Branded SMTP handles customer confirmation/cancellation when configured.
+     * Calendar guest invites are a fallback only when SMTP is not set up.
+     */
+    calendarEventOptions(customerEmail) {
+        const email = String(customerEmail || '').trim();
+        const useCalendarInvite = email && !isSmtpConfigured();
         return {
-            attendees: [],
+            attendees: useCalendarInvite ? [{ email, responseStatus: 'needsAction' }] : [],
             guestsCanInviteOthers: false,
             guestsCanModify: false,
             guestsCanSeeOtherGuests: false,
@@ -103,8 +110,13 @@ class GoogleCalendarService {
         };
     }
 
+    calendarSendUpdates(customerEmail) {
+        const email = String(customerEmail || '').trim();
+        return email && !isSmtpConfigured() ? 'externalOnly' : 'none';
+    }
+
     async stripEventAttendees(eventId) {
-        if (!this.isAvailable() || !eventId) return;
+        if (!this.isAvailable() || !eventId || !isSmtpConfigured()) return;
         try {
             await this.calendar.events.patch({
                 calendarId: this.calendarId,
@@ -156,13 +168,13 @@ class GoogleCalendarService {
                 end: buildStoreCalendarEnd(preferredDate, preferredTime, 1),
                 location: '1140 Battlefield Pkwy, Fort Oglethorpe, GA 30742',
                 colorId: '10',
-                ...this.calendarEventOptions(),
+                ...this.calendarEventOptions(email),
             };
 
             const response = await this.calendar.events.insert({
                 calendarId: this.calendarId,
                 resource: event,
-                sendUpdates: 'none',
+                sendUpdates: this.calendarSendUpdates(email),
             });
 
             logger.info('[integration][google-calendar] Event created', { eventId: response.data.id });
@@ -197,14 +209,14 @@ class GoogleCalendarService {
                 }),
                 start: buildStoreCalendarDateTime(preferredDate, preferredTime),
                 end: buildStoreCalendarEnd(preferredDate, preferredTime, 1),
-                ...this.calendarEventOptions(),
+                ...this.calendarEventOptions(email),
             };
 
             const response = await this.calendar.events.update({
                 calendarId: this.calendarId,
                 eventId,
                 resource: event,
-                sendUpdates: 'none',
+                sendUpdates: this.calendarSendUpdates(email),
             });
 
             return response.data;
@@ -219,11 +231,26 @@ class GoogleCalendarService {
         if (!this.isAvailable() || !eventId) return false;
 
         try {
-            await this.stripEventAttendees(eventId);
+            let customerEmail = '';
+            if (!isSmtpConfigured()) {
+                try {
+                    const existing = await this.calendar.events.get({
+                        calendarId: this.calendarId,
+                        eventId,
+                    });
+                    const guests = existing?.data?.attendees || [];
+                    const guest = guests.find((a) => a.email && !a.organizer && !a.self);
+                    customerEmail = guest?.email || '';
+                } catch (_) {
+                    /* use sendUpdates none if event cannot be read */
+                }
+            } else {
+                await this.stripEventAttendees(eventId);
+            }
             await this.calendar.events.delete({
                 calendarId: this.calendarId,
                 eventId,
-                sendUpdates: 'none',
+                sendUpdates: this.calendarSendUpdates(customerEmail),
             });
             return true;
         } catch (error) {
