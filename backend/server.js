@@ -1615,9 +1615,18 @@ app.use('/api/*', (req, res) => {
     const stopTaxReserveScheduler = startTaxReserveScheduler(pool);
 
     const server = app.listen(PORT, () => {
+        const { isSmtpConfigured } = require('./utils/smtpConfig');
         console.log(`H&M Herbs API Server running on port ${PORT}`);
         console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
         console.log(`Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:8000'}`);
+        if (isSmtpConfigured()) {
+            console.log('EDSA/customer email: SMTP configured (branded appointment emails enabled)');
+        } else {
+            console.warn(
+                'EDSA/customer email: SMTP not configured — set SMTP_HOST, SMTP_USER, SMTP_PASSWORD in backend/.env. ' +
+                    'Until then, new bookings rely on Google Calendar guest invites when calendar is connected.'
+            );
+        }
         console.log(
             'Checkout API: orders INSERT v2 (order_number + shipping_address_line_1); NMI skip-preflight=' +
                 (process.env.NMI_SKIP_TOKENIZATION_PREFLIGHT || '0')

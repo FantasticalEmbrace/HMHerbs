@@ -2,6 +2,7 @@
 
 const logger = require('../utils/logger');
 const { getStorefrontPublicBaseUrl, getAdminAppUrl } = require('../utils/storefrontUrl');
+const { isSmtpConfigured } = require('../utils/smtpConfig');
 
 function escapeHtml(text) {
     return String(text || '')
@@ -33,12 +34,17 @@ function formatTime(value) {
 }
 
 async function getMailTransporter() {
+    if (!isSmtpConfigured()) return null;
     const smtpHost = String(process.env.SMTP_HOST || process.env.EMAIL_HOST || '').trim();
     const smtpUser = String(process.env.SMTP_USER || process.env.EMAIL_USER || '').trim();
     const smtpPass = String(process.env.SMTP_PASSWORD || process.env.EMAIL_PASS || '').trim();
     const smtpPort = Number(process.env.SMTP_PORT || process.env.EMAIL_PORT || 587) || 587;
-    if (!smtpHost || !smtpUser) return null;
     const nodemailer = require('nodemailer');
+    // Gmail requires the authenticated account as the envelope sender; use a simple display name.
+    const from = {
+        name: 'HM Herbs',
+        address: smtpUser
+    };
     return {
         transporter: nodemailer.createTransport({
             host: smtpHost,
@@ -46,7 +52,8 @@ async function getMailTransporter() {
             secure: smtpPort === 465,
             auth: { user: smtpUser, pass: smtpPass }
         }),
-        from: String(process.env.SMTP_FROM || process.env.EMAIL_FROM || smtpUser).trim()
+        from,
+        smtpUser
     };
 }
 
@@ -60,22 +67,27 @@ async function sendEmail({ to, subject, html, text, logTag }) {
     try {
         const mail = await getMailTransporter();
         if (!mail) {
-            logger.info(`${logTag} (SMTP not configured)`, { to, subject });
+            logger.warn(`${logTag} skipped — SMTP not configured`, { to, subject });
             console.log(`\n📧 ${logTag} (set SMTP_* in backend/.env to send):`);
             console.log(`   To: ${to}`);
             console.log(`   Subject: ${subject}\n`);
-            return;
+            return false;
         }
-        await mail.transporter.sendMail({
+        const storeReply = getStoreNotificationEmail();
+        const info = await mail.transporter.sendMail({
             from: mail.from,
             to,
+            replyTo: storeReply || mail.smtpUser,
+            envelope: { from: mail.smtpUser, to },
             subject,
             html,
             text
         });
-        logger.info(`${logTag} sent`, { to });
+        logger.info(`${logTag} sent`, { to, messageId: info?.messageId || null });
+        return true;
     } catch (error) {
-        logger.error(`${logTag} failed`, error);
+        logger.error(`${logTag} failed`, { to, error: error.message, stack: error.stack });
+        return false;
     }
 }
 
@@ -121,6 +133,24 @@ async function sendBookingReceivedEmail(booking) {
     ].join('\n');
     logger.info('EDSA booking email links', { confirmation: links.confirmation, manage: links.manage });
     await sendEmail({ to: email, subject, html, text, logTag: 'EDSA booking email' });
+}
+
+/** Notify store inbox when a customer books online. */
+async function sendBookingReceivedStoreEmail(booking) {
+    const storeEmail = getStoreNotificationEmail();
+    if (!storeEmail) return;
+    const customerName = [booking.firstName, booking.lastName].filter(Boolean).join(' ') || 'Customer';
+    const when = `${formatDate(booking.preferredDate)} at ${formatTime(booking.preferredTime)}`;
+    const subject = `[EDSA] New booking #${booking.bookingId} — ${customerName}`;
+    const html = `
+        <div style="font-family:Inter,system-ui,sans-serif;color:#111827;max-width:560px;">
+            <h2 style="color:#2d5a27;margin:0 0 8px;">New EDSA appointment booked online</h2>
+            <p><strong>#${escapeHtml(booking.bookingId)}</strong> — ${escapeHtml(customerName)}<br>
+               ${escapeHtml(when)}<br>
+               ${escapeHtml(booking.email)} · ${escapeHtml(booking.phone || '—')}</p>
+            ${storeAdminLinkHtml(booking.bookingId)}
+        </div>`;
+    await sendEmail({ to: storeEmail, subject, html, text: subject, logTag: 'EDSA new-booking store notification' });
 }
 
 function changeRequestDetailsHtml(booking, requestType) {
@@ -371,6 +401,7 @@ async function sendStaffRescheduledCustomerEmail(booking, previousDate, previous
 
 module.exports = {
     sendBookingReceivedEmail,
+    sendBookingReceivedStoreEmail,
     sendAppointmentCancelledEmail,
     sendAppointmentCancelledStoreEmail,
     sendAppointmentRescheduledEmail,
