@@ -1,25 +1,25 @@
 # 🚀 HM Herbs Deployment Guide
 
-This guide covers generic production deployment. **For DigitalOcean (recommended), use [DIGITALOCEAN_DEPLOY.md](./DIGITALOCEAN_DEPLOY.md)** — Droplet, Managed MySQL, Nginx, PM2, and SSL.
+This guide covers generic production deployment. **For Linode / Akamai (recommended), use [LINODE_DEPLOY.md](./LINODE_DEPLOY.md)** — Linode, NodeBalancer, Managed MySQL, Nginx, PM2, and SSL.
 
 ## 📋 Pre-Deployment Checklist
 
 ### 1. Environment Configuration
-- [ ] Copy `.env.production` to your server
-- [ ] Update all production values in `.env.production`
+- [ ] Copy production env template to your server (`backend/.env.linode.example` → `backend/.env`)
+- [ ] Update all production values in `backend/.env`
 - [ ] Set `PRODUCTION_DOMAIN` to your actual domain
 - [ ] Generate strong `JWT_SECRET` and `POS_ENCRYPTION_KEY`
 - [ ] Configure production database credentials
 
 ### 2. Database Setup
-- [ ] Create production database
+- [ ] Create production database (Linode Managed MySQL)
 - [ ] Run database migrations/schema
 - [ ] Import initial data if needed
 - [ ] Test database connectivity
 
 ### 3. Domain & SSL
-- [ ] Point domain to your server
-- [ ] Configure SSL certificate
+- [ ] Point domain A record to NodeBalancer IP
+- [ ] Configure SSL certificate on the Linode (Let's Encrypt)
 - [ ] Update `FRONTEND_URL` and `PRODUCTION_DOMAIN` in environment
 
 ## 🔧 Environment Variables
@@ -60,7 +60,7 @@ LOG_LEVEL=warn
 
 ## 🌐 Deployment Options
 
-### Option 1: Traditional Server (VPS/Dedicated)
+### Option 1: Traditional Server (VPS — Linode)
 
 1. **Install Dependencies**
    ```bash
@@ -82,8 +82,8 @@ LOG_LEVEL=warn
    npm install
    
    # Copy and configure environment
-   cp .env.production .env
-   # Edit .env with your production values
+   cp backend/.env.linode.example backend/.env
+   # Edit backend/.env with your production values
    
    # Start with PM2
    pm2 start backend/server.js --name "hmherbs-backend"
@@ -99,7 +99,7 @@ LOG_LEVEL=warn
        
        # Frontend files
        location / {
-           root /path/to/HMHerbs;
+           root /var/www/hmherbs;
            try_files $uri $uri/ /index.html;
        }
        
@@ -110,13 +110,12 @@ LOG_LEVEL=warn
            proxy_set_header Upgrade $http_upgrade;
            proxy_set_header Connection 'upgrade';
            proxy_set_header Host $host;
-           proxy_set_header X-Real-IP $remote_addr;
-           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-           proxy_set_header X-Forwarded-Proto $scheme;
            proxy_cache_bypass $http_upgrade;
        }
    }
    ```
+
+See **[LINODE_DEPLOY.md](./LINODE_DEPLOY.md)** for the full step-by-step guide including NodeBalancer and Managed MySQL.
 
 ### Option 2: Docker Deployment
 
@@ -264,4 +263,3 @@ For additional help, create an issue in the repository with:
 - Error messages
 - Environment details
 - Steps already tried
-

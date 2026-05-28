@@ -36,6 +36,7 @@ class AdminApp {
             totalPages: 1,
             totalCategories: 0
         };
+        this._edsaBookingsById = new Map();
 
         this.init();
     }
@@ -406,6 +407,83 @@ class AdminApp {
                 this.showSection('low-stock');
             });
         }
+
+        window.addEventListener('hashchange', () => {
+            if (!this.authToken) return;
+            const deep = this.parseAdminDeepLink();
+            if (deep) {
+                this.showSection(deep.section, { skipHashUpdate: true }).then(() => {
+                    if (deep.bookingId && deep.section === 'edsa') {
+                        this.openEdsaBookingWhenReady(deep.bookingId);
+                    }
+                });
+            }
+        });
+    }
+
+    parseAdminDeepLink() {
+        const hash = window.location.hash.replace(/^#/, '').trim();
+        if (!hash) return null;
+        const section = hash.split(/[/?&]/)[0];
+        if (!document.querySelector(`[data-section="${section}"]`)) return null;
+        const bookingParam = new URLSearchParams(window.location.search).get('booking');
+        const bookingId = Number(bookingParam);
+        return {
+            section,
+            bookingId: Number.isFinite(bookingId) && bookingId > 0 ? bookingId : null,
+        };
+    }
+
+    updateAdminUrlHash(sectionName) {
+        try {
+            const url = new URL(window.location.href);
+            url.hash = sectionName;
+            if (sectionName !== 'edsa') {
+                url.searchParams.delete('booking');
+            }
+            const next = `${url.pathname}${url.search}${url.hash}`;
+            if (`${window.location.pathname}${window.location.search}${window.location.hash}` !== next) {
+                history.replaceState(null, '', next);
+            }
+        } catch (_) {
+            /* ignore */
+        }
+    }
+
+    async openEdsaBookingWhenReady(bookingId, attemptsLeft = 20) {
+        const id = Number(bookingId);
+        if (!Number.isFinite(id) || id < 1) return;
+        if (this._edsaBookingsById.has(id)) {
+            this.openEdsaBookingModal(id);
+            return;
+        }
+        if (attemptsLeft <= 0) {
+            this.showToast(
+                `Booking #${id} is not on the current calendar view. Use the table below or change the month.`,
+                'info'
+            );
+            return;
+        }
+        await new Promise((r) => setTimeout(r, 150));
+        return this.openEdsaBookingWhenReady(id, attemptsLeft - 1);
+    }
+
+    async applyAdminDeepLink() {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('gbp') || params.get('gcal') || window.location.hash === '#settings') {
+            await this.showSection('settings', { skipHashUpdate: true });
+            this.handleGoogleBusinessOAuthReturn();
+            this.handleGoogleCalendarOAuthReturn();
+            return;
+        }
+
+        const deep = this.parseAdminDeepLink();
+        if (!deep) return;
+
+        await this.showSection(deep.section, { skipHashUpdate: true });
+        if (deep.bookingId && deep.section === 'edsa') {
+            await this.openEdsaBookingWhenReady(deep.bookingId);
+        }
     }
 
     async handleLogin(e) {
@@ -562,13 +640,7 @@ class AdminApp {
 
         // Load dashboard data
         await this.loadDashboardStats();
-
-        const params = new URLSearchParams(window.location.search);
-        if (params.get('gbp') || params.get('gcal') || window.location.hash === '#settings') {
-            this.showSection('settings');
-            this.handleGoogleBusinessOAuthReturn();
-            this.handleGoogleCalendarOAuthReturn();
-        }
+        await this.applyAdminDeepLink();
     }
 
     async loadDashboardStats() {
@@ -767,7 +839,7 @@ class AdminApp {
         }
     }
 
-    showSection(sectionName) {
+    async showSection(sectionName, { skipHashUpdate = false } = {}) {
         // Update navigation
         document.querySelectorAll('.nav-link').forEach(link => {
             link.classList.remove('active');
@@ -785,23 +857,23 @@ class AdminApp {
         if (activeSection) activeSection.classList.add('active');
 
         // Load section data
-        // For products section, ensure DOM is ready before loading
         if (sectionName === 'products') {
-            // Use requestAnimationFrame to ensure section is visible and DOM is ready
-            requestAnimationFrame(() => {
-                // Double-check section is actually visible
-                const section = document.getElementById(sectionName);
-                if (section && section.classList.contains('active')) {
-                    this.loadSectionData(sectionName);
-                } else {
-                    // Section not visible yet, wait a bit more
-                    setTimeout(() => {
-                        this.loadSectionData(sectionName);
-                    }, 100);
-                }
+            await new Promise((resolve) => {
+                requestAnimationFrame(() => {
+                    const section = document.getElementById(sectionName);
+                    if (section && section.classList.contains('active')) {
+                        this.loadSectionData(sectionName).then(resolve);
+                    } else {
+                        setTimeout(() => this.loadSectionData(sectionName).then(resolve), 100);
+                    }
+                });
             });
         } else {
-            this.loadSectionData(sectionName);
+            await this.loadSectionData(sectionName);
+        }
+
+        if (!skipHashUpdate) {
+            this.updateAdminUrlHash(sectionName);
         }
     }
 
@@ -1671,14 +1743,17 @@ class AdminApp {
         if (/GBP_CLIENT_ID|GBP_CLIENT_SECRET|GCAL_CLIENT|OAuth|\.env|JWT_SECRET|not configured/i.test(text)) {
             return 'Google sign-in is not available on this site yet.';
         }
+        if (/access_denied/i.test(text)) {
+            return (
+                'Google denied access. If the app is in Testing mode, add hmherbs1@gmail.com under ' +
+                'Google Cloud → OAuth consent screen → Test users. Also confirm the redirect URI ' +
+                'http://localhost:3001/api/admin/settings/google-calendar/callback is listed on your OAuth client.'
+            );
+        }
+        if (/Cloud Console|My Business Account Management|Business Business Information|quota|QPM/i.test(text)) {
+            return '';
+        }
         return text;
-    }
-
-    _setGbpActionMsg(text, isError = false) {
-        const msg = document.querySelector('[data-gbp-action-msg]');
-        if (!msg) return;
-        msg.textContent = text || '';
-        msg.style.color = isError ? 'var(--error)' : text ? 'var(--success)' : '';
     }
 
     _applyGoogleStatusPanelStyle(panel, state) {
@@ -1701,7 +1776,7 @@ class AdminApp {
         const saveLocBtn = document.getElementById('gbp-save-location-btn');
         const locationWrap = document.getElementById('gbp-location-wrap');
         const syncBtn = document.getElementById('store-hours-sync-google-btn');
-        const manualInput = document.getElementById('gbp-location-manual');
+        const locationSelect = document.getElementById('gbp-location-select');
 
         if (!status.clientConfigured) {
             this._applyGoogleStatusPanelStyle(statusPanel, 'notReady');
@@ -1728,15 +1803,27 @@ class AdminApp {
         if (status.connected) {
             this._applyGoogleStatusPanelStyle(statusPanel, 'connected');
             const email = status.connectedEmail ? ` Signed in as ${status.connectedEmail}.` : '';
-            const loc = status.locationName
-                ? ' Your store listing on Google is selected.'
-                : ' Choose which store listing to update below.';
+            const syncPending = Boolean(status.apiAccessPending || this.gbpGoogleSyncUnavailable);
             if (statusText) {
-                statusText.textContent = `Connected — your hours can update on Google when you save.${email}${loc}`;
+                if (syncPending) {
+                    statusText.textContent =
+                        `Connected to Google.${email} Map hour sync is not set up yet; hours you save here still update your website.`;
+                } else {
+                    const loc = status.locationName
+                        ? ' Your store listing on Google is selected.'
+                        : ' Choose your store below.';
+                    statusText.textContent = `Connected — your hours can update on Google when you save.${email}${loc}`;
+                }
             }
             if (locationWrap) locationWrap.style.display = 'block';
-            if (saveLocBtn) saveLocBtn.style.display = 'inline-flex';
-            if (manualInput && status.locationName) manualInput.value = status.locationName;
+            if (locationSelect) {
+                locationSelect.disabled = syncPending;
+                if (syncPending) {
+                    locationSelect.innerHTML =
+                        '<option value="">Store list will appear after map sync is enabled</option>';
+                }
+            }
+            if (saveLocBtn) saveLocBtn.style.display = syncPending ? 'none' : 'inline-flex';
         } else {
             this._applyGoogleStatusPanelStyle(statusPanel, 'ready');
             if (statusText) {
@@ -1755,13 +1842,17 @@ class AdminApp {
         try {
             const status = await this.apiRequest('/admin/settings/google-business/status');
             this.gbpStatus = status;
+            this.gbpGoogleSyncUnavailable = Boolean(status.apiAccessPending);
             this._renderGoogleBusinessStatus(status);
-            if (status.connected) {
+            if (status.connected && !status.apiAccessPending) {
                 await this.loadGoogleBusinessLocations(status.locationName || '');
             }
         } catch (err) {
             this._renderGoogleBusinessStatus({ clientConfigured: false, connected: false, readyToSync: false });
-            this._setGbpActionMsg(this._friendlyGoogleApiError(err.message) || 'Could not load Google connection status.', true);
+            this.showToast(
+                this._friendlyGoogleApiError(err.message) || 'Could not load Google connection status.',
+                'error'
+            );
         }
     }
 
@@ -1772,9 +1863,11 @@ class AdminApp {
             const res = await this.apiRequest('/admin/settings/google-business/locations');
             const locations = Array.isArray(res?.locations) ? res.locations : [];
             if (!locations.length) {
-                select.innerHTML = '<option value="">No listings found — use the box below if needed</option>';
+                select.innerHTML = '<option value="">No store found on this Google account</option>';
+                select.disabled = true;
                 return;
             }
+            select.disabled = false;
             select.innerHTML =
                 '<option value="">Select location…</option>' +
                 locations
@@ -1784,14 +1877,22 @@ class AdminApp {
                     })
                     .join('');
             if (selectedName) select.value = selectedName;
+            this.gbpGoogleSyncUnavailable = false;
+            if (this.gbpStatus) {
+                this.gbpStatus.apiAccessPending = false;
+                this._renderGoogleBusinessStatus(this.gbpStatus);
+            }
         } catch (err) {
-            select.innerHTML = '<option value="">Could not load locations</option>';
+            this.gbpGoogleSyncUnavailable = true;
+            if (this.gbpStatus) {
+                this.gbpStatus.apiAccessPending = true;
+                this._renderGoogleBusinessStatus(this.gbpStatus);
+            }
         }
     }
 
     async connectGoogleBusiness() {
         try {
-            this._setGbpActionMsg('');
             const res = await this.apiRequest('/admin/settings/google-business/connect');
             if (!res?.authUrl) {
                 this.showToast('Could not start Google connection', 'error');
@@ -1816,7 +1917,6 @@ class AdminApp {
             await this.apiRequest('/admin/settings/google-business/disconnect', { method: 'POST' });
             this.showToast('Google Business Profile disconnected', 'success');
             await this.loadGoogleBusinessStatus();
-            this._setGbpActionMsg('');
         } catch (err) {
             this.showToast('Disconnect failed: ' + (err.message || 'error'), 'error');
         }
@@ -1824,8 +1924,7 @@ class AdminApp {
 
     async saveGoogleBusinessLocation() {
         const select = document.getElementById('gbp-location-select');
-        const manual = document.getElementById('gbp-location-manual');
-        const locationName = (select?.value || manual?.value || '').trim();
+        const locationName = (select?.value || '').trim();
         if (!locationName) {
             this.showToast('Select or enter a Google location ID', 'warning');
             return;
@@ -1836,7 +1935,6 @@ class AdminApp {
                 body: JSON.stringify({ locationName }),
             });
             this.showToast('Google location saved', 'success');
-            this._setGbpActionMsg('Location saved.');
             await this.loadGoogleBusinessStatus();
         } catch (err) {
             this.showToast('Save location failed: ' + (err.message || 'error'), 'error');
@@ -1850,10 +1948,11 @@ class AdminApp {
         const msg = params.get('msg');
         if (gbp === 'connected') {
             this.showToast('Google Business Profile connected', 'success');
-            this._setGbpActionMsg('Google account connected successfully.');
         } else if (gbp === 'error') {
-            this.showToast('Google connection failed: ' + (msg || 'unknown error'), 'error');
-            this._setGbpActionMsg(msg || 'Connection failed', true);
+            this.showToast(
+                'Google connection failed: ' + (this._friendlyGoogleApiError(msg) || msg || 'unknown error'),
+                'error'
+            );
         }
         const clean = new URL(window.location.href);
         clean.searchParams.delete('gbp');
@@ -3783,7 +3882,11 @@ class AdminApp {
         }
 
         try {
-            const response = await this.apiRequest('/admin/edsa/bookings?limit=50');
+            this.initEdsaCalendarState();
+            const range = this.getEdsaCalendarRange();
+            const response = await this.apiRequest(
+                `/admin/edsa/bookings?limit=500&from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`
+            );
 
             // Handle null response (403 Forbidden)
             if (!response) {
@@ -3792,9 +3895,19 @@ class AdminApp {
             }
 
             if (response.bookings && response.bookings.length > 0) {
-                container.innerHTML = this.renderEDSABookingsTable(response.bookings);
+                this._edsaBookingsById = new Map(
+                    response.bookings.map((b) => [Number(b.id), b])
+                );
+                this._edsaBookingsList = response.bookings;
+                container.innerHTML = this.renderEdsaCalendarShell();
+                this.renderEdsaCalendarBody();
+                this.bindEdsaCalendarControls();
             } else {
-                container.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--gray-500);"><p>No EDSA bookings found.</p></div>';
+                this._edsaBookingsById = new Map();
+                this._edsaBookingsList = [];
+                container.innerHTML = this.renderEdsaCalendarShell();
+                this.renderEdsaCalendarBody();
+                this.bindEdsaCalendarControls();
             }
         } catch (error) {
             // Don't show error for authentication issues
@@ -3806,6 +3919,24 @@ class AdminApp {
         }
     }
 
+    renderEdsaCustomerRequest(booking) {
+        const type = booking.customer_request_type || 'none';
+        if (type === 'none') {
+            return '<span class="text-muted">—</span>';
+        }
+        let text = type === 'cancel' ? 'Cancel requested' : 'Reschedule requested';
+        if (type === 'reschedule' && booking.requested_date) {
+            const d = new Date(booking.requested_date);
+            const dateStr = Number.isNaN(d.getTime()) ? booking.requested_date : d.toLocaleDateString();
+            const timeStr = booking.requested_time ? String(booking.requested_time).slice(0, 5) : '';
+            text += ` → ${dateStr}${timeStr ? ' ' + timeStr : ''}`;
+        }
+        if (booking.customer_request_notes) {
+            text += ` — ${this.escapeHtml(String(booking.customer_request_notes).slice(0, 80))}`;
+        }
+        return `<span class="badge badge-warning">${this.escapeHtml(text)}</span>`;
+    }
+
     renderEDSABookingsTable(bookings) {
         return `
             <div class="table-container">
@@ -3815,10 +3946,10 @@ class AdminApp {
                             <th>Name</th>
                             <th>Email</th>
                             <th>Phone</th>
-                            <th>Preferred Date</th>
-                            <th>Preferred Time</th>
-                            <th>Confirmed Date</th>
+                            <th>Appointment date</th>
+                            <th>Time</th>
                             <th>Status</th>
+                            <th>Customer request</th>
                             <th>Created</th>
                             <th>Actions</th>
                         </tr>
@@ -3830,17 +3961,17 @@ class AdminApp {
                                 <td>${this.escapeHtml(booking.email)}</td>
                                 <td>${this.escapeHtml(booking.phone || 'N/A')}</td>
                                 <td>${booking.preferred_date ? new Date(booking.preferred_date).toLocaleDateString() : 'N/A'}</td>
-                                <td>${booking.preferred_time || 'N/A'}</td>
-                                <td>${booking.confirmed_date ? new Date(booking.confirmed_date).toLocaleDateString() : 'Pending'}</td>
+                                <td>${booking.preferred_time ? String(booking.preferred_time).slice(0, 5) : 'N/A'}</td>
                                 <td>
                                     <span class="badge ${booking.status === 'confirmed' ? 'badge-success' : booking.status === 'pending' ? 'badge-warning' : booking.status === 'cancelled' ? 'badge-danger' : 'badge-info'}">
-                                        ${this.escapeHtml(booking.status)}
+                                        ${this.escapeHtml(String(booking.status || '').toUpperCase())}
                                     </span>
                                 </td>
+                                <td>${this.renderEdsaCustomerRequest(booking)}</td>
                                 <td>${new Date(booking.created_at).toLocaleDateString()}</td>
                                 <td>
-                                    <button class="btn btn-sm btn-secondary" onclick="editEDSABooking(${booking.id})">
-                                        <i class="fas fa-edit"></i>
+                                    <button type="button" class="btn btn-sm btn-secondary" data-edsa-edit-id="${booking.id}" aria-label="Edit booking #${booking.id}">
+                                        <i class="fas fa-edit" aria-hidden="true"></i>
                                     </button>
                                 </td>
                             </tr>
@@ -3849,6 +3980,138 @@ class AdminApp {
                 </table>
             </div>
         `;
+    }
+
+    formatEdsaDateInput(value) {
+        if (!value) return '';
+        const raw = String(value);
+        if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
+            return raw.slice(0, 10);
+        }
+        const d = new Date(value);
+        if (Number.isNaN(d.getTime())) return '';
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    }
+
+    buildEdsaTimeOptions(selected) {
+        const sel = String(selected || '').slice(0, 5);
+        let html = '';
+        for (let hour = 10; hour < 18; hour++) {
+            const t = `${String(hour).padStart(2, '0')}:00`;
+            html += `<option value="${t}"${t === sel ? ' selected' : ''}>${t}</option>`;
+        }
+        return html;
+    }
+
+    bindEdsaBookingsTableActions(root) {
+        if (!root) return;
+        root.querySelectorAll('[data-edsa-edit-id]').forEach((btn) => {
+            if (btn.dataset.edsaEditBound === '1') return;
+            btn.dataset.edsaEditBound = '1';
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const id = Number(btn.getAttribute('data-edsa-edit-id'));
+                if (Number.isFinite(id)) {
+                    this.openEdsaBookingModal(id);
+                }
+            });
+        });
+    }
+
+    openEdsaBookingModal(bookingId) {
+        const booking = this._edsaBookingsById.get(Number(bookingId));
+        if (!booking) {
+            this.showToast('Booking not found. Refresh the list and try again.', 'error');
+            return;
+        }
+
+        const dateVal = this.formatEdsaDateInput(booking.preferred_date);
+        const timeVal = String(booking.preferred_time || '10:00').slice(0, 5);
+        const name = `${booking.first_name || ''} ${booking.last_name || ''}`.trim();
+
+        const modal = this._mountAdminModal(`
+            <div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;padding:1.25rem 1.5rem;border-bottom:1px solid var(--gray-200);background:var(--light-green, #f0f7ef);">
+                <h2 id="edsa-edit-title" style="margin:0;color:var(--primary-green);font-size:1.25rem;">EDSA booking #${booking.id}</h2>
+                <button type="button" class="modal-close" id="edsa-edit-close" aria-label="Close">${HM_CLOSE_ICON_SVG}</button>
+            </div>
+            <div class="modal-body" style="padding:1.5rem;">
+                <p style="margin:0 0 1rem;color:var(--gray-600);">${this.escapeHtml(name)} · ${this.escapeHtml(booking.email)}</p>
+                <div class="form-group">
+                    <label for="edsa-edit-status">Status</label>
+                    <select id="edsa-edit-status" class="form-control">
+                        <option value="pending"${booking.status === 'pending' ? ' selected' : ''}>Pending</option>
+                        <option value="confirmed"${booking.status === 'confirmed' ? ' selected' : ''}>Confirmed</option>
+                        <option value="cancelled"${booking.status === 'cancelled' ? ' selected' : ''}>Cancelled</option>
+                        <option value="completed"${booking.status === 'completed' ? ' selected' : ''}>Completed</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="edsa-edit-date">Appointment date</label>
+                    <input type="date" id="edsa-edit-date" class="form-control" value="${this.escapeHtml(dateVal)}">
+                </div>
+                <div class="form-group">
+                    <label for="edsa-edit-time">Appointment time</label>
+                    <select id="edsa-edit-time" class="form-control">${this.buildEdsaTimeOptions(timeVal)}</select>
+                </div>
+                <div class="form-group">
+                    <label for="edsa-edit-notes">Staff notes (internal)</label>
+                    <textarea id="edsa-edit-notes" class="form-control" rows="2">${this.escapeHtml(booking.admin_notes || '')}</textarea>
+                </div>
+                <label style="display:flex;align-items:center;gap:0.5rem;margin:1rem 0;">
+                    <input type="checkbox" id="edsa-edit-notify" checked>
+                    Email customer about cancel or time change
+                </label>
+                <p style="font-size:0.875rem;color:var(--gray-500);margin:0;">
+                    Saving updates Google Calendar when connected. Customers receive an email if the date, time, or status (cancelled) changes.
+                </p>
+            </div>
+            <div class="modal-footer" style="display:flex;gap:0.5rem;justify-content:flex-end;padding:1rem 1.5rem;border-top:1px solid var(--gray-200);">
+                <button type="button" class="btn btn-secondary" id="edsa-edit-cancel">Close</button>
+                <button type="button" class="btn btn-primary" id="edsa-edit-save">Save changes</button>
+            </div>`);
+
+        if (!modal) {
+            this.showToast('Could not open booking editor.', 'error');
+            return;
+        }
+
+        const close = () => modal.remove();
+
+        modal.querySelector('#edsa-edit-close')?.addEventListener('click', close);
+        modal.querySelector('#edsa-edit-cancel')?.addEventListener('click', close);
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) close();
+        });
+
+        modal.querySelector('#edsa-edit-save')?.addEventListener('click', async () => {
+            const btn = modal.querySelector('#edsa-edit-save');
+            btn.disabled = true;
+            btn.textContent = 'Saving…';
+            try {
+                await this.apiRequest(`/admin/edsa/bookings/${booking.id}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({
+                        status: modal.querySelector('#edsa-edit-status').value,
+                        preferred_date: modal.querySelector('#edsa-edit-date').value,
+                        preferred_time: modal.querySelector('#edsa-edit-time').value,
+                        admin_notes: modal.querySelector('#edsa-edit-notes').value,
+                        notify_customer: modal.querySelector('#edsa-edit-notify').checked
+                    })
+                });
+                this.showToast('EDSA booking updated', 'success');
+                close();
+                await this.loadEDSABookings();
+            } catch (err) {
+                this.showToast(err.message || 'Could not save booking', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Save changes';
+            }
+        });
     }
 
     async loadProducts() {
@@ -8184,8 +8447,9 @@ function viewOrder(orderId) {
 }
 
 function editEDSABooking(bookingId) {
-    window.adminApp.showNotification(`Edit EDSA booking ${bookingId} - Feature coming soon`, 'info');
-    // TODO: Implement EDSA booking edit modal
+    if (window.adminApp && typeof window.adminApp.openEdsaBookingModal === 'function') {
+        window.adminApp.openEdsaBookingModal(bookingId);
+    }
 }
 
 // Brand Management Functions
@@ -9415,13 +9679,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const gbpSaveLocationBtn = document.getElementById('gbp-save-location-btn');
     if (gbpSaveLocationBtn && window.adminApp) {
         gbpSaveLocationBtn.addEventListener('click', () => window.adminApp.saveGoogleBusinessLocation());
-    }
-    const gbpLocationSelect = document.getElementById('gbp-location-select');
-    if (gbpLocationSelect && window.adminApp) {
-        gbpLocationSelect.addEventListener('change', () => {
-            const manual = document.getElementById('gbp-location-manual');
-            if (manual && gbpLocationSelect.value) manual.value = gbpLocationSelect.value;
-        });
     }
     const gcalConnectBtn = document.getElementById('gcal-connect-btn');
     if (gcalConnectBtn && window.adminApp) {

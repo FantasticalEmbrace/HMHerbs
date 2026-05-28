@@ -8,6 +8,7 @@
  *   node scripts/sync-catalog-primary-images-to-db.js --dry-run
  *   node scripts/sync-catalog-primary-images-to-db.js
  */
+const { loadBackendEnv, createPool, createConnection } = require('../utils/dbConfig');
 const path = require('path');
 const fs = require('fs').promises;
 const mysql = require('mysql2/promise');
@@ -53,15 +54,9 @@ async function fileExists(rel) {
 }
 
 (async () => {
+    loadBackendEnv();
     const { dryRun } = parseArgs();
-    const pool = mysql.createPool({
-        host: process.env.DB_HOST || 'localhost',
-        user: process.env.DB_USER || 'root',
-        password: process.env.DB_PASSWORD || '',
-        database: process.env.DB_NAME || 'hmherbs',
-        waitForConnections: true,
-        connectionLimit: 5
-    });
+    const pool = createPool({ connectionLimit: 5 });
 
     const [rows] = await pool.execute(`
         SELECT p.id, p.sku, p.slug, p.name

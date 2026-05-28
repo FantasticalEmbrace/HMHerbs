@@ -3,6 +3,14 @@ const fs = require('fs');
 const path = require('path');
 const logger = require('../utils/logger');
 const GoogleCalendarOAuthService = require('./google-calendar-oauth');
+const {
+    buildStoreCalendarDateTime,
+    buildStoreCalendarEnd,
+    getStoreDayBoundsRfc3339,
+    eventStartToStoreTimeHm,
+    normalizeDateYmd,
+    normalizeTimeHm,
+} = require('../utils/storeTimezone');
 
 class GoogleCalendarService {
     constructor() {
@@ -81,6 +89,40 @@ class GoogleCalendarService {
         return this.initialized && this.calendar !== null;
     }
 
+    /** Calendar events must not include guests — otherwise Google sends its own invite/cancel emails. */
+    calendarEventOptions() {
+        return {
+            attendees: [],
+            guestsCanInviteOthers: false,
+            guestsCanModify: false,
+            guestsCanSeeOtherGuests: false,
+            reminders: {
+                useDefault: false,
+                overrides: [{ method: 'popup', minutes: 60 }],
+            },
+        };
+    }
+
+    async stripEventAttendees(eventId) {
+        if (!this.isAvailable() || !eventId) return;
+        try {
+            await this.calendar.events.patch({
+                calendarId: this.calendarId,
+                eventId,
+                resource: {
+                    attendees: [],
+                    ...this.calendarEventOptions(),
+                },
+                sendUpdates: 'none',
+            });
+        } catch (err) {
+            logger.warn('[integration][google-calendar] Could not strip attendees before delete', {
+                eventId,
+                error: err.message,
+            });
+        }
+    }
+
     async createEvent(bookingData, pool) {
         if (pool) await this.ensureInitialized(pool);
         if (!this.isAvailable()) {
@@ -100,10 +142,6 @@ class GoogleCalendarService {
                 bookingId,
             } = bookingData;
 
-            const startDateTime = new Date(`${preferredDate}T${preferredTime}`);
-            const endDateTime = new Date(startDateTime);
-            endDateTime.setHours(endDateTime.getHours() + 1);
-
             const event = {
                 summary: `EDSA Session - ${firstName} ${lastName}`,
                 description: this.buildEventDescription({
@@ -114,30 +152,17 @@ class GoogleCalendarService {
                     notes,
                     bookingId,
                 }),
-                start: {
-                    dateTime: startDateTime.toISOString(),
-                    timeZone: 'America/New_York',
-                },
-                end: {
-                    dateTime: endDateTime.toISOString(),
-                    timeZone: 'America/New_York',
-                },
-                location: '1493 Battlefield Pkwy, Fort Oglethorpe, GA 30742',
-                reminders: {
-                    useDefault: false,
-                    overrides: [
-                        { method: 'email', minutes: 24 * 60 },
-                        { method: 'popup', minutes: 60 },
-                    ],
-                },
-                attendees: [{ email, displayName: `${firstName} ${lastName}` }],
+                start: buildStoreCalendarDateTime(preferredDate, preferredTime),
+                end: buildStoreCalendarEnd(preferredDate, preferredTime, 1),
+                location: '1140 Battlefield Pkwy, Fort Oglethorpe, GA 30742',
                 colorId: '10',
+                ...this.calendarEventOptions(),
             };
 
             const response = await this.calendar.events.insert({
                 calendarId: this.calendarId,
                 resource: event,
-                sendUpdates: 'all',
+                sendUpdates: 'none',
             });
 
             logger.info('[integration][google-calendar] Event created', { eventId: response.data.id });
@@ -161,10 +186,6 @@ class GoogleCalendarService {
             const { firstName, lastName, email, phone, preferredDate, preferredTime, notes } =
                 bookingData;
 
-            const startDateTime = new Date(`${preferredDate}T${preferredTime}`);
-            const endDateTime = new Date(startDateTime);
-            endDateTime.setHours(endDateTime.getHours() + 1);
-
             const event = {
                 summary: `EDSA Session - ${firstName} ${lastName}`,
                 description: this.buildEventDescription({
@@ -174,21 +195,16 @@ class GoogleCalendarService {
                     phone,
                     notes,
                 }),
-                start: {
-                    dateTime: startDateTime.toISOString(),
-                    timeZone: 'America/New_York',
-                },
-                end: {
-                    dateTime: endDateTime.toISOString(),
-                    timeZone: 'America/New_York',
-                },
+                start: buildStoreCalendarDateTime(preferredDate, preferredTime),
+                end: buildStoreCalendarEnd(preferredDate, preferredTime, 1),
+                ...this.calendarEventOptions(),
             };
 
             const response = await this.calendar.events.update({
                 calendarId: this.calendarId,
                 eventId,
                 resource: event,
-                sendUpdates: 'all',
+                sendUpdates: 'none',
             });
 
             return response.data;
@@ -203,16 +219,101 @@ class GoogleCalendarService {
         if (!this.isAvailable() || !eventId) return false;
 
         try {
+            await this.stripEventAttendees(eventId);
             await this.calendar.events.delete({
                 calendarId: this.calendarId,
                 eventId,
-                sendUpdates: 'all',
+                sendUpdates: 'none',
             });
             return true;
         } catch (error) {
+            const msg = String(error.message || '');
+            if (error.code === 404 || error.code === 410 || /not found|deleted/i.test(msg)) {
+                return true;
+            }
             logger.error('[integration][google-calendar] Delete event error', { error: error.message });
             return false;
         }
+    }
+
+    isEdsaCalendarEvent(event) {
+        const summary = String(event?.summary || '');
+        const desc = String(event?.description || '');
+        return (
+            /edsa/i.test(summary) ||
+            /electro dermal/i.test(desc) ||
+            /booking\s*id\s*:/i.test(desc)
+        );
+    }
+
+    parseBookingIdFromEvent(event) {
+        const m = String(event?.description || '').match(/Booking\s*ID:\s*(\d+)/i);
+        const id = m ? Number(m[1]) : NaN;
+        return Number.isFinite(id) && id > 0 ? id : null;
+    }
+
+    /** Bookings + calendar events for a day — cancelled slots must not block availability. */
+    async loadEdsaSlotBlockingContext(pool, dayYmd) {
+        const activeEventIds = new Set();
+        const cancelledEventIds = new Set();
+        const activeBookedTimes = new Set();
+        const bookingStatusById = new Map();
+
+        if (!pool) {
+            return { activeEventIds, cancelledEventIds, activeBookedTimes, bookingStatusById };
+        }
+
+        try {
+            const [rows] = await pool.execute(
+                `SELECT id, status, preferred_time, google_calendar_event_id
+                   FROM edsa_bookings
+                  WHERE preferred_date = ?`,
+                [dayYmd]
+            );
+
+            for (const row of rows) {
+                bookingStatusById.set(row.id, row.status);
+                const timeHm = row.preferred_time
+                    ? String(row.preferred_time).slice(0, 5)
+                    : null;
+                const eventId = row.google_calendar_event_id;
+
+                if (['pending', 'confirmed'].includes(row.status)) {
+                    if (timeHm) activeBookedTimes.add(timeHm);
+                    if (eventId) activeEventIds.add(eventId);
+                } else if (['cancelled', 'completed'].includes(row.status) && eventId) {
+                    cancelledEventIds.add(eventId);
+                }
+            }
+        } catch (err) {
+            logger.warn('[integration][google-calendar] Could not load EDSA slot context', {
+                error: err.message,
+            });
+        }
+
+        return { activeEventIds, cancelledEventIds, activeBookedTimes, bookingStatusById };
+    }
+
+    calendarEventBlocksSlot(event, ctx) {
+        const eventId = event?.id;
+        if (eventId && ctx.cancelledEventIds.has(eventId)) {
+            return false;
+        }
+
+        const bookingId = this.parseBookingIdFromEvent(event);
+        if (bookingId != null && ctx.bookingStatusById.has(bookingId)) {
+            return ['pending', 'confirmed'].includes(ctx.bookingStatusById.get(bookingId));
+        }
+
+        if (eventId && ctx.activeEventIds.has(eventId)) {
+            return true;
+        }
+
+        if (this.isEdsaCalendarEvent(event)) {
+            return false;
+        }
+
+        return Boolean(eventId);
     }
 
     async getAvailableSlots(date, pool) {
@@ -222,31 +323,38 @@ class GoogleCalendarService {
         }
 
         try {
-            const startOfDay = new Date(date);
-            startOfDay.setHours(0, 0, 0, 0);
-
-            const endOfDay = new Date(date);
-            endOfDay.setHours(23, 59, 59, 999);
+            const dayYmd = normalizeDateYmd(date) || normalizeDateYmd(new Date());
+            const { timeMin, timeMax } = getStoreDayBoundsRfc3339(dayYmd);
 
             const response = await this.calendar.events.list({
                 calendarId: this.calendarId,
-                timeMin: startOfDay.toISOString(),
-                timeMax: endOfDay.toISOString(),
+                timeMin,
+                timeMax,
                 singleEvents: true,
                 orderBy: 'startTime',
             });
 
             const existingEvents = response.data.items || [];
-            const bookedSlots = existingEvents.map((event) => {
-                const start = new Date(event.start.dateTime || event.start.date);
-                return start.toTimeString().slice(0, 5);
-            });
+            const ctx = await this.loadEdsaSlotBlockingContext(pool, dayYmd);
+
+            const bookedSlots = [];
+            for (const event of existingEvents) {
+                if (!this.calendarEventBlocksSlot(event, ctx)) {
+                    continue;
+                }
+                const hm = eventStartToStoreTimeHm(event.start);
+                if (hm) {
+                    bookedSlots.push(hm);
+                }
+            }
 
             const allSlots = this.generateDefaultSlots();
 
             return allSlots.map((slot) => ({
                 time: slot.time,
-                available: !bookedSlots.includes(slot.time),
+                available:
+                    !bookedSlots.includes(slot.time) &&
+                    !ctx.activeBookedTimes.has(slot.time),
             }));
         } catch (error) {
             logger.error('[integration][google-calendar] Available slots error', {

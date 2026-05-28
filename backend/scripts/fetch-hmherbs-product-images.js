@@ -20,6 +20,7 @@
  *
  * Env: DB_* from backend/.env
  */
+const { loadBackendEnv, createPool, createConnection } = require('../utils/dbConfig');
 const axios = require('axios');
 const cheerio = require('cheerio');
 const fs = require('fs').promises;
@@ -436,6 +437,7 @@ async function savePrimaryFromBuffer({
 }
 
 (async () => {
+    loadBackendEnv();
     const { dryRun, force, limit, tryJsonFirst, jsonOnly, onlyMissing, onlyRemote, manufacturerFallback } =
         parseArgs();
 
@@ -452,14 +454,7 @@ async function savePrimaryFromBuffer({
     const scraper = new HMHerbsScraper();
     await fs.mkdir(IMAGES_DIR, { recursive: true });
 
-    const pool = mysql.createPool({
-        host: process.env.DB_HOST || 'localhost',
-        user: process.env.DB_USER || 'root',
-        password: process.env.DB_PASSWORD || '',
-        database: process.env.DB_NAME || 'hmherbs',
-        waitForConnections: true,
-        connectionLimit: 3
-    });
+    const pool = createPool({ connectionLimit: 5 });
 
     let sql =
         'SELECT p.id, p.slug, p.sku, p.name, b.name AS brand_name, b.website_url AS brand_website_url FROM products p LEFT JOIN brands b ON p.brand_id = b.id';

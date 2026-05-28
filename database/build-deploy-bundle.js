@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Builds database/deploy-staging.sql — one file for DigitalOcean Managed MySQL import.
+ * Builds database/deploy-staging.sql — one file for Linode Managed MySQL import.
  * Run: npm run db:build-staging
  */
 
@@ -78,9 +78,9 @@ const header = `-- =============================================================
 -- Generated: ${new Date().toISOString()}
 -- DO NOT EDIT BY HAND — run: npm run db:build-staging
 --
--- Import (DigitalOcean Managed MySQL):
---   mysql -h HOST -P 25060 -u USER -p --ssl-mode=REQUIRED DB_NAME < deploy-staging.sql
---   See database/DEPLOY-DATABASE.md and DIGITALOCEAN_DEPLOY.md
+-- Import (Linode Managed MySQL):
+--   mysql -h HOST -P 3306 -u USER -p --ssl-mode=REQUIRED DB_NAME < deploy-staging.sql
+--   See database/DEPLOY-DATABASE.md and LINODE_DEPLOY.md
 -- =============================================================================
 
 `;

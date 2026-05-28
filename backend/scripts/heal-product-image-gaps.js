@@ -12,6 +12,7 @@
  *
  * Run `npm run report-image-gaps` before/after to see effective gaps.
  */
+const { loadBackendEnv, createPool, createConnection } = require('../utils/dbConfig');
 const axios = require('axios');
 const cheerio = require('cheerio');
 const fs = require('fs').promises;
@@ -182,16 +183,10 @@ function buildPdpUrl(slug) {
 }
 
 (async () => {
+    loadBackendEnv();
     const { dryRun, limit, jsonOnly } = parseArgs();
 
-    const pool = mysql.createPool({
-        host: process.env.DB_HOST || 'localhost',
-        user: process.env.DB_USER || 'root',
-        password: process.env.DB_PASSWORD || '',
-        database: process.env.DB_NAME || 'hmherbs',
-        waitForConnections: true,
-        connectionLimit: 5
-    });
+    const pool = createPool({ connectionLimit: 5 });
 
     const [rows] = await pool.execute(`
         SELECT p.id, p.sku, p.slug, p.name, pi.image_url AS primary_image_url

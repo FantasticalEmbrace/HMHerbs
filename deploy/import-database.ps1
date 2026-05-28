@@ -1,10 +1,10 @@
-# Import database/deploy-staging.sql into DigitalOcean Managed MySQL (Windows).
+# Import database/deploy-staging.sql into Linode Managed MySQL (Windows).
 #
 # Prerequisites:
 #   1. npm run db:build-staging
 #   2. Copy deploy/db-connection.env.example -> deploy/db-connection.env (fill in values)
 #   3. MySQL client installed (MySQL Installer or MariaDB client) and mysql.exe in PATH
-#   4. Your IP added to DO database Trusted sources
+#   4. Your IP added to Linode database Access Controls
 #
 # Usage:
 #   .\deploy\import-database.ps1
@@ -38,7 +38,7 @@ $host_ = $env:DB_HOST
 $user = $env:DB_USER
 $pass = $env:DB_PASSWORD
 $db = $env:DB_NAME
-$port = if ($env:DB_PORT) { $env:DB_PORT } else { "25060" }
+$port = if ($env:DB_PORT) { $env:DB_PORT } else { "3306" }
 $ca = $env:DB_SSL_CA
 
 if (-not $host_ -or -not $user -or -not $pass -or -not $db) {
@@ -61,7 +61,7 @@ Write-Host "Importing into $db @ ${host_}:${port} ..."
 $env:MYSQL_PWD = $pass
 & mysql -h $host_ -P $port -u $user @sslArgs $db -e "SELECT 1" 2>&1 | Out-Null
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "Connection failed. Check Trusted sources and credentials." -ForegroundColor Red
+    Write-Host "Connection failed. Check Access Controls and credentials." -ForegroundColor Red
     Remove-Item Env:\MYSQL_PWD -ErrorAction SilentlyContinue
     exit 1
 }

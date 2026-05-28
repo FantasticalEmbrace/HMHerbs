@@ -1,22 +1,15 @@
+const { loadBackendEnv, createPool } = require('../utils/dbConfig');
+const fs = require('fs').promises;
+const path = require('path');
+
+loadBackendEnv();
+
 // Update Product Images in Database
 // Updates product_images table with local image paths after downloading
 
-const mysql = require('mysql2/promise');
-const fs = require('fs').promises;
-const path = require('path');
-require('dotenv').config();
-
 class ProductImageUpdater {
     constructor() {
-        this.pool = mysql.createPool({
-            host: process.env.DB_HOST || 'localhost',
-            user: process.env.DB_USER || 'root',
-            password: process.env.DB_PASSWORD || '',
-            database: process.env.DB_NAME || 'hmherbs',
-            waitForConnections: true,
-            connectionLimit: 10,
-            queueLimit: 0
-        });
+        this.pool = createPool({ connectionLimit: 10, queueLimit: 0 });
     }
 
     async updateAllProducts() {

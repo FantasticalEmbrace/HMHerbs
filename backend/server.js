@@ -24,6 +24,7 @@ const { handlePromoBannerGet, disabledPayload } = require('./utils/promoBanner')
 const { createSeoRedirectMiddleware } = require('./middleware/seoRedirects');
 const { ensureProductSchema } = require('./utils/ensureProductSchema');
 const { ensureUserPasswordResetSchema } = require('./utils/ensureUserPasswordResetSchema');
+const { ensureEdsaBookingSchema } = require('./utils/ensureEdsaBookingSchema');
 const { provisionWebCustomerProfile } = require('./utils/provisionCustomerProfile');
 const { createOctoposRewardCardForWebUser } = require('./utils/createOctoposRewardCardForWebUser');
 const { pushUserProfileToOctopos } = require('./utils/pushUserProfileToOctopos');
@@ -44,6 +45,7 @@ const {
 } = require('./utils/catalogOverrides');
 
 const { jsonSafeDeep } = require('./utils/jsonSafeMysql');
+const { buildDbConfig } = require('./utils/dbConfig');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -68,39 +70,23 @@ function shouldLogDatabaseError(errorCode) {
     return false; // Don't log - too soon since last log
 }
 
-// Database connection (local MySQL or DigitalOcean Managed MySQL with DB_SSL=true)
-function buildDbConfig() {
-    const config = {
-        host: process.env.DB_HOST || 'localhost',
-        port: parseInt(process.env.DB_PORT || '3306', 10),
-        user: process.env.DB_USER || 'root',
-        password: process.env.DB_PASSWORD || '',
-        database: process.env.DB_NAME || 'hmherbs',
-        waitForConnections: true,
-        connectionLimit: 10,
-        queueLimit: 0
-    };
-
-    if (process.env.DB_SSL === 'true' || process.env.DB_SSL === '1') {
-        const ssl = { rejectUnauthorized: true };
-        const caPath = process.env.DB_SSL_CA_PATH;
-        if (caPath) {
-            ssl.ca = fsSync.readFileSync(path.resolve(caPath));
-        }
-        config.ssl = ssl;
-    }
-
-    return config;
+// Database connection (local MySQL or Linode Managed MySQL — see utils/dbConfig.js)
+let dbConfig;
+try {
+    dbConfig = buildDbConfig();
+} catch (err) {
+    logger.error(`Database configuration error: ${err.message}`);
+    process.exit(1);
 }
-
-const dbConfig = buildDbConfig();
 
 // Log database config (without password) for debugging
 if (process.env.NODE_ENV === 'development') {
     logger.info('Database config:', {
         host: dbConfig.host,
+        port: dbConfig.port,
         user: dbConfig.user,
         database: dbConfig.database,
+        ssl: !!dbConfig.ssl,
         hasPassword: !!dbConfig.password,
         passwordLength: dbConfig.password ? dbConfig.password.length : 0
     });
@@ -1605,6 +1591,12 @@ app.use('/api/*', (req, res) => {
         await ensureUserPasswordResetSchema(pool);
     } catch (e) {
         logger.error(`ensureUserPasswordResetSchema failed: ${logger.formatMysqlError(e)}`);
+    }
+
+    try {
+        await ensureEdsaBookingSchema(pool);
+    } catch (e) {
+        logger.error(`ensureEdsaBookingSchema failed: ${logger.formatMysqlError(e)}`);
     }
 
     try {

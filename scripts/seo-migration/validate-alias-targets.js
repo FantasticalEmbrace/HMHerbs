@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /** Ensures every redirects-slug-aliases.csv target slug exists as an active product. */
 
+const { loadBackendEnv, createPool, createConnection } = require('../../backend/utils/dbConfig');
 const fs = require('fs');
 const path = require('path');
 const mysql = require('mysql2/promise');
@@ -10,6 +11,7 @@ const rootDir = path.join(__dirname, '..', '..');
 require('dotenv').config({ path: path.join(rootDir, 'backend', '.env') });
 
 async function main() {
+    loadBackendEnv(path.join(__dirname, '..', '..', 'backend', '.env'));
     const fp = path.join(rootDir, 'redirects-slug-aliases.csv');
     if (!fs.existsSync(fp)) {
         console.error('Missing redirects-slug-aliases.csv — run npm run seo:slug-aliases');

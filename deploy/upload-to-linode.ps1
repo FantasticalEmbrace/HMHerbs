@@ -1,12 +1,12 @@
-# Upload deploy-staging.sql and optional files to your DigitalOcean Droplet (Windows).
+# Upload deploy-staging.sql and optional files to your Linode (Windows).
 #
 # Usage:
-#   .\deploy\upload-to-droplet.ps1 -DropletIp 203.0.113.10 -User root
-#   .\deploy\upload-to-droplet.ps1 -DropletIp 203.0.113.10 -User root -IncludeEnv
+#   .\deploy\upload-to-linode.ps1 -LinodeIp 203.0.113.10 -User root
+#   .\deploy\upload-to-linode.ps1 -LinodeIp 203.0.113.10 -User root -IncludeEnv
 
 param(
     [Parameter(Mandatory = $true)]
-    [string]$DropletIp,
+    [string]$LinodeIp,
     [string]$User = "root",
     [switch]$IncludeEnv,
     [switch]$BuildBundle
@@ -33,15 +33,15 @@ if (-not $scp) {
     exit 1
 }
 
-Write-Host "Uploading $SqlFile to ${User}@${DropletIp}:/tmp/ ..."
-& scp $SqlFile "${User}@${DropletIp}:/tmp/deploy-staging.sql"
+Write-Host "Uploading $SqlFile to ${User}@${LinodeIp}:/tmp/ ..."
+& scp $SqlFile "${User}@${LinodeIp}:/tmp/deploy-staging.sql"
 
 if ($IncludeEnv -and (Test-Path "deploy\db-connection.env")) {
-    & scp "deploy\db-connection.env" "${User}@${DropletIp}:/tmp/db-connection.env"
+    & scp "deploy\db-connection.env" "${User}@${LinodeIp}:/tmp/db-connection.env"
 }
 
 Write-Host ""
-Write-Host "On the Droplet, run:" -ForegroundColor Cyan
+Write-Host "On the Linode, run:" -ForegroundColor Cyan
 Write-Host "  source /tmp/db-connection.env  # if uploaded"
 Write-Host "  export DB_HOST DB_USER DB_PASSWORD DB_NAME DB_PORT"
 Write-Host "  bash /var/www/hmherbs/deploy/import-database.sh /tmp/deploy-staging.sql"

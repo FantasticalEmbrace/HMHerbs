@@ -1,14 +1,8 @@
 // Quick test to check if database tables exist
-const mysql = require('mysql2/promise');
-const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '.env') });
+const { loadBackendEnv, createPool } = require('./utils/dbConfig');
 
-const pool = mysql.createPool({
-    host: process.env.DB_HOST || 'localhost',
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'hmherbs'
-});
+loadBackendEnv();
+const pool = createPool({ connectionLimit: 2 });
 
 async function testTables() {
     const tables = ['products', 'brands', 'product_categories', 'admin_users'];

@@ -2,6 +2,7 @@
  * Update product prices and stock from hmherbs.com
  */
 
+const { loadBackendEnv, createPool, createConnection } = require('../utils/dbConfig');
 const mysql = require('mysql2/promise');
 const axios = require('axios');
 const cheerio = require('cheerio');
@@ -272,15 +273,8 @@ class PriceStockUpdater {
 }
 
 async function main() {
-    const pool = mysql.createPool({
-        host: process.env.DB_HOST || 'localhost',
-        user: process.env.DB_USER || 'root',
-        password: process.env.DB_PASSWORD || '',
-        database: process.env.DB_NAME || 'hmherbs',
-        waitForConnections: true,
-        connectionLimit: 10,
-        queueLimit: 0
-    });
+    loadBackendEnv();
+    const pool = createPool({ connectionLimit: 5 });
 
     try {
         // Load products that need updates

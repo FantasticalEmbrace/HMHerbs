@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Import deploy-staging.sql into DigitalOcean Managed MySQL.
+# Import deploy-staging.sql into Linode Managed MySQL.
 #
 # Usage:
 #   cp deploy/db-connection.env.example deploy/db-connection.env   # fill in, gitignored
@@ -28,7 +28,7 @@ fi
 : "${DB_PASSWORD:?Set DB_PASSWORD}"
 : "${DB_NAME:?Set DB_NAME}"
 
-DB_PORT="${DB_PORT:-25060}"
+DB_PORT="${DB_PORT:-3306}"
 SSL_ARGS=(--ssl-mode=REQUIRED)
 if [[ -n "${DB_SSL_CA:-}" ]]; then
     SSL_ARGS+=(--ssl-ca="$DB_SSL_CA")

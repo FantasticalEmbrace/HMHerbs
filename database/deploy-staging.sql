@@ -3,9 +3,9 @@
 -- Generated: 2026-05-25T18:30:56.828Z
 -- DO NOT EDIT BY HAND — run: npm run db:build-staging
 --
--- Import (DigitalOcean Managed MySQL):
---   mysql -h HOST -P 25060 -u USER -p --ssl-mode=REQUIRED DB_NAME < deploy-staging.sql
---   See database/DEPLOY-DATABASE.md and DIGITALOCEAN_DEPLOY.md
+-- Import (Linode Managed MySQL):
+--   mysql -h HOST -P 3306 -u USER -p --ssl-mode=REQUIRED DB_NAME < deploy-staging.sql
+--   See database/DEPLOY-DATABASE.md and LINODE_DEPLOY.md
 -- =============================================================================
 
 
@@ -14,7 +14,7 @@
 
 -- =============================================================================
 -- HM Herbs — Staging database import (preamble)
--- Import into your DigitalOcean Managed MySQL database (see DEPLOY-DATABASE.md)
+-- Import into your Linode Managed MySQL database (see DEPLOY-DATABASE.md)
 -- =============================================================================
 
 SET NAMES utf8mb4;

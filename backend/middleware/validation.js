@@ -4,6 +4,11 @@
 const { body, param, query, validationResult } = require('express-validator');
 const validator = require('validator');
 const { isUsPhoneDisplayOrEmpty, isUsPhoneDisplay } = require('../utils/usPhoneDisplay');
+const {
+  normalizeDateYmd,
+  normalizeTimeHm,
+  isStoreDateTodayOrFuture
+} = require('../utils/storeTimezone');
 
 // Custom validation error handler
 const handleValidationErrors = (req, res, next) => {
@@ -269,21 +274,23 @@ const edsaBookingValidation = [
     }),
 
   body('preferredDate')
-    .isISO8601({ strict: true })
-    .withMessage('Preferred date must be in YYYY-MM-DD format')
     .custom((value) => {
-      const date = new Date(value);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      if (date < today) {
+      if (!normalizeDateYmd(value)) {
+        throw new Error('Preferred date must be in YYYY-MM-DD format');
+      }
+      if (!isStoreDateTodayOrFuture(value)) {
         throw new Error('Preferred date cannot be in the past');
       }
       return true;
     }),
 
   body('preferredTime')
-    .matches(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/)
-    .withMessage('Preferred time must be in HH:MM format'),
+    .custom((value) => {
+      if (!normalizeTimeHm(value)) {
+        throw new Error('Preferred time must be in HH:MM format');
+      }
+      return true;
+    }),
 
   body('notes')
     .optional()
@@ -303,6 +310,78 @@ const edsaBookingValidation = [
     .withMessage('Alternative time must be in HH:MM format'),
 
   handleValidationErrors
+];
+
+const edsaCustomerEmailValidation = [
+  body('email')
+    .isEmail()
+    .normalizeEmail()
+    .withMessage('Please provide a valid email address'),
+  handleValidationErrors
+];
+
+const edsaCustomerRescheduleValidation = [
+  body('email')
+    .isEmail()
+    .normalizeEmail()
+    .withMessage('Please provide a valid email address'),
+
+  body('preferredDate')
+    .custom((value) => {
+      if (!normalizeDateYmd(value)) {
+        throw new Error('Preferred date must be in YYYY-MM-DD format');
+      }
+      if (!isStoreDateTodayOrFuture(value)) {
+        throw new Error('Preferred date cannot be in the past');
+      }
+      return true;
+    }),
+
+  body('preferredTime')
+    .custom((value) => {
+      if (!normalizeTimeHm(value)) {
+        throw new Error('Preferred time must be in HH:MM format');
+      }
+      return true;
+    }),
+
+  body('notes')
+    .optional()
+    .trim()
+    .isLength({ max: 1000 })
+    .withMessage('Notes must be less than 1000 characters')
+    .escape(),
+
+  handleValidationErrors
+];
+
+const edsaRequestChangeValidation = [
+  body('email')
+    .isEmail()
+    .normalizeEmail()
+    .withMessage('Please provide a valid email address'),
+
+  body('requestType')
+    .isIn(['cancel', 'reschedule'])
+    .withMessage('Request type must be cancel or reschedule'),
+
+  body('notes')
+    .optional()
+    .trim()
+    .isLength({ max: 1000 })
+    .withMessage('Notes must be less than 1000 characters'),
+
+  body('requestedDate')
+    .if((value, { req }) => req.body.requestType === 'reschedule')
+    .isISO8601({ strict: true })
+    .withMessage('Requested date must be YYYY-MM-DD'),
+
+  body('requestedTime')
+    .if((value, { req }) => req.body.requestType === 'reschedule')
+    .matches(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/)
+    .withMessage('Requested time must be HH:MM'),
+
+  handleValidationErrors,
 ];
 
 // Email campaign validation
@@ -528,6 +607,9 @@ module.exports = {
   productValidation,
   orderValidation,
   edsaBookingValidation,
+  edsaRequestChangeValidation,
+  edsaCustomerEmailValidation,
+  edsaCustomerRescheduleValidation,
   emailCampaignValidation,
   idParamValidation,
   paginationValidation,

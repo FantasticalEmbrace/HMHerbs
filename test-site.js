@@ -190,7 +190,7 @@ async function runTests() {
     log('\n📋 Next Steps:', 'blue');
     if (failed > 0 || warnings > 0) {
         log('1. Install missing dependencies: cd backend && npm install', 'yellow');
-        log('2. Create .env file: cp backend/.env.example backend/.env', 'yellow');
+        log('2. Create .env file: cp backend/.env.example backend/.env (prod: .env.linode.example)', 'yellow');
         log('3. Configure database in backend/.env', 'yellow');
         log('4. Run database schema: mysql -u root -p hmherbs < database/schema.sql', 'yellow');
         log('5. Start backend: cd backend && npm start', 'yellow');

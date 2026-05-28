@@ -370,6 +370,15 @@ class SEOOptimizer {
         // Example: Break up form validation
         const forms = document.querySelectorAll('form');
         forms.forEach(form => {
+            // EDSA + auth forms own submit (API / redirect); native form.submit() breaks booking redirect.
+            if (
+                form.id === 'edsa-booking-form' ||
+                form.id === 'customer-login-form' ||
+                form.id === 'customer-register-form' ||
+                form.id === 'customer-forgot-password-form'
+            ) {
+                return;
+            }
             this.addEventListenerWithCleanup(form, 'submit', (e) => {
                 e.preventDefault();
 

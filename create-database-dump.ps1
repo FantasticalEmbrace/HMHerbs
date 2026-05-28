@@ -128,7 +128,7 @@ if ($mysqldumpPath) {
             Write-Host ""
             Write-Host "File: $DUMP_FILE" -ForegroundColor Cyan
             Write-Host ""
-            Write-Host "Import to DigitalOcean:" -ForegroundColor Yellow
+            Write-Host "Import to Linode:" -ForegroundColor Yellow
             Write-Host "  npm run db:build-staging  (or use this dump in build-deploy-bundle.js)" -ForegroundColor Yellow
             Write-Host "  See database/DEPLOY-DATABASE.md" -ForegroundColor Yellow
             Write-Host ""

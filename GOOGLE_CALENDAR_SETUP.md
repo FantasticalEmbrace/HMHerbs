@@ -96,6 +96,42 @@ npm install googleapis
 2. Make a test booking through the website
 3. Check your Google Calendar - you should see the event appear automatically!
 
+## Admin panel: Connect Google Calendar (OAuth)
+
+The admin **Settings → Google Calendar** flow uses OAuth (not the service account JSON above). If you see **Error 403: access_denied** when signing in with `hmherbs1@gmail.com`:
+
+### Fix in Google Cloud Console
+
+1. Open [Google Cloud Console](https://console.cloud.google.com/) → the project that owns client ID `266596824943-...`.
+2. **APIs & Services → Library** — enable **Google Calendar API**.
+3. **APIs & Services → OAuth consent screen**
+   - If **Publishing status** is **Testing**, add **hmherbs1@gmail.com** under **Test users** (exact address you sign in with).
+   - Add scope `https://www.googleapis.com/auth/calendar` if prompted.
+4. **APIs & Services → Credentials** → your **OAuth 2.0 Client ID** (type **Web application**)
+   - Under **Authorized redirect URIs**, add exactly:
+     ```
+     http://localhost:3001/api/admin/settings/google-calendar/callback
+     ```
+   - For production, also add:
+     ```
+     https://YOUR-DOMAIN.com/api/admin/settings/google-calendar/callback
+     ```
+5. In [Google Account permissions](https://myaccount.google.com/permissions), remove the old app entry if you previously denied access, then connect again from admin.
+
+### backend/.env (local)
+
+```env
+GCAL_CLIENT_ID=266596824943-....apps.googleusercontent.com
+GCAL_CLIENT_SECRET=your_client_secret
+# Optional — must match redirect URI in Google Console:
+GCAL_REDIRECT_URI=http://localhost:3001/api/admin/settings/google-calendar/callback
+ADMIN_APP_URL=http://localhost:3001/admin.html
+```
+
+Restart the backend after changing `.env`.
+
+---
+
 ## Troubleshooting
 
 ### Events Not Appearing

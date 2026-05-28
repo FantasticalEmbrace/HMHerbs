@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Verifies DigitalOcean deploy files exist. Run: npm run deploy:verify
+ * Verifies Linode deploy files exist. Run: npm run deploy:verify
  */
 const fs = require('fs');
 const path = require('path');
@@ -8,23 +8,23 @@ const path = require('path');
 const root = path.join(__dirname, '..');
 
 const required = [
-    'DIGITALOCEAN_DEPLOY.md',
-    'DIGITALOCEAN_CHECKLIST.md',
+    'LINODE_DEPLOY.md',
+    'LINODE_CHECKLIST.md',
     'database/DEPLOY-DATABASE.md',
     'database/deploy-staging.sql',
     'database/build-deploy-bundle.js',
-    'backend/.env.digitalocean.example',
+    'backend/.env.linode.example',
+    'backend/utils/dbConfig.js',
     'backend/certs/.gitkeep',
     'deploy/README.md',
-    'deploy/bootstrap-droplet.sh',
+    'deploy/bootstrap-linode.sh',
     'deploy/setup-nginx-ssl.sh',
     'deploy/import-database.sh',
     'deploy/import-database.ps1',
-    'deploy/upload-to-droplet.ps1',
+    'deploy/upload-to-linode.ps1',
     'deploy/db-connection.env.example',
     'deploy/ecosystem.config.cjs',
-    'deploy/nginx/hmherbs.conf.example',
-    '.do/app.yaml'
+    'deploy/nginx/hmherbs.conf.example'
 ];
 
 let missing = 0;
@@ -44,4 +44,4 @@ if (missing) {
 const sqlStat = fs.statSync(path.join(root, 'database/deploy-staging.sql'));
 console.log('Deploy pack OK');
 console.log(`  deploy-staging.sql: ${(sqlStat.size / 1024).toFixed(0)} KB`);
-console.log('  Next: DIGITALOCEAN_CHECKLIST.md');
+console.log('  Next: LINODE_CHECKLIST.md');

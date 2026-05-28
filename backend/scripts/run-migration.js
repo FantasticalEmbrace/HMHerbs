@@ -3,7 +3,8 @@
 // Usage:
 //   node scripts/run-migration.js ../database/migrations/<file>.sql
 
-require('dotenv').config();
+
+const { loadBackendEnv, createPool, createConnection } = require('../utils/dbConfig');
 const fs = require('fs');
 const path = require('path');
 const mysql = require('mysql2/promise');
@@ -61,6 +62,7 @@ function splitWithDelimiters(sql) {
 }
 
 async function main() {
+    loadBackendEnv();
     const arg = process.argv[2];
     if (!arg) {
         console.error('Usage: node scripts/run-migration.js <path-to-sql-file>');

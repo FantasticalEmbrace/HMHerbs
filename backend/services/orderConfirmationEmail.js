@@ -19,7 +19,7 @@ function escapeHtml(text) {
 async function getMailTransporter() {
     const smtpHost = String(process.env.SMTP_HOST || process.env.EMAIL_HOST || '').trim();
     const smtpUser = String(process.env.SMTP_USER || process.env.EMAIL_USER || '').trim();
-    const smtpPass = process.env.SMTP_PASSWORD || process.env.EMAIL_PASS || '';
+    const smtpPass = String(process.env.SMTP_PASSWORD || process.env.EMAIL_PASS || '').trim();
     const smtpPort = Number(process.env.SMTP_PORT || process.env.EMAIL_PORT || 587) || 587;
     if (!smtpHost || !smtpUser) return null;
     const nodemailer = require('nodemailer');

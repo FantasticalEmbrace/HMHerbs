@@ -12,6 +12,7 @@ const SETTINGS_KEYS = {
     connectedEmail: 'gbp_connected_email',
     connectedAt: 'gbp_connected_at',
     locationName: 'gbp_location_name',
+    apiAccessPending: 'gbp_api_access_pending',
 };
 
 const DAY_ALIASES = {
@@ -36,6 +37,10 @@ const DAY_ALIASES = {
 
 const ALL_WEEKDAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'];
 
+function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 class GoogleBusinessProfileService {
     constructor() {
         this.scope = SCOPE;
@@ -44,6 +49,84 @@ class GoogleBusinessProfileService {
 
     hasClientCredentials() {
         return Boolean(process.env.GBP_CLIENT_ID && process.env.GBP_CLIENT_SECRET);
+    }
+
+    /** Cloud project number from OAuth client id (e.g. 123456789-abc.apps.googleusercontent.com). */
+    getOAuthProjectNumber() {
+        const id = process.env.GBP_CLIENT_ID || '';
+        const m = /^(\d+)-/.exec(id.trim());
+        return m ? m[1] : null;
+    }
+
+    /** True when Google returns quota_limit_value "0" — project not approved for GBP API use yet. */
+    isGbpAccessPendingError(err) {
+        const details = err?.response?.data?.error?.details || [];
+        return details.some((d) => d?.metadata?.quota_limit_value === '0');
+    }
+
+    /** Detailed message for logs / developer scripts (not shown in admin UI). */
+    formatApiErrorTechnical(err) {
+        const status = err?.response?.status;
+        const data = err?.response?.data;
+        const msg = data?.error?.message || err?.message || 'Google API request failed';
+        const quotaZero = this.isGbpAccessPendingError(err);
+        const project = this.getOAuthProjectNumber();
+
+        if (quotaZero) {
+            const projectHint = project ? ` (project ${project})` : '';
+            return (
+                `GBP API access pending${projectHint}: quota 0 QPM. ` +
+                'Submit Application for Basic API Access — https://support.google.com/business/contact/api_default'
+            );
+        }
+        if (status === 429) {
+            return `Google rate limit (429): ${msg}`;
+        }
+        if (status === 403) {
+            return `Google denied access (403): ${msg}`;
+        }
+        return msg;
+    }
+
+    /** Plain-language message for admin / store staff. */
+    formatApiErrorForAdmin(err) {
+        if (this.isGbpAccessPendingError(err)) {
+            return (
+                'Automatic Google hours sync is not turned on for this site yet. ' +
+                'Your hours still save on this website. You can update Google Maps at business.google.com in the meantime.'
+            );
+        }
+        const status = err?.response?.status;
+        if (status === 429) {
+            return 'Google is busy right now. Please wait a minute and refresh this page.';
+        }
+        if (status === 403) {
+            return (
+                'This Google account may not have access to your store listing. ' +
+                'Try connecting again with the account that manages your business on Google.'
+            );
+        }
+        return 'We could not load your Google Business locations right now. Please try again later.';
+    }
+
+    async _axiosGetWithRetry(url, config, { retries = 1, delayMs = 3000 } = {}) {
+        let lastErr;
+        for (let attempt = 0; attempt <= retries; attempt++) {
+            try {
+                return await axios.get(url, config);
+            } catch (err) {
+                lastErr = err;
+                const status = err?.response?.status;
+                const quotaZero = err?.response?.data?.error?.details?.some(
+                    (d) => d?.metadata?.quota_limit_value === '0'
+                );
+                if (status !== 429 || quotaZero || attempt >= retries) {
+                    throw err;
+                }
+                await sleep(delayMs);
+            }
+        }
+        throw lastErr;
     }
 
     getRedirectUri(req) {
@@ -127,19 +210,38 @@ class GoogleBusinessProfileService {
         );
     }
 
+    async isApiAccessPending(pool) {
+        if (!pool) return false;
+        return (await this._getSetting(pool, SETTINGS_KEYS.apiAccessPending)) === '1';
+    }
+
+    async setApiAccessPending(pool, pending) {
+        if (!pool) return;
+        await this._setSetting(
+            pool,
+            SETTINGS_KEYS.apiAccessPending,
+            pending ? '1' : '0',
+            'Google Business Profile API access pending (quota 0 until Google approves project)',
+            'string'
+        );
+    }
+
     async getConnectionStatus(pool) {
         const creds = await this.loadCredentials(pool);
         const connected = Boolean(creds.refreshToken);
+        const apiAccessPending = connected && (await this.isApiAccessPending(pool));
         return {
             clientConfigured: this.hasClientCredentials(),
             connected,
             connectedEmail: creds.connectedEmail || null,
             connectedAt: creds.connectedAt || null,
             locationName: creds.locationName || null,
+            apiAccessPending,
             readyToSync: Boolean(
                 this.hasClientCredentials() &&
                 creds.refreshToken &&
-                creds.locationName
+                creds.locationName &&
+                !apiAccessPending
             ),
         };
     }
@@ -254,7 +356,8 @@ class GoogleBusinessProfileService {
         return normalized;
     }
 
-    async _oauthClientWithCredentials(pool, req) {
+    /** OAuth client when connected (refresh token only). Used to list accounts/locations. */
+    async _oauthClientConnected(pool, req) {
         const creds = await this.loadCredentials(pool);
         if (!this.hasClientCredentials()) {
             throw new Error('Google Business Profile OAuth is not configured');
@@ -262,17 +365,24 @@ class GoogleBusinessProfileService {
         if (!creds.refreshToken) {
             throw new Error('Google Business Profile is not connected');
         }
-        if (!creds.locationName) {
-            throw new Error('Google Business Profile location is not set');
-        }
         const redirectUri = this.getRedirectUri(req);
         const client = this._oauthClient(redirectUri);
         client.setCredentials({ refresh_token: creds.refreshToken });
+        return { client, creds };
+    }
+
+    async _oauthClientWithCredentials(pool, req) {
+        const { client, creds } = await this._oauthClientConnected(pool, req);
+        if (!creds.locationName) {
+            throw new Error('Google Business Profile location is not set');
+        }
         return { client, locationName: creds.locationName };
     }
 
-    async _accessToken(pool, req) {
-        const { client } = await this._oauthClientWithCredentials(pool, req);
+    async _accessToken(pool, req, { requireLocation = true } = {}) {
+        const { client } = requireLocation
+            ? await this._oauthClientWithCredentials(pool, req)
+            : await this._oauthClientConnected(pool, req);
         const tokenResult = await client.getAccessToken();
         const token = typeof tokenResult === 'string' ? tokenResult : tokenResult?.token;
         if (!token) throw new Error('Unable to obtain Google OAuth access token');
@@ -448,11 +558,27 @@ class GoogleBusinessProfileService {
     }
 
     async listLocations(pool, req) {
-        const token = await this._accessToken(pool, req);
-        const accountsRes = await axios.get(`${ACCOUNTS_URL}/accounts`, {
-            headers: { Authorization: `Bearer ${token}` },
-            timeout: 20000,
-        });
+        const token = await this._accessToken(pool, req, { requireLocation: false });
+        let accountsRes;
+        try {
+            accountsRes = await this._axiosGetWithRetry(
+                `${ACCOUNTS_URL}/accounts`,
+                {
+                    headers: { Authorization: `Bearer ${token}` },
+                    timeout: 20000,
+                },
+                { retries: 1, delayMs: 5000 }
+            );
+        } catch (err) {
+            if (this.isGbpAccessPendingError(err)) {
+                await this.setApiAccessPending(pool, true);
+            }
+            logger.warn('[integration][google-business] List locations failed', {
+                detail: this.formatApiErrorTechnical(err),
+            });
+            throw new Error(this.formatApiErrorForAdmin(err));
+        }
+        await this.setApiAccessPending(pool, false);
         const accounts = accountsRes.data?.accounts || [];
         const locations = [];
 
@@ -460,13 +586,14 @@ class GoogleBusinessProfileService {
             const accountName = account.name;
             if (!accountName) continue;
             try {
-                const locRes = await axios.get(
+                const locRes = await this._axiosGetWithRetry(
                     `${BASE_URL}/${accountName}/locations`,
                     {
                         params: { readMask: 'name,title,storefrontAddress' },
                         headers: { Authorization: `Bearer ${token}` },
                         timeout: 20000,
-                    }
+                    },
+                    { retries: 0 }
                 );
                 const list = locRes.data?.locations || [];
                 list.forEach((loc) => {
@@ -513,13 +640,21 @@ class GoogleBusinessProfileService {
             specialHours: { specialHourPeriods: specialPeriods },
         };
 
-        const response = await axios.patch(url, payload, {
-            headers: {
-                Authorization: `Bearer ${token}`,
-                'Content-Type': 'application/json',
-            },
-            timeout: 20000,
-        });
+        let response;
+        try {
+            response = await axios.patch(url, payload, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                timeout: 20000,
+            });
+        } catch (err) {
+            logger.warn('[integration][google-business] Sync hours failed', {
+                detail: this.formatApiErrorTechnical(err),
+            });
+            throw new Error(this.formatApiErrorForAdmin(err));
+        }
 
         logger.info('[integration][google-business] Synced regular and special hours', {
             location: locationName,

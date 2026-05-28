@@ -11,13 +11,9 @@
 
 const fs = require('fs');
 const path = require('path');
-const mysql = require('mysql2/promise');
+const { loadBackendEnv, createPool } = require('../../backend/utils/dbConfig');
 
 const rootDir = path.join(__dirname, '..', '..');
-const backendEnv = path.join(rootDir, 'backend', '.env');
-if (fs.existsSync(backendEnv)) {
-    require('dotenv').config({ path: backendEnv });
-}
 
 const STATIC_PAGES = [
     { loc: '/', changefreq: 'daily', priority: '1.0' },
@@ -110,17 +106,11 @@ function writeSitemapIndex(filePath, base, childFiles) {
 }
 
 async function main() {
+    loadBackendEnv(path.join(__dirname, '..', '..', 'backend', '.env'));
     const base = resolveBaseUrl();
     const today = formatLastmod(new Date());
 
-    const pool = mysql.createPool({
-        host: process.env.DB_HOST || 'localhost',
-        user: process.env.DB_USER || 'root',
-        password: process.env.DB_PASSWORD || '',
-        database: process.env.DB_NAME || 'hmherbs',
-        waitForConnections: true,
-        connectionLimit: 2
-    });
+    const pool = createPool({ connectionLimit: 5 });
 
     try {
         const pageEntries = [];

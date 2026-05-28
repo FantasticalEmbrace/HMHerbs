@@ -173,7 +173,7 @@
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="css/mobile-enhancements.css">
     <link rel="stylesheet" href="css/browser-compatibility.css">
-    <link rel="stylesheet" href="css/edsa-booking.css">
+    <link rel="stylesheet" href="css/edsa-booking.css?v=12">
     <link rel="stylesheet" href="css/customer-auth.css">
     <link rel="stylesheet" href="css/performance-optimizations.css">
     <link rel="stylesheet" href="css/accessibility-enhancements.css">
@@ -400,10 +400,13 @@
                             <span class="edsa-price">$75.00</span>
                             <span class="edsa-price-note">per session</span>
                         </div>
-                        <button class="btn btn-primary edsa-book-btn" id="edsa-book-btn">
+                        <button type="button" class="btn btn-primary edsa-book-btn" id="edsa-book-btn">
                             <i class="fas fa-calendar-plus" aria-hidden="true"></i>
                             Book EDSA Session
                         </button>
+                        <p class="edsa-manage-link">
+                            <a href="edsa-manage-appointment.html">Change or cancel an existing appointment</a>
+                        </p>
                     </div>
                     <div class="edsa-image">
                         <img src="images/edsa.jpg" alt="EDSA health assessment service" loading="eager"
@@ -1044,7 +1047,7 @@
     <script src="js/site-promo-banner.js" defer></script>
 
     <!-- CRITICAL: Visual Bug Fixes MUST load first -->
-    <script src="js/visual-bug-fixes.js"></script>
+    <script src="js/visual-bug-fixes.js?v=2"></script>
 
     <!-- CRITICAL: Store native fetch BEFORE any wrappers run -->
     <!-- Must load synchronously (no defer) to ensure it runs before other scripts -->
@@ -1061,7 +1064,8 @@
     <script src="js/performance-micro-optimizer.js?v=2.2" defer></script>
     <script src="script.js" defer></script>
     <script src="js/phone-us-format.js" defer></script>
-    <script src="js/edsa-booking.js" defer></script>
+    <script src="js/edsa-ui.js" defer></script>
+    <script src="js/edsa-booking.js?v=14" defer></script>
     <script src="js/newsletter-popup.js" defer></script>
     <script src="js/testimonials-carousel.js" defer></script>
     <script src="js/customer-auth.js" defer></script>
@@ -1070,7 +1074,7 @@
     <script src="ccpa-compliance.js" defer></script>
 
     <!-- Ensure EDSA image loads correctly -->
-    <script src="js/edsa-image-handler.js"></script>
+    <script src="js/edsa-image-handler.js?v=2"></script>
 </body>
 
 </html>

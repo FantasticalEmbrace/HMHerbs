@@ -303,6 +303,7 @@ npm run seed     # Load sample data
 ## 📞 Support & Deployment
 
 ### Production Deployment
+- **Hosting guide**: [LINODE_DEPLOY.md](./LINODE_DEPLOY.md) (Linode, NodeBalancer, Managed MySQL, Nginx, PM2)
 - **Environment Variables**: Secure configuration
 - **Database Optimization**: Production settings
 - **SSL/HTTPS**: Secure communications
