@@ -25,22 +25,22 @@ async function setAdminPassword() {
         // Check if admin exists
         const [admins] = await connection.execute(
             'SELECT id, email FROM admin_users WHERE email = ?',
-            ['admin@hmherbs.com']
+            ['hmherbs1@gmail.com']
         );
 
         if (admins.length === 0) {
             // Create admin if doesn't exist
             await connection.execute(
                 `INSERT INTO admin_users (email, password_hash, first_name, last_name, role, is_active) 
-                 VALUES (?, ?, 'Admin', 'User', 'super_admin', 1)`,
-                ['admin@hmherbs.com', passwordHash]
+                 VALUES (?, ?, 'Admin', 'User', 'admin', 1)`,
+                ['hmherbs1@gmail.com', passwordHash]
             );
             console.log('✅ Admin user created\n');
         } else {
             // Update existing admin
             await connection.execute(
                 'UPDATE admin_users SET password_hash = ?, updated_at = NOW() WHERE email = ?',
-                [passwordHash, 'admin@hmherbs.com']
+                [passwordHash, 'hmherbs1@gmail.com']
             );
             console.log('✅ Admin password updated\n');
         }
@@ -48,7 +48,7 @@ async function setAdminPassword() {
         await connection.end();
         
         console.log('📋 Admin Credentials:');
-        console.log('   Email: admin@hmherbs.com');
+        console.log('   Email: hmherbs1@gmail.com');
         console.log('   Password: admin1');
         console.log('\n✅ Password set successfully!');
         

@@ -128,6 +128,11 @@ const productValidation = [
   body('price')
     .isFloat({ min: 0, max: 999999.99 })
     .withMessage('Price must be a valid number between 0 and 999999.99'),
+
+  body('cost_price')
+    .optional({ values: 'falsy' })
+    .isFloat({ min: 0, max: 999999.99 })
+    .withMessage('Cost must be a valid number between 0 and 999999.99'),
   
   body('sku')
     .trim()

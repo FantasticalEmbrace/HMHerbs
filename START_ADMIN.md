@@ -25,7 +25,7 @@ Frontend URL: http://localhost:8000
 
 ## Step 3: Login
 
-- **Email:** `admin@hmherbs.com`
+- **Email:** `hmherbs1@gmail.com`
 - **Password:** `admin1`
 
 ---

@@ -41,6 +41,11 @@ class HMHerbsScraper {
         this.productMetadata = new Map(); // Store { url: { category, brand } }
         this.progressCallback = progressCallback; // Callback function for progress updates
         this.createdAt = Date.now(); // Track when scraper was created
+        this._cancelled = false;
+        this._cancelReason = null;
+        if (typeof global !== 'undefined') {
+            global.__hmHerbsActiveScraper = this;
+        }
         // Statistics tracking for report
         this.stats = {
             startTime: new Date(),
@@ -65,6 +70,19 @@ class HMHerbsScraper {
             'Connection': 'keep-alive',
             'Upgrade-Insecure-Requests': '1'
         };
+    }
+
+    cancel(reason = 'Cancelled by user') {
+        this._cancelled = true;
+        this._cancelReason = reason;
+    }
+
+    _checkCancelled() {
+        if (this._cancelled) {
+            const err = new Error(this._cancelReason || 'Scraping cancelled');
+            err.code = 'SCRAPE_CANCELLED';
+            throw err;
+        }
     }
 
     getReport() {
@@ -122,6 +140,8 @@ class HMHerbsScraper {
     }
 
     async scrapeAllProducts() {
+        this._cancelled = false;
+        this._cancelReason = null;
         console.log('🌿 Starting HM Herbs website scraping...');
         this.sendProgress({
             stage: 'initializing',
@@ -134,6 +154,7 @@ class HMHerbsScraper {
 
         try {
             // Start with the main page to find category links
+            this._checkCancelled();
             this.sendProgress({
                 stage: 'scraping_main',
                 current: 5,
@@ -145,6 +166,7 @@ class HMHerbsScraper {
             await this.scrapePage(this.baseUrl);
 
             // Look for product category pages
+            this._checkCancelled();
             this.sendProgress({
                 stage: 'finding_categories',
                 current: 10,
@@ -155,6 +177,7 @@ class HMHerbsScraper {
             });
             await this.findCategoryPages();
 
+            this._checkCancelled();
             // Scrape individual product pages (progress updates handled in scrapeFoundProductLinks)
             this.sendProgress({
                 stage: 'scraping_products',
@@ -168,6 +191,7 @@ class HMHerbsScraper {
             // But we'll keep this for compatibility
             await this.scrapeProductPages();
 
+            this._checkCancelled();
             // Save results
             this.sendProgress({
                 stage: 'saving',
@@ -211,6 +235,10 @@ class HMHerbsScraper {
                 productsFound: this.products.length
             });
             throw error;
+        } finally {
+            if (typeof global !== 'undefined' && global.__hmHerbsActiveScraper === this) {
+                global.__hmHerbsActiveScraper = null;
+            }
         }
     }
 
@@ -1526,6 +1554,7 @@ class HMHerbsScraper {
 
         // 3. Scan each category page
         for (const [url, name] of categoryMap) {
+            this._checkCancelled();
             scannedCount++;
             try {
                 this.sendProgress({
@@ -1552,6 +1581,7 @@ class HMHerbsScraper {
 
         // 4. Scan each brand page
         for (const [url, name] of brandMap) {
+            this._checkCancelled();
             scannedCount++;
             try {
                 this.sendProgress({
@@ -1589,6 +1619,7 @@ class HMHerbsScraper {
 
         // Try pages 2-37 to get all products (saw up to page 37 on the site)
         for (let page = 2; page <= maxPages; page++) {
+            this._checkCancelled();
             try {
                 const pageUrl = baseUrl.includes('?')
                     ? `${baseUrl}&ccm_paging_p=${page}`
@@ -1635,6 +1666,7 @@ class HMHerbsScraper {
         }
 
         for (let i = 0; i < productLinks.length; i++) {
+            this._checkCancelled();
             const link = productLinks[i];
             try {
                 const productName = link.split('/').pop() || `Product ${i + 1}`;
@@ -1668,9 +1700,10 @@ class HMHerbsScraper {
                     console.log(`✅ Progress: ${i + 1}/${totalLinks} products scraped. Found ${this.products.length} valid products so far.`);
                 }
             } catch (error) {
+                if (error.code === 'SCRAPE_CANCELLED') throw error;
                 console.log(`⚠️ Error scraping product ${link}: ${error.message}`);
                 // Still send progress update even on error
-                const stageProgress = 40 + ((i + 1) / totalLinks) * 40;
+                const stageProgress = 15 + ((i + 1) / totalLinks) * 70;
                 const percentage = Math.round(stageProgress);
                 this.sendProgress({
                     stage: 'scraping_products',
@@ -1699,6 +1732,7 @@ class HMHerbsScraper {
         ];
 
         for (const term of searchTerms) {
+            this._checkCancelled();
             try {
                 const searchUrl = `${this.baseUrl}/index.php/search?q=${term}`;
                 await this.scrapePage(searchUrl);

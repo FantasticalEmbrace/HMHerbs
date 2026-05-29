@@ -153,8 +153,10 @@ const {
     settingsValidation
 } = require('../middleware/validation');
 const HMHerbsScraper = require('../scripts/scrape-hmherbs');
+const activeScrapeJobs = require('../utils/activeScrapeJobs');
 const ProductImporter = require('../scripts/import-products');
 const ProductCategoryMatcher = require('../scripts/match-products-to-categories');
+const ProductOctoposSyncService = require('../services/product-octopos-sync');
 const InventoryService = require('../services/inventory');
 const VendorService = require('../services/vendor');
 const POSService = require('../services/pos');
@@ -235,6 +237,22 @@ async function tryAutoSyncGoogleBusinessHours(req, updatedKeyNames = []) {
     }
 }
 const { parseRules, promotionHasApplicableMerchOrShipping } = require('../services/webPromotionEngine');
+const {
+    ADMIN_ROLES,
+    ROLE_LABELS,
+    MARKETING_SETTING_KEYS,
+    normalizeAdminRole,
+    isMarketingRole,
+    hasMinAdminRole,
+    defaultSectionForRole,
+    allowedSectionsForRole,
+} = require('../utils/adminRoles');
+const {
+    authenticateAdmin,
+    adminAuth,
+    marketingAuth,
+    requirePermission,
+} = require('../middleware/adminAuth');
 
 // Rate limiting for admin authentication
 // Completely disabled in development mode to allow for testing
@@ -256,53 +274,6 @@ const adminAuthLimiter = rateLimit({
         return false;
     }
 });
-
-// Admin authentication middleware
-const authenticateAdmin = async (req, res, next) => {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
-
-    if (!token) {
-        return res.status(401).json({ error: 'Admin access token required' });
-    }
-
-    if (!process.env.JWT_SECRET) {
-        logger.error('CRITICAL: JWT_SECRET environment variable is not set');
-        return res.status(500).json({ error: 'Server configuration error' });
-    }
-
-    try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const [rows] = await req.pool.execute(
-            'SELECT id, email, first_name, last_name, role, is_active FROM admin_users WHERE id = ? AND is_active = 1',
-            [decoded.adminId]
-        );
-
-        if (rows.length === 0) {
-            return res.status(401).json({ error: 'Invalid admin token' });
-        }
-
-        req.admin = rows[0];
-        next();
-    } catch (error) {
-        return res.status(403).json({ error: 'Invalid admin token' });
-    }
-};
-
-// Check admin permissions
-const requirePermission = (minRole) => {
-    const roleHierarchy = { 'staff': 1, 'manager': 2, 'admin': 3, 'super_admin': 4 };
-
-    return (req, res, next) => {
-        const userLevel = roleHierarchy[req.admin.role] || 0;
-        const requiredLevel = roleHierarchy[minRole] || 0;
-
-        if (userLevel < requiredLevel) {
-            return res.status(403).json({ error: 'Insufficient permissions' });
-        }
-        next();
-    };
-};
 
 // Admin Authentication
 router.post('/auth/login', adminAuthLimiter, ...adminLoginValidation, async (req, res) => {
@@ -360,6 +331,7 @@ router.post('/auth/login', adminAuthLimiter, ...adminLoginValidation, async (req
             { expiresIn: '8h' }
         );
 
+        const role = normalizeAdminRole(admin.role);
         res.json({
             message: 'Admin login successful',
             token,
@@ -368,8 +340,11 @@ router.post('/auth/login', adminAuthLimiter, ...adminLoginValidation, async (req
                 email: admin.email,
                 firstName: admin.first_name,
                 lastName: admin.last_name,
-                role: admin.role
-            }
+                role,
+                roleLabel: ROLE_LABELS[role] || role,
+            },
+            allowedSections: allowedSectionsForRole(role),
+            defaultSection: defaultSectionForRole(role),
         });
     } catch (error) {
         // Log full error details for debugging
@@ -579,8 +554,26 @@ router.post('/auth/reset-password', adminAuthLimiter, async (req, res) => {
     }
 });
 
+// Current session (used by admin panel on load; works for all roles including Marketing)
+router.get('/auth/me', ...marketingAuth, async (req, res) => {
+    const role = normalizeAdminRole(req.admin.role);
+    res.json({
+        admin: {
+            id: req.admin.id,
+            email: req.admin.email,
+            firstName: req.admin.first_name,
+            lastName: req.admin.last_name,
+            role,
+            roleLabel: ROLE_LABELS[role] || role,
+        },
+        allowedSections: allowedSectionsForRole(role),
+        defaultSection: defaultSectionForRole(role),
+        roles: ADMIN_ROLES.map((r) => ({ id: r, label: ROLE_LABELS[r] || r })),
+    });
+});
+
 // Dashboard Statistics
-router.get('/dashboard/stats', authenticateAdmin, async (req, res) => {
+router.get('/dashboard/stats', ...adminAuth, async (req, res) => {
     try {
         // Initialize default stats
         const stats = {
@@ -751,8 +744,15 @@ router.get('/dashboard/stats', authenticateAdmin, async (req, res) => {
 });
 
 // Product Management
-router.get('/products', authenticateAdmin, async (req, res) => {
+router.get('/products', ...marketingAuth, async (req, res) => {
     try {
+        if (isMarketingRole(req.admin.role)) {
+            const search = String(req.query.search || '').trim();
+            if (!search) {
+                return res.status(403).json({ error: 'Product search is required for this account' });
+            }
+        }
+
         // First, verify database tables exist
         try {
             await req.pool.execute('SELECT 1 FROM products LIMIT 1');
@@ -803,7 +803,7 @@ router.get('/products', authenticateAdmin, async (req, res) => {
 
         // Build the base query - use string concatenation to avoid template literal issues
         let query = 'SELECT ' +
-            'p.id, p.sku, p.name, p.slug, p.price, p.inventory_quantity, ' +
+            'p.id, p.sku, p.name, p.slug, p.price, p.cost_price, p.octopos_product_id, p.inventory_quantity, ' +
             'p.low_stock_threshold, p.is_active, p.is_featured, p.created_at, ' +
             'p.brand_id, p.category_id, ' +
             'b.name as brand_name, pc.name as category_name ' +
@@ -943,11 +943,11 @@ router.get('/products', authenticateAdmin, async (req, res) => {
 });
 
 // Create Product
-router.post('/products', authenticateAdmin, requirePermission('manager'), productValidation, async (req, res) => {
+router.post('/products', ...adminAuth, requirePermission('manager'), productValidation, async (req, res) => {
     try {
         const {
             sku, name, short_description, long_description, brand_id, category_id,
-            price, compare_price, weight, inventory_quantity, low_stock_threshold,
+            price, compare_price, cost_price, weight, inventory_quantity, low_stock_threshold,
             is_active, is_featured, is_cannabis, coa_url, coa_updated_at,
             health_categories, images, variants
         } = req.body;
@@ -1005,10 +1005,10 @@ router.post('/products', authenticateAdmin, requirePermission('manager'), produc
             const [result] = await connection.execute(`
                 INSERT INTO products (
                     sku, name, slug, short_description, long_description,
-                    brand_id, category_id, price, compare_price, weight,
+                    brand_id, category_id, price, compare_price, cost_price, weight,
                     inventory_quantity, low_stock_threshold, is_active, is_featured,
                     is_cannabis, coa_url, coa_updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `, [
                 sku,
                 name,
@@ -1019,6 +1019,7 @@ router.post('/products', authenticateAdmin, requirePermission('manager'), produc
                 sanitizeInteger(category_id),
                 sanitizeNumeric(price),
                 sanitizeNumeric(compare_price),
+                sanitizeNumeric(cost_price),
                 sanitizeNumeric(weight),
                 sanitizeInteger(inventory_quantity, 0),
                 sanitizeInteger(low_stock_threshold, 10),
@@ -1106,7 +1107,7 @@ router.post('/products', authenticateAdmin, requirePermission('manager'), produc
 });
 
 // Match products to brands - MUST be before /products/:id route to avoid route conflict
-router.post('/products/match-brands', authenticateAdmin, async (req, res) => {
+router.post('/products/match-brands', ...adminAuth, async (req, res) => {
     try {
         // Run the matching process
         const results = {
@@ -1215,7 +1216,7 @@ router.post('/products/match-brands', authenticateAdmin, async (req, res) => {
 });
 
 // Match products to categories
-router.post('/products/match-categories', authenticateAdmin, async (req, res) => {
+router.post('/products/match-categories', ...adminAuth, async (req, res) => {
     try {
         const matcher = new ProductCategoryMatcher();
         const result = await matcher.matchAndAssignCategories();
@@ -1241,7 +1242,7 @@ router.post('/products/match-categories', authenticateAdmin, async (req, res) =>
 });
 
 // Upload product image - MUST be before /products/:id route to avoid route conflict
-router.post('/products/upload-image', authenticateAdmin, requirePermission('manager'), uploadProductImage.single('image'), async (req, res) => {
+router.post('/products/upload-image', ...adminAuth, requirePermission('manager'), uploadProductImage.single('image'), async (req, res) => {
     try {
         if (!req.file) {
             return res.status(400).json({ error: 'No file uploaded' });
@@ -1261,7 +1262,7 @@ router.post('/products/upload-image', authenticateAdmin, requirePermission('mana
 });
 
 // Upload COA PDF — MUST be before /products/:id
-router.post('/products/upload-coa', authenticateAdmin, requirePermission('manager'), (req, res, next) => {
+router.post('/products/upload-coa', ...adminAuth, requirePermission('manager'), (req, res, next) => {
     uploadCoaPdf.single('coa')(req, res, (err) => {
         if (err) {
             return res.status(400).json({
@@ -1288,15 +1289,79 @@ router.post('/products/upload-coa', authenticateAdmin, requirePermission('manage
     }
 });
 
+// Sync product costs from Octopos (match by SKU / barcode)
+router.post('/products/sync-octopos/costs', ...adminAuth, requirePermission('manager'), async (req, res) => {
+    try {
+        const sync = new ProductOctoposSyncService(req.pool);
+        const octoposCtx = {
+            baseUrl: req.headers['x-octopos-baseurl'] || null,
+            token: req.headers['x-octopos-token'] || null,
+        };
+        const result = await sync.syncAllCostsFromOctopos(octoposCtx);
+        res.json(result);
+    } catch (err) {
+        logger.error('Octopos bulk product cost sync error:', err);
+        res.status(500).json({
+            error: 'Failed to sync costs from Octopos',
+            message: process.env.NODE_ENV === 'development' ? err.message : undefined,
+        });
+    }
+});
+
+// Sync one product's cost from Octopos
+router.post('/products/:id/sync-octopos-cost', ...adminAuth, requirePermission('manager'), async (req, res) => {
+    try {
+        const sync = new ProductOctoposSyncService(req.pool);
+        const octoposCtx = {
+            baseUrl: req.headers['x-octopos-baseurl'] || null,
+            token: req.headers['x-octopos-token'] || null,
+        };
+        const result = await sync.syncProductCostFromOctopos(req.params.id, octoposCtx);
+        if (!result.success) {
+            return res.status(result.error === 'Product not found' ? 404 : 400).json({ error: result.error });
+        }
+        res.json(result);
+    } catch (err) {
+        logger.error('Octopos single product cost sync error:', err);
+        res.status(500).json({
+            error: 'Failed to sync cost from Octopos',
+            message: process.env.NODE_ENV === 'development' ? err.message : undefined,
+        });
+    }
+});
+
+// Push website cost to linked Octopos product
+router.post('/products/:id/push-octopos-cost', ...adminAuth, requirePermission('manager'), async (req, res) => {
+    try {
+        const sync = new ProductOctoposSyncService(req.pool);
+        const octoposCtx = {
+            baseUrl: req.headers['x-octopos-baseurl'] || null,
+            token: req.headers['x-octopos-token'] || null,
+        };
+        const result = await sync.pushCostToOctopos(req.params.id, octoposCtx);
+        if (!result.success && !result.skipped) {
+            return res.status(400).json({ error: result.error || 'Push failed' });
+        }
+        res.json(result);
+    } catch (err) {
+        logger.error('Octopos push product cost error:', err);
+        res.status(500).json({
+            error: 'Failed to push cost to Octopos',
+            message: process.env.NODE_ENV === 'development' ? err.message : undefined,
+        });
+    }
+});
+
 // Get Single Product by ID
-router.get('/products/:id', authenticateAdmin, async (req, res) => {
+router.get('/products/:id', ...marketingAuth, async (req, res) => {
     try {
         const { id } = req.params;
 
         const [products] = await req.pool.execute(`
             SELECT 
                 p.id, p.sku, p.name, p.slug, p.short_description, p.long_description,
-                p.price, p.compare_price, p.weight, p.inventory_quantity, p.low_stock_threshold,
+                p.price, p.compare_price, p.cost_price, p.octopos_product_id, p.cost_synced_at,
+                p.weight, p.inventory_quantity, p.low_stock_threshold,
                 p.is_active, p.is_featured, p.is_cannabis, p.coa_url, p.coa_updated_at,
                 p.created_at, p.updated_at,
                 p.brand_id, p.category_id,
@@ -1374,7 +1439,7 @@ router.get('/products/:id', authenticateAdmin, async (req, res) => {
 });
 
 // Update Product
-router.put('/products/:id', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+router.put('/products/:id', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const { id } = req.params;
         const updateData = req.body;
@@ -1400,12 +1465,12 @@ router.put('/products/:id', authenticateAdmin, requirePermission('manager'), asy
 
             const allowedFields = [
                 'name', 'short_description', 'long_description', 'brand_id', 'category_id',
-                'price', 'compare_price', 'weight', 'inventory_quantity', 'low_stock_threshold',
+                'price', 'compare_price', 'cost_price', 'weight', 'inventory_quantity', 'low_stock_threshold',
                 'is_active', 'is_featured', 'is_cannabis', 'coa_url', 'coa_updated_at'
             ];
 
             // Fields that should be numeric (decimal or integer)
-            const numericFields = ['price', 'compare_price', 'weight', 'inventory_quantity', 'low_stock_threshold'];
+            const numericFields = ['price', 'compare_price', 'cost_price', 'weight', 'inventory_quantity', 'low_stock_threshold'];
             // Fields that should be integers
             const integerFields = ['brand_id', 'category_id', 'inventory_quantity', 'low_stock_threshold'];
             // Fields that should be booleans
@@ -1536,7 +1601,26 @@ router.put('/products/:id', authenticateAdmin, requirePermission('manager'), asy
 
             await connection.commit();
 
-            res.json({ message: 'Product updated successfully' });
+            let octoposPush = null;
+            const pushCostToOctopos = updateData.push_cost_to_octopos !== false
+                && updateData.push_cost_to_octopos !== 'false';
+            if (pushCostToOctopos && updateData.cost_price !== undefined) {
+                try {
+                    const sync = new ProductOctoposSyncService(req.pool);
+                    octoposPush = await sync.pushCostToOctopos(id, {
+                        baseUrl: req.headers['x-octopos-baseurl'] || null,
+                        token: req.headers['x-octopos-token'] || null,
+                    });
+                } catch (pushErr) {
+                    logger.warn('Octopos cost push after product update failed', {
+                        productId: id,
+                        message: pushErr.message,
+                    });
+                    octoposPush = { success: false, error: pushErr.message };
+                }
+            }
+
+            res.json({ message: 'Product updated successfully', octoposPush });
 
         } catch (error) {
             await connection.rollback();
@@ -1552,7 +1636,7 @@ router.put('/products/:id', authenticateAdmin, requirePermission('manager'), asy
 });
 
 // Delete Product
-router.delete('/products/:id', authenticateAdmin, requirePermission('admin'), async (req, res) => {
+router.delete('/products/:id', ...adminAuth, requirePermission('admin'), async (req, res) => {
     try {
         const { id } = req.params;
 
@@ -1574,7 +1658,7 @@ router.delete('/products/:id', authenticateAdmin, requirePermission('admin'), as
 
 // Brand Management
 // Upload brand logo
-router.post('/brands/upload-logo', authenticateAdmin, requirePermission('manager'), uploadBrandLogo.single('logo'), async (req, res) => {
+router.post('/brands/upload-logo', ...adminAuth, requirePermission('manager'), uploadBrandLogo.single('logo'), async (req, res) => {
     try {
         if (!req.file) {
             return res.status(400).json({ error: 'No file uploaded' });
@@ -1595,8 +1679,8 @@ router.post('/brands/upload-logo', authenticateAdmin, requirePermission('manager
 
 router.post(
     '/promo-banner/upload-icon',
-    authenticateAdmin,
-    requirePermission('manager'),
+    ...marketingAuth,
+    requirePermission('marketing'),
     uploadPromoBannerIcon.single('icon'),
     async (req, res) => {
         try {
@@ -1617,7 +1701,7 @@ router.post(
 );
 
 // Get all brands (admin)
-router.get('/brands', authenticateAdmin, async (req, res) => {
+router.get('/brands', ...adminAuth, async (req, res) => {
     try {
         const [brands] = await req.pool.execute(
             'SELECT id, name, slug, description, logo_url, website_url, is_active, created_at FROM brands ORDER BY name'
@@ -1630,7 +1714,7 @@ router.get('/brands', authenticateAdmin, async (req, res) => {
 });
 
 // Get single brand
-router.get('/brands/:id', authenticateAdmin, async (req, res) => {
+router.get('/brands/:id', ...adminAuth, async (req, res) => {
     try {
         const { id } = req.params;
         const [brands] = await req.pool.execute(
@@ -1650,7 +1734,7 @@ router.get('/brands/:id', authenticateAdmin, async (req, res) => {
 });
 
 // Create brand
-router.post('/brands', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+router.post('/brands', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const { name, description, logo_url, website_url, is_active = true } = req.body;
 
@@ -1689,7 +1773,7 @@ router.post('/brands', authenticateAdmin, requirePermission('manager'), async (r
 });
 
 // Update brand
-router.put('/brands/:id', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+router.put('/brands/:id', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const { id } = req.params;
         const { name, description, logo_url, website_url, is_active } = req.body;
@@ -1772,7 +1856,7 @@ router.put('/brands/:id', authenticateAdmin, requirePermission('manager'), async
 });
 
 // Delete brand
-router.delete('/brands/:id', authenticateAdmin, requirePermission('admin'), async (req, res) => {
+router.delete('/brands/:id', ...adminAuth, requirePermission('admin'), async (req, res) => {
     try {
         const { id } = req.params;
 
@@ -1807,7 +1891,7 @@ router.delete('/brands/:id', authenticateAdmin, requirePermission('admin'), asyn
 
 // Category Management
 // Get all categories (admin)
-router.get('/categories', authenticateAdmin, async (req, res) => {
+router.get('/categories', ...adminAuth, async (req, res) => {
     try {
         const [categories] = await req.pool.execute(
             `SELECT id, name, slug, description, image_url, parent_id, sort_order, is_active, created_at 
@@ -1822,7 +1906,7 @@ router.get('/categories', authenticateAdmin, async (req, res) => {
 });
 
 // Get single category
-router.get('/categories/:id', authenticateAdmin, async (req, res) => {
+router.get('/categories/:id', ...adminAuth, async (req, res) => {
     try {
         const { id } = req.params;
         const [categories] = await req.pool.execute(
@@ -1844,7 +1928,7 @@ router.get('/categories/:id', authenticateAdmin, async (req, res) => {
 });
 
 // Create category
-router.post('/categories', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+router.post('/categories', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const { name, description, image_url, parent_id, sort_order = 0, is_active = true } = req.body;
 
@@ -1896,7 +1980,7 @@ router.post('/categories', authenticateAdmin, requirePermission('manager'), asyn
 });
 
 // Update category
-router.put('/categories/:id', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+router.put('/categories/:id', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const { id } = req.params;
         const { name, description, image_url, parent_id, sort_order, is_active } = req.body;
@@ -1990,7 +2074,7 @@ router.put('/categories/:id', authenticateAdmin, requirePermission('manager'), a
 });
 
 // Delete category
-router.delete('/categories/:id', authenticateAdmin, requirePermission('admin'), async (req, res) => {
+router.delete('/categories/:id', ...adminAuth, requirePermission('admin'), async (req, res) => {
     try {
         const { id } = req.params;
 
@@ -2037,7 +2121,7 @@ router.delete('/categories/:id', authenticateAdmin, requirePermission('admin'), 
 });
 
 // Order Management
-router.get('/orders', authenticateAdmin, async (req, res) => {
+router.get('/orders', ...adminAuth, async (req, res) => {
     try {
         const { page = 1, limit = 20, status, search } = req.query;
         const pageInt = parseInt(page, 10) || 1;
@@ -2093,7 +2177,7 @@ router.get('/orders', authenticateAdmin, async (req, res) => {
 });
 
 // Single order with line items (admin detail view)
-router.get('/orders/:id', authenticateAdmin, async (req, res) => {
+router.get('/orders/:id', ...adminAuth, async (req, res) => {
     try {
         const orderId = parseInt(req.params.id, 10);
         if (!Number.isFinite(orderId) || orderId < 1) {
@@ -2138,7 +2222,7 @@ router.get('/orders/:id', authenticateAdmin, async (req, res) => {
 });
 
 // Update order status / tracking (admin)
-router.patch('/orders/:id', authenticateAdmin, async (req, res) => {
+router.patch('/orders/:id', ...adminAuth, async (req, res) => {
     try {
         const orderId = parseInt(req.params.id, 10);
         if (!Number.isFinite(orderId) || orderId < 1) {
@@ -2247,7 +2331,7 @@ router.patch('/orders/:id', authenticateAdmin, async (req, res) => {
 });
 
 // EDSA Booking Management
-router.get('/edsa/bookings', authenticateAdmin, async (req, res) => {
+router.get('/edsa/bookings', ...adminAuth, async (req, res) => {
     try {
         const { page = 1, limit = 20, status, date, from, to } = req.query;
         const pageInt = parseInt(page, 10) || 1;
@@ -2312,7 +2396,7 @@ router.get('/edsa/bookings', authenticateAdmin, async (req, res) => {
 });
 
 // Update EDSA booking (staff) — syncs calendar and emails customer when changed
-router.put('/edsa/bookings/:id', authenticateAdmin, async (req, res) => {
+router.put('/edsa/bookings/:id', ...adminAuth, async (req, res) => {
     try {
         const bookingId = Number(req.params.id);
         if (!Number.isFinite(bookingId) || bookingId < 1) {
@@ -2435,14 +2519,23 @@ router.put('/edsa/bookings/:id', authenticateAdmin, async (req, res) => {
 // OAuth refresh tokens — redacted from GET /settings
 const SETTINGS_REDACT_KEYS = new Set(['gbp_refresh_token', 'gcal_refresh_token']);
 
-// Get System Settings
-router.get('/settings', authenticateAdmin, requirePermission('admin'), async (req, res) => {
+// Get System Settings (marketing role: promo banner key only; admin/manager: all settings)
+router.get('/settings', ...marketingAuth, async (req, res) => {
     try {
+        if (!isMarketingRole(req.admin.role) && !hasMinAdminRole(req.admin.role, 'admin')) {
+            return res.status(403).json({ error: 'Insufficient permissions' });
+        }
+
         const [settings] = await req.pool.execute(
             'SELECT key_name, value, description, type FROM settings ORDER BY key_name'
         );
 
-        const safe = (settings || []).map((row) => {
+        let rows = settings || [];
+        if (isMarketingRole(req.admin.role)) {
+            rows = rows.filter((row) => MARKETING_SETTING_KEYS.has(row.key_name));
+        }
+
+        const safe = rows.map((row) => {
             if (!SETTINGS_REDACT_KEYS.has(row.key_name)) return row;
             return {
                 ...row,
@@ -2458,10 +2551,21 @@ router.get('/settings', authenticateAdmin, requirePermission('admin'), async (re
 });
 
 // Update System Settings
-router.put('/settings', authenticateAdmin, requirePermission('admin'), settingsValidation, async (req, res) => {
+router.put('/settings', ...marketingAuth, settingsValidation, async (req, res) => {
     try {
+        if (!isMarketingRole(req.admin.role) && !hasMinAdminRole(req.admin.role, 'admin')) {
+            return res.status(403).json({ error: 'Insufficient permissions' });
+        }
+
         const { settings } = req.body;
         const updatedKeyNames = (settings || []).map((s) => s.key_name).filter(Boolean);
+
+        if (isMarketingRole(req.admin.role)) {
+            const invalid = updatedKeyNames.filter((key) => !MARKETING_SETTING_KEYS.has(key));
+            if (invalid.length) {
+                return res.status(403).json({ error: 'Insufficient permissions' });
+            }
+        }
 
         const connection = await req.pool.getConnection();
 
@@ -2486,7 +2590,9 @@ router.put('/settings', authenticateAdmin, requirePermission('admin'), settingsV
 
             await connection.commit();
 
-            const googleBusinessSync = await tryAutoSyncGoogleBusinessHours(req, updatedKeyNames);
+            const googleBusinessSync = isMarketingRole(req.admin.role)
+                ? { skipped: true, reason: 'marketing_scope' }
+                : await tryAutoSyncGoogleBusinessHours(req, updatedKeyNames);
 
             res.json({
                 message: 'Settings updated successfully',
@@ -2507,7 +2613,7 @@ router.put('/settings', authenticateAdmin, requirePermission('admin'), settingsV
 });
 
 // Integration logs (Octopos/Mailchimp/newsletter sync visibility)
-router.get('/integration-logs', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+router.get('/integration-logs', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const limitRaw = Number.parseInt(req.query.limit, 10);
         const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 50) : 10;
@@ -2554,7 +2660,7 @@ router.get('/integration-logs', authenticateAdmin, requirePermission('manager'),
     }
 });
 
-router.delete('/integration-logs', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+router.delete('/integration-logs', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const logFiles = [
             path.join(__dirname, '..', 'logs', 'combined.log'),
@@ -2578,7 +2684,7 @@ router.delete('/integration-logs', authenticateAdmin, requirePermission('manager
     }
 });
 
-router.get('/settings/google-business/status', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+router.get('/settings/google-business/status', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const status = await GoogleBusinessProfileService.getConnectionStatus(req.pool);
         res.json(status);
@@ -2588,7 +2694,7 @@ router.get('/settings/google-business/status', authenticateAdmin, requirePermiss
     }
 });
 
-router.get('/settings/google-business/connect', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+router.get('/settings/google-business/connect', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const { authUrl, redirectUri } = GoogleBusinessProfileService.getAuthorizationUrl(req, req.admin.id);
         res.json({ authUrl, redirectUri });
@@ -2635,7 +2741,7 @@ router.get('/settings/google-business/callback', async (req, res) => {
     }
 });
 
-router.post('/settings/google-business/disconnect', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+router.post('/settings/google-business/disconnect', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         await GoogleBusinessProfileService.disconnect(req.pool);
         logger.info('[integration][google-business] Disconnected', {
@@ -2648,7 +2754,7 @@ router.post('/settings/google-business/disconnect', authenticateAdmin, requirePe
     }
 });
 
-router.put('/settings/google-business/location', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+router.put('/settings/google-business/location', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const locationName = await GoogleBusinessProfileService.saveLocationName(
             req.pool,
@@ -2660,7 +2766,7 @@ router.put('/settings/google-business/location', authenticateAdmin, requirePermi
     }
 });
 
-router.get('/settings/google-business/locations', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+router.get('/settings/google-business/locations', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const locations = await GoogleBusinessProfileService.listLocations(req.pool, req);
         res.json({ locations });
@@ -2670,7 +2776,7 @@ router.get('/settings/google-business/locations', authenticateAdmin, requirePerm
     }
 });
 
-router.post('/settings/google-business/sync-hours', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+router.post('/settings/google-business/sync-hours', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const { holidaySchedule, regularHours } = await loadGoogleBusinessStoreHours(req.pool);
         const result = await GoogleBusinessProfileService.syncHours(req.pool, req, {
@@ -2698,7 +2804,7 @@ router.post('/settings/google-business/sync-hours', authenticateAdmin, requirePe
     }
 });
 
-router.get('/settings/google-calendar/status', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+router.get('/settings/google-calendar/status', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const status = await GoogleCalendarOAuthService.getConnectionStatus(req.pool);
         res.json(status);
@@ -2708,7 +2814,7 @@ router.get('/settings/google-calendar/status', authenticateAdmin, requirePermiss
     }
 });
 
-router.get('/settings/google-calendar/connect', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+router.get('/settings/google-calendar/connect', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const { authUrl, redirectUri } = GoogleCalendarOAuthService.getAuthorizationUrl(req, req.admin.id);
         res.json({ authUrl, redirectUri });
@@ -2746,7 +2852,7 @@ router.get('/settings/google-calendar/callback', async (req, res) => {
     }
 });
 
-router.post('/settings/google-calendar/disconnect', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+router.post('/settings/google-calendar/disconnect', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         await GoogleCalendarOAuthService.disconnect(req.pool);
         googleCalendarService.resetClient();
@@ -2760,7 +2866,7 @@ router.post('/settings/google-calendar/disconnect', authenticateAdmin, requirePe
     }
 });
 
-router.put('/settings/google-calendar/calendar', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+router.put('/settings/google-calendar/calendar', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const calendarId = await GoogleCalendarOAuthService.saveCalendarId(
             req.pool,
@@ -2773,7 +2879,7 @@ router.put('/settings/google-calendar/calendar', authenticateAdmin, requirePermi
     }
 });
 
-router.get('/settings/google-calendar/calendars', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+router.get('/settings/google-calendar/calendars', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const calendars = await GoogleCalendarOAuthService.listCalendars(req.pool, req);
         res.json({ calendars });
@@ -2783,8 +2889,14 @@ router.get('/settings/google-calendar/calendars', authenticateAdmin, requirePerm
     }
 });
 
+// Cancel in-flight HM Herbs scrape (admin UI Cancel button)
+router.post('/scrape-products/cancel', ...adminAuth, requirePermission('manager'), async (req, res) => {
+    const cancelled = activeScrapeJobs.cancelActive('Cancelled from admin panel');
+    res.json({ cancelled, message: cancelled ? 'Scrape cancellation requested' : 'No scrape is running' });
+});
+
 // Scrape Products from HM Herbs Website
-router.post('/scrape-products', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+router.post('/scrape-products', ...adminAuth, requirePermission('manager'), async (req, res) => {
     // Check if client wants SSE (Server-Sent Events) for progress updates
     const useSSE = (req.headers.accept && req.headers.accept.includes('text/event-stream')) || req.query.progress === 'true';
 
@@ -2803,9 +2915,27 @@ router.post('/scrape-products', authenticateAdmin, requirePermission('manager'),
         res.write(': connected\n\n');
         if (res.flush) res.flush();
 
+        let clientDisconnected = false;
+        req.on('close', () => {
+            clientDisconnected = true;
+            activeScrapeJobs.cancelActive('Client disconnected');
+        });
+
         // Track scraper instance
         let scraper = null;
         let scraperStarted = false; // Track if scraper has actually started scraping
+
+        const writeSse = (payload) => {
+            if (clientDisconnected || res.destroyed || res.closed || res.writableEnded) return false;
+            try {
+                res.write(`data: ${JSON.stringify(payload)}\n\n`);
+                if (res.flush) res.flush();
+                return true;
+            } catch (writeError) {
+                logger.debug('SSE write skipped:', writeError.message);
+                return false;
+            }
+        };
 
         // Progress callback function
         const sendProgress = (progress) => {
@@ -2824,12 +2954,7 @@ router.post('/scrape-products', authenticateAdmin, requirePermission('manager'),
                     productsFound: progress.productsFound !== undefined ? progress.productsFound : 0
                 };
 
-                const data = `data: ${JSON.stringify(progressData)}\n\n`;
-                res.write(data);
-                // Force flush to ensure data is sent immediately
-                if (res.flush) {
-                    res.flush();
-                }
+                writeSse(progressData);
                 console.log('Sent progress:', progressData.percentage + '%', progressData.message);
             } catch (error) {
                 // Just log error sending progress, but don't stop the scraper
@@ -2852,17 +2977,26 @@ router.post('/scrape-products', authenticateAdmin, requirePermission('manager'),
             });
 
             scraper = new HMHerbsScraper(sendProgress);
+            activeScrapeJobs.registerScraper(scraper, res);
 
             // Run scraping in background
-            // The sendProgress callback will mark scraperStarted = true when actual scraping begins
             scraper.scrapeAllProducts()
                 .then(async () => {
-                    // Import the scraped products
+                    if (scraper._cancelled) {
+                        writeSse({
+                            type: 'cancelled',
+                            message: scraper._cancelReason || 'Scraping cancelled',
+                            productsFound: scraper.products.length
+                        });
+                        if (!res.writableEnded) res.end();
+                        return;
+                    }
+
                     sendProgress({
                         stage: 'importing',
-                        current: 0,
-                        total: 1,
-                        percentage: 0,
+                        current: 95,
+                        total: 100,
+                        percentage: 95,
                         message: 'Importing products into database...',
                         productsFound: scraper.products.length
                     });
@@ -2874,29 +3008,33 @@ router.post('/scrape-products', authenticateAdmin, requirePermission('manager'),
 
                     sendProgress({
                         stage: 'complete',
-                        current: 1,
-                        total: 1,
+                        current: 100,
+                        total: 100,
                         percentage: 100,
                         message: `Scraping complete! Found ${scraper.products.length} products`,
                         productsFound: scraper.products.length
                     });
 
-                    res.write(`data: ${JSON.stringify({ type: 'complete', productsFound: scraper.products.length, report: report })}\n\n`);
-                    res.end();
+                    writeSse({ type: 'complete', productsFound: scraper.products.length, report: report });
+                    if (!res.writableEnded) res.end();
                 })
                 .catch((error) => {
-                    logger.error('Scraping error:', error);
-
-                    // Check if response is still writable (client might have disconnected)
-                    if (!res.destroyed && !res.closed && !res.writableEnded) {
-                        try {
-                            res.write(`data: ${JSON.stringify({ type: 'error', error: error.message })}\n\n`);
-                            res.end();
-                        } catch (writeError) {
-                            // Response already closed, ignore
-                            logger.debug('Could not write error to response:', writeError.message);
-                        }
+                    if (error.code === 'SCRAPE_CANCELLED') {
+                        logger.info('Scrape cancelled:', error.message);
+                        writeSse({
+                            type: 'cancelled',
+                            message: error.message || 'Scraping cancelled',
+                            productsFound: scraper ? scraper.products.length : 0
+                        });
+                        if (!res.writableEnded) res.end();
+                        return;
                     }
+                    logger.error('Scraping error:', error);
+                    writeSse({ type: 'error', error: error.message });
+                    if (!res.writableEnded) res.end();
+                })
+                .finally(() => {
+                    activeScrapeJobs.clearActive();
                 });
 
         } catch (error) {
@@ -2937,7 +3075,7 @@ router.post('/scrape-products', authenticateAdmin, requirePermission('manager'),
 });
 
 // Import Products from CSV
-router.post('/import-products', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+router.post('/import-products', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         // Handle file upload (you'd need multer middleware for this)
         // For now, we'll assume the file is already uploaded
@@ -2959,7 +3097,7 @@ router.post('/import-products', authenticateAdmin, requirePermission('manager'),
 // Inventory Management Endpoints
 
 // Get inventory transaction history
-router.get('/inventory/history/:productId', authenticateAdmin, async (req, res) => {
+router.get('/inventory/history/:productId', ...adminAuth, async (req, res) => {
     try {
         const { productId } = req.params;
         const { variantId, limit = 50 } = req.query;
@@ -2979,7 +3117,7 @@ router.get('/inventory/history/:productId', authenticateAdmin, async (req, res) 
 });
 
 // Get low stock products
-router.get('/inventory/low-stock', authenticateAdmin, async (req, res) => {
+router.get('/inventory/low-stock', ...adminAuth, async (req, res) => {
     try {
         const raw = parseInt(req.query.limit, 10);
         const limit = Number.isFinite(raw) ? raw : 20;
@@ -3000,7 +3138,7 @@ router.get('/inventory/low-stock', authenticateAdmin, async (req, res) => {
 });
 
 // Manual inventory adjustment
-router.post('/inventory/adjust', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+router.post('/inventory/adjust', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const { productId, variantId, quantityChange, reason } = req.body;
         const adminId = req.admin.id;
@@ -3030,7 +3168,7 @@ router.post('/inventory/adjust', authenticateAdmin, requirePermission('manager')
 });
 
 // Get current inventory level
-router.get('/inventory/current/:productId', authenticateAdmin, async (req, res) => {
+router.get('/inventory/current/:productId', ...adminAuth, async (req, res) => {
     try {
         const { productId } = req.params;
         const { variantId } = req.query;
@@ -3049,7 +3187,7 @@ router.get('/inventory/current/:productId', authenticateAdmin, async (req, res) 
 });
 
 // Bulk inventory update
-router.post('/inventory/bulk-update', authenticateAdmin, requirePermission('admin'), async (req, res) => {
+router.post('/inventory/bulk-update', ...adminAuth, requirePermission('admin'), async (req, res) => {
     try {
         const { inventoryUpdates, reason } = req.body;
 
@@ -3075,7 +3213,7 @@ router.post('/inventory/bulk-update', authenticateAdmin, requirePermission('admi
 });
 
 // Enhanced dashboard stats with inventory info
-router.get('/dashboard/inventory-stats', authenticateAdmin, async (req, res) => {
+router.get('/dashboard/inventory-stats', ...adminAuth, async (req, res) => {
     try {
         const inventoryService = new InventoryService(req.pool);
 
@@ -3119,7 +3257,7 @@ router.get('/dashboard/inventory-stats', authenticateAdmin, async (req, res) => 
 // ===== VENDOR MANAGEMENT ENDPOINTS =====
 
 // Get all vendors
-router.get('/vendors', authenticateAdmin, async (req, res) => {
+router.get('/vendors', ...adminAuth, async (req, res) => {
     try {
         const vendorService = new VendorService(req.pool);
         const vendors = await vendorService.getVendors(req.query);
@@ -3131,7 +3269,7 @@ router.get('/vendors', authenticateAdmin, async (req, res) => {
 });
 
 // Create new vendor
-router.post('/vendors', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+router.post('/vendors', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const vendorService = new VendorService(req.pool);
         const vendor = await vendorService.createVendor(req.body, req.admin.id);
@@ -3143,7 +3281,7 @@ router.post('/vendors', authenticateAdmin, requirePermission('manager'), async (
 });
 
 // Get vendor by ID
-router.get('/vendors/:id', authenticateAdmin, async (req, res) => {
+router.get('/vendors/:id', ...adminAuth, async (req, res) => {
     try {
         const vendorService = new VendorService(req.pool);
         const vendor = await vendorService.getVendorById(req.params.id);
@@ -3155,7 +3293,7 @@ router.get('/vendors/:id', authenticateAdmin, async (req, res) => {
 });
 
 // Update vendor
-router.put('/vendors/:id', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+router.put('/vendors/:id', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const vendorService = new VendorService(req.pool);
         const vendor = await vendorService.updateVendor(req.params.id, req.body, req.admin.id);
@@ -3167,7 +3305,7 @@ router.put('/vendors/:id', authenticateAdmin, requirePermission('manager'), asyn
 });
 
 // Delete vendor
-router.delete('/vendors/:id', authenticateAdmin, requirePermission('admin'), async (req, res) => {
+router.delete('/vendors/:id', ...adminAuth, requirePermission('admin'), async (req, res) => {
     try {
         const vendorService = new VendorService(req.pool);
         const result = await vendorService.deleteVendor(req.params.id, req.admin.id);
@@ -3179,7 +3317,7 @@ router.delete('/vendors/:id', authenticateAdmin, requirePermission('admin'), asy
 });
 
 // Import vendor catalog
-router.post('/vendors/:id/import-catalog', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+router.post('/vendors/:id/import-catalog', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const vendorService = new VendorService(req.pool);
         const result = await vendorService.importCatalog(req.params.id, 'manual');
@@ -3191,7 +3329,7 @@ router.post('/vendors/:id/import-catalog', authenticateAdmin, requirePermission(
 });
 
 // Get vendor analytics
-router.get('/vendors/:id/analytics', authenticateAdmin, async (req, res) => {
+router.get('/vendors/:id/analytics', ...adminAuth, async (req, res) => {
     try {
         const vendorService = new VendorService(req.pool);
         const analytics = await vendorService.getVendorAnalytics(req.params.id, req.query.days || 30);
@@ -3203,7 +3341,7 @@ router.get('/vendors/:id/analytics', authenticateAdmin, async (req, res) => {
 });
 
 // Get vendor import history
-router.get('/vendors/:id/import-history', authenticateAdmin, async (req, res) => {
+router.get('/vendors/:id/import-history', ...adminAuth, async (req, res) => {
     try {
         const vendorService = new VendorService(req.pool);
         const history = await vendorService.getImportHistory(req.params.id, req.query.limit || 20);
@@ -3217,7 +3355,7 @@ router.get('/vendors/:id/import-history', authenticateAdmin, async (req, res) =>
 // ===== POS INTEGRATION ENDPOINTS =====
 
 // Get all POS systems
-router.get('/pos/systems', authenticateAdmin, async (req, res) => {
+router.get('/pos/systems', ...adminAuth, async (req, res) => {
     try {
         const posService = new POSService(req.pool, new InventoryService(req.pool));
         const systems = await posService.getPOSSystems(req.query);
@@ -3229,7 +3367,7 @@ router.get('/pos/systems', authenticateAdmin, async (req, res) => {
 });
 
 // Create new POS system
-router.post('/pos/systems', authenticateAdmin, requirePermission('admin'), async (req, res) => {
+router.post('/pos/systems', ...adminAuth, requirePermission('admin'), async (req, res) => {
     try {
         const posService = new POSService(req.pool, new InventoryService(req.pool));
         const system = await posService.createPOSSystem(req.body, req.admin.id);
@@ -3241,7 +3379,7 @@ router.post('/pos/systems', authenticateAdmin, requirePermission('admin'), async
 });
 
 // Get POS system by ID
-router.get('/pos/systems/:id', authenticateAdmin, async (req, res) => {
+router.get('/pos/systems/:id', ...adminAuth, async (req, res) => {
     try {
         const posService = new POSService(req.pool, new InventoryService(req.pool));
         const system = await posService.getPOSSystemById(req.params.id);
@@ -3253,7 +3391,7 @@ router.get('/pos/systems/:id', authenticateAdmin, async (req, res) => {
 });
 
 // Update POS system
-router.put('/pos/systems/:id', authenticateAdmin, requirePermission('admin'), async (req, res) => {
+router.put('/pos/systems/:id', ...adminAuth, requirePermission('admin'), async (req, res) => {
     try {
         const posService = new POSService(req.pool, new InventoryService(req.pool));
         const system = await posService.updatePOSSystem(req.params.id, req.body, req.admin.id);
@@ -3265,7 +3403,7 @@ router.put('/pos/systems/:id', authenticateAdmin, requirePermission('admin'), as
 });
 
 // Test POS connection
-router.post('/pos/systems/:id/test', authenticateAdmin, async (req, res) => {
+router.post('/pos/systems/:id/test', ...adminAuth, async (req, res) => {
     try {
         const posService = new POSService(req.pool, new InventoryService(req.pool));
         const result = await posService.testConnection(req.params.id);
@@ -3277,7 +3415,7 @@ router.post('/pos/systems/:id/test', authenticateAdmin, async (req, res) => {
 });
 
 // Sync inventory to POS
-router.post('/pos/systems/:id/sync-inventory', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+router.post('/pos/systems/:id/sync-inventory', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const posService = new POSService(req.pool, new InventoryService(req.pool));
         const result = await posService.syncInventoryToPOS(req.params.id, req.body.product_ids);
@@ -3289,7 +3427,7 @@ router.post('/pos/systems/:id/sync-inventory', authenticateAdmin, requirePermiss
 });
 
 // Sync inventory from POS
-router.post('/pos/systems/:id/sync-from-pos', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+router.post('/pos/systems/:id/sync-from-pos', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const posService = new POSService(req.pool, new InventoryService(req.pool));
         const result = await posService.syncInventoryFromPOS(req.params.id);
@@ -3316,7 +3454,7 @@ router.post('/pos/webhook/:systemId', async (req, res) => {
 // ===== POS GIFT CARD INTEGRATION ENDPOINTS =====
 
 // Get all POS gift cards
-router.get('/pos/gift-cards', authenticateAdmin, async (req, res) => {
+router.get('/pos/gift-cards', ...adminAuth, async (req, res) => {
     try {
         const posGiftCardService = new POSGiftCardService(req.pool);
         const giftCards = await posGiftCardService.getPOSGiftCards(req.query);
@@ -3328,7 +3466,7 @@ router.get('/pos/gift-cards', authenticateAdmin, async (req, res) => {
 });
 
 // Sync gift cards from POS system
-router.post('/pos/systems/:id/sync-gift-cards', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+router.post('/pos/systems/:id/sync-gift-cards', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const posGiftCardService = new POSGiftCardService(req.pool);
         const result = await posGiftCardService.syncGiftCardsFromPOS(req.params.id);
@@ -3340,7 +3478,7 @@ router.post('/pos/systems/:id/sync-gift-cards', authenticateAdmin, requirePermis
 });
 
 // Get POS gift card by ID
-router.get('/pos/gift-cards/:id', authenticateAdmin, async (req, res) => {
+router.get('/pos/gift-cards/:id', ...adminAuth, async (req, res) => {
     try {
         const posGiftCardService = new POSGiftCardService(req.pool);
         const giftCard = await posGiftCardService.getPOSGiftCardById(req.params.id);
@@ -3352,7 +3490,7 @@ router.get('/pos/gift-cards/:id', authenticateAdmin, async (req, res) => {
 });
 
 // Check gift card balance (real-time from POS)
-router.get('/pos/gift-cards/:id/balance', authenticateAdmin, async (req, res) => {
+router.get('/pos/gift-cards/:id/balance', ...adminAuth, async (req, res) => {
     try {
         const posGiftCardService = new POSGiftCardService(req.pool);
         const balance = await posGiftCardService.checkGiftCardBalance(req.params.id);
@@ -3364,7 +3502,7 @@ router.get('/pos/gift-cards/:id/balance', authenticateAdmin, async (req, res) =>
 });
 
 // Get POS gift card analytics
-router.get('/pos/gift-cards/analytics', authenticateAdmin, async (req, res) => {
+router.get('/pos/gift-cards/analytics', ...adminAuth, async (req, res) => {
     try {
         const posGiftCardService = new POSGiftCardService(req.pool);
         const analytics = await posGiftCardService.getPOSGiftCardAnalytics(req.query.pos_system_id, req.query.days || 30);
@@ -3378,7 +3516,7 @@ router.get('/pos/gift-cards/analytics', authenticateAdmin, async (req, res) => {
 // ===== POS LOYALTY PROGRAM INTEGRATION ENDPOINTS =====
 
 // Get all POS loyalty programs
-router.get('/pos/loyalty/programs', authenticateAdmin, async (req, res) => {
+router.get('/pos/loyalty/programs', ...adminAuth, async (req, res) => {
     try {
         const posLoyaltyService = new POSLoyaltyService(req.pool);
         const programs = await posLoyaltyService.getPOSLoyaltyPrograms(req.query);
@@ -3390,7 +3528,7 @@ router.get('/pos/loyalty/programs', authenticateAdmin, async (req, res) => {
 });
 
 // Sync loyalty programs from POS system
-router.post('/pos/systems/:id/sync-loyalty', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+router.post('/pos/systems/:id/sync-loyalty', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const posLoyaltyService = new POSLoyaltyService(req.pool);
         const result = await posLoyaltyService.syncLoyaltyProgramsFromPOS(req.params.id);
@@ -3402,7 +3540,7 @@ router.post('/pos/systems/:id/sync-loyalty', authenticateAdmin, requirePermissio
 });
 
 // Get POS loyalty customers
-router.get('/pos/loyalty/customers', authenticateAdmin, async (req, res) => {
+router.get('/pos/loyalty/customers', ...adminAuth, async (req, res) => {
     try {
         const posLoyaltyService = new POSLoyaltyService(req.pool);
         const customers = await posLoyaltyService.getPOSLoyaltyCustomers(req.query);
@@ -3414,7 +3552,7 @@ router.get('/pos/loyalty/customers', authenticateAdmin, async (req, res) => {
 });
 
 // Get POS loyalty analytics
-router.get('/pos/loyalty/analytics', authenticateAdmin, async (req, res) => {
+router.get('/pos/loyalty/analytics', ...adminAuth, async (req, res) => {
     try {
         const posLoyaltyService = new POSLoyaltyService(req.pool);
         const analytics = await posLoyaltyService.getPOSLoyaltyAnalytics(req.query.pos_system_id, req.query.program_id);
@@ -3428,7 +3566,7 @@ router.get('/pos/loyalty/analytics', authenticateAdmin, async (req, res) => {
 // ===== POS DISCOUNT INTEGRATION ENDPOINTS =====
 
 // Get all POS discounts
-router.get('/pos/discounts', authenticateAdmin, async (req, res) => {
+router.get('/pos/discounts', ...adminAuth, async (req, res) => {
     try {
         const posDiscountService = new POSDiscountService(req.pool);
         const discounts = await posDiscountService.getPOSDiscounts(req.query);
@@ -3440,7 +3578,7 @@ router.get('/pos/discounts', authenticateAdmin, async (req, res) => {
 });
 
 // Sync discounts from POS system
-router.post('/pos/systems/:id/sync-discounts', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+router.post('/pos/systems/:id/sync-discounts', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const posDiscountService = new POSDiscountService(req.pool);
         const result = await posDiscountService.syncDiscountsFromPOS(req.params.id);
@@ -3452,7 +3590,7 @@ router.post('/pos/systems/:id/sync-discounts', authenticateAdmin, requirePermiss
 });
 
 // Get POS discount by ID
-router.get('/pos/discounts/:id', authenticateAdmin, async (req, res) => {
+router.get('/pos/discounts/:id', ...adminAuth, async (req, res) => {
     try {
         const posDiscountService = new POSDiscountService(req.pool);
         const discount = await posDiscountService.getPOSDiscountById(req.params.id);
@@ -3464,7 +3602,7 @@ router.get('/pos/discounts/:id', authenticateAdmin, async (req, res) => {
 });
 
 // Get POS discount usage
-router.get('/pos/discounts/usage', authenticateAdmin, async (req, res) => {
+router.get('/pos/discounts/usage', ...adminAuth, async (req, res) => {
     try {
         const posDiscountService = new POSDiscountService(req.pool);
         const usage = await posDiscountService.getPOSDiscountUsage(req.query);
@@ -3476,7 +3614,7 @@ router.get('/pos/discounts/usage', authenticateAdmin, async (req, res) => {
 });
 
 // Get POS discount analytics
-router.get('/pos/discounts/analytics', authenticateAdmin, async (req, res) => {
+router.get('/pos/discounts/analytics', ...adminAuth, async (req, res) => {
     try {
         const posDiscountService = new POSDiscountService(req.pool);
         const analytics = await posDiscountService.getPOSDiscountAnalytics(req.query.pos_system_id, req.query.days || 30);
@@ -3490,7 +3628,7 @@ router.get('/pos/discounts/analytics', authenticateAdmin, async (req, res) => {
 // ===== EMAIL CAMPAIGN MANAGEMENT ENDPOINTS =====
 
 // Get all email campaigns
-router.get('/email-campaigns', authenticateAdmin, async (req, res) => {
+router.get('/email-campaigns', ...marketingAuth, requirePermission('marketing'), async (req, res) => {
     try {
         const emailCampaignService = new EmailCampaignService(req.pool);
         const campaigns = await emailCampaignService.getCampaigns(req.query);
@@ -3502,7 +3640,7 @@ router.get('/email-campaigns', authenticateAdmin, async (req, res) => {
 });
 
 // Create new email campaign
-router.post('/email-campaigns', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+router.post('/email-campaigns', ...marketingAuth, requirePermission('marketing'), async (req, res) => {
     try {
         const emailCampaignService = new EmailCampaignService(req.pool);
         const campaign = await emailCampaignService.createCampaign(req.body, req.admin.id);
@@ -3514,7 +3652,7 @@ router.post('/email-campaigns', authenticateAdmin, requirePermission('manager'),
 });
 
 // Get email campaign by ID
-router.get('/email-campaigns/:id', authenticateAdmin, async (req, res) => {
+router.get('/email-campaigns/:id', ...marketingAuth, requirePermission('marketing'), async (req, res) => {
     try {
         const emailCampaignService = new EmailCampaignService(req.pool);
         const campaign = await emailCampaignService.getCampaignById(req.params.id);
@@ -3526,7 +3664,7 @@ router.get('/email-campaigns/:id', authenticateAdmin, async (req, res) => {
 });
 
 // Update email campaign
-router.put('/email-campaigns/:id', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+router.put('/email-campaigns/:id', ...marketingAuth, requirePermission('marketing'), async (req, res) => {
     try {
         const emailCampaignService = new EmailCampaignService(req.pool);
         const campaign = await emailCampaignService.updateCampaign(req.params.id, req.body, req.admin.id);
@@ -3538,7 +3676,7 @@ router.put('/email-campaigns/:id', authenticateAdmin, requirePermission('manager
 });
 
 // Delete email campaign
-router.delete('/email-campaigns/:id', authenticateAdmin, requirePermission('admin'), async (req, res) => {
+router.delete('/email-campaigns/:id', ...marketingAuth, requirePermission('marketing'), async (req, res) => {
     try {
         const emailCampaignService = new EmailCampaignService(req.pool);
         const result = await emailCampaignService.deleteCampaign(req.params.id);
@@ -3550,7 +3688,7 @@ router.delete('/email-campaigns/:id', authenticateAdmin, requirePermission('admi
 });
 
 // Get email campaign analytics
-router.get('/email-campaigns/:id/analytics', authenticateAdmin, async (req, res) => {
+router.get('/email-campaigns/:id/analytics', ...marketingAuth, requirePermission('marketing'), async (req, res) => {
     try {
         const emailCampaignService = new EmailCampaignService(req.pool);
         const analytics = await emailCampaignService.getCampaignAnalytics(req.params.id, req.query.days || 30);
@@ -3564,7 +3702,7 @@ router.get('/email-campaigns/:id/analytics', authenticateAdmin, async (req, res)
 // Marketing hub: GET/PUT /api/admin/marketing-settings registered in server.js (main app) for reliable matching.
 
 // Checkout promotion codes (rules JSON evaluated server-side at checkout)
-router.get('/promotions', authenticateAdmin, requirePermission('admin'), async (req, res) => {
+router.get('/promotions', ...marketingAuth, requirePermission('marketing'), async (req, res) => {
     try {
         const [rows] = await req.pool.execute(`
             SELECT id, code, description, is_active, starts_at, ends_at,
@@ -3578,7 +3716,7 @@ router.get('/promotions', authenticateAdmin, requirePermission('admin'), async (
     }
 });
 
-router.get('/promotions/:id', authenticateAdmin, requirePermission('admin'), async (req, res) => {
+router.get('/promotions/:id', ...marketingAuth, requirePermission('marketing'), async (req, res) => {
     try {
         const id = Number(req.params.id);
         if (!Number.isInteger(id) || id <= 0) {
@@ -3600,7 +3738,7 @@ router.get('/promotions/:id', authenticateAdmin, requirePermission('admin'), asy
     }
 });
 
-router.post('/promotions', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+router.post('/promotions', ...marketingAuth, requirePermission('marketing'), async (req, res) => {
     try {
         const body = req.body || {};
         const codeRaw = String(body.code || '').trim();
@@ -3666,7 +3804,7 @@ router.post('/promotions', authenticateAdmin, requirePermission('manager'), asyn
     }
 });
 
-router.put('/promotions/:id', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+router.put('/promotions/:id', ...marketingAuth, requirePermission('marketing'), async (req, res) => {
     try {
         const id = Number(req.params.id);
         if (!Number.isInteger(id) || id <= 0) {
@@ -3740,7 +3878,7 @@ router.put('/promotions/:id', authenticateAdmin, requirePermission('manager'), a
     }
 });
 
-router.delete('/promotions/:id', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+router.delete('/promotions/:id', ...marketingAuth, requirePermission('marketing'), async (req, res) => {
     try {
         const id = Number(req.params.id);
         if (!Number.isInteger(id) || id <= 0) {
@@ -3760,7 +3898,7 @@ router.delete('/promotions/:id', authenticateAdmin, requirePermission('manager')
 // ===== EMAIL SUBSCRIBER MANAGEMENT ENDPOINTS =====
 
 // Get all email subscribers
-router.get('/email-subscribers', authenticateAdmin, async (req, res) => {
+router.get('/email-subscribers', ...marketingAuth, requirePermission('marketing'), async (req, res) => {
     try {
         const emailCampaignService = new EmailCampaignService(req.pool);
         const subscribers = await emailCampaignService.getSubscribers(req.query);
@@ -3772,7 +3910,7 @@ router.get('/email-subscribers', authenticateAdmin, async (req, res) => {
 });
 
 // Get email subscriber by ID
-router.get('/email-subscribers/:id', authenticateAdmin, async (req, res) => {
+router.get('/email-subscribers/:id', ...marketingAuth, requirePermission('marketing'), async (req, res) => {
     try {
         const emailCampaignService = new EmailCampaignService(req.pool);
         const subscriber = await emailCampaignService.getSubscriberById(req.params.id);
@@ -3784,7 +3922,7 @@ router.get('/email-subscribers/:id', authenticateAdmin, async (req, res) => {
 });
 
 // Update subscriber status
-router.put('/email-subscribers/:id/status', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+router.put('/email-subscribers/:id/status', ...marketingAuth, requirePermission('marketing'), async (req, res) => {
     try {
         const emailCampaignService = new EmailCampaignService(req.pool);
         const subscriber = await emailCampaignService.updateSubscriberStatus(
@@ -3800,7 +3938,7 @@ router.put('/email-subscribers/:id/status', authenticateAdmin, requirePermission
 });
 
 // Mark offer as claimed
-router.post('/email-subscribers/:id/claim-offer', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+router.post('/email-subscribers/:id/claim-offer', ...marketingAuth, requirePermission('marketing'), async (req, res) => {
     try {
         const emailCampaignService = new EmailCampaignService(req.pool);
         const result = await emailCampaignService.claimOffer(req.params.id, req.body.order_reference);
@@ -3812,7 +3950,7 @@ router.post('/email-subscribers/:id/claim-offer', authenticateAdmin, requirePerm
 });
 
 // Export subscribers
-router.get('/email-subscribers/export', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+router.get('/email-subscribers/export', ...marketingAuth, requirePermission('marketing'), async (req, res) => {
     try {
         const emailCampaignService = new EmailCampaignService(req.pool);
         const format = req.query.format || 'csv';
@@ -3836,7 +3974,7 @@ router.get('/email-subscribers/export', authenticateAdmin, requirePermission('ma
 // ===== ANALYTICS AND MONITORING ENDPOINTS =====
 
 // Get comprehensive dashboard overview
-router.get('/analytics/dashboard', authenticateAdmin, async (req, res) => {
+router.get('/analytics/dashboard', ...adminAuth, async (req, res) => {
     try {
         const analyticsService = new AnalyticsService(req.pool);
         const overview = await analyticsService.getDashboardOverview(req.query.days || 30);
@@ -3848,7 +3986,7 @@ router.get('/analytics/dashboard', authenticateAdmin, async (req, res) => {
 });
 
 // Get vendor performance metrics
-router.get('/analytics/vendors', authenticateAdmin, async (req, res) => {
+router.get('/analytics/vendors', ...adminAuth, async (req, res) => {
     try {
         const analyticsService = new AnalyticsService(req.pool);
         const metrics = await analyticsService.getVendorPerformanceMetrics(req.query.vendor_id, req.query.days || 30);
@@ -3860,7 +3998,7 @@ router.get('/analytics/vendors', authenticateAdmin, async (req, res) => {
 });
 
 // Get POS system health
-router.get('/analytics/pos-health', authenticateAdmin, async (req, res) => {
+router.get('/analytics/pos-health', ...adminAuth, async (req, res) => {
     try {
         const analyticsService = new AnalyticsService(req.pool);
         const health = await analyticsService.getPOSSystemHealth(req.query.system_id);
@@ -3872,7 +4010,7 @@ router.get('/analytics/pos-health', authenticateAdmin, async (req, res) => {
 });
 
 // Get POS gift card metrics
-router.get('/analytics/pos-gift-cards', authenticateAdmin, async (req, res) => {
+router.get('/analytics/pos-gift-cards', ...adminAuth, async (req, res) => {
     try {
         const analyticsService = new AnalyticsService(req.pool);
         const metrics = await analyticsService.getPOSGiftCardMetrics(req.query.pos_system_id, req.query.days || 30);
@@ -3884,7 +4022,7 @@ router.get('/analytics/pos-gift-cards', authenticateAdmin, async (req, res) => {
 });
 
 // Get POS loyalty metrics
-router.get('/analytics/pos-loyalty', authenticateAdmin, async (req, res) => {
+router.get('/analytics/pos-loyalty', ...adminAuth, async (req, res) => {
     try {
         const analyticsService = new AnalyticsService(req.pool);
         const metrics = await analyticsService.getPOSLoyaltyMetrics(req.query.pos_system_id, req.query.program_id, req.query.days || 30);
@@ -3896,7 +4034,7 @@ router.get('/analytics/pos-loyalty', authenticateAdmin, async (req, res) => {
 });
 
 // Get POS discount metrics
-router.get('/analytics/pos-discounts', authenticateAdmin, async (req, res) => {
+router.get('/analytics/pos-discounts', ...adminAuth, async (req, res) => {
     try {
         const analyticsService = new AnalyticsService(req.pool);
         const metrics = await analyticsService.getPOSDiscountMetrics(req.query.pos_system_id, req.query.days || 30);
@@ -3908,7 +4046,7 @@ router.get('/analytics/pos-discounts', authenticateAdmin, async (req, res) => {
 });
 
 // Get email marketing overview
-router.get('/analytics/email-marketing', authenticateAdmin, async (req, res) => {
+router.get('/analytics/email-marketing', ...marketingAuth, requirePermission('marketing'), async (req, res) => {
     try {
         const emailCampaignService = new EmailCampaignService(req.pool);
         const overview = await emailCampaignService.getEmailMarketingOverview(req.query.days || 30);
@@ -3920,7 +4058,7 @@ router.get('/analytics/email-marketing', authenticateAdmin, async (req, res) => 
 });
 
 // Get system alerts
-router.get('/analytics/alerts', authenticateAdmin, async (req, res) => {
+router.get('/analytics/alerts', ...adminAuth, async (req, res) => {
     try {
         const analyticsService = new AnalyticsService(req.pool);
         const alerts = await analyticsService.getSystemAlerts();
@@ -3932,7 +4070,7 @@ router.get('/analytics/alerts', authenticateAdmin, async (req, res) => {
 });
 
 // Get performance metrics
-router.get('/analytics/performance', authenticateAdmin, async (req, res) => {
+router.get('/analytics/performance', ...adminAuth, async (req, res) => {
     try {
         const analyticsService = new AnalyticsService(req.pool);
         const metrics = await analyticsService.getPerformanceMetrics(req.query.hours || 24);
@@ -3945,7 +4083,7 @@ router.get('/analytics/performance', authenticateAdmin, async (req, res) => {
 
 // ===== TAX RESERVE LEDGER =====
 
-router.get('/tax-ledger/overview', authenticateAdmin, async (req, res) => {
+router.get('/tax-ledger/overview', ...adminAuth, async (req, res) => {
     try {
         const date = String(req.query.date || toDateKey()).slice(0, 10);
         const service = new TaxLedgerService(req.pool);
@@ -3957,7 +4095,7 @@ router.get('/tax-ledger/overview', authenticateAdmin, async (req, res) => {
     }
 });
 
-router.post('/tax-ledger/mark-transferred', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+router.post('/tax-ledger/mark-transferred', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const date = String(req.body?.date || toDateKey()).slice(0, 10);
         const service = new TaxLedgerService(req.pool);
@@ -3969,7 +4107,7 @@ router.post('/tax-ledger/mark-transferred', authenticateAdmin, requirePermission
     }
 });
 
-router.post('/tax-ledger/sync-pos', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+router.post('/tax-ledger/sync-pos', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const date = String(req.body?.date || toDateKey()).slice(0, 10);
         const service = new TaxLedgerService(req.pool);
@@ -3982,7 +4120,7 @@ router.post('/tax-ledger/sync-pos', authenticateAdmin, requirePermission('manage
     }
 });
 
-router.post('/tax-ledger/sync-daily', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+router.post('/tax-ledger/sync-daily', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const date = String(req.body?.date || toDateKey()).slice(0, 10);
         const service = new TaxLedgerService(req.pool);
@@ -3995,7 +4133,7 @@ router.post('/tax-ledger/sync-daily', authenticateAdmin, requirePermission('mana
     }
 });
 
-router.get('/tax-ledger/export/taxcloud.csv', authenticateAdmin, requirePermission('manager'), async (req, res) => {
+router.get('/tax-ledger/export/taxcloud.csv', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const startDate = String(req.query.startDate || '').slice(0, 10);
         const endDate = String(req.query.endDate || '').slice(0, 10);
@@ -4013,6 +4151,204 @@ router.get('/tax-ledger/export/taxcloud.csv', authenticateAdmin, requirePermissi
     } catch (error) {
         logger.error('Export tax ledger csv error:', error);
         res.status(500).json({ error: 'Failed to export TaxCloud CSV' });
+    }
+});
+
+// Team accounts — Admin creates staff logins (no public self-registration)
+router.get('/team', ...adminAuth, requirePermission('admin'), async (req, res) => {
+    try {
+        const [rows] = await req.pool.execute(
+            `SELECT id, email, first_name, last_name, role, is_active, last_login, created_at, updated_at
+             FROM admin_users
+             ORDER BY email ASC`
+        );
+        const users = rows.map((row) => {
+            const role = normalizeAdminRole(row.role);
+            return {
+                id: row.id,
+                email: row.email,
+                firstName: row.first_name,
+                lastName: row.last_name,
+                role,
+                roleLabel: ROLE_LABELS[role] || role,
+                isActive: Boolean(row.is_active),
+                lastLogin: row.last_login,
+                createdAt: row.created_at,
+                updatedAt: row.updated_at,
+            };
+        });
+        res.json({ users, roles: ADMIN_ROLES.map((r) => ({ id: r, label: ROLE_LABELS[r] || r })) });
+    } catch (error) {
+        logger.error('List admin team error:', error);
+        res.status(500).json({ error: 'Failed to load team accounts' });
+    }
+});
+
+router.post('/team', ...adminAuth, requirePermission('admin'), async (req, res) => {
+    try {
+        const email = String(req.body?.email || '').trim().toLowerCase();
+        const password = String(req.body?.password || '');
+        const firstName = String(req.body?.firstName || req.body?.first_name || '').trim();
+        const lastName = String(req.body?.lastName || req.body?.last_name || '').trim();
+        const role = normalizeAdminRole(req.body?.role || 'marketing');
+
+        if (!email || !password || password.length < 8) {
+            return res.status(400).json({ error: 'Email and password (8+ characters) are required' });
+        }
+        if (!firstName || !lastName) {
+            return res.status(400).json({ error: 'First and last name are required' });
+        }
+        if (!ADMIN_ROLES.includes(role)) {
+            return res.status(400).json({ error: 'Invalid role' });
+        }
+
+        const passwordHash = await bcrypt.hash(password, 12);
+        const [ins] = await req.pool.execute(
+            `INSERT INTO admin_users (email, password_hash, first_name, last_name, role, is_active, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, 1, NOW(), NOW())`,
+            [email, passwordHash, firstName, lastName, role]
+        );
+
+        res.status(201).json({
+            message: 'Team member created. Share the login email and password securely.',
+            user: {
+                id: ins.insertId,
+                email,
+                firstName,
+                lastName,
+                role,
+                roleLabel: ROLE_LABELS[role] || role,
+                isActive: true,
+            },
+        });
+    } catch (error) {
+        if (error.code === 'ER_DUP_ENTRY') {
+            return res.status(409).json({ error: 'An account with this email already exists' });
+        }
+        logger.error('Create admin team member error:', error);
+        res.status(500).json({ error: 'Failed to create team account' });
+    }
+});
+
+router.patch('/team/:id', ...adminAuth, requirePermission('admin'), async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        if (!Number.isInteger(id) || id <= 0) {
+            return res.status(400).json({ error: 'Invalid user id' });
+        }
+
+        const updates = [];
+        const params = [];
+
+        if (req.body?.role != null) {
+            const role = normalizeAdminRole(req.body.role);
+            if (!ADMIN_ROLES.includes(role)) {
+                return res.status(400).json({ error: 'Invalid role' });
+            }
+            updates.push('role = ?');
+            params.push(role);
+        }
+
+        if (req.body?.isActive != null || req.body?.is_active != null) {
+            const active = req.body.isActive ?? req.body.is_active;
+            updates.push('is_active = ?');
+            params.push(active ? 1 : 0);
+        }
+
+        if (req.body?.firstName != null || req.body?.first_name != null) {
+            updates.push('first_name = ?');
+            params.push(String(req.body.firstName ?? req.body.first_name).trim());
+        }
+
+        if (req.body?.lastName != null || req.body?.last_name != null) {
+            updates.push('last_name = ?');
+            params.push(String(req.body.lastName ?? req.body.last_name).trim());
+        }
+
+        const newPassword = req.body?.password;
+        if (newPassword != null && String(newPassword).length > 0) {
+            if (String(newPassword).length < 8) {
+                return res.status(400).json({ error: 'Password must be at least 8 characters' });
+            }
+            updates.push('password_hash = ?');
+            params.push(await bcrypt.hash(String(newPassword), 12));
+        }
+
+        if (!updates.length) {
+            return res.status(400).json({ error: 'No changes provided' });
+        }
+
+        updates.push('updated_at = NOW()');
+        params.push(id);
+
+        const [result] = await req.pool.execute(
+            `UPDATE admin_users SET ${updates.join(', ')} WHERE id = ?`,
+            params
+        );
+
+        if (!result.affectedRows) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        const [updated] = await req.pool.execute(
+            'SELECT id, email, first_name, last_name, role, is_active FROM admin_users WHERE id = ?',
+            [id]
+        );
+        const row = updated[0];
+        const role = row ? normalizeAdminRole(row.role) : null;
+        res.json({
+            message: 'Team member updated',
+            user: row
+                ? {
+                      id: row.id,
+                      email: row.email,
+                      firstName: row.first_name,
+                      lastName: row.last_name,
+                      role,
+                      roleLabel: ROLE_LABELS[role] || role,
+                      isActive: Boolean(row.is_active),
+                  }
+                : null,
+        });
+    } catch (error) {
+        logger.error('Update admin team member error:', error);
+        res.status(500).json({ error: 'Failed to update team account' });
+    }
+});
+
+router.delete('/team/:id', ...adminAuth, requirePermission('admin'), async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        if (!Number.isInteger(id) || id <= 0) {
+            return res.status(400).json({ error: 'Invalid user id' });
+        }
+        if (id === req.admin.id) {
+            return res.status(400).json({ error: 'You cannot delete your own account' });
+        }
+
+        const [targetRows] = await req.pool.execute(
+            'SELECT id, email, role FROM admin_users WHERE id = ?',
+            [id]
+        );
+        if (!targetRows.length) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        const targetRole = normalizeAdminRole(targetRows[0].role);
+        if (targetRole === 'admin') {
+            const [adminCount] = await req.pool.execute(
+                "SELECT COUNT(*) AS cnt FROM admin_users WHERE role IN ('admin', 'super_admin') AND is_active = 1"
+            );
+            if (Number(adminCount[0]?.cnt) <= 1) {
+                return res.status(400).json({ error: 'Cannot delete the only Admin account' });
+            }
+        }
+
+        await req.pool.execute('DELETE FROM admin_users WHERE id = ?', [id]);
+        res.json({ message: 'Team member removed' });
+    } catch (error) {
+        logger.error('Delete admin team member error:', error);
+        res.status(500).json({ error: 'Failed to delete team account' });
     }
 });
 

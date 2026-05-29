@@ -1,5 +1,7 @@
 'use strict';
 
+const employeeDiscount = require('./employeeDiscount');
+
 const TAX_RATE = 0.08;
 const FREE_SHIPPING_THRESHOLD = 50;
 const STANDARD_SHIPPING = 5.99;
@@ -537,7 +539,7 @@ async function promotionUsageExceeded(pool, promotion, email) {
 /**
  * Validates code + carts; returns totals and metadata. Throws with .code / .status for HTTP mapping.
  */
-async function previewOrApplyTotals(pool, { cartItems, promoCode, email, applyTaxExemption }) {
+async function previewOrApplyTotals(pool, { cartItems, promoCode, email, applyTaxExemption, customerType }) {
     const normalized = normalizeIncomingCartItems(cartItems);
     if (normalized.length === 0) {
         const err = new Error('EMPTY_CART');
@@ -577,16 +579,31 @@ async function previewOrApplyTotals(pool, { cartItems, promoCode, email, applyTa
         }
     }
 
-    const totalsBase = evaluateTotals(rulesParsed, enriched, {
-        applyTaxExemption: Boolean(applyTaxExemption)
+    const taxExempt = Boolean(applyTaxExemption);
+    let totalsBase = evaluateTotals(rulesParsed, enriched, {
+        applyTaxExemption: taxExempt
     });
+
+    const empSettings = await employeeDiscount.loadEmployeeDiscountSettings(pool);
+    totalsBase = employeeDiscount.applyEmployeeDiscountToTotals(
+        totalsBase,
+        empSettings,
+        customerType,
+        taxExempt
+    );
 
     let totalsNoPromo = null;
     if (promotion) {
         totalsNoPromo = evaluateTotals(
             { scope: 'all', productIds: [], categoryIds: [], effects: [] },
             enriched,
-            { applyTaxExemption: Boolean(applyTaxExemption) }
+            { applyTaxExemption: taxExempt }
+        );
+        totalsNoPromo = employeeDiscount.applyEmployeeDiscountToTotals(
+            totalsNoPromo,
+            empSettings,
+            customerType,
+            taxExempt
         );
     }
 
@@ -595,7 +612,9 @@ async function previewOrApplyTotals(pool, { cartItems, promoCode, email, applyTa
         promotion,
         rulesApplied: promotion ? rulesParsed : null,
         totals: totalsBase,
-        baselineTotals: totalsNoPromo
+        baselineTotals: totalsNoPromo,
+        employeeDiscountApplied: Boolean(totalsBase.employeeDiscountApplied),
+        employeeDiscountAmount: Number(totalsBase.employeeDiscount) || 0
     };
 }
 
@@ -605,12 +624,13 @@ async function previewOrApplyTotals(pool, { cartItems, promoCode, email, applyTa
  * @param {{ cartItems: unknown[], promoCode?: string, email?: string, applyTaxExemption?: boolean }} opts
  */
 async function calculateTotal(pool, opts) {
-    const { cartItems, promoCode, email, applyTaxExemption } = opts || {};
+    const { cartItems, promoCode, email, applyTaxExemption, customerType } = opts || {};
     const result = await previewOrApplyTotals(pool, {
         cartItems,
         promoCode,
         email,
-        applyTaxExemption: Boolean(applyTaxExemption)
+        applyTaxExemption: Boolean(applyTaxExemption),
+        customerType
     });
     return result.totals;
 }

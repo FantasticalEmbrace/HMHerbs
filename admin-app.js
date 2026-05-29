@@ -8,6 +8,8 @@ class AdminApp {
         this.apiBaseUrl = this.getApiBaseUrl();
         this.authToken = localStorage.getItem('adminToken');
         this.currentUser = null;
+        this.allowedSections = null;
+        this.defaultSection = 'dashboard';
         this.eventListeners = []; // Track event listeners for cleanup
         this.timeouts = []; // Track timeouts for cleanup
         this.allProducts = []; // Store all products for search/filtering
@@ -74,14 +76,11 @@ class AdminApp {
         // Check if user is already logged in
         if (this.authToken) {
             try {
-                // Try to verify token by loading dashboard stats
-                const response = await this.apiRequest('/admin/dashboard/stats');
-                if (!response) {
-                    // 403 or null response means invalid token
+                const sessionOk = await this.loadSession();
+                if (!sessionOk) {
                     this.logout();
                     return;
                 }
-                // Token is valid, load dashboard
                 await this.loadDashboard();
             } catch (error) {
                 // If dashboard load fails (e.g., invalid/expired token), logout silently
@@ -518,6 +517,8 @@ class AdminApp {
             if (response.ok) {
                 this.authToken = data.token;
                 this.currentUser = data.admin;
+                this.allowedSections = data.allowedSections ?? null;
+                this.defaultSection = data.defaultSection || 'dashboard';
                 localStorage.setItem('adminToken', this.authToken);
 
                 await this.loadDashboard();
@@ -623,6 +624,58 @@ class AdminApp {
         }
     }
 
+    async loadSession() {
+        if (!this.authToken) return false;
+        try {
+            const data = await this.apiRequest('/admin/auth/me');
+            if (!data?.admin) return false;
+            this.currentUser = data.admin;
+            this.allowedSections = data.allowedSections ?? null;
+            this.defaultSection = data.defaultSection || 'dashboard';
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    canAccessSection(sectionName) {
+        if (sectionName === 'personnel') {
+            return this.isFullAdmin;
+        }
+        if (this.allowedSections === null || this.allowedSections === undefined) {
+            return true;
+        }
+        return this.allowedSections.includes(sectionName);
+    }
+
+    applyRoleAccess() {
+        const allowed = this.allowedSections;
+        const isFullAdmin = allowed === null || allowed === undefined;
+
+        document.querySelectorAll('.nav-link[data-section]').forEach((link) => {
+            const section = link.getAttribute('data-section');
+            const item = link.closest('.nav-item');
+            if (!item || !section) return;
+            let show = isFullAdmin || (Array.isArray(allowed) && allowed.includes(section));
+            if (section === 'personnel') {
+                show = isFullAdmin;
+            }
+            item.style.display = show ? '' : 'none';
+        });
+
+        const personnelNav = document.getElementById('nav-personnel-item');
+        if (personnelNav) {
+            personnelNav.style.display = isFullAdmin ? '' : 'none';
+        }
+
+        document.querySelectorAll('.sidebar-nav .nav-section').forEach((sec) => {
+            const visibleItems = [...sec.querySelectorAll('.nav-item')].filter(
+                (el) => el.style.display !== 'none'
+            );
+            sec.style.display = visibleItems.length ? '' : 'none';
+        });
+    }
+
     async loadDashboard() {
         // Hide login screen and show dashboard
         const loginScreen = document.getElementById('loginScreen');
@@ -634,13 +687,28 @@ class AdminApp {
 
         // Update user info
         if (this.currentUser && userName) {
-            userName.textContent =
-                `${this.currentUser.firstName} ${this.currentUser.lastName}`;
+            const label = this.currentUser.roleLabel || this.currentUser.role || '';
+            userName.textContent = label
+                ? `${this.currentUser.firstName} ${this.currentUser.lastName} · ${label}`
+                : `${this.currentUser.firstName} ${this.currentUser.lastName}`;
         }
 
-        // Load dashboard data
-        await this.loadDashboardStats();
+        this.applyRoleAccess();
+
+        const landing = this.canAccessSection(this.defaultSection)
+            ? this.defaultSection
+            : (this.allowedSections && this.allowedSections[0]) || 'marketing';
+
+        await this.showSection(landing, { skipHashUpdate: true });
+
+        if (this.canAccessSection('dashboard')) {
+            await this.loadDashboardStats();
+        }
         await this.applyAdminDeepLink();
+    }
+
+    get isFullAdmin() {
+        return this.allowedSections === null || this.allowedSections === undefined;
     }
 
     async loadDashboardStats() {
@@ -840,6 +908,11 @@ class AdminApp {
     }
 
     async showSection(sectionName, { skipHashUpdate = false } = {}) {
+        if (!this.canAccessSection(sectionName)) {
+            this.showToast('You do not have access to that section.', 'error');
+            return;
+        }
+
         // Update navigation
         document.querySelectorAll('.nav-link').forEach(link => {
             link.classList.remove('active');
@@ -933,10 +1006,20 @@ class AdminApp {
             case 'marketing':
                 await this.loadMarketingHub();
                 break;
+            case 'personnel':
+                await this.loadAdminTeam();
+                break;
             case 'settings':
                 await this.loadStoreInfoSettings();
                 break;
         }
+    }
+
+    _employeeDiscountSettingMeta() {
+        return {
+            employee_discount_enabled: 'Enable employee merchandise discount at checkout',
+            employee_discount_percent: 'Employee discount percentage (0–100)',
+        };
     }
 
     _storeInfoSettingMeta() {
@@ -1566,17 +1649,98 @@ class AdminApp {
         }
     }
 
+    _applyEmployeeDiscountToForm(map) {
+        const form = document.getElementById('employee-discount-settings-form');
+        if (!form) return;
+        const enabled = String(map.get('employee_discount_enabled') || 'false').toLowerCase();
+        const enabledEl = form.querySelector('[name="employee_discount_enabled"]');
+        if (enabledEl) enabledEl.checked = enabled === 'true' || enabled === '1';
+        const percentEl = form.querySelector('[name="employee_discount_percent"]');
+        if (percentEl) {
+            const p = Number(map.get('employee_discount_percent'));
+            percentEl.value = Number.isFinite(p) ? String(p) : '0';
+        }
+    }
+
+    _buildEmployeeDiscountSettingsPayload(form) {
+        const meta = this._employeeDiscountSettingMeta();
+        const enabledEl = form.querySelector('[name="employee_discount_enabled"]');
+        let percent = Number(form.querySelector('[name="employee_discount_percent"]')?.value);
+        if (!Number.isFinite(percent) || percent < 0) percent = 0;
+        if (percent > 100) percent = 100;
+        return Object.keys(meta).map((key) => {
+            if (key === 'employee_discount_enabled') {
+                return {
+                    key_name: key,
+                    value: enabledEl?.checked ? 'true' : 'false',
+                    description: meta[key],
+                    type: 'boolean',
+                };
+            }
+            return {
+                key_name: key,
+                value: String(percent),
+                description: meta[key],
+                type: 'number',
+            };
+        });
+    }
+
+    async loadEmployeeDiscountSettings() {
+        const form = document.getElementById('employee-discount-settings-form');
+        if (!form || !this.authToken) return;
+        const msg = document.querySelector('[data-employee-discount-save-msg]');
+        if (msg) msg.textContent = '';
+        try {
+            const res = await this.apiRequest('/admin/settings');
+            const settings = Array.isArray(res?.settings) ? res.settings : [];
+            const map = new Map(settings.map((item) => [item.key_name, item.value || '']));
+            this._applyEmployeeDiscountToForm(map);
+        } catch (err) {
+            if (msg) {
+                msg.textContent = 'Failed to load employee discount settings.';
+                msg.style.color = 'var(--error)';
+            }
+            this.showToast('Failed to load employee discount: ' + (err.message || 'error'), 'error');
+        }
+    }
+
+    async saveEmployeeDiscountSettings(e) {
+        if (e && typeof e.preventDefault === 'function') e.preventDefault();
+        const form = document.getElementById('employee-discount-settings-form');
+        if (!form) return;
+        const msg = document.querySelector('[data-employee-discount-save-msg]');
+        if (msg) msg.textContent = '';
+        const settings = this._buildEmployeeDiscountSettingsPayload(form);
+        try {
+            await this.apiRequest('/admin/settings', {
+                method: 'PUT',
+                body: JSON.stringify({ settings }),
+            });
+            if (msg) {
+                msg.textContent = 'Employee discount settings saved.';
+                msg.style.color = 'var(--success)';
+            }
+            this.showToast('Employee discount settings saved', 'success');
+        } catch (err) {
+            if (msg) {
+                msg.textContent = err.message || 'Save failed.';
+                msg.style.color = 'var(--error)';
+            }
+            this.showToast('Could not save employee discount: ' + (err.message || 'error'), 'error');
+        }
+    }
+
     async loadStoreInfoSettings() {
         const form = document.getElementById('store-info-settings-form');
         if (!form || !this.authToken) return;
         const msg = document.querySelector('[data-store-info-save-msg]');
         if (msg) msg.textContent = '';
-        const promoMsg = document.querySelector('[data-promo-banner-save-msg]');
-        if (promoMsg) promoMsg.textContent = '';
         try {
             const res = await this.apiRequest('/admin/settings');
             const settings = Array.isArray(res?.settings) ? res.settings : [];
             const map = new Map(settings.map((item) => [item.key_name, item.value || '']));
+            this._applyEmployeeDiscountToForm(map);
             Object.keys(this._storeInfoSettingMeta()).forEach((key) => {
                 const input = form.querySelector(`[name="${key}"]`);
                 if (!input || key === 'store_holiday_schedule') return;
@@ -1597,10 +1761,11 @@ class AdminApp {
             this._renderHolidayTemplateOptions();
             this._toggleCustomHolidayFields();
             this._renderHolidayScheduleList();
-            this._applyPromoBannerToForm(map.get('store_promo_banner') || '{}');
-            await this.loadGoogleBusinessStatus();
-            await this.loadGoogleCalendarStatus();
-            await this.loadIntegrationLogs();
+            if (this.currentUser?.role !== 'marketing') {
+                await this.loadGoogleBusinessStatus();
+                await this.loadGoogleCalendarStatus();
+                await this.loadIntegrationLogs();
+            }
         } catch (err) {
             if (msg) {
                 msg.textContent = 'Failed to load store info.';
@@ -2173,22 +2338,34 @@ class AdminApp {
         }
     }
 
+    async loadPromoBannerSettings() {
+        if (!this.authToken || !document.getElementById('promo-banner-save-btn')) return;
+        const msg = document.querySelector('[data-promo-banner-save-msg]');
+        if (msg) msg.textContent = '';
+        try {
+            const res = await this.apiRequest('/admin/settings');
+            const settings = Array.isArray(res?.settings) ? res.settings : [];
+            const map = new Map(settings.map((item) => [item.key_name, item.value || '']));
+            this._applyPromoBannerToForm(map.get('store_promo_banner') || '{}');
+        } catch (err) {
+            if (msg) {
+                msg.textContent = 'Failed to load promo banner settings.';
+                msg.style.color = 'var(--error)';
+            }
+            console.warn('loadPromoBannerSettings', err);
+        }
+    }
+
     async loadMarketingHub() {
         if (!this.authToken) return;
         try {
             const res = await this.apiRequest('/admin/marketing-settings');
             const signup = document.getElementById('marketing-signup-url');
             const headline = document.getElementById('marketing-newsletter-headline');
-            const statusEl = document.getElementById('marketing-mailchimp-status');
             const eff = res && res.effective ? res.effective : {};
-            const mc = res && res.mailchimp ? res.mailchimp : {};
-            if (signup) signup.value = eff.signupLandingUrl || mc.signupLandingEnv || '';
+            if (signup) signup.value = eff.signupLandingUrl || '';
             if (headline) headline.value = eff.headline || '';
-            if (statusEl) {
-                statusEl.innerHTML = mc.configured
-                    ? '<span style="color:var(--success,#16a34a)">Mailchimp API credentials are set (subscriber sync / campaigns).</span>'
-                    : '<span style="color:var(--warning,#b45309)">Mailchimp API key or audience ID missing — automated Mailchimp features are disabled.</span>';
-            }
+            await this.loadPromoBannerSettings();
             await this.loadWebPromotionsTable();
         } catch (e) {
             console.error('loadMarketingHub', e);
@@ -2212,6 +2389,241 @@ class AdminApp {
         } catch (err) {
             this.showToast('Save failed: ' + (err.message || 'error'), 'error');
         }
+    }
+
+    _personnelRoleBadge(role) {
+        const map = {
+            admin: 'badge-role-admin',
+            manager: 'badge-role-manager',
+            assistant_manager: 'badge-role-assistant',
+            marketing: 'badge-role-marketing',
+        };
+        const cls = map[role] || 'badge-info';
+        const label =
+            { admin: 'Admin', manager: 'Manager', assistant_manager: 'Assistant Manager', marketing: 'Marketing' }[
+                role
+            ] || role;
+        return `<span class="badge ${cls}" style="display:inline-block;padding:0.2rem 0.55rem;border-radius:9999px;font-size:0.75rem;font-weight:600;">${this._escapeHtml(label)}</span>`;
+    }
+
+    _formatPersonnelDate(d) {
+        if (!d) return '—';
+        try {
+            return new Date(d).toLocaleString(undefined, {
+                dateStyle: 'medium',
+                timeStyle: 'short',
+            });
+        } catch {
+            return '—';
+        }
+    }
+
+    async loadAdminTeam() {
+        const list = document.getElementById('admin-team-list');
+        const roleSelect = document.getElementById('team-create-role');
+        if (!list || !this.isFullAdmin) return;
+
+        list.innerHTML =
+            '<div class="loading" style="padding:2rem;text-align:center;color:var(--gray-500);"><div class="spinner" style="margin:0 auto 0.75rem;"></div>Loading personnel…</div>';
+
+        try {
+            const res = await this.apiRequest('/admin/team');
+            const users = Array.isArray(res?.users) ? res.users : [];
+            const roles = Array.isArray(res?.roles) ? res.roles : [];
+            this._teamRoleOptions = roles;
+
+            if (roleSelect && roleSelect.options.length === 0) {
+                roles.forEach((r) => {
+                    const opt = document.createElement('option');
+                    opt.value = r.id;
+                    opt.textContent = r.label || r.id;
+                    roleSelect.appendChild(opt);
+                });
+                const marketingOpt = roleSelect.querySelector('option[value="marketing"]');
+                if (marketingOpt) marketingOpt.selected = true;
+            }
+
+            if (!users.length) {
+                list.innerHTML =
+                    '<div style="text-align:center;padding:2.5rem 1rem;color:var(--gray-500);"><i class="fas fa-users" style="font-size:2.5rem;opacity:0.25;display:block;margin-bottom:0.75rem;"></i><p style="margin:0;">No personnel accounts yet. Add someone below.</p></div>';
+                return;
+            }
+
+            const myId = this.currentUser?.id;
+            const roleOptions = (currentRole) =>
+                roles
+                    .map((r) => {
+                        const sel = r.id === currentRole ? ' selected' : '';
+                        return `<option value="${this._escapeHtml(r.id)}"${sel}>${this._escapeHtml(r.label || r.id)}</option>`;
+                    })
+                    .join('');
+
+            const rows = users
+                .map((u) => {
+                    const isSelf = myId != null && Number(u.id) === Number(myId);
+                    const nextRole =
+                        u.role === 'admin'
+                            ? null
+                            : u.role === 'manager'
+                              ? 'admin'
+                              : u.role === 'assistant_manager'
+                                ? 'manager'
+                                : u.role === 'marketing'
+                                  ? 'assistant_manager'
+                                  : null;
+                    const nextLabel =
+                        nextRole === 'admin'
+                            ? 'Admin'
+                            : nextRole === 'manager'
+                              ? 'Manager'
+                              : nextRole === 'assistant_manager'
+                                ? 'Assistant Manager'
+                                : '';
+                    const promoteBtn =
+                        nextRole && !isSelf
+                            ? `<button type="button" class="btn btn-sm btn-secondary" title="Promote to ${nextLabel}" data-team-action="promote" data-team-id="${u.id}" data-team-role="${nextRole}"><i class="fas fa-arrow-up" aria-hidden="true"></i> Promote</button>`
+                            : '';
+                    const deleteBtn = isSelf
+                        ? ''
+                        : `<button type="button" class="btn btn-sm btn-danger" title="Remove account" data-team-action="delete" data-team-id="${u.id}" data-team-email="${this._escapeHtml(u.email)}"><i class="fas fa-trash" aria-hidden="true"></i></button>`;
+                    return `<tr data-team-row="${u.id}">
+                        <td>
+                            <strong>${this._escapeHtml(u.email)}</strong>
+                            ${isSelf ? '<span class="personnel-you-tag">You</span>' : ''}
+                        </td>
+                        <td>${this._escapeHtml(u.firstName)} ${this._escapeHtml(u.lastName)}</td>
+                        <td>${this._personnelRoleBadge(u.role)}</td>
+                        <td>${u.isActive ? '<span class="badge badge-success">Active</span>' : '<span class="badge" style="background:#f3f4f6;color:#6b7280;">Inactive</span>'}</td>
+                        <td style="font-size:0.85rem;color:var(--gray-600);white-space:nowrap;">${this._escapeHtml(this._formatPersonnelDate(u.lastLogin))}</td>
+                        <td>
+                            <div class="personnel-actions">
+                                <select class="form-input personnel-role-select" id="team-role-${u.id}" data-team-id="${u.id}" aria-label="Role for ${this._escapeHtml(u.email)}">${roleOptions(u.role)}</select>
+                                <button type="button" class="btn btn-sm btn-primary" data-team-action="save-role" data-team-id="${u.id}">Save</button>
+                                ${promoteBtn}
+                                ${deleteBtn}
+                            </div>
+                        </td>
+                    </tr>`;
+                })
+                .join('');
+
+            list.innerHTML = `
+                <div class="personnel-table-wrap table-container">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Email</th>
+                                <th>Name</th>
+                                <th>Role</th>
+                                <th>Status</th>
+                                <th>Last login</th>
+                                <th style="text-align:right;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                </div>`;
+
+            if (!this._teamListClickBound) {
+                this._teamListClickBound = true;
+                list.addEventListener('click', (ev) => this._handleTeamListClick(ev));
+            }
+        } catch (err) {
+            list.innerHTML = `<div style="padding:1.5rem;color:var(--error);text-align:center;">Could not load personnel: ${this._escapeHtml(err.message || 'error')}</div>`;
+        }
+    }
+
+    async _handleTeamListClick(ev) {
+        const btn = ev.target.closest('[data-team-action]');
+        if (!btn) return;
+        const id = Number(btn.dataset.teamId);
+        if (!Number.isInteger(id) || id <= 0) return;
+
+        if (btn.dataset.teamAction === 'save-role') {
+            const sel = document.getElementById(`team-role-${id}`);
+            if (!sel) return;
+            await this.updateTeamMemberRole(id, sel.value);
+            return;
+        }
+        if (btn.dataset.teamAction === 'promote') {
+            const role = btn.dataset.teamRole;
+            if (role) await this.updateTeamMemberRole(id, role, { promoted: true });
+            return;
+        }
+        if (btn.dataset.teamAction === 'delete') {
+            await this.deleteTeamMember(id, btn.dataset.teamEmail || '');
+        }
+    }
+
+    async updateTeamMemberRole(id, role, { promoted = false } = {}) {
+        try {
+            await this.apiRequest(`/admin/team/${id}`, {
+                method: 'PATCH',
+                body: JSON.stringify({ role }),
+            });
+            this.showToast(promoted ? 'Role promoted' : 'Role updated', 'success');
+            await this.loadAdminTeam();
+        } catch (err) {
+            this.showToast(err.message || 'Update failed', 'error');
+        }
+    }
+
+    async deleteTeamMember(id, email) {
+        const ok = await this.showAdminConfirm({
+            title: 'Remove team member?',
+            message: `This permanently removes the login for ${email || 'this user'}. They will no longer access the admin panel.`,
+            confirmLabel: 'Remove',
+            cancelLabel: 'Cancel',
+            danger: true,
+        });
+        if (!ok) return;
+        try {
+            await this.apiRequest(`/admin/team/${id}`, { method: 'DELETE' });
+            this.showToast('Team member removed', 'success');
+            await this.loadAdminTeam();
+        } catch (err) {
+            this.showToast(err.message || 'Delete failed', 'error');
+        }
+    }
+
+    async handleCreateTeamMember(ev) {
+        if (ev) ev.preventDefault();
+        const form = document.getElementById('admin-team-create-form');
+        const msg = document.getElementById('admin-team-form-msg');
+        if (!form || !this.isFullAdmin) return;
+        const email = form.querySelector('#team-create-email')?.value?.trim();
+        const firstName = form.querySelector('#team-create-first')?.value?.trim();
+        const lastName = form.querySelector('#team-create-last')?.value?.trim();
+        const role = form.querySelector('#team-create-role')?.value;
+        const password = form.querySelector('#team-create-password')?.value;
+        if (msg) msg.textContent = '';
+        try {
+            await this.apiRequest('/admin/team', {
+                method: 'POST',
+                body: JSON.stringify({ email, firstName, lastName, role, password }),
+            });
+            if (msg) {
+                msg.textContent = 'Account created. Send them the email and password securely.';
+                msg.style.color = 'var(--success)';
+            }
+            form.reset();
+            const marketingOpt = form.querySelector('#team-create-role option[value="marketing"]');
+            if (marketingOpt) marketingOpt.selected = true;
+            await this.loadAdminTeam();
+        } catch (err) {
+            if (msg) {
+                msg.textContent = err.message || 'Create failed';
+                msg.style.color = 'var(--error)';
+            }
+        }
+    }
+
+    _escapeHtml(text) {
+        return String(text ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
     }
 
     _promoRulesFromEditor() {
@@ -3741,6 +4153,75 @@ class AdminApp {
         link.remove();
         URL.revokeObjectURL(href);
         this.showNotification('TaxCloud CSV exported', 'success');
+    }
+
+    async syncProductCostsFromOctopos() {
+        const ok = await this.showAdminConfirm({
+            title: 'Sync costs from Octopos?',
+            message:
+                'This matches website products to Octopos by SKU (and barcode when applicable) and updates Cost from Octopos. Existing retail prices are not changed.',
+            confirmLabel: 'Sync now',
+            cancelLabel: 'Cancel',
+        });
+        if (!ok) return;
+        try {
+            this.showToast('Syncing product costs from Octopos…', 'info');
+            const result = await this.apiRequest('/admin/products/sync-octopos/costs', { method: 'POST' });
+            const s = result?.stats || {};
+            this.showToast(
+                `Octopos sync done: ${s.updated || 0} updated, ${s.matched || 0} matched, ${s.unmatched || 0} unmatched`,
+                'success'
+            );
+            await this.loadProducts();
+        } catch (err) {
+            this.showToast('Octopos cost sync failed: ' + (err.message || 'error'), 'error');
+        }
+    }
+
+    async syncOneProductCostFromOctopos(productId) {
+        try {
+            const result = await this.apiRequest(`/admin/products/${productId}/sync-octopos-cost`, {
+                method: 'POST',
+            });
+            if (result?.cost_price != null) {
+                const costEl = document.getElementById('edit-cost-price');
+                if (costEl) costEl.value = result.cost_price;
+            }
+            const octStatus = document.getElementById('edit-octopos-cost-status');
+            if (octStatus) {
+                octStatus.textContent = result.message
+                    || (result.cost_price != null
+                        ? `Cost $${Number(result.cost_price).toFixed(2)} pulled from Octopos #${result.octopos_product_id}`
+                        : 'Updated from Octopos');
+                octStatus.style.color = 'var(--success, #059669)';
+            }
+            this.showToast(result.message || 'Cost updated from Octopos', 'success');
+            await this.loadProducts();
+        } catch (err) {
+            this.showToast('Pull from Octopos failed: ' + (err.message || 'error'), 'error');
+        }
+    }
+
+    async pushOneProductCostToOctopos(productId) {
+        try {
+            const costEl = document.getElementById('edit-cost-price');
+            if (costEl && costEl.value !== '') {
+                await this.apiRequest(`/admin/products/${productId}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ cost_price: costEl.value }),
+                });
+            }
+            const result = await this.apiRequest(`/admin/products/${productId}/push-octopos-cost`, {
+                method: 'POST',
+            });
+            if (result.skipped) {
+                this.showToast(result.reason || 'Octopos push skipped', 'warning');
+                return;
+            }
+            this.showToast('Cost pushed to Octopos', 'success');
+        } catch (err) {
+            this.showToast('Push to Octopos failed: ' + (err.message || 'error'), 'error');
+        }
     }
 
     async loadLowStock() {
@@ -5572,80 +6053,81 @@ class AdminApp {
     }
 
     renderProductsTable(products) {
+        const esc = (v) => this.escapeHtml(v);
+        const money = (v) => {
+            const n = typeof v === 'string' ? parseFloat(v) : Number(v);
+            return Number.isFinite(n) ? `$${n.toFixed(2)}` : '—';
+        };
+        const rows = products.map((product) => {
+            const name = esc(product.name || '');
+            const cat = esc(product.category_name || 'No category');
+            const brand = esc(product.brand_name || 'Unknown');
+            const isFeatured = product.is_featured === true ||
+                product.is_featured === 1 ||
+                product.is_featured === '1' ||
+                product.is_featured === 'true';
+            const lowStock = product.inventory_quantity <= (product.low_stock_threshold || 10);
+            const deleteArg = JSON.stringify(product.name || '');
+            return `
+                <tr>
+                    <td class="col-sku"><code title="${esc(product.sku)}">${esc(product.sku)}</code></td>
+                    <td class="product-name-cell">
+                        <span class="product-name-primary" title="${name}">${name}</span>
+                        <span class="product-name-meta" title="${cat}">${cat}</span>
+                    </td>
+                    <td><span class="cell-ellipsis" title="${brand}">${brand}</span></td>
+                    <td class="col-money">${money(product.price)}</td>
+                    <td class="col-money">${product.cost_price != null && product.cost_price !== ''
+                        ? money(product.cost_price)
+                        : '<span style="color:var(--gray-400);">—</span>'}</td>
+                    <td class="col-stock">
+                        <span class="badge ${lowStock ? 'badge-warning' : 'badge-success'}">${product.inventory_quantity}</span>
+                    </td>
+                    <td class="col-status">
+                        <span class="status-inline">
+                            <span class="badge ${product.is_active ? 'badge-success' : 'badge-danger'}">${product.is_active ? 'Active' : 'Off'}</span>
+                            ${isFeatured ? '<span class="badge badge-info" title="Featured" style="padding:0.2rem 0.4rem;"><i class="fas fa-star" aria-hidden="true"></i></span>' : ''}
+                        </span>
+                    </td>
+                    <td class="col-actions">
+                        <div class="admin-row-actions">
+                            <button type="button" class="btn btn-sm btn-secondary" onclick="editProduct(${product.id})" title="Edit">
+                                <i class="fas fa-edit" aria-hidden="true"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-danger" onclick="deleteProduct(${product.id}, ${deleteArg})" title="Delete">
+                                <i class="fas fa-trash" aria-hidden="true"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>`;
+        }).join('');
+
         return `
-            <div class="table-container">
+            <div class="admin-products-table-wrap table-container" tabindex="0" role="region" aria-label="Product list">
                 <table class="table">
+                    <colgroup>
+                        <col style="width:7%">
+                        <col style="width:34%">
+                        <col style="width:14%">
+                        <col style="width:8%">
+                        <col style="width:8%">
+                        <col style="width:7%">
+                        <col style="width:12%">
+                        <col style="width:10%">
+                    </colgroup>
                     <thead>
                         <tr>
                             <th>SKU</th>
                             <th>Name</th>
                             <th>Brand</th>
-                            <th>Category</th>
                             <th>Price</th>
+                            <th>Cost</th>
                             <th>Stock</th>
                             <th>Status</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        ${products.map(product => `
-                            <tr>
-                                <td><code>${this.escapeHtml(product.sku)}</code></td>
-                                <td>
-                                    <div style="font-weight: 500;">${this.escapeHtml(product.name)}</div>
-                                    <div style="font-size: 0.75rem; color: var(--gray-500);">${this.escapeHtml(product.category_name || 'No category')}</div>
-                                </td>
-                                <td>
-                                    ${product.brand_name && product.brand_name !== 'Unknown' ?
-                `<a href="#" onclick="document.getElementById('brandFilter').value='${product.brand_slug}'; document.getElementById('brandFilter').dispatchEvent(new Event('change')); return false;">${this.escapeHtml(product.brand_name)}</a>` :
-                this.escapeHtml(product.brand_name || 'Unknown')}
-                                </td>
-                                <td>${this.escapeHtml(product.category_name || 'No category')}</td>
-                                <td>$${(typeof product.price === 'string' ? parseFloat(product.price) : (product.price || 0)).toFixed(2)}</td>
-                                <td>
-                                    <span class="badge ${product.inventory_quantity <= (product.low_stock_threshold || 10) ? 'badge-warning' : 'badge-success'}">
-                                        ${product.inventory_quantity}
-                                    </span>
-                                </td>
-                                <td>
-                                    <div style="display: flex; flex-direction: column; gap: 0.25rem;">
-                                        <span class="badge ${product.is_active ? 'badge-success' : 'badge-danger'}">
-                                            ${product.is_active ? 'Active' : 'Inactive'}
-                                        </span>
-                                        ${(() => {
-                // Check if product is featured - handle all possible formats
-                const isFeatured = product.is_featured === true ||
-                    product.is_featured === 1 ||
-                    product.is_featured === '1' ||
-                    product.is_featured === 'true';
-
-                // Debug logging for featured products
-                if (isFeatured) {
-                    console.log('⭐ Rendering featured product:', {
-                        id: product.id,
-                        name: product.name,
-                        is_featured: product.is_featured,
-                        is_featured_type: typeof product.is_featured
-                    });
-                }
-
-                return isFeatured ?
-                    '<span class="badge badge-info" style="font-size: 0.7rem; padding: 0.2rem 0.5rem;"><i class="fas fa-star"></i> Featured</span>' :
-                    '';
-            })()}
-                                    </div>
-                                </td>
-                                <td>
-                                    <button class="btn btn-sm btn-secondary" onclick="editProduct(${product.id})">
-                                        <i class="fas fa-edit"></i>
-                                    </button>
-                                    <button class="btn btn-sm btn-danger" onclick="deleteProduct(${product.id}, '${this.escapeHtml(product.name)}')" style="margin-left: 0.5rem;">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
+                    <tbody>${rows}</tbody>
                 </table>
             </div>
         `;
@@ -6315,7 +6797,7 @@ class AdminApp {
 
             const cancelBtn = document.createElement('button');
             cancelBtn.type = 'button';
-            cancelBtn.className = 'btn btn-secondary';
+            cancelBtn.className = 'btn btn-danger';
             cancelBtn.textContent = cancelLabel;
 
             const okBtn = document.createElement('button');
@@ -6475,7 +6957,7 @@ class AdminApp {
             btnRow.style.cssText = 'display:flex;gap:0.75rem;justify-content:flex-end;margin-top:0.75rem;';
             const cancelBtn = document.createElement('button');
             cancelBtn.type = 'button';
-            cancelBtn.className = 'btn btn-secondary';
+            cancelBtn.className = 'btn btn-danger';
             cancelBtn.textContent = cancelLabel;
             const subBtn = document.createElement('button');
             subBtn.type = 'submit';
@@ -6522,86 +7004,63 @@ class AdminApp {
     }
 
     showProgressModal(title, initialMessage = '') {
-        // Remove existing progress modal if any
         const existingModal = document.getElementById('progressModal');
         if (existingModal) {
             document.body.removeChild(existingModal);
         }
 
-        // Create modal overlay
         const modal = document.createElement('div');
         modal.id = 'progressModal';
         modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 10000; display: flex; align-items: center; justify-content: center;';
 
-        // Create modal content
         const content = document.createElement('div');
         content.style.cssText = 'background: white; border-radius: var(--border-radius-lg); padding: 2rem; max-width: 600px; width: 90%; box-shadow: var(--shadow-lg);';
 
-        // Title
         const titleEl = document.createElement('h2');
         titleEl.textContent = title;
         titleEl.style.cssText = 'margin: 0 0 1.5rem 0; color: var(--primary-green); font-size: 1.5rem;';
         content.appendChild(titleEl);
 
-        // Message
         const messageEl = document.createElement('div');
         messageEl.id = 'progressMessage';
         messageEl.textContent = initialMessage;
         messageEl.style.cssText = 'margin-bottom: 1.5rem; color: var(--gray-600); font-weight: 500;';
         content.appendChild(messageEl);
 
-        // Scanning Progress Section
-        const scanningSection = document.createElement('div');
-        scanningSection.id = 'scanningSection';
-        scanningSection.style.cssText = 'margin-bottom: 1.5rem;';
+        const progressSection = document.createElement('div');
+        progressSection.style.cssText = 'margin-bottom: 1.5rem;';
 
-        const scanningLabel = document.createElement('div');
-        scanningLabel.style.cssText = 'display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-size: 0.875rem; font-weight: 600; color: var(--gray-700);';
-        scanningLabel.innerHTML = '<span>Scanning Website</span><span id="scanningPercent">100%</span>';
-        scanningSection.appendChild(scanningLabel);
+        const progressLabel = document.createElement('div');
+        progressLabel.style.cssText = 'display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-size: 0.875rem; font-weight: 600; color: var(--gray-700);';
+        progressLabel.innerHTML = '<span>Overall progress</span><span id="overallPercentLabel">0%</span>';
+        progressSection.appendChild(progressLabel);
 
-        const scanningProgressWrapper = document.createElement('div');
-        scanningProgressWrapper.style.cssText = 'width: 100%; height: 1.5rem; background-color: var(--gray-200); border-radius: var(--border-radius); overflow: hidden;';
+        const progressWrapper = document.createElement('div');
+        progressWrapper.style.cssText = 'width: 100%; height: 1.5rem; background-color: var(--gray-200); border-radius: var(--border-radius); overflow: hidden;';
 
-        const scanningProgressBar = document.createElement('div');
-        scanningProgressBar.id = 'scanningProgressBar';
-        scanningProgressBar.style.cssText = 'height: 100%; background: linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%); width: 1%; transition: width 0.3s ease; display: flex; align-items: center; justify-content: center; color: white; font-size: 0.75rem; font-weight: 600;';
-        scanningProgressBar.textContent = '1%';
+        const progressBar = document.createElement('div');
+        progressBar.id = 'overallProgressBar';
+        progressBar.style.cssText = 'height: 100%; background: linear-gradient(90deg, var(--primary-green) 0%, var(--secondary-sage) 100%); width: 0%; transition: width 0.3s ease; display: flex; align-items: center; justify-content: center; color: white; font-size: 0.75rem; font-weight: 600;';
+        progressBar.textContent = '0%';
 
-        scanningProgressWrapper.appendChild(scanningProgressBar);
-        scanningSection.appendChild(scanningProgressWrapper);
-        content.appendChild(scanningSection);
+        progressWrapper.appendChild(progressBar);
+        progressSection.appendChild(progressWrapper);
+        content.appendChild(progressSection);
 
-        // Scraping Progress Section (initially hidden)
-        const scrapingSection = document.createElement('div');
-        scrapingSection.id = 'scrapingSection';
-        scrapingSection.style.cssText = 'margin-bottom: 1.5rem; display: none;';
-
-        const scrapingLabel = document.createElement('div');
-        scrapingLabel.style.cssText = 'display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-size: 0.875rem; font-weight: 600; color: var(--gray-700);';
-        scrapingLabel.innerHTML = '<span>Scraping Products</span><span id="scrapingPercent">100%</span>';
-        scrapingSection.appendChild(scrapingLabel);
-
-        const scrapingProgressWrapper = document.createElement('div');
-        scrapingProgressWrapper.style.cssText = 'width: 100%; height: 1.5rem; background-color: var(--gray-200); border-radius: var(--border-radius); overflow: hidden;';
-
-        const scrapingProgressBar = document.createElement('div');
-        scrapingProgressBar.id = 'scrapingProgressBar';
-        scrapingProgressBar.style.cssText = 'height: 100%; background: linear-gradient(90deg, var(--primary-green) 0%, var(--secondary-sage) 100%); width: 0%; transition: width 0.3s ease; display: flex; align-items: center; justify-content: center; color: white; font-size: 0.75rem; font-weight: 600;';
-        scrapingProgressBar.textContent = '0%';
-
-        scrapingProgressWrapper.appendChild(scrapingProgressBar);
-        scrapingSection.appendChild(scrapingProgressWrapper);
-        content.appendChild(scrapingSection);
-
-        // Progress info
         const progressInfo = document.createElement('div');
         progressInfo.id = 'progressInfo';
-        progressInfo.style.cssText = 'display: flex; justify-content: space-between; font-size: 0.8125rem; color: var(--gray-600); margin-bottom: 1rem;';
-        progressInfo.innerHTML = '<span id="progressStatus">Scanning...</span><span id="progressCount">0 products found</span>';
+        progressInfo.style.cssText = 'display: flex; justify-content: space-between; font-size: 0.8125rem; color: var(--gray-600); margin-bottom: 1.5rem;';
+        progressInfo.innerHTML = '<span id="progressStatus">Working...</span><span id="progressCount">0 products found</span>';
         content.appendChild(progressInfo);
 
-        // Cancel button removed
+        const cancelBtn = document.createElement('button');
+        cancelBtn.type = 'button';
+        cancelBtn.id = 'progressCancelBtn';
+        cancelBtn.className = 'btn btn-danger';
+        cancelBtn.textContent = 'Cancel';
+        cancelBtn.style.cssText = 'width: 100%;';
+        cancelBtn.addEventListener('click', () => this.cancelActiveLongTask());
+        content.appendChild(cancelBtn);
 
         modal.appendChild(content);
         document.body.appendChild(modal);
@@ -6609,95 +7068,107 @@ class AdminApp {
         return modal;
     }
 
+    registerActiveLongTask(task) {
+        this.activeLongTask = task;
+        const cancelBtn = document.getElementById('progressCancelBtn');
+        if (cancelBtn) {
+            cancelBtn.disabled = false;
+            cancelBtn.textContent = 'Cancel';
+        }
+    }
+
+    clearActiveLongTask() {
+        this.activeLongTask = null;
+        const cancelBtn = document.getElementById('progressCancelBtn');
+        if (cancelBtn) {
+            cancelBtn.disabled = true;
+        }
+    }
+
+    async cancelActiveLongTask() {
+        const task = this.activeLongTask;
+        if (!task) return;
+
+        const cancelBtn = document.getElementById('progressCancelBtn');
+        if (cancelBtn) {
+            cancelBtn.disabled = true;
+            cancelBtn.textContent = 'Cancelling...';
+        }
+
+        if (task.abortController) {
+            task.abortController.abort();
+        }
+        if (task.cancelUrl) {
+            try {
+                await fetch(task.cancelUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${this.authToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+            } catch (e) {
+                console.warn('Cancel request failed:', e);
+            }
+        }
+        if (typeof task.onCancel === 'function') {
+            task.onCancel();
+        }
+    }
+
     updateProgressModal(percentage, message = '', productsFound = 0, stage = null) {
-        const scanningProgressBar = document.getElementById('scanningProgressBar');
-        const scanningPercent = document.getElementById('scanningPercent');
-        const scrapingProgressBar = document.getElementById('scrapingProgressBar');
-        const scrapingPercent = document.getElementById('scrapingPercent');
-        const scanningSection = document.getElementById('scanningSection');
-        const scrapingSection = document.getElementById('scrapingSection');
+        const progressBar = document.getElementById('overallProgressBar');
+        const percentLabel = document.getElementById('overallPercentLabel');
         const progressMessage = document.getElementById('progressMessage');
         const progressStatus = document.getElementById('progressStatus');
         const progressCount = document.getElementById('progressCount');
 
-        // Determine which stage we're in based on stage parameter or percentage
-        const isScanning = !stage || stage === 'initializing' || stage === 'scraping_main' || stage === 'finding_categories';
-        const isScraping = stage === 'scraping_products';
-        const isComplete = stage === 'complete' || stage === 'saving';
-        const isError = stage === 'error';
+        const overall = Math.min(100, Math.max(0, Math.round(percentage)));
 
-        // Map percentage to appropriate progress bar
-        let scanningPercentage = 0;
-        let scrapingPercentage = 0;
-
-        if (isScanning) {
-            // Scanning phase: 1-15% maps to 1-100% for scanning bar
-            if (percentage <= 15) {
-                scanningPercentage = Math.max(1, Math.round((percentage / 15) * 100));
-            } else {
-                scanningPercentage = 100; // Scanning complete
-            }
-        } else if (isScraping) {
-            // Scanning is complete, show scraping bar
-            scanningPercentage = 100;
-            // Scraping phase: 15-85% maps to 1-100% for scraping bar
-            if (percentage >= 15 && percentage <= 85) {
-                scrapingPercentage = Math.max(1, Math.round(((percentage - 15) / 70) * 100));
-            } else if (percentage > 85) {
-                scrapingPercentage = 100;
-            }
-        } else if (isComplete) {
-            scanningPercentage = 100;
-            scrapingPercentage = 100;
+        if (progressBar) {
+            progressBar.style.width = `${overall}%`;
+            progressBar.textContent = `${overall}%`;
         }
-
-        // Update scanning progress bar
-        if (scanningProgressBar && scanningPercent) {
-            scanningProgressBar.style.width = `${scanningPercentage}%`;
-            scanningProgressBar.textContent = `${scanningPercentage}%`;
-            // Keep percentage label static at 100%
-            scanningPercent.textContent = '100%';
+        if (percentLabel) {
+            percentLabel.textContent = `${overall}%`;
         }
-
-        // Show scraping section when scraping starts
-        if (isScraping && scrapingSection && scrapingSection.style.display === 'none') {
-            scanningSection.style.display = 'none';
-            scrapingSection.style.display = 'block';
-        }
-
-        // Update scraping progress bar
-        if (scrapingProgressBar && scrapingPercent && scrapingSection && scrapingSection.style.display !== 'none') {
-            scrapingProgressBar.style.width = `${scrapingPercentage}%`;
-            scrapingProgressBar.textContent = `${scrapingPercentage}%`;
-            // Keep percentage label static at 100%
-            scrapingPercent.textContent = '100%';
-        }
-
-        // Update message
         if (progressMessage && message) {
             progressMessage.textContent = message;
         }
 
-        // Update status and count
+        const isComplete = stage === 'complete' || stage === 'saving';
+        const isCancelled = stage === 'cancelled';
+        const isError = stage === 'error';
+
         if (progressStatus) {
-            if (isScanning) {
-                progressStatus.textContent = 'Scanning...';
-            } else if (isScraping) {
-                progressStatus.textContent = 'Scraping...';
-            } else if (isComplete) {
-                progressStatus.textContent = 'Complete!';
+            if (isCancelled) {
+                progressStatus.textContent = 'Cancelled';
             } else if (isError) {
                 progressStatus.textContent = 'Error';
+            } else if (isComplete) {
+                progressStatus.textContent = 'Complete!';
+            } else if (stage === 'importing') {
+                progressStatus.textContent = 'Importing...';
+            } else if (stage === 'scraping_products') {
+                progressStatus.textContent = 'Scraping...';
+            } else {
+                progressStatus.textContent = 'Working...';
             }
         }
 
         if (progressCount) {
-            const countText = productsFound > 0 ? `${productsFound} products found` : (isScanning ? 'Scanning website...' : 'Scraping products...');
-            progressCount.textContent = countText;
+            if (productsFound > 0) {
+                progressCount.textContent = `${productsFound} products found`;
+            } else if (isCancelled) {
+                progressCount.textContent = 'Stopped';
+            } else {
+                progressCount.textContent = 'In progress...';
+            }
         }
     }
 
     closeProgressModal() {
+        this.clearActiveLongTask();
         const modal = document.getElementById('progressModal');
         if (modal) {
             document.body.removeChild(modal);
@@ -7078,12 +7549,16 @@ async function matchProductsToBrands() {
 
 async function scrapeProducts() {
     const app = window.adminApp;
+    const abortController = new AbortController();
 
     try {
         app.showNotification('Starting product scraping from HM Herbs website...', 'info');
-
-        // Show progress modal
         app.showProgressModal('Scraping Products', 'Initializing and scanning website structure...');
+        app.registerActiveLongTask({
+            type: 'scrape',
+            abortController,
+            cancelUrl: `${app.apiBaseUrl}/admin/scrape-products/cancel`
+        });
 
         const response = await fetch(`${app.apiBaseUrl}/admin/scrape-products?progress=true`, {
             method: 'POST',
@@ -7091,78 +7566,92 @@ async function scrapeProducts() {
                 'Authorization': `Bearer ${app.authToken}`,
                 'Content-Type': 'application/json',
                 'Accept': 'text/event-stream'
-            }
+            },
+            signal: abortController.signal
         });
 
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
 
-        // Read SSE stream
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
 
-        try {
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
 
-                buffer += decoder.decode(value, { stream: true });
-                const lines = buffer.split('\n');
-                buffer = lines.pop() || '';
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
 
-                for (const line of lines) {
-                    // Skip empty lines and comments
-                    if (!line.trim() || line.startsWith(':')) continue;
+            for (const line of lines) {
+                if (!line.trim() || line.startsWith(':')) continue;
 
-                    if (line.startsWith('data: ')) {
-                        try {
-                            const jsonStr = line.slice(6).trim();
-                            if (!jsonStr) continue;
+                if (line.startsWith('data: ')) {
+                    try {
+                        const jsonStr = line.slice(6).trim();
+                        if (!jsonStr) continue;
 
-                            const data = JSON.parse(jsonStr);
-                            console.log('Received SSE data:', data);
+                        const data = JSON.parse(jsonStr);
 
-                            if (data.type === 'complete') {
-                                const productsFound = data.productsFound || 0;
-                                const report = data.report || null;
-                                app.updateProgressModal(100, `Scraping complete! Found ${productsFound} products.`, productsFound, 'complete');
-                                app.showNotification(`Successfully scraped ${productsFound} products!`, 'success');
-                                app.loadProducts(); // Reload products table
-                                setTimeout(() => {
-                                    app.closeProgressModal();
-                                    if (report) {
-                                        app.showScrapingReport(report);
-                                    }
-                                }, 2000);
-                                return;
-                            } else if (data.type === 'error') {
-                                app.updateProgressModal(0, `Error: ${data.error || 'Scraping failed'}`, 0, 'error');
-                                throw new Error(data.error || 'Scraping failed');
-                            } else {
-                                // Progress update - ensure minimum 1% is shown
-                                const percentage = Math.max(1, data.percentage || 1);
-                                const message = data.message || 'Scanning website...';
-                                const productsFound = data.productsFound || 0;
-                                const stage = data.stage || null;
-                                console.log('Progress update:', percentage + '%', message, productsFound + ' products', 'stage:', stage);
-                                app.updateProgressModal(percentage, message, productsFound, stage);
-                            }
-                        } catch (e) {
-                            console.error('Error parsing SSE data:', e);
+                        if (data.type === 'complete') {
+                            const productsFound = data.productsFound || 0;
+                            const report = data.report || null;
+                            app.updateProgressModal(100, `Scraping complete! Found ${productsFound} products.`, productsFound, 'complete');
+                            app.showNotification(`Successfully scraped ${productsFound} products!`, 'success');
+                            app.loadProducts();
+                            setTimeout(() => {
+                                app.closeProgressModal();
+                                if (report) {
+                                    app.showScrapingReport(report);
+                                }
+                            }, 2000);
+                            return;
                         }
+                        if (data.type === 'cancelled') {
+                            const productsFound = data.productsFound || 0;
+                            app.updateProgressModal(
+                                productsFound > 0 ? 50 : 0,
+                                data.message || 'Scraping cancelled',
+                                productsFound,
+                                'cancelled'
+                            );
+                            app.showNotification(data.message || 'Scraping cancelled', 'info');
+                            setTimeout(() => app.closeProgressModal(), 1500);
+                            return;
+                        }
+                        if (data.type === 'error') {
+                            app.updateProgressModal(0, `Error: ${data.error || 'Scraping failed'}`, 0, 'error');
+                            throw new Error(data.error || 'Scraping failed');
+                        }
+
+                        const percentage = data.percentage ?? 0;
+                        const message = data.message || 'Working...';
+                        const productsFound = data.productsFound || 0;
+                        const stage = data.stage || null;
+                        app.updateProgressModal(percentage, message, productsFound, stage);
+                    } catch (e) {
+                        if (e.name === 'AbortError') throw e;
+                        console.error('Error parsing SSE data:', e);
                     }
                 }
             }
-        } catch (error) {
-            throw error;
         }
     } catch (error) {
+        if (error.name === 'AbortError') {
+            app.updateProgressModal(0, 'Scraping cancelled', 0, 'cancelled');
+            app.showNotification('Scraping cancelled', 'info');
+            setTimeout(() => app.closeProgressModal(), 1500);
+            return;
+        }
         console.error('Scraping error:', error);
         app.updateProgressModal(0, `Error: ${error.message}`, 0, 'error');
         app.showNotification(`Scraping failed: ${error.message}`, 'error');
         setTimeout(() => app.closeProgressModal(), 5000);
+    } finally {
+        app.clearActiveLongTask();
     }
 }
 
@@ -7301,6 +7790,7 @@ function createProductModal(title, formId, isEdit = false) {
     // Add remaining fields
     fields.push(
         { type: 'input', label: 'Price *', id: `${isEdit ? 'edit' : 'add'}-price`, name: 'price', inputType: 'number', step: '0.01', min: '0', required: true },
+        { type: 'input', label: 'Cost', id: `${isEdit ? 'edit' : 'add'}-cost-price`, name: 'cost_price', inputType: 'number', step: '0.01', min: '0' },
         { type: 'input', label: 'Compare Price', id: `${isEdit ? 'edit' : 'add'}-compare-price`, name: 'compare_price', inputType: 'number', step: '0.01', min: '0' },
         { type: 'input', label: 'Inventory Quantity *', id: `${isEdit ? 'edit' : 'add'}-inventory`, name: 'inventory_quantity', inputType: 'number', min: '0', required: true },
         { type: 'input', label: 'Low Stock Threshold', id: `${isEdit ? 'edit' : 'add'}-low-stock`, name: 'low_stock_threshold', inputType: 'number', min: '0', value: '10' },
@@ -7348,11 +7838,11 @@ function createProductModal(title, formId, isEdit = false) {
         const isBasicInfo = field.name === 'sku' || field.name === 'name' ||
             field.name === 'short_description' || field.name === 'long_description' ||
             field.name === 'health_categories';
-        const isPricing = field.name === 'price' || field.name === 'compare_price' ||
+        const isPricing = field.name === 'price' || field.name === 'compare_price' || field.name === 'cost_price' ||
             field.name === 'inventory_quantity' || field.name === 'low_stock_threshold' ||
             field.name === 'brand_id' || field.name === 'category_id' ||
             field.name === 'weight';
-        const isRowField = (field.label.includes('Price') && field.label !== 'Compare Price') ||
+        const isRowField = field.name === 'price' || field.name === 'cost_price' || field.name === 'compare_price' ||
             (field.label.includes('Brand') || field.label.includes('Category')) ||
             (field.label.includes('Inventory') || field.label.includes('Low Stock'));
 
@@ -7458,6 +7948,52 @@ function createProductModal(title, formId, isEdit = false) {
     // Add sections to form
     form.appendChild(basicInfoSection);
     form.appendChild(pricingSection);
+
+    if (isEdit) {
+        const octoposCostSection = document.createElement('div');
+        octoposCostSection.style.marginBottom = '2rem';
+        octoposCostSection.style.paddingBottom = '1.5rem';
+        octoposCostSection.style.borderBottom = '1px solid var(--gray-200)';
+        const octTitle = document.createElement('h3');
+        octTitle.textContent = 'Octopos cost';
+        octTitle.style.fontSize = '1.1rem';
+        octTitle.style.fontWeight = '600';
+        octTitle.style.color = 'var(--primary-green)';
+        octTitle.style.marginBottom = '0.75rem';
+        octoposCostSection.appendChild(octTitle);
+        const octHelp = document.createElement('p');
+        octHelp.style.margin = '0 0 1rem';
+        octHelp.style.fontSize = '0.875rem';
+        octHelp.style.color = 'var(--gray-600)';
+        octHelp.textContent = 'Pull cost from your Octopos catalog (matched by SKU). Saving the product also pushes cost to Octopos when linked.';
+        octoposCostSection.appendChild(octHelp);
+        const octStatus = document.createElement('p');
+        octStatus.id = 'edit-octopos-cost-status';
+        octStatus.style.margin = '0 0 0.75rem';
+        octStatus.style.fontSize = '0.85rem';
+        octStatus.style.color = 'var(--gray-500)';
+        octStatus.textContent = 'Octopos link: not loaded yet';
+        octoposCostSection.appendChild(octStatus);
+        const octBtns = document.createElement('div');
+        octBtns.style.display = 'flex';
+        octBtns.style.flexWrap = 'wrap';
+        octBtns.style.gap = '0.5rem';
+        const pullBtn = document.createElement('button');
+        pullBtn.type = 'button';
+        pullBtn.className = 'btn btn-secondary btn-sm';
+        pullBtn.id = 'edit-pull-octopos-cost-btn';
+        pullBtn.innerHTML = '<i class="fas fa-download" aria-hidden="true"></i> Pull cost from Octopos';
+        const pushBtn = document.createElement('button');
+        pushBtn.type = 'button';
+        pushBtn.className = 'btn btn-secondary btn-sm';
+        pushBtn.id = 'edit-push-octopos-cost-btn';
+        pushBtn.innerHTML = '<i class="fas fa-upload" aria-hidden="true"></i> Push cost to Octopos';
+        octBtns.appendChild(pullBtn);
+        octBtns.appendChild(pushBtn);
+        octoposCostSection.appendChild(octBtns);
+        form.appendChild(octoposCostSection);
+    }
+
     if (additionalSection.children.length > 0) {
         form.appendChild(additionalSection);
     }
@@ -8044,7 +8580,7 @@ function createProductModal(title, formId, isEdit = false) {
     const cancelBtn = document.createElement('button');
     cancelBtn.setAttribute('type', 'button');
     cancelBtn.textContent = 'Cancel';
-    cancelBtn.className = 'btn btn-secondary';
+    cancelBtn.className = 'btn btn-danger';
     cancelBtn.style.padding = '0.875rem 1.75rem';
     cancelBtn.style.fontSize = '0.9375rem';
     cancelBtn.onclick = function () { this.closest('.modal').remove(); };
@@ -8215,7 +8751,32 @@ async function loadProductForEdit(productId) {
             document.getElementById('edit-short-description').value = product.short_description || '';
             document.getElementById('edit-long-description').value = product.long_description || '';
             document.getElementById('edit-price').value = product.price || '';
+            const costEl = document.getElementById('edit-cost-price');
+            if (costEl) costEl.value = product.cost_price != null ? product.cost_price : '';
             document.getElementById('edit-compare-price').value = product.compare_price || '';
+            const octStatus = document.getElementById('edit-octopos-cost-status');
+            if (octStatus) {
+                if (product.octopos_product_id) {
+                    const synced = product.cost_synced_at
+                        ? ` · last sync ${new Date(product.cost_synced_at).toLocaleString()}`
+                        : '';
+                    octStatus.textContent = `Linked to Octopos product #${product.octopos_product_id}${synced}`;
+                    octStatus.style.color = 'var(--gray-600)';
+                } else {
+                    octStatus.textContent = 'Not linked to Octopos — use Pull cost from Octopos to match by SKU.';
+                    octStatus.style.color = 'var(--gray-500)';
+                }
+            }
+            const pullOctBtn = document.getElementById('edit-pull-octopos-cost-btn');
+            if (pullOctBtn && !pullOctBtn.dataset.bound) {
+                pullOctBtn.dataset.bound = '1';
+                pullOctBtn.addEventListener('click', () => window.adminApp.syncOneProductCostFromOctopos(productId));
+            }
+            const pushOctBtn = document.getElementById('edit-push-octopos-cost-btn');
+            if (pushOctBtn && !pushOctBtn.dataset.bound) {
+                pushOctBtn.dataset.bound = '1';
+                pushOctBtn.addEventListener('click', () => window.adminApp.pushOneProductCostToOctopos(productId));
+            }
             document.getElementById('edit-inventory').value = product.inventory_quantity || '';
             document.getElementById('edit-low-stock').value = product.low_stock_threshold || '';
             document.getElementById('edit-weight').value = product.weight || '';
@@ -8743,7 +9304,7 @@ function createBrandModal(title, formId, isEdit = false) {
     const cancelBtn = document.createElement('button');
     cancelBtn.setAttribute('type', 'button');
     cancelBtn.textContent = 'Cancel';
-    cancelBtn.className = 'btn btn-secondary';
+    cancelBtn.className = 'btn btn-danger';
     cancelBtn.style.padding = '0.875rem 1.75rem';
     cancelBtn.style.fontSize = '0.9375rem';
     cancelBtn.onclick = function () { this.closest('.modal').remove(); };
@@ -9271,7 +9832,7 @@ function createCategoryModal(title, formId, isEdit = false) {
     const cancelBtn = document.createElement('button');
     cancelBtn.setAttribute('type', 'button');
     cancelBtn.textContent = 'Cancel';
-    cancelBtn.className = 'btn btn-secondary';
+    cancelBtn.className = 'btn btn-danger';
     cancelBtn.style.padding = '0.875rem 1.75rem';
     cancelBtn.style.fontSize = '0.9375rem';
     cancelBtn.onclick = function () { this.closest('.modal').remove(); };
@@ -9655,6 +10216,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const marketingHubForm = document.getElementById('marketing-hub-form');
     if (marketingHubForm && window.adminApp) {
         marketingHubForm.addEventListener('submit', (ev) => window.adminApp.saveMarketingHub(ev));
+    }
+    const adminTeamForm = document.getElementById('admin-team-create-form');
+    if (adminTeamForm && window.adminApp) {
+        adminTeamForm.addEventListener('submit', (ev) => window.adminApp.handleCreateTeamMember(ev));
+    }
+    const adminTeamRefresh = document.getElementById('admin-team-refresh-btn');
+    if (adminTeamRefresh && window.adminApp) {
+        adminTeamRefresh.addEventListener('click', () => window.adminApp.loadAdminTeam());
+    }
+    const employeeDiscountForm = document.getElementById('employee-discount-settings-form');
+    if (employeeDiscountForm && window.adminApp) {
+        employeeDiscountForm.addEventListener('submit', (ev) => window.adminApp.saveEmployeeDiscountSettings(ev));
+    }
+    const employeeDiscountReloadBtn = document.getElementById('employee-discount-reload-btn');
+    if (employeeDiscountReloadBtn && window.adminApp) {
+        employeeDiscountReloadBtn.addEventListener('click', () => window.adminApp.loadEmployeeDiscountSettings());
     }
     const storeInfoForm = document.getElementById('store-info-settings-form');
     if (storeInfoForm && window.adminApp) {

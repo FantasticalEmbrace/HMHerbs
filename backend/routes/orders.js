@@ -110,7 +110,7 @@ async function getAuthenticatedUserFromRequest(req) {
         if (!Number.isInteger(userId) || userId <= 0) return null;
 
         const [rows] = await req.pool.execute(
-            'SELECT id, email, tax_exempt, tax_exempt_id FROM users WHERE id = ? LIMIT 1',
+            'SELECT id, email, tax_exempt, tax_exempt_id, customer_type FROM users WHERE id = ? LIMIT 1',
             [userId]
         );
         return rows[0] || null;
@@ -184,7 +184,8 @@ router.post('/', async (req, res) => {
                 cartItems: normalizedItems,
                 promoCode: String(rawPromoCode || '').trim(),
                 email: orderEmail,
-                applyTaxExemption
+                applyTaxExemption,
+                customerType: authUser?.customer_type
             });
         } catch (promoErr) {
             const mapped = mapCheckoutPromoHttpError(promoErr);

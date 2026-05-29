@@ -180,11 +180,13 @@ router.post('/process-payment', async (req, res) => {
         }));
 
         let applyTaxExemption = false;
+        let customerType = null;
         if (orderRow.user_id) {
             const [[user]] = await req.pool.execute(
-                'SELECT tax_exempt, tax_exempt_id FROM users WHERE id = ? LIMIT 1',
+                'SELECT tax_exempt, tax_exempt_id, customer_type FROM users WHERE id = ? LIMIT 1',
                 [orderRow.user_id]
             );
+            customerType = user?.customer_type;
             const hasTaxExemptProof = Boolean(user?.tax_exempt_id && String(user.tax_exempt_id).trim().length >= 3);
             applyTaxExemption = Boolean(user?.tax_exempt) && hasTaxExemptProof;
         }
@@ -195,7 +197,8 @@ router.post('/process-payment', async (req, res) => {
                 cartItems: normalized,
                 promoCode: String(orderRow.promo_code || '').trim(),
                 email: orderRow.email,
-                applyTaxExemption
+                applyTaxExemption,
+                customerType
             });
         } catch (e) {
             logger.error('NMI price recheck failed:', e);

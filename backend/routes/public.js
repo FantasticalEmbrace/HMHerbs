@@ -303,13 +303,11 @@ router.get('/email-campaign/offer-types', (req, res) => {
 // Newsletter signup landing (Mailchimp) — data file merged with MAILCHIMP_SIGNUP_LANDING_URL fallback
 router.get('/marketing-signup', async (req, res) => {
     try {
-        const { mergedPublicConfig, mailchimpEnvStatus } = require('../services/marketingSettings');
+        const { mergedPublicConfig } = require('../services/marketingSettings');
         const cfg = mergedPublicConfig();
-        const envBits = mailchimpEnvStatus();
         res.json({
             signupLandingUrl: cfg.signupLandingUrl,
-            headline: cfg.headline,
-            mailchimpConfigured: Boolean(envBits.configured)
+            headline: cfg.headline
         });
     } catch (error) {
         logger.error('Marketing signup fetch error:', error);

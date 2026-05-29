@@ -13,15 +13,15 @@ WHERE email = 'hmherbs1@gmail.com';
 
 -- If admin doesn't exist, create it:
 INSERT INTO admin_users (email, password_hash, first_name, last_name, role, is_active, created_at, updated_at)
-SELECT 'admin@hmherbs.com', 
+SELECT 'hmherbs1@gmail.com',
        '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj6hsxq5S/kS',
-       'Admin', 
-       'User', 
-       'super_admin', 
-       1, 
-       NOW(), 
+       'Admin',
+       'User',
+       'admin',
+       1,
+       NOW(),
        NOW()
 WHERE NOT EXISTS (
-    SELECT 1 FROM admin_users WHERE email = 'admin@hmherbs.com'
+    SELECT 1 FROM admin_users WHERE email = 'hmherbs1@gmail.com'
 );
 

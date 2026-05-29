@@ -570,6 +570,235 @@
         /* Tables */
         .table-container {
             overflow-x: auto;
+            overflow-y: visible;
+            width: 100%;
+            max-width: 100%;
+            -webkit-overflow-scrolling: touch;
+            border-radius: var(--border-radius);
+        }
+
+        /* Wide admin tables (customers, etc.) — scroll inside card without clipping first columns */
+        .card--table-scroll {
+            overflow: visible;
+        }
+
+        .card--table-scroll > .card-content {
+            overflow: visible;
+        }
+
+        .admin-wide-table-wrap {
+            overflow-x: auto;
+            overflow-y: visible;
+            width: 100%;
+            max-width: 100%;
+            margin: 0;
+            padding: 0;
+            -webkit-overflow-scrolling: touch;
+            border: 1px solid var(--gray-200);
+            border-radius: var(--border-radius-lg);
+            background: var(--white);
+        }
+
+        .admin-wide-table-wrap .table {
+            width: 100%;
+            min-width: 76rem;
+            margin: 0;
+            table-layout: fixed;
+        }
+
+        .admin-wide-table-wrap .table th,
+        .admin-wide-table-wrap .table td {
+            overflow: hidden;
+            vertical-align: middle;
+        }
+
+        .cell-ellipsis {
+            display: block;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            vertical-align: middle;
+        }
+
+        /* Customers table: 1=# 2=name 3=email 4=phone */
+        .admin-wide-table-wrap .table th:nth-child(1),
+        .admin-wide-table-wrap .table td:nth-child(1) {
+            width: 6.5rem;
+        }
+
+        .admin-wide-table-wrap .table th:nth-child(2),
+        .admin-wide-table-wrap .table td:nth-child(2) {
+            width: 9rem;
+            white-space: normal;
+            word-break: break-word;
+            overflow: hidden;
+        }
+
+        .admin-wide-table-wrap .table th:nth-child(3),
+        .admin-wide-table-wrap .table td:nth-child(3) {
+            width: 14rem;
+            max-width: 14rem;
+            overflow: hidden;
+        }
+
+        .admin-wide-table-wrap .table th:nth-child(4),
+        .admin-wide-table-wrap .table td:nth-child(4) {
+            width: 7.5rem;
+            white-space: nowrap;
+        }
+
+        .admin-wide-table-wrap .table th:nth-child(5),
+        .admin-wide-table-wrap .table td:nth-child(5) {
+            width: 5.5rem;
+        }
+
+        .admin-wide-table-wrap .table th:nth-child(6),
+        .admin-wide-table-wrap .table td:nth-child(6),
+        .admin-wide-table-wrap .table th:nth-child(7),
+        .admin-wide-table-wrap .table td:nth-child(7) {
+            width: 5rem;
+            white-space: nowrap;
+        }
+
+        .admin-wide-table-wrap .table th:nth-child(8),
+        .admin-wide-table-wrap .table td:nth-child(8) {
+            width: 7.5rem;
+            white-space: normal;
+        }
+
+        .admin-wide-table-wrap .table th:nth-child(9),
+        .admin-wide-table-wrap .table td:nth-child(9) {
+            width: 7rem;
+            white-space: nowrap;
+        }
+
+        .admin-wide-table-wrap .table th:nth-child(10),
+        .admin-wide-table-wrap .table td:nth-child(10) {
+            width: 6.75rem;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }
+
+        .admin-wide-table-wrap .table th:nth-child(11),
+        .admin-wide-table-wrap .table td:nth-child(11) {
+            width: 7.5rem;
+            min-width: 7.5rem;
+            overflow: hidden;
+        }
+
+        .admin-wide-table-wrap .admin-row-actions {
+            display: flex;
+            gap: 0.35rem;
+            justify-content: flex-end;
+            align-items: center;
+            flex-wrap: nowrap;
+            max-width: 100%;
+        }
+
+        .admin-wide-table-wrap .admin-row-actions .btn-sm {
+            flex-shrink: 0;
+            min-width: 2.25rem;
+            padding: 0.4rem 0.55rem;
+        }
+
+        /* Products table — fit desktop content area without horizontal scroll */
+        .admin-products-table-wrap {
+            overflow-x: auto;
+            width: 100%;
+            max-width: 100%;
+            margin: 0;
+            padding: 0;
+            border: 1px solid var(--gray-200);
+            border-radius: var(--border-radius-lg);
+            background: var(--white);
+        }
+
+        .admin-products-table-wrap .table {
+            width: 100%;
+            min-width: 0;
+            margin: 0;
+            table-layout: fixed;
+            font-size: 0.8125rem;
+        }
+
+        .admin-products-table-wrap .table th,
+        .admin-products-table-wrap .table td {
+            padding: 0.5rem 0.45rem;
+            overflow: hidden;
+            vertical-align: middle;
+        }
+
+        .admin-products-table-wrap .table th {
+            font-size: 0.7rem;
+            letter-spacing: 0.03em;
+        }
+
+        .admin-products-table-wrap .product-name-cell {
+            min-width: 0;
+        }
+
+        .admin-products-table-wrap .product-name-primary {
+            display: block;
+            font-weight: 600;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            line-height: 1.3;
+        }
+
+        .admin-products-table-wrap .product-name-meta {
+            display: block;
+            font-size: 0.72rem;
+            color: var(--gray-500);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            margin-top: 0.15rem;
+        }
+
+        .admin-products-table-wrap .col-money {
+            white-space: nowrap;
+            text-align: right;
+        }
+
+        .admin-products-table-wrap .col-stock,
+        .admin-products-table-wrap .col-status {
+            white-space: nowrap;
+            text-align: center;
+        }
+
+        .admin-products-table-wrap .col-sku code {
+            font-size: 0.75rem;
+            word-break: break-all;
+            white-space: normal;
+            line-height: 1.2;
+        }
+
+        .admin-products-table-wrap .status-inline {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.25rem;
+            flex-wrap: nowrap;
+        }
+
+        .admin-products-table-wrap .admin-row-actions {
+            display: flex;
+            gap: 0.3rem;
+            justify-content: flex-end;
+            flex-wrap: nowrap;
+        }
+
+        .admin-products-table-wrap .admin-row-actions .btn-sm {
+            min-width: 2rem;
+            padding: 0.35rem 0.45rem;
+        }
+
+        @media (max-width: 900px) {
+            .admin-products-table-wrap .table {
+                min-width: 40rem;
+            }
         }
 
         /* EDSA appointment calendar */
@@ -1323,13 +1552,13 @@
             transition: all 0.2s ease;
         }
 
-        .form-actions button[type="button"] {
+        .form-actions button[type="button"]:not(.btn-danger) {
             background-color: var(--gray-100);
             border: 1px solid var(--gray-300);
             color: var(--gray-700);
         }
 
-        .form-actions button[type="button"]:hover {
+        .form-actions button[type="button"]:not(.btn-danger):hover {
             background-color: var(--gray-200);
         }
 
@@ -1414,6 +1643,102 @@
         /* Section spacing */
         .content-section {
             padding-bottom: 2rem;
+        }
+
+        /* Stack cards/forms in Marketing, Settings & Personnel (consistent gap, no margin collapse) */
+        .admin-section-stack {
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+            width: 100%;
+        }
+
+        .admin-section-stack > .card,
+        .admin-section-stack > form {
+            margin-bottom: 0;
+            flex-shrink: 0;
+        }
+
+        #marketing .content-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.5rem;
+        }
+
+        #marketing .content-header .page-subtitle {
+            width: 100%;
+            margin: 0;
+        }
+
+        #marketing .admin-section-stack > .card {
+            overflow: visible;
+        }
+
+        .personnel-table-wrap {
+            overflow-x: auto;
+            border: 1px solid var(--gray-200);
+            border-radius: var(--border-radius-lg);
+            background: var(--white);
+        }
+
+        .personnel-table-wrap .table {
+            margin: 0;
+        }
+
+        .personnel-table-wrap .table th {
+            background: var(--gray-50);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--gray-600);
+            white-space: nowrap;
+        }
+
+        .personnel-table-wrap .table tbody tr:hover {
+            background: rgba(45, 90, 39, 0.04);
+        }
+
+        .personnel-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+            align-items: center;
+            justify-content: flex-end;
+        }
+
+        .personnel-role-select {
+            min-width: 9.5rem;
+            font-size: 0.8125rem;
+            padding: 0.35rem 0.5rem;
+        }
+
+        .badge-role-admin {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .badge-role-manager {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .badge-role-assistant {
+            background: #e0e7ff;
+            color: #3730a3;
+        }
+
+        .badge-role-marketing {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .personnel-you-tag {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: var(--primary-green);
+            margin-left: 0.35rem;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
         }
 
         /* Empty state improvements */
@@ -1516,16 +1841,21 @@
                 flex-wrap: wrap;
             }
 
-            .table-container {
+            .table-container,
+            .admin-wide-table-wrap {
                 overflow-x: auto;
                 -webkit-overflow-scrolling: touch;
-                margin: 0 -1rem;
-                padding: 0 1rem;
+                margin: 0;
+                padding: 0;
             }
 
             .table {
-                min-width: 600px;
+                min-width: 48rem;
                 font-size: 0.875rem;
+            }
+
+            .admin-wide-table-wrap .table {
+                min-width: 68rem;
             }
 
             .table th,
@@ -1588,17 +1918,9 @@
             }
         }
 
-        /* Action buttons spacing */
-        .table td:last-child {
+        /* Action buttons spacing (generic tables) */
+        .table td:last-child:not(.col-actions) {
             white-space: nowrap;
-        }
-
-        .table td:last-child .btn {
-            margin-right: 0.25rem;
-        }
-
-        .table td:last-child .btn:last-child {
-            margin-right: 0;
         }
 
         /* Promo start/end — scrollable lists + 12-hour + AM/PM (native datetime-local cannot force scrollbars) */
@@ -1795,7 +2117,7 @@
                         <i class="fas fa-check-circle"></i> Password reset link sent! Check your email.
                     </div>
                     <div style="display: flex; gap: 0.5rem;">
-                        <button type="button" class="btn btn-secondary" id="cancelForgotPassword"
+                        <button type="button" class="btn btn-danger" id="cancelForgotPassword"
                             style="flex: 1;">Cancel</button>
                         <button type="submit" class="btn btn-primary" style="flex: 1;">Send Reset Link</button>
                     </div>
@@ -1927,6 +2249,12 @@
                             Marketing
                         </a>
                     </div>
+                    <div class="nav-item" id="nav-personnel-item">
+                        <a href="#" class="nav-link" data-section="personnel">
+                            <i class="fas fa-users"></i>
+                            Personnel
+                        </a>
+                    </div>
                     <div class="nav-item">
                         <a href="#" class="nav-link" data-section="settings">
                             <i class="fas fa-cog"></i>
@@ -2046,7 +2374,7 @@
             <section id="products" class="content-section">
                 <div class="content-header">
                     <h1 class="page-title">Products</h1>
-                    <div class="button-group">
+                    <div class="button-group products-header-actions">
                         <button type="button" class="btn btn-secondary" onclick="scrapeProducts()">
                             <i class="fas fa-download"></i>
                             Scrape HM Herbs
@@ -2061,6 +2389,11 @@
                             <i class="fas fa-tags"></i>
                             Match Products to Categories
                         </button>
+                        <button type="button" class="btn btn-secondary"
+                            onclick="window.adminApp.syncProductCostsFromOctopos()">
+                            <i class="fas fa-sync-alt"></i>
+                            Sync costs from Octopos
+                        </button>
                         <button type="button" class="btn btn-primary" onclick="showAddProduct()">
                             <i class="fas fa-plus"></i>
                             Add Product
@@ -2068,7 +2401,7 @@
                     </div>
                 </div>
 
-                <div class="card">
+                <div class="card card--table-scroll">
                     <div class="card-content">
                         <div
                             style="margin-bottom: 1.5rem; display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-end;">
@@ -2303,7 +2636,7 @@
                     </div>
                 </div>
 
-                <div class="card">
+                <div class="card card--table-scroll">
                     <div class="card-content">
                         <div style="margin-bottom: 1.5rem; display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-end;">
                             <div style="position: relative; flex: 1; min-width: 250px;">
@@ -2328,9 +2661,7 @@
                                 <select id="customersTypeFilter" class="form-input" style="width: 100%;">
                                     <option value="">All</option>
                                     <option value="retail">Retail</option>
-                                    <option value="wholesale">Wholesale</option>
                                     <option value="employee">Employee</option>
-                                    <option value="staff">Staff</option>
                                 </select>
                             </div>
                             <div style="min-width: 160px;">
@@ -2566,28 +2897,114 @@
                 <div class="content-header">
                     <h1 class="page-title">Marketing</h1>
                     <p class="page-subtitle" style="color: var(--gray-600); font-size: 0.95rem;">
-                        Newsletter signup uses your Mailchimp landing page as the single source of truth. Checkout promotions are priced server-side — customers cannot tamper with product prices or discounts in the cart.
+                        Newsletter signups go to your Mailchimp page. Checkout discounts are calculated on the server so shoppers cannot change prices in the cart.
                     </p>
                 </div>
 
-                <div class="card" style="margin-bottom: var(--space-6);">
+                <div class="admin-section-stack">
+                <div class="card">
                     <div class="card-content">
-                        <h3 style="margin: 0 0 0.5rem 0;">Mailchimp &amp; signup link</h3>
-                        <p id="marketing-mailchimp-status" style="margin: 0 0 1rem 0; font-size: 0.92rem;"></p>
+                        <h3 style="margin: 0 0 0.5rem 0;">Newsletter signup</h3>
                         <p style="margin: 0 0 1rem 0; color: var(--gray-600); font-size: 0.88rem;">
-                            Store the public signup URL shown on the site popup and banners. Automated Mailchimp features still need <code>MAILCHIMP_API_KEY</code>, <code>MAILCHIMP_AUDIENCE_ID</code>, and optional <code>MAILCHIMP_SIGNUP_LANDING_URL</code> in <code>backend/.env</code>.
+                            Paste the link to your Mailchimp signup page (Audience → Signup forms → Share in Mailchimp). Visitors who click Subscribe on the site go there. Your Mailchimp manager can send you this link if you do not have it.
                         </p>
                         <form id="marketing-hub-form">
                             <div class="form-group">
-                                <label for="marketing-signup-url">Signup landing URL</label>
+                                <label for="marketing-signup-url">Mailchimp signup page link</label>
                                 <input class="form-input" id="marketing-signup-url" name="signupLandingUrl" type="url" maxlength="500" placeholder="https://mailchi.mp/...">
                             </div>
                             <div class="form-group">
-                                <label for="marketing-newsletter-headline">Headline shown to ops (popup copy stays in site templates)</label>
+                                <label for="marketing-newsletter-headline">Internal note (headline)</label>
                                 <input class="form-input" id="marketing-newsletter-headline" name="headline" type="text" maxlength="200" placeholder="Sign up for Exclusive Discounts">
                             </div>
                             <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save marketing settings</button>
                         </form>
+                    </div>
+                </div>
+
+                <div class="card" id="promo-banner-settings-card">
+                    <div class="card-content">
+                        <h3 style="margin: 0 0 0.25rem 0;">Site-wide promo banner</h3>
+                        <p style="margin: 0 0 1rem 0; color: var(--gray-600); font-size: 0.92rem;">
+                            Thin bar at the top of every storefront page. Pick a visual style, add a headline, optional subline, and CTA link.
+                        </p>
+                        <div class="form-group">
+                            <label><input type="checkbox" id="promo-enabled"> Show banner on storefront</label>
+                        </div>
+                        <div class="form-group">
+                            <label for="promo-preset">Banner style</label>
+                            <select class="form-input" id="promo-preset">
+                                <option value="sale">Sale / savings (brand green gradient)</option>
+                                <option value="flash">Flash / urgent (red gradient)</option>
+                                <option value="holiday">Holiday / seasonal (deep green + gold accent)</option>
+                                <option value="info">Informational (blue)</option>
+                                <option value="custom">Custom colors</option>
+                            </select>
+                        </div>
+                        <div id="promo-custom-colors" style="display:none;">
+                            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:0.75rem;">
+                                <div class="form-group">
+                                    <label for="promo-custom-bg">Background</label>
+                                    <input class="form-input" id="promo-custom-bg" type="color" value="#2d5a27">
+                                </div>
+                                <div class="form-group">
+                                    <label for="promo-custom-text">Text</label>
+                                    <input class="form-input" id="promo-custom-text" type="color" value="#ffffff">
+                                </div>
+                                <div class="form-group">
+                                    <label for="promo-custom-accent">Button / accent</label>
+                                    <input class="form-input" id="promo-custom-accent" type="color" value="#fbbf24">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="promo-headline">Headline</label>
+                            <input class="form-input" id="promo-headline" type="text" maxlength="200" placeholder="Free delivery on orders over $50!">
+                        </div>
+                        <div class="form-group">
+                            <label for="promo-subline">Subline (optional)</label>
+                            <input class="form-input" id="promo-subline" type="text" maxlength="280" placeholder="Use code SAVE10 at checkout.">
+                        </div>
+                        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0.75rem;">
+                            <div class="form-group">
+                                <label for="promo-link-url">CTA link URL (optional)</label>
+                                <input class="form-input" id="promo-link-url" type="text" maxlength="500" placeholder="/product.html?slug=your-product — or https://…" spellcheck="false">
+                            </div>
+                            <div class="form-group">
+                                <label for="promo-link-label">CTA button label (optional)</label>
+                                <input class="form-input" id="promo-link-label" type="text" maxlength="80" placeholder="Shop the sale">
+                            </div>
+                        </div>
+                        <div class="form-group promo-product-link-field">
+                            <label for="promo-product-link-search">Link this promo to a product (optional)</label>
+                            <p style="margin:0 0 0.35rem 0;color:var(--gray-600);font-size:0.88rem;">
+                                Start typing a name or SKU — a dropdown list opens under this field so you can pick the exact product. (Or paste any URL above.)
+                            </p>
+                            <input type="text" class="form-input" id="promo-product-link-search" placeholder="Type to search products…"
+                                autocomplete="off" autocapitalize="off" spellcheck="false"
+                                aria-autocomplete="list" aria-expanded="false" aria-controls="promo-product-link-results" role="combobox">
+                            <div id="promo-product-link-results" class="promo-product-link-results-panel" role="listbox" aria-label="Matching products" hidden></div>
+                        </div>
+                        <div class="form-group">
+                            <label for="promo-icon">Icon (optional)</label>
+                            <p style="margin:0 0 0.5rem 0;color:var(--gray-600);font-size:0.88rem;">Type an emoji or short text, or upload a small image (PNG/WebP/SVG, max 512KB) from your machine.</p>
+                            <input class="form-input" id="promo-icon" type="text" maxlength="12" placeholder="Emoji or short marker, e.g. 🌿 or SALE">
+                            <input type="hidden" id="promo-icon-url" value="">
+                            <div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center;margin-top:0.5rem;">
+                                <label for="promo-icon-file" class="sr-only">Upload promo banner icon image</label>
+                                <input type="file" id="promo-icon-file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" style="max-width:100%;">
+                                <button type="button" class="btn btn-secondary btn-sm" id="promo-icon-upload-btn">Upload icon</button>
+                                <button type="button" class="btn btn-secondary btn-sm" id="promo-icon-clear-btn">Clear uploaded image</button>
+                            </div>
+                            <div id="promo-icon-preview-wrap" style="display:none;margin-top:0.5rem;">
+                                <span style="font-size:0.85rem;color:var(--gray-600);">Uploaded preview:</span>
+                                <img id="promo-icon-preview-img" alt="" style="display:block;margin-top:0.35rem;max-width:48px;max-height:48px;object-fit:contain;border:1px solid var(--gray-200);border-radius:6px;padding:2px;background:var(--gray-50);">
+                            </div>
+                        </div>
+                        <p data-promo-banner-save-msg style="min-height:1.25rem;font-size:0.9rem;margin:0.75rem 0 0;"></p>
+                        <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-top:0.35rem;">
+                            <button type="button" class="btn btn-primary" id="promo-banner-save-btn">Save promo banner</button>
+                        </div>
                     </div>
                 </div>
 
@@ -2844,6 +3261,73 @@
                         </div>
                     </div>
                 </div>
+                </div>
+            </section>
+
+            <!-- Personnel (admin team accounts) -->
+            <section id="personnel" class="content-section">
+                <div class="content-header">
+                    <h1 class="page-title">Personnel</h1>
+                    <p class="page-subtitle" style="color: var(--gray-600); font-size: 0.95rem; margin: 0.35rem 0 0; width: 100%;">
+                        Create and manage staff logins for the admin panel. There is no public sign-up.
+                    </p>
+                </div>
+
+                <div class="admin-section-stack">
+                    <div class="card">
+                        <div class="card-content">
+                            <h3 style="margin:0 0 0.25rem 0;">Add team member</h3>
+                            <p style="margin:0 0 1rem 0;color:var(--gray-600);font-size:0.9rem;">New accounts are active immediately — share login details securely.</p>
+                            <form id="admin-team-create-form" style="display:grid;gap:0.75rem;max-width:32rem;">
+                                <div class="form-group">
+                                    <label for="team-create-email">Email</label>
+                                    <input class="form-input" id="team-create-email" name="email" type="email" required maxlength="255" autocomplete="off">
+                                </div>
+                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+                                    <div class="form-group">
+                                        <label for="team-create-first">First name</label>
+                                        <input class="form-input" id="team-create-first" name="firstName" type="text" required maxlength="100">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="team-create-last">Last name</label>
+                                        <input class="form-input" id="team-create-last" name="lastName" type="text" required maxlength="100">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="team-create-role">Role</label>
+                                    <select class="form-input" id="team-create-role" name="role" required></select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="team-create-password">Temporary password</label>
+                                    <input class="form-input" id="team-create-password" name="password" type="password" required minlength="8" autocomplete="new-password">
+                                    <small class="form-help">At least 8 characters. Share securely; they can use Forgot password on the login screen.</small>
+                                </div>
+                                <button type="submit" class="btn btn-primary"><i class="fas fa-user-plus"></i> Create account</button>
+                                <p id="admin-team-form-msg" style="min-height:1.25rem;font-size:0.9rem;margin:0;"></p>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-content">
+                            <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:0.75rem;margin-bottom:1rem;">
+                                <div>
+                                    <h3 style="margin:0 0 0.25rem 0;">Current personnel</h3>
+                                    <p style="margin:0;color:var(--gray-600);font-size:0.9rem;">Change roles, promote, or remove staff logins.</p>
+                                </div>
+                                <button type="button" class="btn btn-secondary btn-sm" id="admin-team-refresh-btn">
+                                    <i class="fas fa-sync-alt" aria-hidden="true"></i> Refresh
+                                </button>
+                            </div>
+                            <div id="admin-team-list" class="personnel-list-mount">
+                                <div class="loading" style="padding:2rem;text-align:center;color:var(--gray-500);">
+                                    <div class="spinner" style="margin:0 auto 0.75rem;"></div>
+                                    Loading personnel…
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </section>
 
             <!-- Settings Section -->
@@ -2851,6 +3335,35 @@
                 <div class="content-header">
                     <h1 class="page-title">Settings</h1>
                 </div>
+
+                <div class="admin-section-stack">
+                <form id="employee-discount-settings-form">
+                <div class="card">
+                    <div class="card-content">
+                        <h3 style="margin: 0 0 0.25rem 0;">Employee discount</h3>
+                        <p style="margin: 0 0 1rem 0; color: var(--gray-600); font-size: 0.92rem;">
+                            Optional merchandise discount for signed-in customers marked <strong>Employee</strong> at checkout.
+                            Promo codes can still apply; the employee discount is taken from the remaining merchandise total.
+                        </p>
+                        <div class="form-group">
+                            <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
+                                <input type="checkbox" id="employee-discount-enabled" name="employee_discount_enabled" value="true">
+                                Enable employee discount
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label for="employee-discount-percent">Discount percent</label>
+                            <input class="form-input" id="employee-discount-percent" name="employee_discount_percent" type="number" min="0" max="100" step="0.5" placeholder="0" style="max-width:8rem;">
+                            <span style="margin-left:0.35rem;color:var(--gray-600);">% off merchandise</span>
+                        </div>
+                        <p data-employee-discount-save-msg style="min-height:1.25rem;font-size:0.9rem;margin:0.5rem 0 0;"></p>
+                        <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-top:0.25rem;">
+                            <button type="submit" class="btn btn-primary">Save employee discount</button>
+                            <button type="button" class="btn btn-secondary" id="employee-discount-reload-btn">Reload</button>
+                        </div>
+                    </div>
+                </div>
+                </form>
 
                 <form id="store-info-settings-form">
                 <div class="card">
@@ -2907,92 +3420,6 @@
                                     <label for="store-info-hours-sunday">Sunday Hours</label>
                                     <input class="form-input" id="store-info-hours-sunday" name="store_hours_sunday" type="text" maxlength="120" placeholder="Sun: Closed">
                                 </div>
-                            </div>
-                    </div>
-                </div>
-
-                <div class="card">
-                    <div class="card-content">
-                            <h3 style="margin: 0 0 0.25rem 0;">Site-wide promo banner</h3>
-                            <p style="margin: 0 0 1rem 0; color: var(--gray-600); font-size: 0.92rem;">
-                                Thin bar at the top of every storefront page. Pick a visual style, add a headline, optional subline, and CTA link.
-                            </p>
-                            <div class="form-group">
-                                <label><input type="checkbox" id="promo-enabled"> Show banner on storefront</label>
-                            </div>
-                            <div class="form-group">
-                                <label for="promo-preset">Banner style</label>
-                                <select class="form-input" id="promo-preset">
-                                    <option value="sale">Sale / savings (brand green gradient)</option>
-                                    <option value="flash">Flash / urgent (red gradient)</option>
-                                    <option value="holiday">Holiday / seasonal (deep green + gold accent)</option>
-                                    <option value="info">Informational (blue)</option>
-                                    <option value="custom">Custom colors</option>
-                                </select>
-                            </div>
-                            <div id="promo-custom-colors" style="display:none;">
-                                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:0.75rem;">
-                                    <div class="form-group">
-                                        <label for="promo-custom-bg">Background</label>
-                                        <input class="form-input" id="promo-custom-bg" type="color" value="#2d5a27">
-                                    </div>
-                                    <div class="form-group">
-                                        <label for="promo-custom-text">Text</label>
-                                        <input class="form-input" id="promo-custom-text" type="color" value="#ffffff">
-                                    </div>
-                                    <div class="form-group">
-                                        <label for="promo-custom-accent">Button / accent</label>
-                                        <input class="form-input" id="promo-custom-accent" type="color" value="#fbbf24">
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="form-group">
-                                <label for="promo-headline">Headline</label>
-                                <input class="form-input" id="promo-headline" type="text" maxlength="200" placeholder="Free delivery on orders over $50!">
-                            </div>
-                            <div class="form-group">
-                                <label for="promo-subline">Subline (optional)</label>
-                                <input class="form-input" id="promo-subline" type="text" maxlength="280" placeholder="Use code SAVE10 at checkout.">
-                            </div>
-                            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0.75rem;">
-                                <div class="form-group">
-                                    <label for="promo-link-url">CTA link URL (optional)</label>
-                                    <input class="form-input" id="promo-link-url" type="text" maxlength="500" placeholder="/product.html?slug=your-product — or https://…" spellcheck="false">
-                                </div>
-                                <div class="form-group">
-                                    <label for="promo-link-label">CTA button label (optional)</label>
-                                    <input class="form-input" id="promo-link-label" type="text" maxlength="80" placeholder="Shop the sale">
-                                </div>
-                            </div>
-                            <div class="form-group promo-product-link-field">
-                                <label for="promo-product-link-search">Link this promo to a product (optional)</label>
-                                <p style="margin:0 0 0.35rem 0;color:var(--gray-600);font-size:0.88rem;">
-                                    Start typing a name or SKU — a dropdown list opens under this field so you can pick the exact product. (Or paste any URL above.)
-                                </p>
-                                <input type="text" class="form-input" id="promo-product-link-search" placeholder="Type to search products…"
-                                    autocomplete="off" autocapitalize="off" spellcheck="false"
-                                    aria-autocomplete="list" aria-expanded="false" aria-controls="promo-product-link-results" role="combobox">
-                                <div id="promo-product-link-results" class="promo-product-link-results-panel" role="listbox" aria-label="Matching products" hidden></div>
-                            </div>
-                            <div class="form-group">
-                                <label for="promo-icon">Icon (optional)</label>
-                                <p style="margin:0 0 0.5rem 0;color:var(--gray-600);font-size:0.88rem;">Type an emoji or short text, or upload a small image (PNG/WebP/SVG, max 512KB) from your machine.</p>
-                                <input class="form-input" id="promo-icon" type="text" maxlength="12" placeholder="Emoji or short marker, e.g. 🌿 or SALE">
-                                <input type="hidden" id="promo-icon-url" value="">
-                                <div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center;margin-top:0.5rem;">
-                                    <label for="promo-icon-file" class="sr-only">Upload promo banner icon image</label>
-                                    <input type="file" id="promo-icon-file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" style="max-width:100%;">
-                                    <button type="button" class="btn btn-secondary btn-sm" id="promo-icon-upload-btn">Upload icon</button>
-                                    <button type="button" class="btn btn-secondary btn-sm" id="promo-icon-clear-btn">Clear uploaded image</button>
-                                </div>
-                                <div id="promo-icon-preview-wrap" style="display:none;margin-top:0.5rem;">
-                                    <span style="font-size:0.85rem;color:var(--gray-600);">Uploaded preview:</span>
-                                    <img id="promo-icon-preview-img" alt="" style="display:block;margin-top:0.35rem;max-width:48px;max-height:48px;object-fit:contain;border:1px solid var(--gray-200);border-radius:6px;padding:2px;background:var(--gray-50);">
-                                </div>
-                            </div>
-                            <p data-promo-banner-save-msg style="min-height:1.25rem;font-size:0.9rem;margin:0.75rem 0 0;"></p>
-                            <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-top:0.35rem;">
-                                <button type="button" class="btn btn-primary" id="promo-banner-save-btn">Save promo banner</button>
                             </div>
                     </div>
                 </div>
@@ -3129,6 +3556,7 @@
                             <button type="button" class="btn btn-danger" id="integration-logs-clear-btn">Clear Logs</button>
                         </div>
                     </div>
+                </div>
                 </div>
                 </section>
         </main>

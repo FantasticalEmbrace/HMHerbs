@@ -75,7 +75,7 @@ CREATE TABLE `admin_users` (
 
 LOCK TABLES `admin_users` WRITE;
 /*!40000 ALTER TABLE `admin_users` DISABLE KEYS */;
-INSERT INTO `admin_users` VALUES (1,'hmherbs1@gmail.com','$2b$12$lZ9mJ4uVuZs8IurqpXUz5OkjSv8V1H/Xo8ezzK8Flz/y9tK6PR2V.','Admin','User','super_admin',1,'2025-12-16 22:53:14','2025-12-11 06:20:46','2025-12-16 22:53:14'),(2,'admin@hmherbs.com','$2b$12$REnZ3xtZdgoVyinFCveCJOhckIP0otbQLZq.P3WIDCyXAn/oeVriq','Admin','User','super_admin',1,NULL,'2025-12-11 22:25:05','2025-12-11 22:25:05');
+INSERT INTO `admin_users` VALUES (1,'hmherbs1@gmail.com','$2b$12$lZ9mJ4uVuZs8IurqpXUz5OkjSv8V1H/Xo8ezzK8Flz/y9tK6PR2V.','Admin','User','admin',1,'2025-12-16 22:53:14','2025-12-11 06:20:46','2025-12-16 22:53:14');
 /*!40000 ALTER TABLE `admin_users` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -1682,7 +1682,7 @@ CALL hmherbs_add_column_if_missing('users', 'middle_name',            "VARCHAR(1
 CALL hmherbs_add_column_if_missing('users', 'preferred_name',         "VARCHAR(100) NULL AFTER last_name");
 CALL hmherbs_add_column_if_missing('users', 'gender',                 "ENUM('male','female','non_binary','prefer_not_to_say','other') NULL AFTER date_of_birth");
 CALL hmherbs_add_column_if_missing('users', 'customer_status',        "ENUM('active','vip','inactive','blocked') NOT NULL DEFAULT 'active' AFTER is_active");
-CALL hmherbs_add_column_if_missing('users', 'customer_type',          "ENUM('retail','wholesale','employee','staff') NOT NULL DEFAULT 'retail' AFTER customer_status");
+CALL hmherbs_add_column_if_missing('users', 'customer_type',          "ENUM('retail','employee') NOT NULL DEFAULT 'retail' AFTER customer_status");
 CALL hmherbs_add_column_if_missing('users', 'tags',                   "JSON NULL");
 CALL hmherbs_add_column_if_missing('users', 'marketing_email_opt_in', "BOOLEAN NOT NULL DEFAULT FALSE");
 CALL hmherbs_add_column_if_missing('users', 'marketing_sms_opt_in',   "BOOLEAN NOT NULL DEFAULT FALSE");

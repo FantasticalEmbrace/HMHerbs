@@ -141,7 +141,7 @@ PORT=3001
 NODE_ENV=development
 FRONTEND_URL=http://localhost:8000
 JWT_SECRET=hmherbs_jwt_secret_key_2024_secure_random_string_change_in_production
-ADMIN_EMAIL=admin@hmherbs.com
+ADMIN_EMAIL=hmherbs1@gmail.com
 ADMIN_PASSWORD=admin123
 "@
     $envContent | Set-Content $envPath

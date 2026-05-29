@@ -15,8 +15,19 @@ const jwt = require('jsonwebtoken');
 const logger = require('../utils/logger');
 const { jsonSafeDeep } = require('../utils/jsonSafeMysql');
 const CustomerOctoposSyncService = require('../services/customer-octopos-sync');
+const { normalizeAdminRole, hasMinAdminRole } = require('../utils/adminRoles');
+const { normalizeCustomerType, VALID_CUSTOMER_TYPES } = require('../services/employeeDiscount');
 
 const router = express.Router();
+
+function assertValidCustomerType(value, res) {
+    const normalized = normalizeCustomerType(value);
+    if (!VALID_CUSTOMER_TYPES.has(normalized)) {
+        res.status(400).json({ error: 'customer_type must be retail or employee' });
+        return null;
+    }
+    return normalized;
+}
 
 // ---------------------------------------------------------------------------
 // Local re-implementation of admin auth so this router works standalone.
@@ -37,7 +48,7 @@ async function authenticateAdmin(req, res, next) {
             [decoded.adminId]
         );
         if (!rows.length) return res.status(401).json({ error: 'Invalid admin token' });
-        req.admin = rows[0];
+        req.admin = { ...rows[0], role: normalizeAdminRole(rows[0].role) };
         next();
     } catch (err) {
         return res.status(403).json({ error: 'Invalid admin token' });
@@ -397,6 +408,9 @@ router.post('/', async (req, res) => {
             return res.status(400).json({ error: 'email, first_name and last_name are required' });
         }
 
+        const typeNormalized = assertValidCustomerType(customer_type, res);
+        if (!typeNormalized) return;
+
         await conn.beginTransaction();
 
         const [exists] = await conn.execute(
@@ -423,7 +437,7 @@ router.post('/', async (req, res) => {
                 String(email).toLowerCase(), password_hash,
                 first_name, middle_name || null, last_name, preferred_name || null,
                 phone || null, date_of_birth || null, gender || null,
-                customer_status, customer_type, tags ? JSON.stringify(tags) : null,
+                customer_status, typeNormalized, tags ? JSON.stringify(tags) : null,
                 !!marketing_email_opt_in, !!marketing_sms_opt_in, !!marketing_postal_opt_in, preferred_contact,
                 referral_source || null, referral_code || null, referred_by_user_id || null,
                 !!tax_exempt, tax_exempt_id || null, admin_notes || null,
@@ -494,8 +508,15 @@ router.put('/:id', async (req, res) => {
         const params = [];
         for (const key of allowed) {
             if (key in req.body) {
-                fields.push(`${key} = ?`);
-                params.push(req.body[key]);
+                if (key === 'customer_type') {
+                    const typeNormalized = assertValidCustomerType(req.body[key], res);
+                    if (!typeNormalized) return;
+                    fields.push(`${key} = ?`);
+                    params.push(typeNormalized);
+                } else {
+                    fields.push(`${key} = ?`);
+                    params.push(req.body[key]);
+                }
             }
         }
         if ('tags' in req.body) {
@@ -521,12 +542,22 @@ router.put('/:id', async (req, res) => {
 // ---------------------------------------------------------------------------
 router.delete('/:id', async (req, res) => {
     try {
+        if (!hasMinAdminRole(req.admin.role, 'admin')) {
+            return res.status(403).json({ error: 'Only an Admin can delete customer accounts' });
+        }
         const id = parseInt(req.params.id, 10);
+        if (!id) return res.status(400).json({ error: 'Invalid customer id' });
+
+        const [rows] = await req.pool.execute('SELECT id, email FROM users WHERE id = ?', [id]);
+        if (!rows.length) {
+            return res.status(404).json({ error: 'Customer not found' });
+        }
+
         await req.pool.execute(
             "UPDATE users SET is_active = 0, customer_status = 'inactive' WHERE id = ?",
             [id]
         );
-        res.json({ success: true });
+        res.json({ success: true, message: 'Customer account deactivated' });
     } catch (err) {
         logger.error('Delete customer error', { error: err.message });
         res.status(500).json({ error: 'Failed to delete customer' });

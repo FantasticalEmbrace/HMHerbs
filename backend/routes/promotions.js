@@ -16,7 +16,7 @@ async function authUserLite(pool, req) {
         const userId = Number(decoded?.userId);
         if (!Number.isInteger(userId) || userId <= 0) return null;
         const [rows] = await pool.execute(
-            'SELECT id, email, tax_exempt, tax_exempt_id FROM users WHERE id = ? LIMIT 1',
+            'SELECT id, email, tax_exempt, tax_exempt_id, customer_type FROM users WHERE id = ? LIMIT 1',
             [userId]
         );
         return rows[0] || null;
@@ -44,7 +44,8 @@ router.post('/preview', async (req, res) => {
             cartItems,
             promoCode,
             email: emailResolved || null,
-            applyTaxExemption
+            applyTaxExemption,
+            customerType: authUser?.customer_type
         });
 
         res.json({
@@ -52,6 +53,8 @@ router.post('/preview', async (req, res) => {
             promoApplied: !!result.promotion,
             promoCode: result.promotion ? String(result.promotion.code) : null,
             description: result.promotion ? String(result.promotion.description || '') : '',
+            employeeDiscountApplied: Boolean(result.employeeDiscountApplied),
+            employeeDiscountAmount: Number(result.employeeDiscountAmount) || 0,
             totals: result.totals,
             baselineTotals: result.baselineTotals,
             serverLineItems: result.enrichment.map((r) => ({
