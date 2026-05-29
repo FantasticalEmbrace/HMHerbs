@@ -7,7 +7,7 @@
  * 
  * Usage:
  *   node scripts/reset-admin-password.js
- *   node scripts/reset-admin-password.js --email admin@hmherbs.com --password newpassword123
+ *   node scripts/reset-admin-password.js --email hmherbs1@gmail.com --password newpassword123
  */
 
 const bcrypt = require('bcrypt');
@@ -49,9 +49,9 @@ async function resetAdminPassword() {
         
         // Get email if not provided
         if (!email) {
-            email = await question('Enter admin email (default: admin@hmherbs.com): ');
+            email = await question('Enter admin email (default: hmherbs1@gmail.com): ');
             if (!email.trim()) {
-                email = 'admin@hmherbs.com';
+                email = 'hmherbs1@gmail.com';
             }
         }
         
@@ -159,7 +159,7 @@ async function createNewAdmin(connection, email, password) {
         
         await connection.execute(
             `INSERT INTO admin_users (email, password_hash, first_name, last_name, role, is_active, created_at, updated_at) 
-             VALUES (?, ?, ?, ?, 'super_admin', 1, NOW(), NOW())`,
+             VALUES (?, ?, ?, ?, 'admin', 1, NOW(), NOW())`,
             [email, passwordHash, firstName, lastName]
         );
         
@@ -168,7 +168,7 @@ async function createNewAdmin(connection, email, password) {
         console.log(`   Email: ${email}`);
         console.log(`   Password: ${password}`);
         console.log(`   Name: ${firstName} ${lastName}`);
-        console.log(`   Role: super_admin`);
+        console.log(`   Role: admin`);
         
     } catch (error) {
         console.error('❌ Failed to create admin user:', error.message);

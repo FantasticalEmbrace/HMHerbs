@@ -74,7 +74,7 @@ FRONTEND_URL=http://localhost:8000
 JWT_SECRET=your_super_secret_jwt_key_change_this_in_production
 
 # Admin Configuration
-ADMIN_EMAIL=admin@hmherbs.com
+ADMIN_EMAIL=hmherbs1@gmail.com
 ADMIN_PASSWORD=your_admin_password
 
 # Google Calendar (Optional - for EDSA booking)
@@ -224,7 +224,7 @@ curl -X POST http://localhost:3001/api/edsa/book \
 curl -X POST http://localhost:3001/api/admin/auth/login \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "admin@hmherbs.com",
+    "email": "hmherbs1@gmail.com",
     "password": "your_admin_password"
   }'
 ```

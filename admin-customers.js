@@ -150,8 +150,24 @@
             }
 
             container.innerHTML = `
-                <div class="table-container">
+                <p class="admin-table-scroll-hint" style="margin:0 0 0.75rem;font-size:0.85rem;color:var(--gray-500);">
+                    <i class="fas fa-arrows-alt-h" aria-hidden="true"></i> Scroll horizontally to see all columns (including Customer #).
+                </p>
+                <div class="admin-wide-table-wrap table-container" tabindex="0" role="region" aria-label="Customer list">
                     <table class="table">
+                        <colgroup>
+                            <col style="width:6.5rem">
+                            <col style="width:9rem">
+                            <col style="width:14rem">
+                            <col style="width:7.5rem">
+                            <col style="width:5.5rem">
+                            <col style="width:5rem">
+                            <col style="width:5.5rem">
+                            <col style="width:7.5rem">
+                            <col style="width:7rem">
+                            <col style="width:6.75rem">
+                            <col style="width:7.5rem">
+                        </colgroup>
                         <thead>
                             <tr>
                                 <th>Customer #</th>
@@ -172,7 +188,7 @@
                                 <tr>
                                     <td><code style="font-size:0.85em;">${esc(c.customer_number || '—')}</code></td>
                                     <td><strong>${esc((c.first_name || '') + ' ' + (c.last_name || ''))}</strong></td>
-                                    <td>${esc(c.email)}</td>
+                                    <td><span class="cell-ellipsis" title="${esc(c.email)}">${esc(c.email)}</span></td>
                                     <td>${esc(c.phone || '—')}</td>
                                     <td>${this._statusBadge(c.customer_status)}</td>
                                     <td>${fmtNumber(c.total_orders)}</td>
@@ -180,16 +196,22 @@
                                     <td>${fmtNumber(c.points_balance || 0)} pts ${c.tier ? `<small style="color:var(--gray-500);">(${esc(c.tier)})</small>` : ''}</td>
                                     <td>${c.gift_card_count > 0 ? `${c.gift_card_count} (${fmtMoney(c.gift_card_balance)})` : '—'}</td>
                                     <td>${fmtDate(c.created_at)}</td>
-                                    <td>
-                                        <button class="btn btn-sm btn-secondary" onclick="adminApp.showCustomerProfile(${c.id})">
-                                            <i class="fas fa-eye"></i>
-                                        </button>
+                                    <td class="col-actions">
+                                        <div class="admin-row-actions">
+                                            <button type="button" class="btn btn-sm btn-secondary" onclick="adminApp.showCustomerProfile(${c.id})" title="View profile">
+                                                <i class="fas fa-eye" aria-hidden="true"></i>
+                                            </button>
+                                            ${this.isFullAdmin ? `<button type="button" class="btn btn-sm btn-danger" onclick="adminApp.deleteCustomerAccount(${c.id}, ${JSON.stringify((c.email || '').trim())})" title="Delete account"><i class="fas fa-trash" aria-hidden="true"></i></button>` : ''}
+                                        </div>
                                     </td>
                                 </tr>
                             `).join('')}
                         </tbody>
                     </table>
                 </div>`;
+
+            const wrap = container.querySelector('.admin-wide-table-wrap');
+            if (wrap) wrap.scrollLeft = 0;
 
             this._renderPagination('customersPagination', data.pagination, (page) => {
                 this._customerState().page = page;
@@ -250,11 +272,6 @@
         const data = await this.apiRequest(`/admin/customers/${id}`);
         if (!data) return;
         const c = data.customer;
-        const tags = (() => {
-            try { return Array.isArray(c.tags) ? c.tags : (c.tags ? JSON.parse(c.tags) : []); }
-            catch { return []; }
-        })();
-
         const modal = openModal(`
             <div style="display:flex;justify-content:space-between;align-items:center;padding:1.5rem;border-bottom:1px solid var(--gray-200);">
                 <div>
@@ -281,14 +298,14 @@
                 t.style.color = active ? 'var(--primary-green)' : 'var(--gray-600)';
                 t.style.borderBottom = `3px solid ${active ? 'var(--primary-green)' : 'transparent'}`;
             });
-            content.innerHTML = this._renderCustomerTab(name, data, tags);
+            content.innerHTML = this._renderCustomerTab(name, data);
             this._wireCustomerTabActions(content, data, name);
         };
         tabs.forEach(t => t.addEventListener('click', () => renderTab(t.dataset.tab)));
         renderTab('profile');
     };
 
-    AdminApp.prototype._renderCustomerTab = function (tab, data, tags) {
+    AdminApp.prototype._renderCustomerTab = function (tab, data) {
         const c = data.customer;
         if (tab === 'profile') {
             return `
@@ -316,7 +333,7 @@
                     </div>
                     <div class="form-group"><label for="cust-${c.id}-customer_type">Type</label>
                         <select class="form-input" id="cust-${c.id}-customer_type" name="customer_type">
-                            ${['retail','wholesale','employee','staff'].map(s => `<option value="${s}" ${c.customer_type===s?'selected':''}>${s}</option>`).join('')}
+                            ${['retail','employee'].map(s => `<option value="${s}" ${c.customer_type===s?'selected':''}>${s.charAt(0).toUpperCase()+s.slice(1)}</option>`).join('')}
                         </select>
                     </div>
                     <div class="form-group"><label for="cust-${c.id}-preferred_contact">Preferred Contact</label>
@@ -330,10 +347,8 @@
                     <div class="form-group"><label><input type="checkbox" name="tax_exempt" ${c.tax_exempt?'checked':''}> Tax exempt</label></div>
                     <div class="form-group" style="grid-column:1/-1;"><label for="cust-${c.id}-tax_exempt_id">Tax Exempt ID</label><input class="form-input" id="cust-${c.id}-tax_exempt_id" name="tax_exempt_id" value="${esc(c.tax_exempt_id||'')}"></div>
 
-                    <div class="form-group" style="grid-column:1/-1;"><label for="cust-${c.id}-tags">Tags (comma separated)</label><input class="form-input" id="cust-${c.id}-tags" name="tags" value="${esc(tags.join(', '))}"></div>
-
-                    <div style="grid-column:1/-1;display:flex;gap:0.5rem;justify-content:space-between;border-top:1px solid var(--gray-200);padding-top:1rem;">
-                        <button type="button" class="btn btn-danger" data-action="deactivate">Deactivate Account</button>
+                    <div style="grid-column:1/-1;display:flex;gap:0.5rem;justify-content:space-between;border-top:1px solid var(--gray-200);padding-top:1rem;flex-wrap:wrap;">
+                        ${this.isFullAdmin ? '<button type="button" class="btn btn-danger" data-action="deactivate"><i class="fas fa-trash" aria-hidden="true"></i> Delete account</button>' : '<span></span>'}
                         <button type="submit" class="btn btn-primary">Save Changes</button>
                     </div>
                 </form>`;
@@ -456,6 +471,29 @@
         return '';
     };
 
+    AdminApp.prototype.deleteCustomerAccount = async function (customerId, email) {
+        if (!this.isFullAdmin) {
+            this.showToast('Only an Admin can delete customer accounts', 'error');
+            return;
+        }
+        const ok = await this.showAdminConfirm({
+            title: 'Delete customer account?',
+            message:
+                `Remove storefront access for ${email || 'this customer'}? Their order history stays in the system, but they cannot sign in again.`,
+            confirmLabel: 'Delete account',
+            cancelLabel: 'Cancel',
+            danger: true,
+        });
+        if (!ok) return;
+        try {
+            await this.apiRequest(`/admin/customers/${customerId}`, { method: 'DELETE' });
+            this.showToast('Customer account deleted', 'success');
+            this.loadCustomers();
+        } catch (err) {
+            this.showToast(err.message || 'Delete failed', 'error');
+        }
+    };
+
     AdminApp.prototype._wireCustomerTabActions = function (content, data, tab) {
         const cId = data.customer.id;
         if (tab === 'profile') {
@@ -470,7 +508,6 @@
                         const field = form.querySelector(`[name="${k}"]`);
                         if (field) payload[k] = field.checked;
                     });
-                if (payload.tags !== undefined) payload.tags = String(payload.tags).split(',').map(s => s.trim()).filter(Boolean);
                 if (!payload.date_of_birth) delete payload.date_of_birth;
                 try {
                     await this.apiRequest(`/admin/customers/${cId}`, { method: 'PUT', body: JSON.stringify(payload) });
@@ -481,20 +518,13 @@
                     this.showToast('Update failed: ' + err.message, 'error');
                 }
             });
-            content.querySelector('[data-action="deactivate"]').addEventListener('click', async () => {
-                const ok = await this.showAdminConfirm({
-                    title: 'Deactivate this customer?',
-                    message:
-                        'They will no longer be able to sign in. You can still view their history in admin. Continue?',
-                    confirmLabel: 'Deactivate',
-                    cancelLabel: 'Cancel',
-                    danger: true,
+            const deactivateBtn = content.querySelector('[data-action="deactivate"]');
+            if (deactivateBtn) {
+                deactivateBtn.addEventListener('click', async () => {
+                    await this.deleteCustomerAccount(cId, data.customer.email || '');
+                    closeAllModals();
                 });
-                if (!ok) return;
-                await this.apiRequest(`/admin/customers/${cId}`, { method: 'DELETE' });
-                closeAllModals();
-                this.loadCustomers();
-            });
+            }
         }
         if (tab === 'addresses') {
             content.querySelector('[data-action="add-address"]')?.addEventListener('click', () => this._addAddressPrompt(cId));
@@ -592,7 +622,7 @@
                     <div class="form-group"><label for="admin-add-addr-postal">Postal Code</label><input class="form-input" id="admin-add-addr-postal" name="postal_code" required></div>
                     <div class="form-group"><label for="admin-add-addr-country">Country</label><input class="form-input" id="admin-add-addr-country" name="country" value="United States"></div>
                     <div style="grid-column:1/-1;display:flex;gap:0.5rem;justify-content:flex-end;">
-                        <button type="button" class="btn btn-secondary" onclick="this.closest('.modal').remove()">Cancel</button>
+                        <button type="button" class="btn btn-danger" onclick="this.closest('.modal').remove()">Cancel</button>
                         <button type="submit" class="btn btn-primary">Add Address</button>
                     </div>
                 </form>
@@ -625,7 +655,8 @@
                     <div class="form-group"><label for="admin-new-cust-dob">Date of Birth</label><input class="form-input" id="admin-new-cust-dob" type="date" name="date_of_birth"></div>
                     <div class="form-group"><label for="admin-new-cust-type">Type</label>
                         <select class="form-input" id="admin-new-cust-type" name="customer_type">
-                            <option value="retail">Retail</option><option value="wholesale">Wholesale</option><option value="employee">Employee</option><option value="staff">Staff</option>
+                            <option value="retail">Retail</option>
+                            <option value="employee">Employee</option>
                         </select>
                     </div>
                     <div class="form-group"><label><input type="checkbox" name="marketing_email_opt_in"> Email opt-in</label></div>
@@ -637,7 +668,7 @@
                     <div class="form-group"><label for="admin-new-cust-postal">Postal Code</label><input class="form-input" id="admin-new-cust-postal" name="postal_code"></div>
                     <div class="form-group"><label for="admin-new-cust-country">Country</label><input class="form-input" id="admin-new-cust-country" name="country" value="United States"></div>
                     <div style="grid-column:1/-1;display:flex;gap:0.5rem;justify-content:flex-end;border-top:1px solid var(--gray-200);padding-top:1rem;">
-                        <button type="button" class="btn btn-secondary" onclick="this.closest('.modal').remove()">Cancel</button>
+                        <button type="button" class="btn btn-danger" onclick="this.closest('.modal').remove()">Cancel</button>
                         <button type="submit" class="btn btn-primary">Create Customer</button>
                     </div>
                 </form>
@@ -832,7 +863,7 @@
                     <div class="form-group physical-only" style="display:none;"><label for="newgc-physical-design">Design</label><input class="form-input" id="newgc-physical-design" name="physical_design"></div>
                     <div class="form-group" style="grid-column:1/-1;"><label><input type="checkbox" name="activate" checked> Activate immediately</label></div>
                     <div style="grid-column:1/-1;display:flex;gap:0.5rem;justify-content:flex-end;border-top:1px solid var(--gray-200);padding-top:1rem;">
-                        <button type="button" class="btn btn-secondary" onclick="this.closest('.modal').remove()">Cancel</button>
+                        <button type="button" class="btn btn-danger" onclick="this.closest('.modal').remove()">Cancel</button>
                         <button type="submit" class="btn btn-primary">Issue Gift Card</button>
                     </div>
                 </form>
@@ -992,7 +1023,7 @@
                         <textarea class="form-input" id="bulkgc-cards-csv" name="cards_csv" rows="10" placeholder="ABCD-1234-EFGH-5678,SN001,25.00&#10;WXYZ-9876-LMNO-5432,SN002,50.00"></textarea>
                     </div>
                     <div style="grid-column:1/-1;display:flex;gap:0.5rem;justify-content:flex-end;">
-                        <button type="button" class="btn btn-secondary" onclick="this.closest('.modal').remove()">Cancel</button>
+                        <button type="button" class="btn btn-danger" onclick="this.closest('.modal').remove()">Cancel</button>
                         <button type="submit" class="btn btn-primary">Register Cards</button>
                     </div>
                 </form>
@@ -1074,7 +1105,7 @@
                     <button class="btn btn-secondary" data-action="reload"><i class="fas fa-plus"></i> Reload</button>
                     <button class="btn btn-secondary" data-action="redeem"><i class="fas fa-minus"></i> Redeem</button>
                     ${g.status === 'inactive' ? '<button class="btn btn-primary" data-action="activate">Activate</button>' : ''}
-                    ${g.status === 'active' ? '<button class="btn btn-secondary" data-action="cancel"><i class="fas fa-ban"></i> Cancel</button>' : ''}
+                    ${g.status === 'active' ? '<button class="btn btn-danger" data-action="cancel"><i class="fas fa-ban"></i> Cancel</button>' : ''}
                     ${g.status !== 'lost' ? '<button class="btn btn-secondary" data-action="lost"><i class="fas fa-question-circle"></i> Mark Lost</button>' : ''}
                 </div>
 

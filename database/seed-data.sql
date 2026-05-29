@@ -76,7 +76,7 @@ INSERT INTO settings (key_name, value, description, type) VALUES
 
 -- Insert default admin user (password should be changed immediately)
 INSERT INTO admin_users (email, password_hash, first_name, last_name, role) VALUES
-('hmherbs1@gmail.com', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj6hsxq5S/kS', 'Admin', 'User', 'super_admin');
+('hmherbs1@gmail.com', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj6hsxq5S/kS', 'Admin', 'User', 'admin');
 
 -- Insert email templates
 INSERT INTO email_templates (name, subject, html_content, text_content, variables) VALUES

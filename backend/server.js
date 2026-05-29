@@ -456,7 +456,8 @@ const authenticateAdmin = async (req, res, next) => {
             return res.status(401).json({ error: 'Invalid admin token' });
         }
 
-        req.admin = rows[0];
+        const { normalizeAdminRole } = require('./utils/adminRoles');
+        req.admin = { ...rows[0], role: normalizeAdminRole(rows[0].role) };
         next();
     } catch (error) {
         return res.status(403).json({ error: 'Invalid admin token' });
@@ -1479,44 +1480,28 @@ const marketingSettingsSvc = require('./services/marketingSettings');
 
 /** req.pool is attached at app init (right after createPool). */
 
-/** Same role ladder as backend/routes/admin.js — kept local so marketing hub works even if admin router ordering changes. */
-const requireAdminPermissionLevel = (minRole) => {
-    const roleHierarchy = { staff: 1, manager: 2, admin: 3, super_admin: 4 };
-    return (req, res, next) => {
-        const userLevel = roleHierarchy[req.admin.role] || 0;
-        const requiredLevel = roleHierarchy[minRole] || 0;
-        if (userLevel < requiredLevel) {
-            return res.status(403).json({ error: 'Insufficient permissions' });
-        }
-        next();
-    };
-};
+const { requirePermission: requireAdminPermissionLevel } = require('./middleware/adminAuth');
 
 // Marketing hub (Mailchimp signup URL / headline) — registered on the main app so `/api/admin/marketing-settings`
 // is never missed by the catch-all 404 (some deployments had only this path fail from the admin router).
-app.get('/api/admin/marketing-settings', authenticateAdmin, requireAdminPermissionLevel('admin'), (req, res) => {
+app.get('/api/admin/marketing-settings', authenticateAdmin, requireAdminPermissionLevel('marketing'), (req, res) => {
     try {
         const stored = marketingSettingsSvc.readConfig();
         const effective = marketingSettingsSvc.mergedPublicConfig();
-        res.json({
-            stored,
-            effective,
-            mailchimp: marketingSettingsSvc.mailchimpEnvStatus()
-        });
+        res.json({ stored, effective });
     } catch (error) {
         logger.error('Get marketing-settings error:', error);
         res.status(500).json({ error: 'Failed to load marketing settings' });
     }
 });
 
-app.put('/api/admin/marketing-settings', authenticateAdmin, requireAdminPermissionLevel('admin'), (req, res) => {
+app.put('/api/admin/marketing-settings', authenticateAdmin, requireAdminPermissionLevel('marketing'), (req, res) => {
     try {
         const { signupLandingUrl, headline } = req.body || {};
         const saved = marketingSettingsSvc.saveConfig({ signupLandingUrl, headline });
         res.json({
             saved,
-            effective: marketingSettingsSvc.mergedPublicConfig(),
-            mailchimp: marketingSettingsSvc.mailchimpEnvStatus()
+            effective: marketingSettingsSvc.mergedPublicConfig()
         });
     } catch (error) {
         logger.error('Put marketing-settings error:', error);

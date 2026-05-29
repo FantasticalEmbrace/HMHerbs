@@ -48,7 +48,7 @@ CALL hmherbs_add_column_if_missing('users', 'middle_name',            "VARCHAR(1
 CALL hmherbs_add_column_if_missing('users', 'preferred_name',         "VARCHAR(100) NULL AFTER last_name");
 CALL hmherbs_add_column_if_missing('users', 'gender',                 "ENUM('male','female','non_binary','prefer_not_to_say','other') NULL AFTER date_of_birth");
 CALL hmherbs_add_column_if_missing('users', 'customer_status',        "ENUM('active','vip','inactive','blocked') NOT NULL DEFAULT 'active' AFTER is_active");
-CALL hmherbs_add_column_if_missing('users', 'customer_type',          "ENUM('retail','wholesale','employee','staff') NOT NULL DEFAULT 'retail' AFTER customer_status");
+CALL hmherbs_add_column_if_missing('users', 'customer_type',          "ENUM('retail','employee') NOT NULL DEFAULT 'retail' AFTER customer_status");
 CALL hmherbs_add_column_if_missing('users', 'tags',                   "JSON NULL");
 CALL hmherbs_add_column_if_missing('users', 'marketing_email_opt_in', "BOOLEAN NOT NULL DEFAULT FALSE");
 CALL hmherbs_add_column_if_missing('users', 'marketing_sms_opt_in',   "BOOLEAN NOT NULL DEFAULT FALSE");
