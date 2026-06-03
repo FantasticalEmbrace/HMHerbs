@@ -14,6 +14,18 @@ function hmHerbsIsCheckoutPage() {
     return path.includes('checkout.html') || /\/checkout\/?$/i.test(path);
 }
 
+/** API origin for catalog/cart when the static site and backend run on different ports. */
+function hmHerbsGetApiBaseUrl() {
+    if (typeof window === 'undefined' || !window.location) return '';
+    if (window.location.protocol === 'file:') return 'http://localhost:3001';
+    const host = window.location.hostname;
+    const isLocal = host === 'localhost' || host === '127.0.0.1';
+    if (isLocal && window.location.port && window.location.port !== '3001') {
+        return 'http://localhost:3001';
+    }
+    return window.location.origin;
+}
+
 // Production-safe logging utility - completely silent
 const Logger = {
     isDevelopment: false, // Disable all logging
@@ -59,6 +71,8 @@ class HMHerbsApp {
         // Debouncing for cart operations to prevent race conditions
         this.cartOperationTimeouts = new Map();
         this.cartOperationDelay = 300; // 300ms debounce
+
+        this._spotlightProducts = [];
 
         // Initialize the application
         this.init();
@@ -198,9 +212,7 @@ class HMHerbsApp {
 
         try {
             // Get API base URL from environment or default to current origin
-            const apiBaseUrl = window.location.origin.includes('localhost')
-                ? 'http://localhost:3001'
-                : window.location.origin;
+            const apiBaseUrl = hmHerbsGetApiBaseUrl();
 
             try {
                 const nativeFetch = window.__nativeFetch || window.fetch;
@@ -234,12 +246,17 @@ class HMHerbsApp {
                             name: product.name,
                             price: parseFloat(product.price) || 0,
                             image: imageUrl,
-                            inventory: product.inventory_quantity || 0,
+                            inventory:
+                                product.inventory_quantity != null
+                                    ? Number(product.inventory_quantity)
+                                    : null,
                             lowStockThreshold: 10, // Default threshold
                             description: product.short_description || product.long_description || '',
                             slug: product.slug || '',
                             featured: product.is_featured === true || product.is_featured === 1 || product.is_featured === '1',
-                            inStock: (product.inventory_quantity || 0) > 0 || product.inventory_quantity === null,
+                            inStock:
+                                product.inventory_quantity == null ||
+                                Number(product.inventory_quantity) > 0,
                             // Add URL for product link if slug exists
                             url: product.slug ? `product.html?slug=${encodeURIComponent(product.slug)}` : null,
                             // Keep original fields for reference
@@ -589,6 +606,27 @@ class HMHerbsApp {
         }
     }
 
+    isProductPurchasable(product) {
+        if (!product) return false;
+        if (product.inventory == null) {
+            return product.inStock !== false;
+        }
+        return Number(product.inventory) > 0;
+    }
+
+    toCartProduct(product) {
+        return {
+            id: product.id,
+            product_id: product.id,
+            name: product.name,
+            price: product.price,
+            image: product.image,
+            inventory: product.inventory,
+            inventory_quantity: product.inventory,
+            inStock: product.inStock,
+        };
+    }
+
     createInventoryStatusElement(product) {
         const statusDiv = document.createElement('div');
         statusDiv.className = 'inventory-status';
@@ -597,8 +635,8 @@ class HMHerbsApp {
         const text = document.createElement('span');
 
         // Defensive programming: handle missing inventory data
-        if (typeof product.inventory === 'undefined' || product.inventory === null) {
-            // Fallback to inStock boolean if inventory data is missing
+        if (product.inventory == null) {
+            // Untracked inventory — rely on inStock flag
             if (product.inStock === false) {
                 statusDiv.classList.add('out-of-stock');
                 icon.className = 'fas fa-times-circle';
@@ -800,59 +838,37 @@ class HMHerbsApp {
 
         // Limit to exactly 4 products maximum
         const limitedProducts = spotlightProducts.slice(0, 4);
+        this._spotlightProducts = limitedProducts;
 
         // Remove existing event listeners by cloning the container
         const newContainer = container.cloneNode(false);
         newContainer.id = container.id;
         newContainer.className = container.className;
+        if (container.getAttribute('role')) {
+            newContainer.setAttribute('role', container.getAttribute('role'));
+        }
+        if (container.getAttribute('aria-label')) {
+            newContainer.setAttribute('aria-label', container.getAttribute('aria-label'));
+        }
         container.parentNode.replaceChild(newContainer, container);
 
         // Clear existing content
         newContainer.innerHTML = '';
 
-        // Create product cards safely using DOM methods to prevent XSS
-        limitedProducts.forEach(product => {
+        // Create product cards with direct add-to-cart handlers (more reliable than delegation)
+        limitedProducts.forEach((product) => {
             const productCard = this.createProductCard(product);
-            newContainer.appendChild(productCard);
-        });
-
-        // Use event delegation to prevent memory leaks
-        this.addEventListenerWithCleanup(newContainer, 'click', (e) => {
-            // Find the add-to-cart button (could be clicked directly or via icon/text inside)
-            const addToCartBtn = e.target.closest('.add-to-cart-btn');
-            if (addToCartBtn) {
-                // Prevent default button behavior
-                e.preventDefault();
-                e.stopPropagation();
-                
-                // Get product ID from the button's data attribute (most reliable)
-                let productIdStr = addToCartBtn.dataset.productId || addToCartBtn.getAttribute('data-product-id');
-                
-                // Fallback: try to find product card if button doesn't have the attribute
-                if (!productIdStr) {
-                    const productCard = addToCartBtn.closest('[data-product-id]');
-                    if (productCard) {
-                        productIdStr = productCard.dataset.productId || productCard.getAttribute('data-product-id');
-                    }
-                }
-                
-                if (!productIdStr) {
-                    console.error('❌ Invalid product ID - button:', addToCartBtn, 'dataset:', addToCartBtn.dataset);
-                    this.showNotification('Unable to add product to cart. Please try again.', 'error');
-                    return;
-                }
-                
-                // Check if button is disabled (out of stock)
-                if (addToCartBtn.disabled) {
-                    this.showNotification('This product is out of stock', 'error');
-                    return;
-                }
-                
-                console.log('🛒 Adding spotlight product to cart:', { productId: productIdStr, limitedProducts: limitedProducts.length });
-                
-                // Use the limited products from closure for cart operations
-                this.addToCartSpotlight(productIdStr, limitedProducts);
+            const addToCartBtn = productCard.querySelector('.add-to-cart-btn');
+            if (addToCartBtn && this.isProductPurchasable(product)) {
+                addToCartBtn.type = 'button';
+                addToCartBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (addToCartBtn.disabled) return;
+                    this.addProductToCart(this.toCartProduct(product), 1);
+                });
             }
+            newContainer.appendChild(productCard);
         });
     }
 
@@ -931,12 +947,7 @@ class HMHerbsApp {
             return;
         }
 
-        // Check inventory availability (with fallback to inStock)
-        const isOutOfStock = (typeof product.inventory !== 'undefined')
-            ? product.inventory === 0
-            : !product.inStock;
-
-        if (isOutOfStock) {
+        if (!this.isProductPurchasable(product)) {
             this.showNotification('Product is out of stock', 'error');
             return;
         }
@@ -946,7 +957,7 @@ class HMHerbsApp {
         const currentCartQuantity = existingItem ? existingItem.quantity : 0;
         const totalRequestedQuantity = currentCartQuantity + quantity;
 
-        if (typeof product.inventory !== 'undefined' && totalRequestedQuantity > product.inventory) {
+        if (typeof product.inventory === 'number' && totalRequestedQuantity > product.inventory) {
             const availableQuantity = product.inventory - currentCartQuantity;
             if (availableQuantity <= 0) {
                 this.showNotification('No more items available', 'error');
@@ -995,8 +1006,8 @@ class HMHerbsApp {
             ? productData.inventory_quantity
             : (productData.inventory !== undefined ? productData.inventory : undefined);
 
-        const isOutOfStock = inventory !== undefined
-            ? inventory === 0
+        const isOutOfStock = inventory != null
+            ? Number(inventory) === 0
             : (productData.inStock === false);
 
         if (isOutOfStock) {
@@ -1011,7 +1022,7 @@ class HMHerbsApp {
         const currentCartQuantity = existingItem ? existingItem.quantity : 0;
         const totalRequestedQuantity = currentCartQuantity + productQuantity;
 
-        if (inventory !== undefined && totalRequestedQuantity > inventory) {
+        if (inventory != null && totalRequestedQuantity > Number(inventory)) {
             const availableQuantity = inventory - currentCartQuantity;
             if (availableQuantity <= 0) {
                 this.showNotification('No more items available', 'error');
@@ -1058,96 +1069,15 @@ class HMHerbsApp {
     }
 
     addToCartSpotlight(productId, spotlightProducts) {
-        if (!productId) {
-            console.error('❌ addToCartSpotlight: Invalid product ID', productId);
-            this.showNotification('Invalid product ID', 'error');
-            return;
-        }
-
-        // Convert productId to string for consistent comparison
-        const productIdStr = String(productId);
-        console.log('🛒 addToCartSpotlight called:', { productId: productIdStr, spotlightProductsCount: spotlightProducts.length });
-
-        const product = spotlightProducts.find(p => {
-            // Handle both string and number IDs by converting both to strings for comparison
-            const pIdStr = String(p.id);
-            const matches = pIdStr === productIdStr;
-            if (matches) {
-                console.log('✅ Found product:', { id: p.id, name: p.name, price: p.price, inventory: p.inventory });
-            }
-            return matches;
-        });
-
+        const list = Array.isArray(spotlightProducts) && spotlightProducts.length
+            ? spotlightProducts
+            : this._spotlightProducts;
+        const product = list.find((p) => String(p.id) === String(productId));
         if (!product) {
-            console.error('❌ Product not found in spotlightProducts:', {
-                productId: productIdStr,
-                availableIds: spotlightProducts.map(p => ({ id: p.id, idType: typeof p.id, name: p.name }))
-            });
             this.showNotification('Product not found', 'error');
             return;
         }
-
-        // Check inventory availability (with fallback to inStock)
-        const isOutOfStock = (typeof product.inventory !== 'undefined')
-            ? product.inventory === 0
-            : !product.inStock;
-
-        if (isOutOfStock) {
-            this.showNotification('Product is out of stock', 'error');
-            return;
-        }
-
-        // Check if adding this quantity would exceed available inventory
-        const existingItem = this.cart.find(item => {
-            return String(item.id) === String(productId);
-        });
-        const currentCartQuantity = existingItem ? existingItem.quantity : 0;
-        const totalRequestedQuantity = currentCartQuantity + 1;
-
-        if (typeof product.inventory !== 'undefined' && totalRequestedQuantity > product.inventory) {
-            const availableQuantity = product.inventory - currentCartQuantity;
-            if (availableQuantity <= 0) {
-                this.showNotification('No more items available', 'error');
-                return;
-            } else {
-                this.showNotification(`Only ${availableQuantity} more available. Added ${availableQuantity} to cart.`, 'warning');
-                // Add the available quantity instead of 1
-                if (existingItem) {
-                    existingItem.quantity += availableQuantity;
-                } else {
-                    this.cart.push({
-                        id: productId,
-                        name: product.name,
-                        price: product.price,
-                        image: product.image,
-                        quantity: availableQuantity
-                    });
-                }
-                this.updateCartDisplay();
-                this.saveCartToStorage();
-                this.showNotification(`${product.name} added to cart`, 'success');
-                this.announceToScreenReader(`${product.name} added to cart`);
-                return;
-            }
-        }
-
-        // Add or update cart item
-        if (existingItem) {
-            existingItem.quantity += 1;
-        } else {
-            this.cart.push({
-                id: productId,
-                name: product.name,
-                price: product.price,
-                image: product.image,
-                quantity: 1
-            });
-        }
-
-        this.updateCartDisplay();
-        this.saveCartToStorage();
-        this.showNotification(`${product.name} added to cart`, 'success');
-        this.announceToScreenReader(`${product.name} added to cart`);
+        this.addProductToCart(this.toCartProduct(product), 1);
     }
 
     removeFromCart(productId) {
@@ -1460,69 +1390,140 @@ class HMHerbsApp {
         }
     }
 
-    showNotification(message, type = 'info') {
-        // Create notification element
-        const notification = document.createElement('div');
-        notification.className = `notification notification-${type}`;
+    getToastRegion() {
+        let region = document.getElementById('hm-toast-region');
+        if (!region) {
+            region = document.createElement('div');
+            region.id = 'hm-toast-region';
+            region.setAttribute('aria-live', 'polite');
+            region.setAttribute('role', 'region');
+            region.setAttribute('aria-label', 'Notifications');
+            // Self-contained, decoupled from the .notification class so no stylesheet
+            // cascade or stacking context can hide it. Fixed, top-right, max z-index.
+            region.style.cssText = [
+                'position:fixed',
+                'top:calc(var(--hm-header-offset, 4.75rem) + 12px)',
+                'right:16px',
+                'left:auto',
+                'bottom:auto',
+                'display:flex',
+                'flex-direction:column',
+                'gap:10px',
+                'width:auto',
+                'max-width:min(360px, calc(100vw - 2rem))',
+                'margin:0',
+                'padding:0',
+                'z-index:2147483647',
+                'pointer-events:none',
+            ].join(';');
+            (document.body || document.documentElement).appendChild(region);
+        }
+        return region;
+    }
 
-        // Create content safely without innerHTML to prevent XSS
-        const content = document.createElement('div');
-        content.className = 'notification-content';
+    showNotification(message, type = 'info') {
+        const palette = {
+            success: '#059669',
+            error: '#dc2626',
+            warning: '#d97706',
+            info: '#2563eb',
+        };
+
+        const region = this.getToastRegion();
+
+        const notification = document.createElement('div');
+        notification.setAttribute('role', 'alert');
+        // Intentionally NOT using the .notification class for layout/visibility to
+        // avoid conflicts with competing stylesheet rules. All critical styles inline.
+        notification.style.cssText = [
+            'display:flex',
+            'align-items:center',
+            'gap:0.75rem',
+            'box-sizing:border-box',
+            'background:' + (palette[type] || palette.info),
+            'color:#ffffff',
+            'padding:0.85rem 1rem',
+            'border-radius:0.5rem',
+            'box-shadow:0 10px 25px -5px rgba(0,0,0,0.35)',
+            'font-size:0.95rem',
+            'line-height:1.35',
+            'font-weight:500',
+            'opacity:0',
+            'visibility:visible',
+            'transform:translateX(115%)',
+            'transition:transform 260ms ease, opacity 260ms ease',
+            'pointer-events:auto',
+        ].join(';');
 
         const messageSpan = document.createElement('span');
-        messageSpan.className = 'notification-message';
-        messageSpan.textContent = message; // Use textContent to prevent XSS
+        messageSpan.style.cssText = 'flex:1;';
+        messageSpan.textContent = message;
 
         const closeBtn = document.createElement('button');
-        closeBtn.className = 'notification-close';
         closeBtn.setAttribute('aria-label', 'Close notification');
         closeBtn.type = 'button';
-        closeBtn.innerHTML =
-            '<svg class="cart-close-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M18.3 5.71a1 1 0 0 0-1.41 0L12 10.59 7.11 5.7A1 1 0 0 0 5.7 7.11L10.59 12 5.7 16.89a1 1 0 1 0 1.41 1.41L12 13.41l4.89 4.89a1 1 0 0 0 1.41-1.41L13.41 12l4.89-4.89a1 1 0 0 0 0-1.4z"/></svg>';
-        content.appendChild(messageSpan);
-        content.appendChild(closeBtn);
-        notification.appendChild(content);
+        closeBtn.style.cssText = [
+            'flex-shrink:0',
+            'display:inline-flex',
+            'align-items:center',
+            'justify-content:center',
+            'width:1.5rem',
+            'height:1.5rem',
+            'padding:0',
+            'background:rgba(255,255,255,0.18)',
+            'border:none',
+            'border-radius:9999px',
+            'color:#ffffff',
+            'cursor:pointer',
+            'line-height:1',
+            'font-size:1.1rem',
+        ].join(';');
+        closeBtn.textContent = '\u00d7';
 
-        // Add styles for notification
-        notification.style.cssText = `
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: ${type === 'success' ? '#059669' : type === 'error' ? '#dc2626' : '#2563eb'};
-            color: white;
-            padding: 1rem;
-            border-radius: 0.5rem;
-            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
-            z-index: 1070;
-            transform: translateX(100%);
-            transition: transform 250ms ease-in-out;
-            max-width: 300px;
-        `;
+        notification.appendChild(messageSpan);
+        notification.appendChild(closeBtn);
+        region.appendChild(notification);
 
-        document.body.appendChild(notification);
-
-        // Animate in
-        setTimeout(() => {
+        requestAnimationFrame(() => {
             notification.style.transform = 'translateX(0)';
-        }, 100);
+            notification.style.opacity = '1';
+        });
 
-        // Add close functionality (closeBtn already created above)
-        this.addEventListenerWithCleanup(closeBtn, 'click', () => {
-            // Clear the auto-close timeout when manually closed
+        if (type === 'success' && /added to cart/i.test(message)) {
+            this.pulseCartBadge();
+            try {
+                window.dispatchEvent(
+                    new CustomEvent('hmherbs:cart-item-added', { detail: { message, cart: this.cart.slice() } })
+                );
+            } catch (_) {
+                /* ignore */
+            }
+        }
+
+        closeBtn.addEventListener('click', () => {
             if (notification.autoCloseTimeout) {
                 clearTimeout(notification.autoCloseTimeout);
             }
             this.closeNotification(notification);
         });
 
-        // Auto-close after 5 seconds
         notification.autoCloseTimeout = setTimeout(() => {
             this.closeNotification(notification);
-        }, 5000);
+        }, type === 'error' ? 7000 : 5000);
+    }
+
+    pulseCartBadge() {
+        const cartToggle = document.querySelector('.cart-toggle');
+        if (!cartToggle) return;
+        cartToggle.classList.remove('cart-added-pulse');
+        void cartToggle.offsetWidth;
+        cartToggle.classList.add('cart-added-pulse');
+        window.setTimeout(() => cartToggle.classList.remove('cart-added-pulse'), 900);
     }
 
     closeNotification(notification) {
-        notification.style.transform = 'translateX(100%)';
+        notification.style.transform = 'translateX(115%)';
+        notification.style.opacity = '0';
         setTimeout(() => {
             if (notification.parentNode) {
                 notification.parentNode.removeChild(notification);
@@ -1550,8 +1551,9 @@ class HMHerbsApp {
 
     // Helper function to safely create product cards using DOM methods
     createProductCard(product) {
+        const purchasable = this.isProductPurchasable(product);
         const productCard = document.createElement('div');
-        productCard.className = `product-card ${product.inventory === 0 ? 'out-of-stock' : ''} ${product.inventory <= product.lowStockThreshold ? 'low-stock' : ''}`;
+        productCard.className = `product-card ${!purchasable ? 'out-of-stock' : ''} ${product.inventory != null && product.inventory <= product.lowStockThreshold ? 'low-stock' : ''}`;
         productCard.setAttribute('data-product-id', product.id);
 
         // Create image element
@@ -1599,11 +1601,12 @@ class HMHerbsApp {
 
         // Create add to cart button
         const addToCartBtn = document.createElement('button');
+        addToCartBtn.type = 'button';
         addToCartBtn.className = 'btn btn-primary add-to-cart-btn';
         addToCartBtn.setAttribute('data-product-id', product.id);
         addToCartBtn.setAttribute('aria-label', `Add ${product.name || 'product'} to cart`);
 
-        if (product.inventory === 0) {
+        if (!purchasable) {
             addToCartBtn.disabled = true;
         }
 
@@ -1613,7 +1616,7 @@ class HMHerbsApp {
         cartIcon.setAttribute('aria-hidden', 'true');
 
         // Add button text
-        const buttonText = document.createTextNode(product.inventory === 0 ? ' Out of Stock' : ' Add to Cart');
+        const buttonText = document.createTextNode(!purchasable ? ' Out of Stock' : ' Add to Cart');
 
         // Assemble button
         addToCartBtn.appendChild(cartIcon);

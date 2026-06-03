@@ -343,13 +343,13 @@ a.auth-btn:focus-visible {
    (see emergency-fixes global translateZ + engines that treat filter as a fixed-CB). */
 .auth-modal {
     display: none;
-    position: fixed;
-    z-index: var(--z-modal);
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    width: 100%;
+    position: fixed !important;
+    z-index: var(--z-auth-overlay, 999999) !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
     height: 100vh;
     height: 100dvh;
     max-height: 100vh;
@@ -359,19 +359,21 @@ a.auth-btn:focus-visible {
         max(var(--space-4), env(safe-area-inset-right))
         max(var(--space-4), env(safe-area-inset-bottom))
         max(var(--space-4), env(safe-area-inset-left));
-    margin: 0;
+    margin: 0 !important;
     transform: none !important;
     -webkit-transform: none !important;
     filter: none;
     -webkit-filter: none;
-    overflow: auto;
+    overflow: hidden;
     overflow-x: hidden;
     overscroll-behavior: contain;
     background: transparent;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
     opacity: 0;
     transition: opacity var(--transition-normal);
+    isolation: isolate;
+    pointer-events: none;
 }
 
 /* Dim + blur on a non-fixed child so the shell can use pure viewport fixed geometry */
@@ -390,21 +392,125 @@ a.auth-btn:focus-visible {
 .auth-modal.show {
     display: flex;
     opacity: 1;
+    min-height: 100dvh;
+    pointer-events: auto;
 }
 
 .auth-modal-content {
     background-color: var(--white);
-    margin: auto;
-    padding: var(--space-8);
+    margin-left: auto;
+    margin-right: auto;
+    margin-top: auto;
+    margin-bottom: auto;
+    padding: 0;
     border-radius: var(--radius-xl);
     box-shadow: var(--shadow-xl);
     width: 90%;
     max-width: 500px;
+    max-height: calc(
+        100dvh
+        - max(var(--space-4), env(safe-area-inset-top, 0px))
+        - max(var(--space-4), env(safe-area-inset-bottom, 0px))
+    );
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
     position: relative;
     z-index: 1;
     flex-shrink: 0;
     transform: translateY(-20px);
     transition: transform var(--transition-normal);
+}
+
+/* Registration has more fields — tighter spacing so the card fits without clipping */
+#customer-register-modal .auth-modal-content {
+    padding: 0;
+}
+
+#customer-register-modal .auth-modal-header {
+    padding: var(--space-5) var(--space-6) var(--space-3);
+    margin-bottom: 0;
+}
+
+#customer-register-modal .auth-modal-body {
+    padding: var(--space-2) var(--space-6) var(--space-5);
+}
+
+#customer-register-modal .auth-modal-body .form-group {
+    margin-bottom: var(--space-3);
+}
+
+#customer-register-modal .oauth-signin-block {
+    margin-bottom: var(--space-2);
+}
+
+#customer-register-modal .auth-divider {
+    margin: 0.625rem 0;
+}
+
+.register-optional-contact {
+    margin-bottom: var(--space-3);
+}
+
+.register-optional-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    width: 100%;
+    padding: var(--space-3) var(--space-4);
+    border: 1px dashed var(--gray-300);
+    border-radius: var(--radius-md);
+    background: var(--gray-50);
+    color: var(--primary-green);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.register-optional-toggle:hover,
+.register-optional-toggle:focus {
+    background: #eef5ec;
+    border-color: var(--primary-green);
+    outline: none;
+}
+
+.register-optional-toggle:focus-visible {
+    box-shadow: 0 0 0 3px rgba(45, 90, 39, 0.15);
+}
+
+.register-optional-toggle[aria-expanded='true'] {
+    border-style: solid;
+    background: #f3faf1;
+}
+
+.register-optional-toggle-hint {
+    color: var(--gray-500);
+    font-weight: 500;
+}
+
+.register-optional-panel {
+    margin-top: var(--space-3);
+    padding-top: var(--space-1);
+}
+
+.register-optional-panel[hidden] {
+    display: none !important;
+}
+
+.register-address-intro {
+    margin-bottom: var(--space-3);
+}
+
+.form-optional {
+    color: var(--gray-500);
+    font-weight: 400;
+}
+
+#register-address-state {
+    text-transform: uppercase;
 }
 
 .auth-modal.show .auth-modal-content {
@@ -415,9 +521,14 @@ a.auth-btn:focus-visible {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-shrink: 0;
     border-bottom: 1px solid var(--gray-200);
-    padding-bottom: var(--space-4);
-    margin-bottom: var(--space-6);
+    padding: var(--space-5) var(--space-6) var(--space-4);
+    margin: 0;
+    position: relative;
+    z-index: 3;
+    background-color: var(--white);
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
 }
 
 .auth-modal-header h2 {
@@ -425,6 +536,16 @@ a.auth-btn:focus-visible {
     font-size: var(--text-2xl);
     font-family: var(--font-display);
     margin: 0;
+}
+
+.auth-modal-header h2:focus {
+    outline: none;
+}
+
+.auth-modal-header h2:focus-visible {
+    outline: 2px solid var(--primary-green);
+    outline-offset: 3px;
+    border-radius: var(--radius-sm);
 }
 
 .auth-modal-close {
@@ -464,7 +585,13 @@ a.auth-btn:focus-visible {
 }
 
 .auth-modal-body {
-    padding-top: var(--space-4);
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding: var(--space-4) var(--space-6) var(--space-6);
 }
 
 /* Form Styles */
@@ -597,8 +724,15 @@ a.auth-btn:focus-visible {
     }
 
     .auth-modal-content {
-        padding: var(--space-6);
         max-width: 95%;
+    }
+
+    .auth-modal-header {
+        padding: var(--space-4) var(--space-5) var(--space-3);
+    }
+
+    .auth-modal-body {
+        padding: var(--space-3) var(--space-5) var(--space-5);
     }
 
     .header-actions .customer-auth-container {
@@ -872,6 +1006,24 @@ a.auth-btn:focus-visible {
 
 body.auth-modal-open {
     overflow: hidden;
+}
+
+/* Keep sticky header / promo below the full-screen auth overlay */
+body.auth-modal-open .header,
+body.auth-modal-open .site-promo-banner,
+body.auth-modal-open .nav-menu,
+body.auth-modal-open .navbar .header-actions {
+    z-index: 1 !important;
+}
+
+/* Error/success toasts must render above the auth overlay blur, not behind it */
+body.auth-modal-open .notification,
+body.auth-modal-open #error-notifications {
+    z-index: var(--z-notification, 1000000) !important;
+    filter: none !important;
+    -webkit-filter: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
 }
 
 @media (max-width: 767px) {

@@ -538,6 +538,16 @@ class AccountManager {
             </form>
         `;
         const modal = this._openModal(html);
+        if (window.HMHERBS_ADDRESS_AUTOCOMPLETE) {
+            window.HMHERBS_ADDRESS_AUTOCOMPLETE.attach({
+                root: modal,
+                line1: '#addr-line1',
+                line2: '#addr-line2',
+                city: '#addr-city',
+                state: '#addr-state',
+                zip: '#addr-postal',
+            });
+        }
         modal.querySelector('#address-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const submitBtn = e.target.querySelector('button[type="submit"]');

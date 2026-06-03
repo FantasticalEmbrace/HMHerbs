@@ -71,6 +71,199 @@ class CustomerAuth {
         this.setupEventListeners();
         this.checkAuthStatus();
         this._initCheckoutPageIfNeeded();
+        ['customer-login-modal', 'customer-register-modal', 'customer-forgot-password-modal'].forEach((id) => {
+            this._ensureAuthModalOnTop(document.getElementById(id));
+        });
+        void this._setupGoogleSignIn();
+        this._setupRegisterOptionalContact();
+    }
+
+    _registerOptionalContactHtml() {
+        return (
+            '<button type="button" class="register-optional-toggle" id="register-contact-toggle"' +
+            ' aria-expanded="false" aria-controls="register-contact-panel">' +
+            '<span class="register-optional-toggle-label">Add phone &amp; mailing address</span>' +
+            '<span class="register-optional-toggle-hint">(optional)</span>' +
+            '</button>' +
+            '<div id="register-contact-panel" class="register-optional-panel" hidden>' +
+            '<div class="form-group"><label for="register-phone">Phone</label>' +
+            '<input type="tel" id="register-phone" class="form-input" placeholder="(601) 398-5600"' +
+            ' maxlength="14" inputmode="numeric" autocomplete="tel"></div>' +
+            '<p class="form-help register-address-intro">Start typing your street address for suggestions, or enter it manually.</p>' +
+            '<div class="form-group"><label for="register-address-line1">Street address</label>' +
+            '<input type="text" id="register-address-line1" class="form-input" placeholder="123 Main St"' +
+            ' autocomplete="address-line1"></div>' +
+            '<div class="form-group"><label for="register-address-line2">Apt / suite' +
+            ' <span class="form-optional">(optional)</span></label>' +
+            '<input type="text" id="register-address-line2" class="form-input" placeholder="Apt 4B"' +
+            ' autocomplete="address-line2"></div>' +
+            '<div class="form-row"><div class="form-group"><label for="register-address-city">City</label>' +
+            '<input type="text" id="register-address-city" class="form-input" placeholder="Hattiesburg"' +
+            ' autocomplete="address-level2"></div>' +
+            '<div class="form-group"><label for="register-address-state">State</label>' +
+            '<input type="text" id="register-address-state" class="form-input" placeholder="MS" maxlength="2"' +
+            ' autocapitalize="characters" autocomplete="address-level1" aria-describedby="register-state-help">' +
+            '<small id="register-state-help" class="form-help">2-letter code</small></div></div>' +
+            '<div class="form-group"><label for="register-address-zip">ZIP code</label>' +
+            '<input type="text" id="register-address-zip" class="form-input" placeholder="39401"' +
+            ' inputmode="numeric" maxlength="10" autocomplete="postal-code"></div>' +
+            '</div>'
+        );
+    }
+
+    _setupRegisterOptionalContact() {
+        document.querySelectorAll('#customer-register-form').forEach((form) => {
+            if (form.querySelector('#register-optional-contact') || form.querySelector('#register-contact-toggle')) {
+                return;
+            }
+
+            const dobGroup = form.querySelector('#register-date-of-birth')?.closest('.form-group');
+            const legacyPhoneGroup = form.querySelector('#register-phone')?.closest('.form-group');
+            const anchor = dobGroup?.nextElementSibling || legacyPhoneGroup || form.querySelector('.form-row');
+
+            const wrap = document.createElement('div');
+            wrap.className = 'register-optional-contact';
+            wrap.id = 'register-optional-contact';
+            wrap.innerHTML = this._registerOptionalContactHtml();
+
+            if (legacyPhoneGroup && !legacyPhoneGroup.querySelector('#register-date-of-birth')) {
+                const phoneInput = legacyPhoneGroup.querySelector('#register-phone');
+                const panelPhone = wrap.querySelector('#register-phone');
+                if (phoneInput && panelPhone) {
+                    panelPhone.replaceWith(phoneInput);
+                }
+                legacyPhoneGroup.remove();
+            }
+
+            if (anchor) {
+                anchor.insertAdjacentElement('afterend', wrap);
+            } else if (dobGroup) {
+                dobGroup.insertAdjacentElement('afterend', wrap);
+            } else {
+                form.appendChild(wrap);
+            }
+        });
+        if (window.HMHERBS_ADDRESS_AUTOCOMPLETE) {
+            window.HMHERBS_ADDRESS_AUTOCOMPLETE.attachStandardForms();
+        }
+    }
+
+    _toggleRegisterContactPanel(forceOpen) {
+        const toggle = document.getElementById('register-contact-toggle');
+        const panel = document.getElementById('register-contact-panel');
+        if (!toggle || !panel) return;
+        const open = typeof forceOpen === 'boolean'
+            ? forceOpen
+            : toggle.getAttribute('aria-expanded') !== 'true';
+        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (open) panel.removeAttribute('hidden');
+        else panel.setAttribute('hidden', '');
+    }
+
+    _collapseRegisterContactPanel() {
+        this._toggleRegisterContactPanel(false);
+    }
+
+    _readRegisterMailingAddress(form) {
+        const line1 = form.querySelector('#register-address-line1')?.value.trim() || '';
+        const line2 = form.querySelector('#register-address-line2')?.value.trim() || '';
+        const city = form.querySelector('#register-address-city')?.value.trim() || '';
+        const state = (form.querySelector('#register-address-state')?.value.trim() || '').toUpperCase();
+        const postalCode = form.querySelector('#register-address-zip')?.value.trim() || '';
+        const any = [line1, line2, city, state, postalCode].some(Boolean);
+        if (!any) return undefined;
+        return {
+            addressLine1: line1,
+            addressLine2: line2 || undefined,
+            city,
+            state,
+            postalCode
+        };
+    }
+
+    _validateRegisterMailingAddress(mailingAddress) {
+        if (!mailingAddress) return '';
+        const { addressLine1, city, state, postalCode } = mailingAddress;
+        if (!addressLine1 || !city || !state || !postalCode) {
+            return 'Mailing address requires street, city, state, and ZIP when any address field is filled.';
+        }
+        if (!/^[A-Z]{2}$/.test(state)) {
+            return 'State must be a 2-letter code (e.g. MS).';
+        }
+        if (!/^\d{5}(-\d{4})?$/.test(postalCode)) {
+            return 'ZIP code must be 5 digits or ZIP+4 (12345 or 12345-6789).';
+        }
+        return '';
+    }
+
+    _googleButtonSvg() {
+        return '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>';
+    }
+
+    _ensureOAuthStyles() {
+        if (document.querySelector('link[data-hm-oauth-css]')) return;
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = 'css/oauth-buttons.css';
+        link.setAttribute('data-hm-oauth-css', '1');
+        document.head.appendChild(link);
+    }
+
+    _wireGoogleButton(btn) {
+        if (!btn || btn.dataset.oauthWired === '1') return;
+        btn.dataset.oauthWired = '1';
+        if (!btn.querySelector('svg')) {
+            btn.insertAdjacentHTML('afterbegin', this._googleButtonSvg());
+        }
+        btn.addEventListener('click', () => this.startGoogleSignIn());
+    }
+
+    _ensureOAuthBlock(form, enabled) {
+        if (!form) return;
+        let block = form.querySelector('[data-oauth-block]');
+        if (!block && enabled) {
+            block = document.createElement('div');
+            block.className = 'oauth-signin-block';
+            block.setAttribute('data-oauth-block', '');
+            block.innerHTML =
+                '<button type="button" class="btn-google btn-google-oauth">Continue with Google</button>' +
+                '<div class="auth-divider">or</div>';
+            const first = form.firstElementChild;
+            if (first) form.insertBefore(block, first);
+            else form.appendChild(block);
+        }
+        if (!block) return;
+        block.classList.toggle('hidden', !enabled);
+        if (enabled) block.removeAttribute('hidden');
+        else block.setAttribute('hidden', '');
+        block.querySelectorAll('.btn-google-oauth').forEach((btn) => this._wireGoogleButton(btn));
+    }
+
+    async _setupGoogleSignIn() {
+        this._ensureOAuthStyles();
+        const origin = hmHerbsCustomerBackendOrigin();
+        const statusUrl = origin ? `${origin}/api/auth/google/status` : '/api/auth/google/status';
+        let enabled = false;
+        try {
+            const res = await fetch(statusUrl);
+            if (res.ok) {
+                const data = await res.json();
+                enabled = Boolean(data?.google?.enabled);
+            }
+        } catch (_) {
+            /* Google sign-in optional */
+        }
+        ['customer-login-form', 'customer-register-form'].forEach((formId) => {
+            this._ensureOAuthBlock(document.getElementById(formId), enabled);
+        });
+        return enabled;
+    }
+
+    startGoogleSignIn() {
+        const origin = hmHerbsCustomerBackendOrigin();
+        const base = origin ? `${origin}/api/auth` : '/api/auth';
+        const returnTo = `${window.location.pathname}${window.location.search}` || '/index.html';
+        window.location.href = `${base}/google/start?returnTo=${encodeURIComponent(returnTo)}`;
     }
 
     /** Stroke SVGs for header auth — crisp at small sizes; matches cart icon approach. */
@@ -987,6 +1180,19 @@ class CustomerAuth {
             });
         }
 
+        document.addEventListener('click', (e) => {
+            const toggle = e.target.closest('#register-contact-toggle');
+            if (!toggle) return;
+            e.preventDefault();
+            this._toggleRegisterContactPanel();
+        });
+
+        document.addEventListener('input', (e) => {
+            if (e.target && e.target.id === 'register-address-state') {
+                e.target.value = e.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2);
+            }
+        });
+
         const forgotForm = document.getElementById('customer-forgot-password-form');
         if (forgotForm) {
             forgotForm.addEventListener('submit', (e) => this.handleForgotPassword(e), true);
@@ -1191,6 +1397,14 @@ class CustomerAuth {
             return;
         }
 
+        const mailingAddress = this._readRegisterMailingAddress(form);
+        const mailingError = this._validateRegisterMailingAddress(mailingAddress);
+        if (mailingError) {
+            this._toggleRegisterContactPanel(true);
+            this._setAuthError(errorDiv, mailingError);
+            return;
+        }
+
         if (submitBtn) {
             submitBtn.disabled = true;
             submitBtn.textContent = 'Creating account...';
@@ -1204,6 +1418,7 @@ class CustomerAuth {
                 password,
                 phone: phone || undefined,
                 dateOfBirth,
+                mailingAddress,
             });
             this.checkAuthStatus();
             this.closeRegisterModal();
@@ -1288,6 +1503,47 @@ class CustomerAuth {
         modal.setAttribute('aria-hidden', 'false');
     }
 
+    /** Move auth overlay to end of <body> so it stacks above header/cart/chrome. */
+    _ensureAuthModalOnTop(modal) {
+        if (!modal || !document.body) return;
+        document.body.appendChild(modal);
+    }
+
+    _openAuthModal(modal) {
+        if (!modal) return;
+        this._ensureAuthModalOnTop(modal);
+        modal.classList.add('show');
+        this._showModalForA11y(modal);
+        this._resetAuthModalScroll(modal);
+        this._syncAuthScrollLock();
+    }
+
+    /** Keep modal card scrolled to top (avoids focus/animation clipping header + Google button). */
+    _resetAuthModalScroll(modal) {
+        if (!modal) return;
+        const content = modal.querySelector('.auth-modal-content');
+        const body = modal.querySelector('.auth-modal-body');
+        modal.scrollTop = 0;
+        if (content) content.scrollTop = 0;
+        if (body) body.scrollTop = 0;
+        requestAnimationFrame(() => {
+            modal.scrollTop = 0;
+            if (content) content.scrollTop = 0;
+            if (body) body.scrollTop = 0;
+        });
+    }
+
+    _focusAuthModalEntry(modal) {
+        if (!modal) return;
+        const title = modal.querySelector('.auth-modal-header h2');
+        const closeBtn = modal.querySelector('.auth-modal-close');
+        const target = title || closeBtn;
+        if (target && typeof target.focus === 'function') {
+            target.setAttribute('tabindex', '-1');
+            target.focus({ preventScroll: true });
+        }
+    }
+
     openForgotPasswordModal() {
         this.closeLoginModal();
         this.closeRegisterModal();
@@ -1298,10 +1554,7 @@ class CustomerAuth {
             forgotEmail.value = loginEmail.value.trim();
         }
         if (modal) {
-            modal.classList.add('show');
-            this._showModalForA11y(modal);
-            modal.scrollTop = 0;
-            this._syncAuthScrollLock();
+            this._openAuthModal(modal);
             if (forgotEmail) forgotEmail.focus({ preventScroll: true });
         }
     }
@@ -1325,12 +1578,11 @@ class CustomerAuth {
         this.closeForgotPasswordModal();
         const modal = document.getElementById('customer-login-modal');
         if (modal) {
-            modal.classList.add('show');
-            this._showModalForA11y(modal);
-            modal.scrollTop = 0;
-            this._syncAuthScrollLock();
-            const emailInput = modal.querySelector('#login-email');
-            if (emailInput) emailInput.focus({ preventScroll: true });
+            this._openAuthModal(modal);
+            void this._setupGoogleSignIn().then(() => {
+                this._resetAuthModalScroll(modal);
+            });
+            this._focusAuthModalEntry(modal);
         }
     }
 
@@ -1369,15 +1621,15 @@ class CustomerAuth {
 
     openRegisterModal() {
         this.closeForgotPasswordModal();
+        this._setupRegisterOptionalContact();
         const modal = document.getElementById('customer-register-modal');
         if (modal) {
             this._syncRegisterDobInputConstraints(modal);
-            modal.classList.add('show');
-            this._showModalForA11y(modal);
-            modal.scrollTop = 0;
-            this._syncAuthScrollLock();
-            const firstNameInput = modal.querySelector('#register-first-name');
-            if (firstNameInput) firstNameInput.focus({ preventScroll: true });
+            this._openAuthModal(modal);
+            void this._setupGoogleSignIn().then(() => {
+                this._resetAuthModalScroll(modal);
+            });
+            this._focusAuthModalEntry(modal);
         }
     }
 
@@ -1389,6 +1641,7 @@ class CustomerAuth {
             const form = modal.querySelector('#customer-register-form');
             if (form) {
                 form.reset();
+                this._collapseRegisterContactPanel();
                 const errorDiv = form.querySelector('.auth-error');
                 if (errorDiv) {
                     errorDiv.textContent = '';

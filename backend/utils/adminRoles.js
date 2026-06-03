@@ -1,9 +1,10 @@
 /**
- * Admin panel roles (top → bottom): admin, manager, assistant_manager, marketing.
+ * Admin panel roles (top → bottom): developer, admin, manager, assistant_manager, marketing.
  * Legacy DB values super_admin → admin, staff → assistant_manager.
  */
 
 const ADMIN_ROLES = Object.freeze([
+    'developer',
     'admin',
     'manager',
     'assistant_manager',
@@ -21,9 +22,11 @@ const ROLE_LEVEL = Object.freeze({
     assistant_manager: 2,
     manager: 3,
     admin: 4,
+    developer: 5,
 });
 
 const ROLE_LABELS = Object.freeze({
+    developer: 'Developer',
     admin: 'Admin',
     manager: 'Manager',
     assistant_manager: 'Assistant Manager',
@@ -42,6 +45,10 @@ function adminRoleLevel(role) {
 
 function isMarketingRole(role) {
     return normalizeAdminRole(role) === 'marketing';
+}
+
+function isDeveloperRole(role) {
+    return normalizeAdminRole(role) === 'developer';
 }
 
 function hasMinAdminRole(userRole, minRole) {
@@ -83,6 +90,7 @@ const SECTION_ACCESS = Object.freeze({
         'settings',
     ],
     admin: null, // null = all sections
+    developer: null,
 });
 
 function canAccessAdminSection(role, sectionId) {
@@ -101,7 +109,7 @@ function defaultSectionForRole(role) {
 /** `null` means all sections (Admin). */
 function allowedSectionsForRole(role) {
     const normalized = normalizeAdminRole(role);
-    if (normalized === 'admin') return null;
+    if (normalized === 'admin' || normalized === 'developer') return null;
     return SECTION_ACCESS[normalized] || [];
 }
 
@@ -117,6 +125,7 @@ module.exports = {
     normalizeAdminRole,
     adminRoleLevel,
     isMarketingRole,
+    isDeveloperRole,
     hasMinAdminRole,
     getNextRole,
     canAccessAdminSection,

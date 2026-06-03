@@ -175,6 +175,7 @@
     <link rel="stylesheet" href="css/browser-compatibility.css">
     <link rel="stylesheet" href="css/edsa-booking.css?v=12">
     <link rel="stylesheet" href="css/customer-auth.css">
+    <link rel="stylesheet" href="css/oauth-buttons.css">
     <link rel="stylesheet" href="css/performance-optimizations.css">
     <link rel="stylesheet" href="css/accessibility-enhancements.css">
     <link rel="stylesheet" href="css/hm-close-controls.css">
@@ -936,6 +937,10 @@
             </div>
             <div class="auth-modal-body">
                 <form id="customer-login-form" action="#" method="get">
+                    <div class="oauth-signin-block hidden" data-oauth-block hidden>
+                        <button type="button" class="btn-google btn-google-oauth">Continue with Google</button>
+                        <div class="auth-divider">or</div>
+                    </div>
                     <div class="form-group">
                         <input type="email" id="login-email" class="form-input" placeholder="Email address" required
                             autocomplete="username">
@@ -995,6 +1000,10 @@
             </div>
             <div class="auth-modal-body">
                 <form id="customer-register-form" action="#" method="get">
+                    <div class="oauth-signin-block hidden" data-oauth-block hidden>
+                        <button type="button" class="btn-google btn-google-oauth">Continue with Google</button>
+                        <div class="auth-divider">or</div>
+                    </div>
                     <div class="form-row">
                         <div class="form-group">
                             <input type="text" id="register-first-name" class="form-input" placeholder="First name"
@@ -1010,16 +1019,58 @@
                             autocomplete="email">
                     </div>
                     <div class="form-group">
-                        <input type="tel" id="register-phone" class="form-input" placeholder="(601) 398-5600 (optional)"
-                            maxlength="14" inputmode="numeric" autocomplete="tel">
-                    </div>
-                    <div class="form-group">
                         <label for="register-date-of-birth">Date of birth <span class="text-required"
                                 aria-hidden="true">*</span></label>
-                        <input type="date" id="register-date-of-birth" class="form-input" autocomplete="off" required
+                        <input type="date" id="register-date-of-birth" class="form-input" autocomplete="bday" required
                             title="Required. You must be 21 or older."
                             aria-describedby="register-dob-help">
                         <small id="register-dob-help" class="form-help">Required — must match our 21+ age policy.</small>
+                    </div>
+                    <div class="register-optional-contact" id="register-optional-contact">
+                        <button type="button" class="register-optional-toggle" id="register-contact-toggle"
+                            aria-expanded="false" aria-controls="register-contact-panel">
+                            <span class="register-optional-toggle-label">Add phone &amp; mailing address</span>
+                            <span class="register-optional-toggle-hint">(optional)</span>
+                        </button>
+                        <div id="register-contact-panel" class="register-optional-panel" hidden>
+                            <div class="form-group">
+                                <label for="register-phone">Phone</label>
+                                <input type="tel" id="register-phone" class="form-input"
+                                    placeholder="(601) 398-5600" maxlength="14" inputmode="numeric"
+                                    autocomplete="tel">
+                            </div>
+                            <p class="form-help register-address-intro">Start typing your street address for suggestions, or enter it manually.</p>
+                            <div class="form-group">
+                                <label for="register-address-line1">Street address</label>
+                                <input type="text" id="register-address-line1" class="form-input"
+                                    placeholder="123 Main St" autocomplete="address-line1">
+                            </div>
+                            <div class="form-group">
+                                <label for="register-address-line2">Apt / suite <span class="form-optional">(optional)</span></label>
+                                <input type="text" id="register-address-line2" class="form-input"
+                                    placeholder="Apt 4B" autocomplete="address-line2">
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="register-address-city">City</label>
+                                    <input type="text" id="register-address-city" class="form-input"
+                                        placeholder="Hattiesburg" autocomplete="address-level2">
+                                </div>
+                                <div class="form-group">
+                                    <label for="register-address-state">State</label>
+                                    <input type="text" id="register-address-state" class="form-input"
+                                        placeholder="MS" maxlength="2" autocapitalize="characters"
+                                        autocomplete="address-level1" aria-describedby="register-state-help">
+                                    <small id="register-state-help" class="form-help">2-letter code</small>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="register-address-zip">ZIP code</label>
+                                <input type="text" id="register-address-zip" class="form-input"
+                                    placeholder="39401" inputmode="numeric" maxlength="10"
+                                    autocomplete="postal-code">
+                            </div>
+                        </div>
                     </div>
                     <div class="form-group">
                         <input type="password" id="register-password" class="form-input" placeholder="Password" required
@@ -1062,8 +1113,9 @@
     <script src="js/seo-optimizer.js" defer></script>
     <script src="js/code-quality-optimizer.js" defer></script>
     <script src="js/performance-micro-optimizer.js?v=2.2" defer></script>
-    <script src="script.js" defer></script>
+    <script src="script.js?v=cart-toast-2" defer></script>
     <script src="js/phone-us-format.js" defer></script>
+    <script src="js/address-autocomplete.js" defer></script>
     <script src="js/edsa-ui.js" defer></script>
     <script src="js/edsa-booking.js?v=14" defer></script>
     <script src="js/newsletter-popup.js" defer></script>

@@ -35,4 +35,13 @@ function getAdminAppUrl() {
     return `${getStorefrontPublicBaseUrl()}/admin.html`;
 }
 
-module.exports = { getStorefrontPublicBaseUrl, getAdminAppUrl };
+/** Site origin for admin password-reset links (admin-reset-password.html). */
+function getAdminPasswordResetBaseUrl() {
+    return getStorefrontPublicBaseUrl();
+}
+
+module.exports = {
+    getStorefrontPublicBaseUrl,
+    getAdminAppUrl,
+    getAdminPasswordResetBaseUrl
+};

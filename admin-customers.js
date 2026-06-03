@@ -149,6 +149,8 @@
                 return;
             }
 
+            this._lastCustomersPage = data.customers;
+
             container.innerHTML = `
                 <p class="admin-table-scroll-hint" style="margin:0 0 0.75rem;font-size:0.85rem;color:var(--gray-500);">
                     <i class="fas fa-arrows-alt-h" aria-hidden="true"></i> Scroll horizontally to see all columns (including Customer #).
@@ -201,7 +203,7 @@
                                             <button type="button" class="btn btn-sm btn-secondary" onclick="adminApp.showCustomerProfile(${c.id})" title="View profile">
                                                 <i class="fas fa-eye" aria-hidden="true"></i>
                                             </button>
-                                            ${this.isFullAdmin ? `<button type="button" class="btn btn-sm btn-danger" onclick="adminApp.deleteCustomerAccount(${c.id}, ${JSON.stringify((c.email || '').trim())})" title="Delete account"><i class="fas fa-trash" aria-hidden="true"></i></button>` : ''}
+                                            ${this.isFullAdmin ? `<button type="button" class="btn btn-sm btn-danger" onclick="adminApp.deleteCustomerAccount(${c.id})" title="Delete account"><i class="fas fa-trash" aria-hidden="true"></i></button>` : ''}
                                         </div>
                                     </td>
                                 </tr>
@@ -476,10 +478,16 @@
             this.showToast('Only an Admin can delete customer accounts', 'error');
             return;
         }
+        let label = email;
+        if (!label) {
+            const id = Number(customerId);
+            const found = (this._lastCustomersPage || []).find((c) => Number(c.id) === id);
+            label = found?.email || [found?.first_name, found?.last_name].filter(Boolean).join(' ').trim() || '';
+        }
         const ok = await this.showAdminConfirm({
             title: 'Delete customer account?',
             message:
-                `Remove storefront access for ${email || 'this customer'}? Their order history stays in the system, but they cannot sign in again.`,
+                `Remove storefront access for ${label || 'this customer'}? Their order history stays in the system, but they cannot sign in again.`,
             confirmLabel: 'Delete account',
             cancelLabel: 'Cancel',
             danger: true,

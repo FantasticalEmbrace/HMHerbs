@@ -25,12 +25,21 @@ const { createSeoRedirectMiddleware } = require('./middleware/seoRedirects');
 const { ensureProductSchema } = require('./utils/ensureProductSchema');
 const { ensureUserPasswordResetSchema } = require('./utils/ensureUserPasswordResetSchema');
 const { ensureEdsaBookingSchema } = require('./utils/ensureEdsaBookingSchema');
+const {
+    findCustomerByEmailAnyStatus,
+    reactivateCustomerForLocalSignup,
+    loadCustomerRow
+} = require('./utils/customerAccountReactivation');
 const { provisionWebCustomerProfile } = require('./utils/provisionCustomerProfile');
+const { saveRegistrationMailingAddress, normalizeRegistrationMailingAddress } = require('./utils/saveRegistrationMailingAddress');
 const { createOctoposRewardCardForWebUser } = require('./utils/createOctoposRewardCardForWebUser');
 const { pushUserProfileToOctopos } = require('./utils/pushUserProfileToOctopos');
 const { isUsPhoneDisplayOrEmpty } = require('./utils/usPhoneDisplay');
 const { startOctoposAutoSync } = require('./services/octoposAutoSyncScheduler');
 const { startTaxReserveScheduler } = require('./services/taxReserveScheduler');
+const { startTaxAccountantScheduler } = require('./services/taxAccountantScheduler');
+const { ensureSocialOAuthSchema } = require('./utils/ensureSocialOAuthSchema');
+const { createCustomerGoogleRoutes, createAdminGoogleRoutes } = require('./routes/socialAuth');
 const secureLogger = require('./utils/secure-logger');
 const {
     userRegistrationValidation,
@@ -534,7 +543,7 @@ app.get('/api/promo-banner', async (req, res) => {
 // User Authentication Routes
 app.post('/api/auth/register', authLimiter, userRegistrationValidation, async (req, res) => {
     try {
-        const { email, password, firstName, lastName, phone, dateOfBirth } = req.body;
+        const { email, password, firstName, lastName, phone, dateOfBirth, mailingAddress } = req.body;
         const emailNorm = String(email || '').trim().toLowerCase();
         const dob = String(dateOfBirth || '').trim().slice(0, 10);
 
@@ -543,87 +552,114 @@ app.post('/api/auth/register', authLimiter, userRegistrationValidation, async (r
             return res.status(400).json({ error: 'All required fields must be provided' });
         }
 
-        // Check if user already exists (case-insensitive; handles legacy mixed-case rows)
+        // Active account blocks registration; deactivated (admin "deleted") accounts can re-register.
         const [existingUsers] = await pool.execute(
-            'SELECT id FROM users WHERE LOWER(TRIM(email)) = ?',
+            'SELECT id, is_active FROM users WHERE LOWER(TRIM(email)) = ?',
             [emailNorm]
         );
 
-        if (existingUsers.length > 0) {
+        try {
+            normalizeRegistrationMailingAddress(mailingAddress);
+        } catch (addrErr) {
+            if (addrErr.code === 'INCOMPLETE_MAILING_ADDRESS' || addrErr.code === 'INVALID_STATE' || addrErr.code === 'INVALID_POSTAL') {
+                return res.status(400).json({ error: addrErr.message });
+            }
+            throw addrErr;
+        }
+
+        const saltRounds = 12;
+        const passwordHash = await bcrypt.hash(password, saltRounds);
+        let userId;
+        const isReactivation = existingUsers.length > 0 && !existingUsers[0].is_active;
+
+        if (existingUsers.length > 0 && existingUsers[0].is_active) {
             return res.status(400).json({
-                error: 'There is already an account with this email address. Please sign in instead.',
+                error: 'There is already an account with this email address. Please sign in instead.'
             });
         }
 
-        // Hash password
-        const saltRounds = 12;
-        const passwordHash = await bcrypt.hash(password, saltRounds);
+        if (isReactivation) {
+            userId = existingUsers[0].id;
+            await reactivateCustomerForLocalSignup(pool, userId, {
+                passwordHash,
+                firstName,
+                lastName,
+                phone: phone || null,
+                dateOfBirth: dob,
+                email: emailNorm
+            });
+        } else {
+            const [result] = await pool.execute(
+                `INSERT INTO users (email, password_hash, auth_provider, first_name, last_name, phone, date_of_birth)
+                 VALUES (?, ?, 'local', ?, ?, ?, ?)`,
+                [emailNorm, passwordHash, firstName, lastName, phone || null, dob]
+            );
+            userId = result.insertId;
+            await provisionWebCustomerProfile(pool, userId, logger);
+        }
 
-        // Create user
-        const [result] = await pool.execute(
-            'INSERT INTO users (email, password_hash, first_name, last_name, phone, date_of_birth) VALUES (?, ?, ?, ?, ?, ?)',
-            [emailNorm, passwordHash, firstName, lastName, phone || null, dob]
-        );
+        try {
+            await saveRegistrationMailingAddress(pool, userId, {
+                firstName,
+                lastName,
+                mailingAddress
+            });
+        } catch (addrErr) {
+            if (addrErr.code === 'INCOMPLETE_MAILING_ADDRESS' || addrErr.code === 'INVALID_STATE' || addrErr.code === 'INVALID_POSTAL') {
+                return res.status(400).json({ error: addrErr.message });
+            }
+            throw addrErr;
+        }
 
-        const newUserId = result.insertId;
-        await provisionWebCustomerProfile(pool, newUserId, logger);
-
-        // Generate JWT token
         if (!process.env.JWT_SECRET) {
             logger.error('CRITICAL: JWT_SECRET environment variable is not set');
             return res.status(500).json({ error: 'Server configuration error' });
         }
 
-        const token = jwt.sign(
-            { userId: newUserId },
-            process.env.JWT_SECRET,
-            { expiresIn: '7d' }
-        );
+        const token = jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
         let sessionUser;
         try {
-            const [urows] = await pool.execute(
-                `SELECT id, email, first_name, last_name, phone, date_of_birth, customer_number
-                 FROM users WHERE id = ?`,
-                [newUserId]
-            );
-            sessionUser = storefrontSessionUserFromDbRow(urows[0]);
+            const row = await loadCustomerRow(pool, userId);
+            sessionUser = storefrontSessionUserFromDbRow(row);
         } catch (err) {
             if (err.errno !== 1054) throw err;
             const [urows] = await pool.execute(
                 `SELECT id, email, first_name, last_name, phone, date_of_birth FROM users WHERE id = ?`,
-                [newUserId]
+                [userId]
             );
             sessionUser = storefrontSessionUserFromDbRow({ ...urows[0], customer_number: null });
         }
 
-        setImmediate(() => {
-            createOctoposRewardCardForWebUser(
-                pool,
-                {
-                    id: newUserId,
-                    email: emailNorm,
-                    first_name: firstName,
-                    last_name: lastName,
-                    phone: phone || null,
-                    date_of_birth: dob,
-                },
-                logger
-            ).catch((e) => logger.warn('[octopos] post-register reward card', { message: e.message }));
-        });
+        if (!isReactivation) {
+            setImmediate(() => {
+                createOctoposRewardCardForWebUser(
+                    pool,
+                    {
+                        id: userId,
+                        email: emailNorm,
+                        first_name: firstName,
+                        last_name: lastName,
+                        phone: phone || null,
+                        date_of_birth: dob
+                    },
+                    logger
+                ).catch((e) => logger.warn('[octopos] post-register reward card', { message: e.message }));
+            });
+        }
 
-        res.status(201).json({
-            message: 'User created successfully',
+        res.status(isReactivation ? 200 : 201).json({
+            message: isReactivation ? 'Account reactivated successfully' : 'User created successfully',
             token,
             user: sessionUser || {
-                id: newUserId,
+                id: userId,
                 email: emailNorm,
                 firstName,
                 lastName,
                 phone: phone || null,
                 dateOfBirth: dob,
-                customerNumber: null,
-            },
+                customerNumber: null
+            }
         });
     } catch (error) {
         if (error && error.code === 'ER_DUP_ENTRY') {
@@ -675,6 +711,12 @@ app.post('/api/auth/login', authLimiter, userLoginValidation, async (req, res) =
             return res.status(401).json({ error: 'Account is deactivated' });
         }
 
+        if (!user.password_hash) {
+            return res.status(401).json({
+                error: 'This account uses Google sign-in. Click Continue with Google instead.'
+            });
+        }
+
         // Verify password
         const isValidPassword = await bcrypt.compare(password, user.password_hash);
 
@@ -713,16 +755,8 @@ app.post('/api/auth/login', authLimiter, userLoginValidation, async (req, res) =
     }
 });
 
-/** Base URL for links in customer emails (reset-password.html). */
-function getStorefrontPasswordResetBaseUrl() {
-    let base = String(process.env.STOREFRONT_PUBLIC_URL || process.env.FRONTEND_URL || '').trim();
-    base = base.replace(/\/+$/, '');
-    if (!base) {
-        const port = String(process.env.PORT || 3001).trim();
-        base = `http://localhost:${port}`;
-    }
-    return base;
-}
+const { getStorefrontPublicBaseUrl } = require('./utils/storefrontUrl');
+const { sendMail } = require('./utils/mailTransporter');
 
 // Customer password reset (self-service; same email privacy pattern as admin)
 app.post('/api/auth/forgot-password', authLimiter, userForgotPasswordValidation, async (req, res) => {
@@ -745,44 +779,28 @@ app.post('/api/auth/forgot-password', authLimiter, userForgotPasswordValidation,
                 'UPDATE users SET password_reset_token = ?, password_reset_token_expires = ? WHERE id = ?',
                 [resetToken, resetTokenExpires, u.id]
             );
-            const resetBase = getStorefrontPasswordResetBaseUrl();
+            const resetBase = getStorefrontPublicBaseUrl();
             const resetUrl = `${resetBase}/reset-password.html?token=${encodeURIComponent(resetToken)}`;
 
             try {
-                const smtpHost = String(process.env.SMTP_HOST || process.env.EMAIL_HOST || '').trim();
-                const smtpUser = String(process.env.SMTP_USER || process.env.EMAIL_USER || '').trim();
-                const smtpPass = process.env.SMTP_PASSWORD || process.env.EMAIL_PASS || '';
-                const smtpPort = Number(process.env.SMTP_PORT || process.env.EMAIL_PORT || 587) || 587;
-                if (smtpHost && smtpUser) {
-                    const nodemailer = require('nodemailer');
-                    const transporter = nodemailer.createTransport({
-                        host: smtpHost,
-                        port: smtpPort,
-                        secure: smtpPort === 465,
-                        auth: {
-                            user: smtpUser,
-                            pass: smtpPass
-                        }
-                    });
-                    const first = String(u.first_name || '').trim() || 'there';
-                    const fromAddr = String(process.env.SMTP_FROM || process.env.EMAIL_FROM || smtpUser).trim();
-                    await transporter.sendMail({
-                        from: fromAddr,
-                        to: u.email,
-                        subject: 'H&M Herbs — reset your password',
-                        html: `
-                            <h2>Password reset</h2>
-                            <p>Hello ${first},</p>
-                            <p>We received a request to reset the password for your H&amp;M Herbs account.</p>
-                            <p><a href="${resetUrl}" style="background:#2d5a27;color:#fff;padding:10px 20px;text-decoration:none;border-radius:5px;display:inline-block;">Choose a new password</a></p>
-                            <p>Or copy this link into your browser:</p>
-                            <p style="word-break:break-all;">${resetUrl}</p>
-                            <p>This link expires in one hour. If you did not ask for this, you can ignore this email.</p>
-                        `
-                    });
-                } else {
+                const first = String(u.first_name || '').trim() || 'there';
+                const result = await sendMail({
+                    to: u.email,
+                    subject: 'H&M Herbs — reset your password',
+                    html: `
+                        <h2>Password reset</h2>
+                        <p>Hello ${first},</p>
+                        <p>We received a request to reset the password for your H&amp;M Herbs account.</p>
+                        <p><a href="${resetUrl}" style="background:#2d5a27;color:#fff;padding:10px 20px;text-decoration:none;border-radius:5px;display:inline-block;">Choose a new password</a></p>
+                        <p>Or copy this link into your browser:</p>
+                        <p style="word-break:break-all;">${resetUrl}</p>
+                        <p>This link expires in one hour. If you did not ask for this, you can ignore this email.</p>
+                    `,
+                    logTag: 'Customer password reset email'
+                });
+                if (!result.sent) {
                     logger.info('Customer password reset (SMTP not configured):', { email: u.email, resetUrl });
-                    console.log('\n🔑 Customer password reset link (set SMTP_* or EMAIL_* in backend/.env to send email):\n');
+                    console.log('\n🔑 Customer password reset link (set SMTP_* in backend/.env to send email):\n');
                     console.log(`   ${resetUrl}\n`);
                 }
             } catch (emailErr) {
@@ -1102,6 +1120,31 @@ app.post('/api/gift-cards/check-balance', async (req, res) => {
     } catch (error) {
         logger.error('Check gift card balance error:', error);
         res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// US address type-ahead (storefront forms)
+const { searchAddressSuggestions } = require('./services/addressSuggest');
+const addressSuggestLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 30,
+    message: { error: 'Too many address lookups. Please wait a moment and try again.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+app.get('/api/address-suggest', addressSuggestLimiter, async (req, res) => {
+    try {
+        const q = String(req.query.q || '').trim();
+        const state = String(req.query.state || '').trim();
+        if (q.length < 3) {
+            return res.json({ suggestions: [] });
+        }
+        const suggestions = await searchAddressSuggestions(q, { state });
+        res.json({ suggestions });
+    } catch (error) {
+        logger.error('Address suggest error:', error);
+        res.status(502).json({ error: 'Address lookup is temporarily unavailable' });
     }
 });
 
@@ -1524,6 +1567,8 @@ app.post('/api/analytics', express.json(), (req, res) => {
 });
 
 // Mount routes
+app.use('/api/auth', createCustomerGoogleRoutes(pool, logger, authenticateToken));
+app.use('/api/admin/auth', createAdminGoogleRoutes(pool, logger));
 app.use('/api/cart', cartRoutes);
 app.use('/api/promotions', require('./routes/promotions'));
 app.use('/api/payments', require('./routes/nmi-payments'));
@@ -1532,6 +1577,7 @@ app.use('/api/edsa', edsaRoutes);
 app.use('/api/menu', require('./routes/menu'));
 app.use('/api/admin/customers', require('./routes/admin-customers'));
 app.use('/api/admin/gift-cards', require('./routes/admin-gift-cards'));
+app.use('/api/admin/dev-tools', require('./routes/admin-dev-tools'));
 app.use('/api/admin', adminRoutes);
 app.use('/api/payment-cards', paymentCardsRoutes);
 app.use('/api/octopos', require('./routes/octopos'));
@@ -1579,6 +1625,12 @@ app.use('/api/*', (req, res) => {
     }
 
     try {
+        await ensureSocialOAuthSchema(pool);
+    } catch (e) {
+        logger.error(`ensureSocialOAuthSchema failed: ${logger.formatMysqlError(e)}`);
+    }
+
+    try {
         await ensureEdsaBookingSchema(pool);
     } catch (e) {
         logger.error(`ensureEdsaBookingSchema failed: ${logger.formatMysqlError(e)}`);
@@ -1598,6 +1650,7 @@ app.use('/api/*', (req, res) => {
 
     const stopOctoposAutoSync = startOctoposAutoSync(pool);
     const stopTaxReserveScheduler = startTaxReserveScheduler(pool);
+    const stopTaxAccountantScheduler = startTaxAccountantScheduler(pool);
 
     const server = app.listen(PORT, () => {
         const { isSmtpConfigured } = require('./utils/smtpConfig');
@@ -1632,6 +1685,10 @@ app.use('/api/*', (req, res) => {
         if (typeof stopTaxReserveScheduler === 'function' && process.env.TAX_LEDGER_SYNC_ENABLED === 'true') {
             process.on('SIGTERM', () => stopTaxReserveScheduler());
             process.on('SIGINT', () => stopTaxReserveScheduler());
+        }
+        if (typeof stopTaxAccountantScheduler === 'function') {
+            process.on('SIGTERM', () => stopTaxAccountantScheduler());
+            process.on('SIGINT', () => stopTaxAccountantScheduler());
         }
     }).on('error', (error) => {
         logger.error('Server startup error:', error);

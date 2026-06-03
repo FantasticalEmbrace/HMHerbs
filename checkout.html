@@ -680,7 +680,8 @@
                         <div class="form-group">
                             <label for="shipping-address-1">Address Line 1 <span class="required">*</span></label>
                             <input type="text" id="shipping-address-1" name="shipping_address_1" class="form-input"
-                                required autocomplete="street-address">
+                                required autocomplete="off">
+                            <p class="form-help" style="margin-top:-0.5rem;font-size:0.85rem;color:var(--gray-600);">Start typing for address suggestions, or enter manually.</p>
                             <span class="error-message">Please enter your address</span>
                         </div>
                         <div class="form-group">
@@ -1251,6 +1252,7 @@
     <script src="js/mobile-menu.js"></script>
     <script src="js/visual-bug-fixes.js"></script>
     <script src="js/phone-us-format.js"></script>
+    <script src="js/address-autocomplete.js"></script>
     <script src="js/customer-auth.js?v=20260515" defer></script>
     <!-- Optional NMI public key fallback (see file header). Primary: backend .env → /api/payments/nmi-client-config -->
     <script src="js/nmi-public-token.js" defer></script>

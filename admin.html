@@ -2040,7 +2040,7 @@
         }
 
     </style>
-    <link rel="stylesheet" href="css/hm-close-controls.css">
+    <link rel="stylesheet" href="css/oauth-buttons.css">
 </head>
 
 <body>
@@ -2214,7 +2214,7 @@
                     <div class="nav-item">
                         <a href="#" class="nav-link" data-section="tax-ledger">
                             <i class="fas fa-file-invoice-dollar"></i>
-                            Tax Ledger
+                            Sales Tax
                         </a>
                     </div>
                     <div class="nav-item">
@@ -2259,6 +2259,12 @@
                         <a href="#" class="nav-link" data-section="settings">
                             <i class="fas fa-cog"></i>
                             Settings
+                        </a>
+                    </div>
+                    <div class="nav-item" id="nav-developer-tools-item" style="display:none;">
+                        <a href="#" class="nav-link" data-section="developer-tools">
+                            <i class="fas fa-code"></i>
+                            Developer Tools
                         </a>
                     </div>
                     <div class="nav-item">
@@ -2518,7 +2524,7 @@
 
             <section id="tax-ledger" class="content-section">
                 <div class="content-header">
-                    <h1 class="page-title">Tax Reserve Assistant</h1>
+                    <h1 class="page-title">Sales Tax Reporting</h1>
                     <div class="button-group">
                         <button type="button" class="btn btn-secondary" onclick="window.adminApp.loadTaxLedger()">
                             <i class="fas fa-sync-alt"></i>
@@ -2567,19 +2573,33 @@
                         <p id="taxLedgerInstruction" style="margin-bottom: 1rem; font-size: 1rem;">
                             Based on today's sales, please transfer $0.00 to your Tax Savings Account.
                         </p>
+                        <p style="margin-bottom: 1rem; color: var(--text-muted, #6b7280); font-size: 0.95rem;">
+                            Monthly reports for Georgia, Indiana, Michigan, North Carolina, and Ohio include website and POS sales,
+                            grouped by state and county for filing. An Excel report is emailed automatically to the accountant on the
+                            1st of each month (previous calendar month). Use the buttons below to download or send manually anytime.
+                        </p>
+                        <p style="margin-bottom: 1rem; font-size: 0.95rem;">
+                            <strong>Accountant:</strong> <span id="taxAccountantEmailDisplay">wandaforto@aol.com</span>
+                        </p>
                         <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: end;">
                             <div>
-                                <label class="form-label" for="taxCsvStartDate">CSV Start Date</label>
-                                <input type="date" id="taxCsvStartDate" class="form-input">
+                                <label class="form-label" for="taxReportStartDate">Report Start Date</label>
+                                <input type="date" id="taxReportStartDate" class="form-input">
                             </div>
                             <div>
-                                <label class="form-label" for="taxCsvEndDate">CSV End Date</label>
-                                <input type="date" id="taxCsvEndDate" class="form-input">
+                                <label class="form-label" for="taxReportEndDate">Report End Date</label>
+                                <input type="date" id="taxReportEndDate" class="form-input">
                             </div>
                             <div>
-                                <button type="button" class="btn btn-secondary" onclick="window.adminApp.exportTaxCloudCsv()">
-                                    <i class="fas fa-file-csv"></i>
-                                    Export TaxCloud CSV
+                                <button type="button" class="btn btn-secondary" onclick="window.adminApp.exportTaxAccountantExcel()">
+                                    <i class="fas fa-file-excel"></i>
+                                    Download Excel
+                                </button>
+                            </div>
+                            <div>
+                                <button type="button" class="btn btn-primary" onclick="window.adminApp.sendTaxAccountantReport()">
+                                    <i class="fas fa-envelope"></i>
+                                    Email Report to Accountant
                                 </button>
                             </div>
                         </div>
@@ -3559,6 +3579,155 @@
                 </div>
                 </div>
                 </section>
+
+            <section id="developer-tools" class="content-section">
+                <div class="content-header">
+                    <h1 class="page-title">Developer Tools</h1>
+                </div>
+
+                <div class="admin-section-stack">
+                    <div class="card">
+                        <div class="card-content">
+                            <h3 style="margin:0 0 0.5rem 0;display:flex;align-items:center;gap:0.5rem;color:var(--primary-green);">
+                                <i class="fas fa-rocket" aria-hidden="true"></i> How to update the site
+                            </h3>
+                            <p style="margin:0 0 1.25rem 0;color:var(--gray-600);font-size:0.92rem;line-height:1.55;">
+                                "Updating the site" means taking changes that work on your test computer and pushing them to the
+                                live site so real visitors see them. <strong>Always test locally first</strong>, then follow the
+                                steps below.
+                            </p>
+
+                            <!-- Backup-first callout -->
+                            <div style="display:flex;gap:0.65rem;align-items:flex-start;background:#eef6ec;border:1px solid #cfe3c9;border-radius:var(--border-radius,8px);padding:0.85rem 1rem;margin-bottom:1.5rem;">
+                                <i class="fas fa-shield-alt" aria-hidden="true" style="color:var(--primary-green);margin-top:0.15rem;"></i>
+                                <div style="font-size:0.9rem;color:var(--gray-700);line-height:1.5;">
+                                    <strong>Always back up first.</strong> Before every update, click
+                                    <em>"Download SQL backup"</em> below and save the file. If anything goes wrong, you can restore from it.
+                                </div>
+                            </div>
+
+                            <!-- Step 1: which kind of update -->
+                            <h4 style="margin:0 0 0.75rem 0;color:var(--gray-800);font-size:1rem;">1. Decide what kind of update it is</h4>
+                            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0.85rem;margin-bottom:1.75rem;">
+                                <div style="border:1px solid var(--gray-200);border-radius:8px;background:var(--gray-50);padding:0.9rem;">
+                                    <div style="font-weight:600;color:var(--primary-green);font-size:0.92rem;margin-bottom:0.35rem;">
+                                        <i class="fas fa-paint-roller" aria-hidden="true"></i> Frontend only
+                                    </div>
+                                    <p style="margin:0;font-size:0.85rem;color:var(--gray-600);line-height:1.5;">
+                                        Text, images, prices, page styling, popups. <br>
+                                        <strong>→ Update files, then hard-refresh.</strong> No migration needed.
+                                    </p>
+                                </div>
+                                <div style="border:1px solid var(--gray-200);border-radius:8px;background:var(--gray-50);padding:0.9rem;">
+                                    <div style="font-weight:600;color:var(--primary-green);font-size:0.92rem;margin-bottom:0.35rem;">
+                                        <i class="fas fa-server" aria-hidden="true"></i> Backend logic
+                                    </div>
+                                    <p style="margin:0;font-size:0.85rem;color:var(--gray-600);line-height:1.5;">
+                                        Changes inside the <code>backend/</code> folder. <br>
+                                        <strong>→ Update files + restart the server.</strong>
+                                    </p>
+                                </div>
+                                <div style="border:1px solid var(--gray-200);border-radius:8px;background:var(--gray-50);padding:0.9rem;">
+                                    <div style="font-weight:600;color:var(--primary-green);font-size:0.92rem;margin-bottom:0.35rem;">
+                                        <i class="fas fa-database" aria-hidden="true"></i> Database change
+                                    </div>
+                                    <p style="margin:0;font-size:0.85rem;color:var(--gray-600);line-height:1.5;">
+                                        Anything that mentions a <em>migration</em> or "adds a column/table." <br>
+                                        <strong>→ Update files + run migrations + restart.</strong>
+                                    </p>
+                                </div>
+                            </div>
+
+                            <!-- Step 2: the steps -->
+                            <h4 style="margin:0 0 0.85rem 0;color:var(--gray-800);font-size:1rem;">2. Follow the steps in order</h4>
+                            <ol style="list-style:none;margin:0;padding:0;counter-reset:dev-step;">
+                                <li style="display:flex;gap:0.85rem;align-items:flex-start;margin-bottom:1rem;">
+                                    <span style="flex:0 0 auto;width:1.75rem;height:1.75rem;border-radius:50%;background:var(--primary-green);color:#fff;display:flex;align-items:center;justify-content:center;font-size:0.85rem;font-weight:600;">1</span>
+                                    <div style="font-size:0.9rem;color:var(--gray-700);line-height:1.55;">
+                                        <strong>Back up.</strong> Click <em>"Download SQL backup"</em> below and save the file somewhere safe.
+                                    </div>
+                                </li>
+                                <li style="display:flex;gap:0.85rem;align-items:flex-start;margin-bottom:1rem;">
+                                    <span style="flex:0 0 auto;width:1.75rem;height:1.75rem;border-radius:50%;background:var(--primary-green);color:#fff;display:flex;align-items:center;justify-content:center;font-size:0.85rem;font-weight:600;">2</span>
+                                    <div style="font-size:0.9rem;color:var(--gray-700);line-height:1.55;">
+                                        <strong>Get the new files onto the server.</strong> On the server, pull the latest code:
+                                        <code style="display:inline-block;background:var(--gray-100);padding:0.1rem 0.4rem;border-radius:4px;font-size:0.85rem;">git pull</code>
+                                        <span style="color:var(--gray-500);">(this is the SSH/server step your developer usually runs).</span>
+                                    </div>
+                                </li>
+                                <li style="display:flex;gap:0.85rem;align-items:flex-start;margin-bottom:1rem;">
+                                    <span style="flex:0 0 auto;width:1.75rem;height:1.75rem;border-radius:50%;background:var(--primary-green);color:#fff;display:flex;align-items:center;justify-content:center;font-size:0.85rem;font-weight:600;">3</span>
+                                    <div style="font-size:0.9rem;color:var(--gray-700);line-height:1.55;">
+                                        <strong>Install new libraries</strong> (only if the update added any):
+                                        <code style="display:inline-block;background:var(--gray-100);padding:0.1rem 0.4rem;border-radius:4px;font-size:0.85rem;">npm install</code>
+                                    </div>
+                                </li>
+                                <li style="display:flex;gap:0.85rem;align-items:flex-start;margin-bottom:1rem;">
+                                    <span style="flex:0 0 auto;width:1.75rem;height:1.75rem;border-radius:50%;background:var(--success);color:#fff;display:flex;align-items:center;justify-content:center;font-size:0.85rem;font-weight:600;">4</span>
+                                    <div style="font-size:0.9rem;color:var(--gray-700);line-height:1.55;">
+                                        <strong>Run migrations</strong> <span style="color:var(--gray-500);">(database updates only)</span> —
+                                        use the <em>"Run pending migrations"</em> button below and type <code style="background:var(--gray-100);padding:0.1rem 0.4rem;border-radius:4px;font-size:0.85rem;">RUN MIGRATIONS</code> when asked. Skip for frontend-only updates.
+                                    </div>
+                                </li>
+                                <li style="display:flex;gap:0.85rem;align-items:flex-start;margin-bottom:1rem;">
+                                    <span style="flex:0 0 auto;width:1.75rem;height:1.75rem;border-radius:50%;background:var(--primary-green);color:#fff;display:flex;align-items:center;justify-content:center;font-size:0.85rem;font-weight:600;">5</span>
+                                    <div style="font-size:0.9rem;color:var(--gray-700);line-height:1.55;">
+                                        <strong>Restart the backend</strong> <span style="color:var(--gray-500);">(backend or database updates)</span>:
+                                        <code style="display:inline-block;background:var(--gray-100);padding:0.1rem 0.4rem;border-radius:4px;font-size:0.85rem;">pm2 restart hmherbs-backend</code>
+                                    </div>
+                                </li>
+                                <li style="display:flex;gap:0.85rem;align-items:flex-start;margin-bottom:0;">
+                                    <span style="flex:0 0 auto;width:1.75rem;height:1.75rem;border-radius:50%;background:var(--primary-green);color:#fff;display:flex;align-items:center;justify-content:center;font-size:0.85rem;font-weight:600;">6</span>
+                                    <div style="font-size:0.9rem;color:var(--gray-700);line-height:1.55;">
+                                        <strong>Check the live site.</strong> Hard-refresh with <strong>Ctrl&nbsp;+&nbsp;F5</strong> and click through whatever changed to confirm it works.
+                                    </div>
+                                </li>
+                            </ol>
+
+                            <!-- If something breaks -->
+                            <div style="display:flex;gap:0.65rem;align-items:flex-start;background:#fdf2f2;border:1px solid #f5c6c6;border-radius:var(--border-radius,8px);padding:0.85rem 1rem;margin-top:1.5rem;">
+                                <i class="fas fa-life-ring" aria-hidden="true" style="color:var(--error,#dc2626);margin-top:0.15rem;"></i>
+                                <div style="font-size:0.88rem;color:var(--gray-700);line-height:1.5;">
+                                    <strong>If something breaks:</strong> restore the backup you downloaded in step 1, and check the
+                                    server logs with <code style="background:var(--gray-100);padding:0.1rem 0.4rem;border-radius:4px;font-size:0.85rem;">pm2 logs hmherbs-backend</code> (or send them to your developer).
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-content">
+                            <h3 style="margin:0 0 0.25rem 0;">Database backup</h3>
+                            <p style="margin:0 0 1rem 0;color:var(--gray-600);font-size:0.92rem;">
+                                Download a full SQL backup of the live database (customers, orders, tax data, products, and settings).
+                                Use this before deploying updates or making major changes.
+                            </p>
+                            <p id="dev-tools-backup-meta" style="margin:0 0 1rem 0;color:var(--gray-600);font-size:0.88rem;">Loading backup info…</p>
+                            <button type="button" class="btn btn-primary" id="dev-tools-backup-btn">
+                                <i class="fas fa-download" aria-hidden="true"></i> Download SQL backup
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-content">
+                            <h3 style="margin:0 0 0.25rem 0;">Import updates (migrations)</h3>
+                            <p style="margin:0 0 1rem 0;color:var(--gray-600);font-size:0.92rem;">
+                                Apply pending schema updates from <code>database/migrations/</code> without wiping customer or sales data.
+                                This is the safe way to update production after a code deploy.
+                            </p>
+                            <div id="dev-tools-migrations-summary" style="margin:0 0 1rem 0;color:var(--gray-700);font-size:0.9rem;">Loading migration status…</div>
+                            <div id="dev-tools-migrations-list" style="border:1px solid var(--gray-200);border-radius:8px;background:var(--gray-50);padding:0.75rem;max-height:280px;overflow:auto;margin-bottom:1rem;">
+                                <p style="margin:0;color:var(--gray-500);">Loading…</p>
+                            </div>
+                            <button type="button" class="btn btn-success" id="dev-tools-run-migrations-btn">
+                                <i class="fas fa-play" aria-hidden="true"></i> Run pending migrations
+                            </button>
+                            <p id="dev-tools-migrations-msg" style="min-height:1.25rem;font-size:0.9rem;margin:0.75rem 0 0;"></p>
+                        </div>
+                    </div>
+                </div>
+            </section>
         </main>
     </div>
 

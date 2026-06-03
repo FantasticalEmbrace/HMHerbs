@@ -6,6 +6,7 @@ const router = express.Router();
 const logger = require('../utils/logger');
 const { emailCampaignValidation } = require('../middleware/validation');
 const EmailCampaignService = require('../services/email-campaign');
+const { searchAddressSuggestions } = require('../services/addressSuggest');
 
 // Middleware: req.pool is set globally in server.js (immediately after createPool).
 router.use((req, res, next) => {
@@ -24,6 +25,14 @@ const emailSignupLimiter = rateLimit({
     message: {
         error: 'Too many email signup attempts, please try again later.'
     },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+const addressSuggestLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 30,
+    message: { error: 'Too many address lookups. Please wait a moment and try again.' },
     standardHeaders: true,
     legacyHeaders: false,
 });
@@ -231,6 +240,21 @@ router.post('/email-campaign/claim-offer', async (req, res) => {
 });
 
 // ===== UTILITY ENDPOINTS =====
+
+router.get('/address-suggest', addressSuggestLimiter, async (req, res) => {
+    try {
+        const q = String(req.query.q || '').trim();
+        const state = String(req.query.state || '').trim();
+        if (q.length < 3) {
+            return res.json({ suggestions: [] });
+        }
+        const suggestions = await searchAddressSuggestions(q, { state });
+        res.json({ suggestions });
+    } catch (error) {
+        logger.error('Address suggest error:', error);
+        res.status(502).json({ error: 'Address lookup is temporarily unavailable' });
+    }
+});
 
 // Health check
 router.get('/health', (req, res) => {

@@ -4,7 +4,7 @@
  * Usage:
  *   node scripts/create-admin-user.js --email marketing@example.com --password 'YourPass123' --first Marketing --last User --role marketing
  *
- * Roles: admin | manager | assistant_manager | marketing
+ * Roles: developer | admin | manager | assistant_manager | marketing
  */
 
 const bcrypt = require('bcrypt');

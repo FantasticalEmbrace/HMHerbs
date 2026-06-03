@@ -4,6 +4,7 @@ const {
     normalizeAdminRole,
     hasMinAdminRole,
     isMarketingRole,
+    isDeveloperRole,
 } = require('../utils/adminRoles');
 
 async function authenticateAdmin(req, res, next) {
@@ -57,6 +58,13 @@ function requirePermission(minRole) {
     };
 }
 
+function requireDeveloperRole(req, res, next) {
+    if (!isDeveloperRole(req.admin?.role)) {
+        return res.status(403).json({ error: 'Developer access required' });
+    }
+    next();
+}
+
 /** Chains used on admin routes */
 const adminAuth = [authenticateAdmin, blockMarketingRole];
 const marketingAuth = [authenticateAdmin];
@@ -65,6 +73,7 @@ module.exports = {
     authenticateAdmin,
     blockMarketingRole,
     requirePermission,
+    requireDeveloperRole,
     adminAuth,
     marketingAuth,
 };

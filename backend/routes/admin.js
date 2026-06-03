@@ -169,6 +169,7 @@ const GoogleBusinessProfileService = require('../services/google-business-profil
 const GoogleCalendarOAuthService = require('../services/google-calendar-oauth');
 const googleCalendarService = require('../services/google-calendar');
 const { TaxLedgerService, toDateKey } = require('../services/taxLedger');
+const { TaxAccountantReportService } = require('../services/taxAccountantReport');
 
 const GBP_STORE_HOUR_KEYS = new Set([
     'store_holiday_schedule',
@@ -243,6 +244,7 @@ const {
     MARKETING_SETTING_KEYS,
     normalizeAdminRole,
     isMarketingRole,
+    isDeveloperRole,
     hasMinAdminRole,
     defaultSectionForRole,
     allowedSectionsForRole,
@@ -306,6 +308,12 @@ router.post('/auth/login', adminAuthLimiter, ...adminLoginValidation, async (req
 
         if (!admin.is_active) {
             return res.status(401).json({ error: 'Account is deactivated' });
+        }
+
+        if (!admin.password_hash) {
+            return res.status(401).json({
+                error: 'This account uses Google sign-in. Click Continue with Google instead.'
+            });
         }
 
         const isValidPassword = await bcrypt.compare(password, admin.password_hash);
@@ -453,49 +461,37 @@ router.post('/auth/forgot-password', adminAuthLimiter, async (req, res) => {
                 [resetToken, resetTokenExpires, admin.id]
             );
 
-            // Generate reset URL
-            const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:8000'}/admin-reset-password.html?token=${resetToken}`;
+            const { getAdminPasswordResetBaseUrl } = require('../utils/storefrontUrl');
+            const { sendMail } = require('../utils/mailTransporter');
+            const resetBase = getAdminPasswordResetBaseUrl();
+            const resetUrl = `${resetBase}/admin-reset-password.html?token=${encodeURIComponent(resetToken)}`;
 
-            // Send email (if email service is configured)
             try {
-                if (process.env.SMTP_HOST && process.env.SMTP_USER) {
-                    const nodemailer = require('nodemailer');
-                    const transporter = nodemailer.createTransport({
-                        host: process.env.SMTP_HOST,
-                        port: process.env.SMTP_PORT || 587,
-                        secure: process.env.SMTP_PORT == 465,
-                        auth: {
-                            user: process.env.SMTP_USER,
-                            pass: process.env.SMTP_PASSWORD
-                        }
-                    });
-
-                    await transporter.sendMail({
-                        from: process.env.SMTP_USER,
-                        to: admin.email,
-                        subject: 'HM Herbs Admin - Password Reset',
-                        html: `
-                            <h2>Password Reset Request</h2>
-                            <p>Hello ${admin.first_name},</p>
-                            <p>You requested to reset your password. Click the link below to reset it:</p>
-                            <p><a href="${resetUrl}" style="background: #2d5a27; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Reset Password</a></p>
-                            <p>Or copy this link: ${resetUrl}</p>
-                            <p>This link will expire in 1 hour.</p>
-                            <p>If you didn't request this, please ignore this email.</p>
-                        `
-                    });
-                } else {
-                    // Log the reset URL if email is not configured (for development)
-                    logger.info('Password reset token generated (email not configured):', {
+                const first = String(admin.first_name || '').trim() || 'there';
+                const result = await sendMail({
+                    to: admin.email,
+                    subject: 'H&M Herbs Admin — reset your password',
+                    html: `
+                        <h2>Password reset</h2>
+                        <p>Hello ${first},</p>
+                        <p>You requested to reset your H&amp;M Herbs admin password.</p>
+                        <p><a href="${resetUrl}" style="background:#2d5a27;color:#fff;padding:10px 20px;text-decoration:none;border-radius:5px;display:inline-block;">Choose a new password</a></p>
+                        <p>Or copy this link into your browser:</p>
+                        <p style="word-break:break-all;">${resetUrl}</p>
+                        <p>This link expires in one hour. If you did not ask for this, you can ignore this email.</p>
+                    `,
+                    logTag: 'Admin password reset email'
+                });
+                if (!result.sent) {
+                    logger.info('Admin password reset (SMTP not configured):', {
                         email: admin.email,
                         resetUrl
                     });
-                    console.log('\n🔑 Password Reset Link (Email not configured):');
+                    console.log('\n🔑 Admin password reset link (set SMTP_* in backend/.env to send email):\n');
                     console.log(`   ${resetUrl}\n`);
                 }
             } catch (emailError) {
-                logger.error('Failed to send password reset email:', emailError);
-                // Still return success - token is saved, user can check logs
+                logger.error('Failed to send admin password reset email:', emailError);
             }
         }
 
@@ -4133,7 +4129,7 @@ router.post('/tax-ledger/sync-daily', ...adminAuth, requirePermission('manager')
     }
 });
 
-router.get('/tax-ledger/export/taxcloud.csv', ...adminAuth, requirePermission('manager'), async (req, res) => {
+router.get('/tax-ledger/export/accountant.xlsx', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const startDate = String(req.query.startDate || '').slice(0, 10);
         const endDate = String(req.query.endDate || '').slice(0, 10);
@@ -4141,20 +4137,76 @@ router.get('/tax-ledger/export/taxcloud.csv', ...adminAuth, requirePermission('m
             return res.status(400).json({ error: 'startDate and endDate are required (YYYY-MM-DD)' });
         }
 
-        const service = new TaxLedgerService(req.pool);
-        const { csv, count } = await service.exportTaxCloudCsv(startDate, endDate);
+        const ledger = new TaxLedgerService(req.pool);
+        await ledger.syncDateRange(startDate, endDate);
 
-        res.setHeader('Content-Type', 'text/csv');
-        res.setHeader('Content-Disposition', `attachment; filename="taxcloud-${startDate}-to-${endDate}.csv"`);
-        res.setHeader('X-Row-Count', String(count));
-        return res.send(csv);
+        const report = new TaxAccountantReportService(req.pool);
+        const { buffer, rowCount } = await report.buildExcelBuffer(startDate, endDate);
+
+        res.setHeader(
+            'Content-Type',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        );
+        res.setHeader(
+            'Content-Disposition',
+            `attachment; filename="hmherbs-tax-report-${startDate}-to-${endDate}.xlsx"`
+        );
+        res.setHeader('X-Row-Count', String(rowCount));
+        return res.send(buffer);
     } catch (error) {
-        logger.error('Export tax ledger csv error:', error);
-        res.status(500).json({ error: 'Failed to export TaxCloud CSV' });
+        logger.error('Export tax accountant workbook error:', error);
+        res.status(500).json({ error: error.message || 'Failed to export tax report' });
+    }
+});
+
+router.post('/tax-ledger/send-accountant-report', ...adminAuth, requirePermission('manager'), async (req, res) => {
+    try {
+        const startDate = String(req.body?.startDate || '').slice(0, 10);
+        const endDate = String(req.body?.endDate || '').slice(0, 10);
+        if (!startDate || !endDate) {
+            return res.status(400).json({ error: 'startDate and endDate are required (YYYY-MM-DD)' });
+        }
+
+        const report = new TaxAccountantReportService(req.pool);
+        const result = await report.deliverMonthlyReport({
+            startDate,
+            endDate,
+            triggerType: 'manual',
+            skipIfScheduledAlreadySent: false,
+            syncBeforeExport: req.body?.syncBeforeExport !== false
+        });
+
+        if (!result.email?.sent) {
+            return res.status(503).json({
+                error: result.email?.reason || 'Email was not sent. Configure SMTP in backend/.env.',
+                result
+            });
+        }
+
+        res.json({ success: true, result });
+    } catch (error) {
+        logger.error('Send tax accountant report error:', error);
+        res.status(500).json({ error: error.message || 'Failed to send tax report' });
     }
 });
 
 // Team accounts — Admin creates staff logins (no public self-registration)
+function teamRolesForActor(actorRole) {
+    const roles = ADMIN_ROLES.map((r) => ({ id: r, label: ROLE_LABELS[r] || r }));
+    if (!isDeveloperRole(actorRole)) {
+        return roles.filter((r) => r.id !== 'developer');
+    }
+    return roles;
+}
+
+function assertCanAssignRole(actorRole, targetRole) {
+    if (targetRole === 'developer' && !isDeveloperRole(actorRole)) {
+        const err = new Error('Only a Developer account can assign the Developer role');
+        err.status = 403;
+        throw err;
+    }
+}
+
 router.get('/team', ...adminAuth, requirePermission('admin'), async (req, res) => {
     try {
         const [rows] = await req.pool.execute(
@@ -4177,7 +4229,7 @@ router.get('/team', ...adminAuth, requirePermission('admin'), async (req, res) =
                 updatedAt: row.updated_at,
             };
         });
-        res.json({ users, roles: ADMIN_ROLES.map((r) => ({ id: r, label: ROLE_LABELS[r] || r })) });
+        res.json({ users, roles: teamRolesForActor(req.admin.role) });
     } catch (error) {
         logger.error('List admin team error:', error);
         res.status(500).json({ error: 'Failed to load team accounts' });
@@ -4201,6 +4253,7 @@ router.post('/team', ...adminAuth, requirePermission('admin'), async (req, res) 
         if (!ADMIN_ROLES.includes(role)) {
             return res.status(400).json({ error: 'Invalid role' });
         }
+        assertCanAssignRole(req.admin.role, role);
 
         const passwordHash = await bcrypt.hash(password, 12);
         const [ins] = await req.pool.execute(
@@ -4222,6 +4275,9 @@ router.post('/team', ...adminAuth, requirePermission('admin'), async (req, res) 
             },
         });
     } catch (error) {
+        if (error.status === 403) {
+            return res.status(403).json({ error: error.message });
+        }
         if (error.code === 'ER_DUP_ENTRY') {
             return res.status(409).json({ error: 'An account with this email already exists' });
         }
@@ -4245,6 +4301,7 @@ router.patch('/team/:id', ...adminAuth, requirePermission('admin'), async (req, 
             if (!ADMIN_ROLES.includes(role)) {
                 return res.status(400).json({ error: 'Invalid role' });
             }
+            assertCanAssignRole(req.admin.role, role);
             updates.push('role = ?');
             params.push(role);
         }
@@ -4311,6 +4368,9 @@ router.patch('/team/:id', ...adminAuth, requirePermission('admin'), async (req, 
                 : null,
         });
     } catch (error) {
+        if (error.status === 403) {
+            return res.status(403).json({ error: error.message });
+        }
         logger.error('Update admin team member error:', error);
         res.status(500).json({ error: 'Failed to update team account' });
     }

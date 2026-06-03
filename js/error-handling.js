@@ -318,7 +318,7 @@ class ErrorHandler {
             position: fixed;
             top: 20px;
             right: 20px;
-            z-index: 10000;
+            z-index: var(--z-notification, 1000000);
             max-width: 400px;
             pointer-events: none;
         `;

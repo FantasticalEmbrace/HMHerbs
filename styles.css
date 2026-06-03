@@ -106,6 +106,10 @@
   --z-cart-backdrop: 10990;
   --z-cart-panel: 10995;
   --z-site-header: 11000;
+  /* Login/register overlays — above header (11000), cart, promo, mobile nav */
+  --z-auth-overlay: 999999;
+  /* Toasts/errors — above auth modals so messages stay sharp while login/register is open */
+  --z-notification: 1000000;
 
   /* Set in JS from .header.offsetHeight; fallback fits main-header without top bar */
   --hm-header-offset: 4.75rem;
@@ -5286,6 +5290,24 @@ body.cart-open .cart-sidebar.open {
 
 .notification-info {
   background-color: var(--info);
+}
+
+.notification-warning {
+  background-color: var(--warning);
+}
+
+@keyframes cartAddedPulse {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+
+.cart-toggle.cart-added-pulse {
+  animation: cartAddedPulse 0.85s ease;
+}
+
+.cart-toggle.cart-added-pulse .cart-count {
+  background-color: var(--accent-orange);
 }
 
 @keyframes slideInRight {

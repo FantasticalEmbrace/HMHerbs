@@ -16,6 +16,99 @@ function escapeHtml(s) {
         .replace(/'/g, '&#39;');
 }
 
+// Branded dialogs — styled with this page's own .modal / .btn classes so they
+// match the site design instead of using unstyleable native alert()/confirm().
+function menuShowDialog({ title = '', message = '', buttons = [] }) {
+    return new Promise((resolve) => {
+        const overlay = document.createElement('div');
+        overlay.className = 'modal active';
+        overlay.style.zIndex = '2000';
+
+        const content = document.createElement('div');
+        content.className = 'modal-content';
+        content.style.maxWidth = '440px';
+        content.setAttribute('role', 'dialog');
+        content.setAttribute('aria-modal', 'true');
+
+        if (title) {
+            const header = document.createElement('div');
+            header.className = 'modal-header';
+            const h = document.createElement('h2');
+            h.textContent = title;
+            header.appendChild(h);
+            content.appendChild(header);
+        }
+
+        const body = document.createElement('div');
+        body.className = 'modal-body';
+        const p = document.createElement('p');
+        p.textContent = message;
+        p.style.cssText = 'margin:0 0 1.5rem;white-space:pre-line;line-height:1.55;';
+        body.appendChild(p);
+
+        const btnRow = document.createElement('div');
+        btnRow.style.cssText = 'display:flex;gap:0.75rem;justify-content:flex-end;flex-wrap:wrap;';
+
+        const cancelValue = () => {
+            const c = buttons.find((b) => b.cancel);
+            return c ? c.value : false;
+        };
+        const cleanup = (val) => {
+            document.removeEventListener('keydown', onKey);
+            overlay.remove();
+            resolve(val);
+        };
+        const onKey = (e) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                cleanup(cancelValue());
+            }
+        };
+
+        buttons.forEach((b) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn ' + (b.className || 'btn-primary');
+            btn.textContent = b.label;
+            btn.addEventListener('click', () => cleanup(b.value));
+            btnRow.appendChild(btn);
+        });
+
+        body.appendChild(btnRow);
+        content.appendChild(body);
+        overlay.appendChild(content);
+        overlay.addEventListener('mousedown', (e) => {
+            if (e.target === overlay) cleanup(cancelValue());
+        });
+        document.addEventListener('keydown', onKey);
+        document.body.appendChild(overlay);
+        const focusBtn = btnRow.querySelector('.btn-primary') || btnRow.querySelector('button');
+        if (focusBtn) focusBtn.focus();
+    });
+}
+
+function menuAlert(message, { title = 'Notice' } = {}) {
+    return menuShowDialog({
+        title,
+        message,
+        buttons: [{ label: 'OK', value: true, className: 'btn-primary' }],
+    });
+}
+
+function menuConfirm(
+    message,
+    { title = 'Please confirm', confirmLabel = 'Confirm', cancelLabel = 'Cancel', danger = false } = {}
+) {
+    return menuShowDialog({
+        title,
+        message,
+        buttons: [
+            { label: cancelLabel, value: false, className: 'btn-secondary', cancel: true },
+            { label: confirmLabel, value: true, className: danger ? 'btn-danger' : 'btn-primary' },
+        ],
+    });
+}
+
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     setupTabs();
@@ -206,13 +299,13 @@ async function handleMenuItemSubmit(e) {
         if (data.success) {
             closeMenuItemModal();
             loadMenuItems();
-            alert('Menu item saved successfully!');
+            menuAlert('Menu item saved successfully!', { title: 'Success' });
         } else {
-            alert('Error: ' + (data.error || 'Failed to save menu item'));
+            menuAlert(data.error || 'Failed to save menu item', { title: 'Error' });
         }
     } catch (error) {
         console.error('Error saving menu item:', error);
-        alert('Error: ' + error.message);
+        menuAlert(error.message, { title: 'Error' });
     }
 }
 
@@ -229,12 +322,17 @@ async function editMenuItem(id) {
         }
     } catch (error) {
         console.error('Error loading menu item:', error);
-        alert('Error loading menu item');
+        menuAlert('Error loading menu item', { title: 'Error' });
     }
 }
 
 async function deleteMenuItem(id) {
-    if (!confirm('Are you sure you want to delete this menu item?')) {
+    const confirmedDelete = await menuConfirm('Are you sure you want to delete this menu item?', {
+        title: 'Delete menu item',
+        confirmLabel: 'Delete',
+        danger: true,
+    });
+    if (!confirmedDelete) {
         return;
     }
     
@@ -247,13 +345,13 @@ async function deleteMenuItem(id) {
         
         if (data.success) {
             loadMenuItems();
-            alert('Menu item deleted successfully!');
+            menuAlert('Menu item deleted successfully!', { title: 'Success' });
         } else {
-            alert('Error: ' + (data.error || 'Failed to delete menu item'));
+            menuAlert(data.error || 'Failed to delete menu item', { title: 'Error' });
         }
     } catch (error) {
         console.error('Error deleting menu item:', error);
-        alert('Error: ' + error.message);
+        menuAlert(error.message, { title: 'Error' });
     }
 }
 
@@ -337,11 +435,11 @@ async function handleApiKeySubmit(e) {
             showApiKeyDisplay(data.apiKey);
             loadApiKeys();
         } else {
-            alert('Error: ' + (data.error || 'Failed to generate API key'));
+            menuAlert(data.error || 'Failed to generate API key', { title: 'Error' });
         }
     } catch (error) {
         console.error('Error generating API key:', error);
-        alert('Error: ' + error.message);
+        menuAlert(error.message, { title: 'Error' });
     }
 }
 
@@ -381,16 +479,20 @@ async function toggleApiKey(id, isActive) {
         if (data.success) {
             loadApiKeys();
         } else {
-            alert('Error: ' + (data.error || 'Failed to update API key'));
+            menuAlert(data.error || 'Failed to update API key', { title: 'Error' });
         }
     } catch (error) {
         console.error('Error updating API key:', error);
-        alert('Error: ' + error.message);
+        menuAlert(error.message, { title: 'Error' });
     }
 }
 
 async function deleteApiKey(id) {
-    if (!confirm('Are you sure you want to delete this API key? This action cannot be undone.')) {
+    const confirmedKeyDelete = await menuConfirm(
+        'Are you sure you want to delete this API key? This action cannot be undone.',
+        { title: 'Delete API key', confirmLabel: 'Delete', danger: true }
+    );
+    if (!confirmedKeyDelete) {
         return;
     }
     
@@ -403,13 +505,13 @@ async function deleteApiKey(id) {
         
         if (data.success) {
             loadApiKeys();
-            alert('API key deleted successfully!');
+            menuAlert('API key deleted successfully!', { title: 'Success' });
         } else {
-            alert('Error: ' + (data.error || 'Failed to delete API key'));
+            menuAlert(data.error || 'Failed to delete API key', { title: 'Error' });
         }
     } catch (error) {
         console.error('Error deleting API key:', error);
-        alert('Error: ' + error.message);
+        menuAlert(error.message, { title: 'Error' });
     }
 }
 

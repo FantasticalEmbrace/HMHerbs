@@ -1,5 +1,6 @@
 const OctoposService = require('./octopos');
 const logger = require('../utils/logger');
+const { resolveCounty } = require('../utils/zipCountyLookup');
 
 const TARGET_STATES = new Set(['GA', 'NC', 'IN', 'MI', 'OH']);
 const POS_PAGE_SIZE = 100;
@@ -47,6 +48,22 @@ function extractRows(payload) {
     if (payload.result && Array.isArray(payload.result)) return payload.result;
     if (payload.result && Array.isArray(payload.result.items)) return payload.result.items;
     return [];
+}
+
+function extractOrderCounty(order) {
+    const candidates = [
+        order?.shipping_county,
+        order?.ship_to_county,
+        order?.county,
+        order?.county_name,
+        order?.shipping?.county,
+        order?.ship_to?.county
+    ];
+    for (const value of candidates) {
+        const text = String(value || '').trim();
+        if (text) return text;
+    }
+    return '';
 }
 
 function parsePosOrderTax(order) {
@@ -114,15 +131,26 @@ class TaxLedgerService {
 
             const taxAmount = toMoney(row.tax_amount);
             const orderId = row.order_number || `WEB-${row.id}`;
+            const zipCode = row.shipping_postal_code || null;
+            const countyName =
+                resolveCounty({ orderCounty: null, zip: zipCode, stateCode }) || null;
             await this.pool.execute(
-                `INSERT INTO tax_entries (order_id, source, tax_amount, taxable_amount, state_code, zip_code, created_at)
-                 VALUES (?, 'webstore', ?, NULL, ?, ?, ?)
+                `INSERT INTO tax_entries (order_id, source, tax_amount, taxable_amount, state_code, zip_code, county_name, created_at)
+                 VALUES (?, 'webstore', ?, NULL, ?, ?, ?, ?)
                  ON DUPLICATE KEY UPDATE
                     tax_amount = VALUES(tax_amount),
                     state_code = VALUES(state_code),
                     zip_code = VALUES(zip_code),
+                    county_name = VALUES(county_name),
                     created_at = VALUES(created_at)`,
-                [String(orderId), taxAmount, stateCode, row.shipping_postal_code || null, row.created_at]
+                [
+                    String(orderId),
+                    taxAmount,
+                    stateCode,
+                    zipCode,
+                    countyName,
+                    row.created_at
+                ]
             );
             inserted += 1;
         }
@@ -209,17 +237,32 @@ class TaxLedgerService {
             );
             const createdAt = order?.completed_at || order?.updated_at || order?.created_at || `${dateKey} 12:00:00`;
             const zipCode = order?.shipping_zip || order?.ship_to_zip || order?.zip_code || null;
+            const countyName =
+                resolveCounty({
+                    orderCounty: extractOrderCounty(order),
+                    zip: zipCode,
+                    stateCode
+                }) || null;
 
             await this.pool.execute(
-                `INSERT INTO tax_entries (order_id, source, tax_amount, taxable_amount, state_code, zip_code, created_at)
-                 VALUES (?, 'pos', ?, ?, ?, ?, ?)
+                `INSERT INTO tax_entries (order_id, source, tax_amount, taxable_amount, state_code, zip_code, county_name, created_at)
+                 VALUES (?, 'pos', ?, ?, ?, ?, ?, ?)
                  ON DUPLICATE KEY UPDATE
                     tax_amount = VALUES(tax_amount),
                     taxable_amount = VALUES(taxable_amount),
                     state_code = VALUES(state_code),
                     zip_code = VALUES(zip_code),
+                    county_name = VALUES(county_name),
                     created_at = VALUES(created_at)`,
-                [orderId, taxAmount, taxableAmount || null, stateCode, zipCode, createdAt]
+                [
+                    orderId,
+                    taxAmount,
+                    taxableAmount || null,
+                    stateCode,
+                    zipCode,
+                    countyName,
+                    createdAt
+                ]
             );
 
             totalTax += taxAmount;
@@ -287,38 +330,22 @@ class TaxLedgerService {
         return this.getDailyOverview(dateKey);
     }
 
-    async exportTaxCloudCsv(startDate, endDate) {
-        const [rows] = await this.pool.execute(
-            `SELECT te.order_id,
-                    te.source,
-                    te.zip_code,
-                    COALESCE(te.taxable_amount, o.subtotal, 0) AS taxable_amount,
-                    te.tax_amount,
-                    te.created_at
-               FROM tax_entries te
-          LEFT JOIN orders o ON te.source = 'webstore' AND (te.order_id = o.order_number OR te.order_id = CAST(o.id AS CHAR))
-              WHERE DATE(te.created_at) BETWEEN ? AND ?
-              ORDER BY te.created_at ASC, te.id ASC`,
-            [startDate, endDate]
-        );
-
-        const lines = ['TransactionID,OrderDate,ShipToZip,TaxableAmount,TaxCollected'];
-        for (const row of rows) {
-            const created = new Date(row.created_at);
-            const orderDate = `${String(created.getMonth() + 1).padStart(2, '0')}/${String(created.getDate()).padStart(2, '0')}/${created.getFullYear()}`;
-            lines.push([
-                `${row.source}-${row.order_id}`,
-                orderDate,
-                String(row.zip_code || ''),
-                toMoney(row.taxable_amount).toFixed(2),
-                toMoney(row.tax_amount).toFixed(2)
-            ].map((value) => `"${String(value).replace(/"/g, '""')}"`).join(','));
+    async syncDateRange(startDate, endDate) {
+        const start = new Date(`${startDate}T12:00:00`);
+        const end = new Date(`${endDate}T12:00:00`);
+        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+            throw new Error('Invalid date range');
+        }
+        if (start > end) {
+            throw new Error('startDate must be on or before endDate');
         }
 
-        return {
-            csv: lines.join('\n'),
-            count: rows.length
-        };
+        const days = [];
+        for (let cursor = new Date(start); cursor <= end; cursor.setDate(cursor.getDate() + 1)) {
+            const dateKey = toDateKey(cursor);
+            days.push(await this.runDailySync(dateKey));
+        }
+        return { startDate, endDate, daysSynced: days.length, days };
     }
 }
 

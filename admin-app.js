@@ -98,6 +98,7 @@ class AdminApp {
         }
 
         this.setupEventListeners();
+        void this.setupGoogleSignIn();
     }
 
     // Helper function to escape HTML to prevent XSS
@@ -485,6 +486,45 @@ class AdminApp {
         }
     }
 
+    _googleButtonSvg() {
+        return '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>';
+    }
+
+    async setupGoogleSignIn() {
+        if (document.querySelector('link[data-hm-oauth-css]')) {
+            /* already linked */
+        } else {
+            const link = document.createElement('link');
+            link.rel = 'stylesheet';
+            link.href = 'css/oauth-buttons.css';
+            link.setAttribute('data-hm-oauth-css', '1');
+            document.head.appendChild(link);
+        }
+        try {
+            const res = await fetch(`${this.apiBaseUrl}/admin/auth/google/status`);
+            const data = await res.json();
+            if (!data?.google?.enabled) return;
+            const form = document.getElementById('loginForm');
+            if (!form || form.querySelector('.btn-google-oauth')) return;
+            const divider = document.createElement('div');
+            divider.className = 'auth-divider';
+            divider.textContent = 'or';
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn-google btn-google-oauth';
+            btn.innerHTML = `${this._googleButtonSvg()} Continue with Google`;
+            btn.addEventListener('click', () => this.startGoogleSignIn());
+            form.appendChild(divider);
+            form.appendChild(btn);
+        } catch (_) {
+            /* optional */
+        }
+    }
+
+    startGoogleSignIn() {
+        window.location.href = `${this.apiBaseUrl}/admin/auth/google/start?returnTo=${encodeURIComponent('/admin.html')}`;
+    }
+
     async handleLogin(e) {
         e.preventDefault();
 
@@ -642,6 +682,9 @@ class AdminApp {
         if (sectionName === 'personnel') {
             return this.isFullAdmin;
         }
+        if (sectionName === 'developer-tools') {
+            return this.currentUser?.role === 'developer';
+        }
         if (this.allowedSections === null || this.allowedSections === undefined) {
             return true;
         }
@@ -651,6 +694,7 @@ class AdminApp {
     applyRoleAccess() {
         const allowed = this.allowedSections;
         const isFullAdmin = allowed === null || allowed === undefined;
+        const isDeveloper = this.currentUser?.role === 'developer';
 
         document.querySelectorAll('.nav-link[data-section]').forEach((link) => {
             const section = link.getAttribute('data-section');
@@ -660,12 +704,20 @@ class AdminApp {
             if (section === 'personnel') {
                 show = isFullAdmin;
             }
+            if (section === 'developer-tools') {
+                show = isDeveloper;
+            }
             item.style.display = show ? '' : 'none';
         });
 
         const personnelNav = document.getElementById('nav-personnel-item');
         if (personnelNav) {
             personnelNav.style.display = isFullAdmin ? '' : 'none';
+        }
+
+        const developerNav = document.getElementById('nav-developer-tools-item');
+        if (developerNav) {
+            developerNav.style.display = isDeveloper ? '' : 'none';
         }
 
         document.querySelectorAll('.sidebar-nav .nav-section').forEach((sec) => {
@@ -1012,6 +1064,198 @@ class AdminApp {
             case 'settings':
                 await this.loadStoreInfoSettings();
                 break;
+            case 'developer-tools':
+                await this.loadDeveloperTools();
+                break;
+        }
+    }
+
+    async loadDeveloperTools() {
+        const backupMeta = document.getElementById('dev-tools-backup-meta');
+        const migrationsSummary = document.getElementById('dev-tools-migrations-summary');
+        const migrationsList = document.getElementById('dev-tools-migrations-list');
+        const msg = document.getElementById('dev-tools-migrations-msg');
+        if (!backupMeta || !migrationsSummary || !migrationsList) return;
+
+        backupMeta.textContent = 'Loading backup info…';
+        migrationsSummary.textContent = 'Loading migration status…';
+        migrationsList.innerHTML = '<p style="margin:0;color:var(--gray-500);">Loading…</p>';
+        if (msg) msg.textContent = '';
+
+        try {
+            const status = await this.apiRequest('/admin/dev-tools/status');
+            const db = status?.database || {};
+            const backup = status?.backup || {};
+            const migrations = status?.migrations || {};
+            const method = backup.mysqldumpAvailable ? 'mysqldump (fast)' : 'built-in exporter';
+            backupMeta.textContent = `Connected to ${db.name || 'database'} on ${db.host || 'localhost'}${db.ssl ? ' (SSL)' : ''}. Backup method: ${method}.`;
+
+            const pending = migrations.pendingCount || 0;
+            const applied = migrations.appliedCount || 0;
+            migrationsSummary.innerHTML =
+                pending === 0
+                    ? `<strong style="color:var(--success);">Database is up to date.</strong> ${applied} migration file(s) recorded.`
+                    : `<strong style="color:var(--warning);">${pending} pending</strong> migration file(s), ${applied} already applied.`;
+
+            const rows = Array.isArray(migrations.migrations) ? migrations.migrations : [];
+            if (!rows.length) {
+                migrationsList.innerHTML =
+                    '<p style="margin:0;color:var(--gray-500);">No migration files found in database/migrations/.</p>';
+            } else {
+                migrationsList.innerHTML = `
+                    <table class="table" style="margin:0;background:transparent;">
+                        <thead>
+                            <tr>
+                                <th>File</th>
+                                <th>Status</th>
+                                <th>Applied</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rows
+                                .map((m) => {
+                                    const statusLabel =
+                                        m.status === 'applied'
+                                            ? '<span class="badge badge-success">Applied</span>'
+                                            : '<span class="badge badge-warning">Pending</span>';
+                                    const mismatch = m.checksumMismatch
+                                        ? ' <span class="badge" style="background:#fef3c7;color:#92400e;">Changed since apply</span>'
+                                        : '';
+                                    const appliedAt = m.appliedAt
+                                        ? this._escapeHtml(this._formatPersonnelDate(m.appliedAt))
+                                        : '—';
+                                    return `<tr>
+                                        <td style="font-family:monospace;font-size:0.82rem;">${this._escapeHtml(m.filename)}</td>
+                                        <td>${statusLabel}${mismatch}</td>
+                                        <td style="font-size:0.85rem;color:var(--gray-600);">${appliedAt}</td>
+                                    </tr>`;
+                                })
+                                .join('')}
+                        </tbody>
+                    </table>`;
+            }
+        } catch (err) {
+            backupMeta.textContent = 'Could not load developer tools status.';
+            migrationsSummary.textContent = '';
+            migrationsList.innerHTML = `<p style="margin:0;color:var(--error);">${this._escapeHtml(err.message || 'Failed to load status')}</p>`;
+        }
+    }
+
+    async downloadDatabaseBackup() {
+        if (this.currentUser?.role !== 'developer') {
+            this.showNotification('Developer access required', 'error');
+            return;
+        }
+        const proceedWithBackup = await this.showAdminConfirm({
+            title: 'Download database backup',
+            message:
+                'Download a full SQL backup of the database now?\n\nThis may take a minute on large databases.',
+            confirmLabel: 'Download backup',
+            cancelLabel: 'Cancel',
+        });
+        if (!proceedWithBackup) {
+            return;
+        }
+
+        const url = `${this.apiBaseUrl}/admin/dev-tools/backup`;
+        this.showNotification('Building database backup…', 'info');
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: { Authorization: `Bearer ${this.authToken}` },
+        });
+
+        if (!response.ok) {
+            let message = `Backup failed (${response.status})`;
+            try {
+                const err = await response.json();
+                if (err?.error) message = err.error;
+            } catch (_) {
+                /* ignore */
+            }
+            this.showNotification(message, 'error');
+            return;
+        }
+
+        const method = response.headers.get('X-Backup-Method') || 'sql';
+        const blob = await response.blob();
+        const href = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = href;
+        const stamp = new Date().toISOString().slice(0, 10);
+        link.download = `hmherbs-backup-${stamp}.sql`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(href);
+        this.showNotification(`Database backup downloaded (${method})`, 'success');
+    }
+
+    async runPendingMigrations() {
+        if (this.currentUser?.role !== 'developer') {
+            this.showNotification('Developer access required', 'error');
+            return;
+        }
+
+        const msg = document.getElementById('dev-tools-migrations-msg');
+        const confirmed = await this.showAdminConfirm({
+            title: 'Run pending migrations',
+            message:
+                'Run all PENDING database migrations?\n\nThis applies schema updates only — it does not delete customers, orders, or sales data.',
+            confirmLabel: 'Continue',
+            cancelLabel: 'Cancel',
+        });
+        if (!confirmed) return;
+
+        const typedResult = await this.showAdminInputModal({
+            title: 'Confirm migration run',
+            message: 'Type RUN MIGRATIONS to confirm.',
+            inputs: [
+                {
+                    key: 'confirmText',
+                    label: 'Confirmation',
+                    placeholder: 'RUN MIGRATIONS',
+                    required: true,
+                },
+            ],
+            submitLabel: 'Run migrations',
+            cancelLabel: 'Cancel',
+        });
+        const typed = typedResult ? typedResult.confirmText : null;
+        if (typed !== 'RUN MIGRATIONS') {
+            if (msg) msg.textContent = 'Migration run cancelled — confirmation text did not match.';
+            return;
+        }
+
+        const btn = document.getElementById('dev-tools-run-migrations-btn');
+        const original = btn ? btn.innerHTML : '';
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Running…';
+        }
+        if (msg) msg.textContent = 'Running pending migrations…';
+
+        try {
+            const result = await this.apiRequest('/admin/dev-tools/run-migrations', {
+                method: 'POST',
+                body: JSON.stringify({ confirm: 'RUN MIGRATIONS' }),
+            });
+            if (msg) {
+                msg.style.color = 'var(--success)';
+                msg.textContent = result?.message || 'Migrations complete.';
+            }
+            this.showNotification(result?.message || 'Migrations complete', 'success');
+            await this.loadDeveloperTools();
+        } catch (err) {
+            if (msg) {
+                msg.style.color = 'var(--error)';
+                msg.textContent = err.message || 'Migration run failed';
+            }
+            this.showNotification(err.message || 'Migration run failed', 'error');
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = original;
+            }
         }
     }
 
@@ -2393,6 +2637,7 @@ class AdminApp {
 
     _personnelRoleBadge(role) {
         const map = {
+            developer: 'badge-role-admin',
             admin: 'badge-role-admin',
             manager: 'badge-role-manager',
             assistant_manager: 'badge-role-assistant',
@@ -2400,9 +2645,13 @@ class AdminApp {
         };
         const cls = map[role] || 'badge-info';
         const label =
-            { admin: 'Admin', manager: 'Manager', assistant_manager: 'Assistant Manager', marketing: 'Marketing' }[
-                role
-            ] || role;
+            {
+                developer: 'Developer',
+                admin: 'Admin',
+                manager: 'Manager',
+                assistant_manager: 'Assistant Manager',
+                marketing: 'Marketing',
+            }[role] || role;
         return `<span class="badge ${cls}" style="display:inline-block;padding:0.2rem 0.55rem;border-radius:9999px;font-size:0.75rem;font-weight:600;">${this._escapeHtml(label)}</span>`;
     }
 
@@ -4050,9 +4299,9 @@ class AdminApp {
         return `${y}-${m}-${d}`;
     }
 
-    setTaxCsvDefaultRange() {
-        const startInput = document.getElementById('taxCsvStartDate');
-        const endInput = document.getElementById('taxCsvEndDate');
+    setTaxReportDefaultRange() {
+        const startInput = document.getElementById('taxReportStartDate');
+        const endInput = document.getElementById('taxReportEndDate');
         if (!startInput || !endInput) return;
         if (startInput.value && endInput.value) return;
 
@@ -4066,10 +4315,16 @@ class AdminApp {
         endInput.value = toKey(lastOfPrevMonth);
     }
 
+    getTaxReportDateRange() {
+        const startDate = (document.getElementById('taxReportStartDate')?.value || '').trim();
+        const endDate = (document.getElementById('taxReportEndDate')?.value || '').trim();
+        return { startDate, endDate };
+    }
+
     async loadTaxLedger() {
         try {
             const date = this.getTodayDateKey();
-            this.setTaxCsvDefaultRange();
+            this.setTaxReportDefaultRange();
             const response = await this.apiRequest(`/admin/tax-ledger/overview?date=${encodeURIComponent(date)}`);
             if (!response || !response.overview) return;
 
@@ -4120,15 +4375,15 @@ class AdminApp {
         await this.loadTaxLedger();
     }
 
-    async exportTaxCloudCsv() {
-        const startDate = (document.getElementById('taxCsvStartDate')?.value || '').trim();
-        const endDate = (document.getElementById('taxCsvEndDate')?.value || '').trim();
+    async exportTaxAccountantExcel() {
+        const { startDate, endDate } = this.getTaxReportDateRange();
         if (!startDate || !endDate) {
             this.showNotification('Select both start and end dates', 'error');
             return;
         }
 
-        const url = `${this.apiBaseUrl}/admin/tax-ledger/export/taxcloud.csv?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`;
+        const url = `${this.apiBaseUrl}/admin/tax-ledger/export/accountant.xlsx?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`;
+        this.showNotification('Building Excel report (syncing POS + website)…', 'info');
         const response = await fetch(url, {
             method: 'GET',
             headers: {
@@ -4137,22 +4392,57 @@ class AdminApp {
         });
 
         if (!response.ok) {
-            const message = `CSV export failed (${response.status})`;
+            let message = `Excel export failed (${response.status})`;
+            try {
+                const err = await response.json();
+                if (err?.error) message = err.error;
+            } catch (_) {
+                /* ignore */
+            }
             this.showNotification(message, 'error');
             return;
         }
 
-        const csvText = await response.text();
-        const blob = new Blob([csvText], { type: 'text/csv;charset=utf-8;' });
+        const blob = await response.blob();
         const href = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = href;
-        link.download = `taxcloud-${startDate}-to-${endDate}.csv`;
+        link.download = `hmherbs-tax-report-${startDate}-to-${endDate}.xlsx`;
         document.body.appendChild(link);
         link.click();
         link.remove();
         URL.revokeObjectURL(href);
-        this.showNotification('TaxCloud CSV exported', 'success');
+        this.showNotification('Tax report Excel downloaded', 'success');
+    }
+
+    async sendTaxAccountantReport() {
+        const { startDate, endDate } = this.getTaxReportDateRange();
+        if (!startDate || !endDate) {
+            this.showNotification('Select both start and end dates', 'error');
+            return;
+        }
+
+        const ok = await this.showAdminConfirm({
+            title: 'Email tax report to accountant?',
+            message: `Send the Excel sales tax report for ${startDate} through ${endDate} to the accountant? This syncs website and POS data for that period first.`,
+            confirmLabel: 'Send email',
+            cancelLabel: 'Cancel'
+        });
+        if (!ok) return;
+
+        try {
+            this.showNotification('Syncing sales and sending email…', 'info');
+            const response = await this.apiRequest('/admin/tax-ledger/send-accountant-report', {
+                method: 'POST',
+                body: JSON.stringify({ startDate, endDate, syncBeforeExport: true })
+            });
+            if (!response?.success) return;
+            const to = response.result?.recipientEmail || 'accountant';
+            const count = response.result?.rowCount ?? 0;
+            this.showNotification(`Tax report emailed to ${to} (${count} transactions)`, 'success');
+        } catch (error) {
+            this.showNotification(error?.message || 'Failed to send tax report', 'error');
+        }
     }
 
     async syncProductCostsFromOctopos() {
@@ -6067,7 +6357,6 @@ class AdminApp {
                 product.is_featured === '1' ||
                 product.is_featured === 'true';
             const lowStock = product.inventory_quantity <= (product.low_stock_threshold || 10);
-            const deleteArg = JSON.stringify(product.name || '');
             return `
                 <tr>
                     <td class="col-sku"><code title="${esc(product.sku)}">${esc(product.sku)}</code></td>
@@ -6094,7 +6383,7 @@ class AdminApp {
                             <button type="button" class="btn btn-sm btn-secondary" onclick="editProduct(${product.id})" title="Edit">
                                 <i class="fas fa-edit" aria-hidden="true"></i>
                             </button>
-                            <button type="button" class="btn btn-sm btn-danger" onclick="deleteProduct(${product.id}, ${deleteArg})" title="Delete">
+                            <button type="button" class="btn btn-sm btn-danger" onclick="deleteProduct(${product.id})" title="Delete">
                                 <i class="fas fa-trash" aria-hidden="true"></i>
                             </button>
                         </div>
@@ -6209,7 +6498,7 @@ class AdminApp {
                                     <button class="btn btn-sm btn-secondary" onclick="editCategory(${category.id})">
                                         <i class="fas fa-edit"></i>
                                     </button>
-                                    <button class="btn btn-sm btn-danger" onclick="deleteCategory(${category.id}, '${this.escapeHtml(category.name)}')" style="margin-left: 0.5rem;">
+                                    <button class="btn btn-sm btn-danger" onclick="deleteCategory(${category.id})" style="margin-left: 0.5rem;">
                                         <i class="fas fa-trash"></i>
                                     </button>
                                 </td>
@@ -6573,7 +6862,7 @@ class AdminApp {
                                     <button class="btn btn-sm btn-secondary" onclick="editBrand(${brand.id})">
                                         <i class="fas fa-edit"></i>
                                     </button>
-                                    <button class="btn btn-sm btn-danger" onclick="deleteBrand(${brand.id}, '${this.escapeHtml(brand.name)}')" style="margin-left: 0.5rem;">
+                                    <button class="btn btn-sm btn-danger" onclick="deleteBrand(${brand.id})" style="margin-left: 0.5rem;">
                                         <i class="fas fa-trash"></i>
                                     </button>
                                 </td>
@@ -9551,9 +9840,15 @@ async function updateBrand(brandId, formData) {
 
 async function deleteBrand(brandId, brandName) {
     const app = window.adminApp;
+    let name = brandName;
+    if (!name) {
+        const id = Number(brandId);
+        const found = (app.allBrands || []).find((b) => Number(b.id) === id);
+        name = found?.name || `Brand #${brandId}`;
+    }
     const ok = await app.showAdminConfirm({
         title: 'Delete this brand?',
-        message: `Remove “${brandName}” from the catalog? This cannot be undone.`,
+        message: `Remove “${name}” from the catalog? This cannot be undone.`,
         confirmLabel: 'Delete brand',
         cancelLabel: 'Cancel',
         danger: true,
@@ -10049,9 +10344,15 @@ async function updateCategory(categoryId, formData) {
 
 async function deleteCategory(categoryId, categoryName) {
     const app = window.adminApp;
+    let name = categoryName;
+    if (!name) {
+        const id = Number(categoryId);
+        const found = (app.allCategories || []).find((c) => Number(c.id) === id);
+        name = found?.name || `Category #${categoryId}`;
+    }
     const okCat = await app.showAdminConfirm({
         title: 'Delete this category?',
-        message: `Remove “${categoryName}”? This cannot be undone.`,
+        message: `Remove “${name}”? This cannot be undone.`,
         confirmLabel: 'Delete category',
         cancelLabel: 'Cancel',
         danger: true,
@@ -10085,6 +10386,12 @@ async function deleteCategory(categoryId, categoryName) {
 
 async function deleteProduct(productId, productName) {
     const app = window.adminApp;
+    let name = productName;
+    if (!name) {
+        const id = Number(productId);
+        const found = (app.allProducts || []).find((p) => Number(p.id) === id);
+        name = found?.name || `Product #${productId}`;
+    }
     const okDel = await app.showAdminConfirm({
         title: 'Delete this product?',
         message: `Remove “${productName}” from the catalog? This cannot be undone.`,
@@ -10331,6 +10638,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const integrationLogsClearBtn = document.getElementById('integration-logs-clear-btn');
     if (integrationLogsClearBtn && window.adminApp) {
         integrationLogsClearBtn.addEventListener('click', () => window.adminApp.clearIntegrationLogs());
+    }
+    const devToolsBackupBtn = document.getElementById('dev-tools-backup-btn');
+    if (devToolsBackupBtn && window.adminApp) {
+        devToolsBackupBtn.addEventListener('click', () => window.adminApp.downloadDatabaseBackup());
+    }
+    const devToolsRunMigrationsBtn = document.getElementById('dev-tools-run-migrations-btn');
+    if (devToolsRunMigrationsBtn && window.adminApp) {
+        devToolsRunMigrationsBtn.addEventListener('click', () => window.adminApp.runPendingMigrations());
     }
     const promoForm = document.getElementById('promo-editor-form');
     if (promoForm && window.adminApp) {
