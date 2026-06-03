@@ -34,7 +34,7 @@ async function columnExists(conn, table, column) {
 
     const tables = ['users', 'customer_loyalty', 'loyalty_transactions',
         'gift_cards', 'gift_card_transactions', 'customer_notes',
-        'customer_communications', 'octopos_customers_cache'];
+        'customer_communications'];
 
     console.log('=== Core customer tables ===');
     for (const t of tables) {
@@ -82,7 +82,7 @@ async function columnExists(conn, table, column) {
             AND TABLE_NAME = 'users'
             AND COLUMN_NAME IN ('customer_number','customer_status','customer_type',
               'lifetime_value','total_orders','last_order_at','avg_order_value',
-              'octopos_customer_id','tags',
+              'tags',
               'marketing_email_opt_in','tax_exempt','admin_notes')
           ORDER BY ORDINAL_POSITION`
     );

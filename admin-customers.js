@@ -422,19 +422,6 @@
                     <div class="stat-card"><div class="stat-title">Tier</div><div class="stat-value" style="font-size:1.25rem;">${esc(c.tier||'—')}</div></div>
                 </div>
 
-                <div style="display:flex;gap:1rem;flex-wrap:wrap;background:var(--gray-50, #f9fafb);padding:1rem;border-radius:8px;margin-bottom:1.5rem;">
-                    <div style="flex:1;min-width:250px;">
-                        <strong>Octopos Reward Card:</strong>
-                        <div>${c.octopos_reward_card_number ? `<code>${esc(c.octopos_reward_card_number)}</code>` : '<em>not linked</em>'}</div>
-                        <div style="font-size:0.85em;color:var(--gray-500);">Last synced: ${fmtDateTime(c.loyalty_synced_at)} (${esc(c.loyalty_sync_status||'never')})</div>
-                    </div>
-                    <div style="display:flex;gap:0.5rem;align-items:center;">
-                        <button class="btn btn-secondary" data-action="link-card"><i class="fas fa-link"></i> Link Card</button>
-                        ${c.octopos_reward_card_id ? '<button class="btn btn-secondary" data-action="sync-card"><i class="fas fa-sync"></i> Sync Now</button>' : ''}
-                        ${c.octopos_reward_card_number ? '<button class="btn btn-secondary" data-action="unlink-card"><i class="fas fa-unlink"></i></button>' : ''}
-                    </div>
-                </div>
-
                 <div style="display:flex;gap:0.5rem;align-items:end;background:#fefce8;padding:1rem;border-radius:8px;margin-bottom:1.5rem;">
                     <div style="flex:1;"><label for="adjustPointsAmount" style="display:block;font-size:0.85em;font-weight:600;">Adjust Points</label><input class="form-input" id="adjustPointsAmount" type="number" placeholder="e.g. 100 or -50"></div>
                     <div style="flex:2;"><label for="adjustPointsReason" style="display:block;font-size:0.85em;font-weight:600;">Reason</label><input class="form-input" id="adjustPointsReason" placeholder="Reason for adjustment"></div>
@@ -571,45 +558,6 @@
                 });
                 this.showCustomerProfile(cId);
             });
-            content.querySelector('[data-action="link-card"]')?.addEventListener('click', async () => {
-                const vals = await this.showAdminInputModal({
-                    title: 'Link Octopos reward card',
-                    message:
-                        'Enter the in-store reward card number. Octopos card ID is optional if the number alone can look up the card.',
-                    inputs: [
-                        { key: 'number', label: 'Reward card number', required: true },
-                        { key: 'id', label: 'Octopos card ID (optional)', required: false },
-                    ],
-                    submitLabel: 'Link card',
-                    cancelLabel: 'Cancel',
-                });
-                if (!vals || !vals.number) return;
-                await this.apiRequest(`/admin/customers/${cId}/loyalty/link`, {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        octopos_reward_card_number: vals.number,
-                        octopos_reward_card_id: vals.id || null,
-                    }),
-                });
-                this.showCustomerProfile(cId);
-            });
-            content.querySelector('[data-action="sync-card"]')?.addEventListener('click', async () => {
-                await this.apiRequest(`/admin/customers/${cId}/loyalty/sync`, { method: 'POST' });
-                this.showCustomerProfile(cId);
-            });
-            content.querySelector('[data-action="unlink-card"]')?.addEventListener('click', async () => {
-                const ok = await this.showAdminConfirm({
-                    title: 'Unlink reward card?',
-                    message:
-                        'Loyalty balances stay in H&M Herbs until you link a new card. Octopos will not sync for this customer until then.',
-                    confirmLabel: 'Unlink',
-                    cancelLabel: 'Cancel',
-                    danger: true,
-                });
-                if (!ok) return;
-                await this.apiRequest(`/admin/customers/${cId}/loyalty/link`, { method: 'DELETE' });
-                this.showCustomerProfile(cId);
-            });
         }
     };
 
@@ -710,29 +658,6 @@
                 this.showToast('Create failed: ' + err.message, 'error');
             }
         });
-    };
-
-    AdminApp.prototype.syncOctoposCustomers = async function () {
-        const ok = await this.showAdminConfirm({
-            title: 'Sync reward cards from Octopos?',
-            message:
-                'H&M Herbs will pull reward cards from Octopos, update linked customers, and (if OCTOPOS_SYNC_POS_TO_WEB=true on the server) create website accounts for unmatched cards that have an email. This can take a while—please keep this tab open.',
-            confirmLabel: 'Start sync',
-            cancelLabel: 'Cancel',
-        });
-        if (!ok) return;
-        try {
-            const res = await this.apiRequest('/admin/customers/sync/octopos/all', { method: 'POST' });
-            const s = res.stats || {};
-            await this.showAdminAlert({
-                title: 'Octopos sync complete',
-                message: `Matched: ${s.matched || 0}\nCached for review: ${s.cached_for_review || 0}\nNew web accounts from POS: ${s.created_web_users || 0}\nErrors: ${s.errors || 0}`,
-                okLabel: 'Close',
-            });
-            this.loadCustomers();
-        } catch (err) {
-            this.showToast('Sync failed: ' + err.message, 'error');
-        }
     };
 
     // =======================================================================

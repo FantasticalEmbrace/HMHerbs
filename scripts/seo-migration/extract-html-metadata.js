@@ -15,7 +15,6 @@ const write = process.argv.includes('--write');
 const base = 'https://hmherbs.com';
 
 const SKIP_NAMES = new Set([
-    'test-octopos.html',
     'check-upload.html',
     'create-placeholder-images.html',
     'unregister-sw.html'

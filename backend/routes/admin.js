@@ -156,7 +156,6 @@ const HMHerbsScraper = require('../scripts/scrape-hmherbs');
 const activeScrapeJobs = require('../utils/activeScrapeJobs');
 const ProductImporter = require('../scripts/import-products');
 const ProductCategoryMatcher = require('../scripts/match-products-to-categories');
-const ProductOctoposSyncService = require('../services/product-octopos-sync');
 const InventoryService = require('../services/inventory');
 const VendorService = require('../services/vendor');
 const POSService = require('../services/pos');
@@ -799,7 +798,7 @@ router.get('/products', ...marketingAuth, async (req, res) => {
 
         // Build the base query - use string concatenation to avoid template literal issues
         let query = 'SELECT ' +
-            'p.id, p.sku, p.name, p.slug, p.price, p.cost_price, p.octopos_product_id, p.inventory_quantity, ' +
+            'p.id, p.sku, p.name, p.slug, p.price, p.cost_price, p.inventory_quantity, ' +
             'p.low_stock_threshold, p.is_active, p.is_featured, p.created_at, ' +
             'p.brand_id, p.category_id, ' +
             'b.name as brand_name, pc.name as category_name ' +
@@ -1285,69 +1284,6 @@ router.post('/products/upload-coa', ...adminAuth, requirePermission('manager'), 
     }
 });
 
-// Sync product costs from Octopos (match by SKU / barcode)
-router.post('/products/sync-octopos/costs', ...adminAuth, requirePermission('manager'), async (req, res) => {
-    try {
-        const sync = new ProductOctoposSyncService(req.pool);
-        const octoposCtx = {
-            baseUrl: req.headers['x-octopos-baseurl'] || null,
-            token: req.headers['x-octopos-token'] || null,
-        };
-        const result = await sync.syncAllCostsFromOctopos(octoposCtx);
-        res.json(result);
-    } catch (err) {
-        logger.error('Octopos bulk product cost sync error:', err);
-        res.status(500).json({
-            error: 'Failed to sync costs from Octopos',
-            message: process.env.NODE_ENV === 'development' ? err.message : undefined,
-        });
-    }
-});
-
-// Sync one product's cost from Octopos
-router.post('/products/:id/sync-octopos-cost', ...adminAuth, requirePermission('manager'), async (req, res) => {
-    try {
-        const sync = new ProductOctoposSyncService(req.pool);
-        const octoposCtx = {
-            baseUrl: req.headers['x-octopos-baseurl'] || null,
-            token: req.headers['x-octopos-token'] || null,
-        };
-        const result = await sync.syncProductCostFromOctopos(req.params.id, octoposCtx);
-        if (!result.success) {
-            return res.status(result.error === 'Product not found' ? 404 : 400).json({ error: result.error });
-        }
-        res.json(result);
-    } catch (err) {
-        logger.error('Octopos single product cost sync error:', err);
-        res.status(500).json({
-            error: 'Failed to sync cost from Octopos',
-            message: process.env.NODE_ENV === 'development' ? err.message : undefined,
-        });
-    }
-});
-
-// Push website cost to linked Octopos product
-router.post('/products/:id/push-octopos-cost', ...adminAuth, requirePermission('manager'), async (req, res) => {
-    try {
-        const sync = new ProductOctoposSyncService(req.pool);
-        const octoposCtx = {
-            baseUrl: req.headers['x-octopos-baseurl'] || null,
-            token: req.headers['x-octopos-token'] || null,
-        };
-        const result = await sync.pushCostToOctopos(req.params.id, octoposCtx);
-        if (!result.success && !result.skipped) {
-            return res.status(400).json({ error: result.error || 'Push failed' });
-        }
-        res.json(result);
-    } catch (err) {
-        logger.error('Octopos push product cost error:', err);
-        res.status(500).json({
-            error: 'Failed to push cost to Octopos',
-            message: process.env.NODE_ENV === 'development' ? err.message : undefined,
-        });
-    }
-});
-
 // Get Single Product by ID
 router.get('/products/:id', ...marketingAuth, async (req, res) => {
     try {
@@ -1356,7 +1292,7 @@ router.get('/products/:id', ...marketingAuth, async (req, res) => {
         const [products] = await req.pool.execute(`
             SELECT 
                 p.id, p.sku, p.name, p.slug, p.short_description, p.long_description,
-                p.price, p.compare_price, p.cost_price, p.octopos_product_id, p.cost_synced_at,
+                p.price, p.compare_price, p.cost_price, p.cost_synced_at,
                 p.weight, p.inventory_quantity, p.low_stock_threshold,
                 p.is_active, p.is_featured, p.is_cannabis, p.coa_url, p.coa_updated_at,
                 p.created_at, p.updated_at,
@@ -1597,26 +1533,7 @@ router.put('/products/:id', ...adminAuth, requirePermission('manager'), async (r
 
             await connection.commit();
 
-            let octoposPush = null;
-            const pushCostToOctopos = updateData.push_cost_to_octopos !== false
-                && updateData.push_cost_to_octopos !== 'false';
-            if (pushCostToOctopos && updateData.cost_price !== undefined) {
-                try {
-                    const sync = new ProductOctoposSyncService(req.pool);
-                    octoposPush = await sync.pushCostToOctopos(id, {
-                        baseUrl: req.headers['x-octopos-baseurl'] || null,
-                        token: req.headers['x-octopos-token'] || null,
-                    });
-                } catch (pushErr) {
-                    logger.warn('Octopos cost push after product update failed', {
-                        productId: id,
-                        message: pushErr.message,
-                    });
-                    octoposPush = { success: false, error: pushErr.message };
-                }
-            }
-
-            res.json({ message: 'Product updated successfully', octoposPush });
+            res.json({ message: 'Product updated successfully' });
 
         } catch (error) {
             await connection.rollback();
@@ -2608,7 +2525,7 @@ router.put('/settings', ...marketingAuth, settingsValidation, async (req, res) =
     }
 });
 
-// Integration logs (Octopos/Mailchimp/newsletter sync visibility)
+// Integration logs (Mailchimp/newsletter sync visibility)
 router.get('/integration-logs', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const limitRaw = Number.parseInt(req.query.limit, 10);
@@ -2628,7 +2545,7 @@ router.get('/integration-logs', ...adminAuth, requirePermission('manager'), asyn
                         const parsed = JSON.parse(line);
                         const message = String(parsed.message || '');
                         const combined = `${message} ${JSON.stringify(parsed)}`.toLowerCase();
-                        if (!/(octopos|mailchimp|newsletter|sync|integration)/i.test(combined)) continue;
+                        if (!/(mailchimp|newsletter|sync|integration)/i.test(combined)) continue;
                         entries.push({
                             timestamp: parsed.timestamp || null,
                             level: parsed.level || 'info',

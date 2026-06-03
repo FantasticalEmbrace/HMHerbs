@@ -1207,11 +1207,7 @@ class AccountManager {
                 loyalty.member_since ? new Date(loyalty.member_since).toLocaleDateString() : '—';
 
             if (cardInfo) {
-                if (loyalty.octopos_reward_card_number) {
-                    cardInfo.innerHTML = `Linked to in-store reward card <code>${loyalty.octopos_reward_card_number}</code>. Points sync automatically with your in-store purchases.`;
-                } else {
-                    cardInfo.innerHTML = '<em>Earn rewards on every purchase! Ask in store to link your account to a reward card so points sync between online and in-store.</em>';
-                }
+                cardInfo.innerHTML = '<em>Earn rewards on every purchase!</em>';
             }
 
             if (container) {

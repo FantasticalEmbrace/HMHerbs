@@ -10,9 +10,9 @@ async function recordGiftCardTransaction(connection, row) {
     await connection.execute(
         `INSERT INTO gift_card_transactions
             (gift_card_id, transaction_type, amount, balance_before, balance_after,
-             source, order_id, customer_id, admin_user_id, octopos_transaction_id,
+             source, order_id, customer_id, admin_user_id,
              description, metadata)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
             sqlBind(row.gift_card_id),
             sqlBind(row.transaction_type),
@@ -23,7 +23,6 @@ async function recordGiftCardTransaction(connection, row) {
             sqlBind(row.order_id ?? null),
             sqlBind(row.customer_id ?? null),
             sqlBind(row.admin_user_id ?? null),
-            sqlBind(row.octopos_transaction_id ?? null),
             sqlBind(row.description ?? null),
             row.metadata ? JSON.stringify(row.metadata) : null
         ]

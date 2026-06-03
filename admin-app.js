@@ -4445,75 +4445,6 @@ class AdminApp {
         }
     }
 
-    async syncProductCostsFromOctopos() {
-        const ok = await this.showAdminConfirm({
-            title: 'Sync costs from Octopos?',
-            message:
-                'This matches website products to Octopos by SKU (and barcode when applicable) and updates Cost from Octopos. Existing retail prices are not changed.',
-            confirmLabel: 'Sync now',
-            cancelLabel: 'Cancel',
-        });
-        if (!ok) return;
-        try {
-            this.showToast('Syncing product costs from Octopos…', 'info');
-            const result = await this.apiRequest('/admin/products/sync-octopos/costs', { method: 'POST' });
-            const s = result?.stats || {};
-            this.showToast(
-                `Octopos sync done: ${s.updated || 0} updated, ${s.matched || 0} matched, ${s.unmatched || 0} unmatched`,
-                'success'
-            );
-            await this.loadProducts();
-        } catch (err) {
-            this.showToast('Octopos cost sync failed: ' + (err.message || 'error'), 'error');
-        }
-    }
-
-    async syncOneProductCostFromOctopos(productId) {
-        try {
-            const result = await this.apiRequest(`/admin/products/${productId}/sync-octopos-cost`, {
-                method: 'POST',
-            });
-            if (result?.cost_price != null) {
-                const costEl = document.getElementById('edit-cost-price');
-                if (costEl) costEl.value = result.cost_price;
-            }
-            const octStatus = document.getElementById('edit-octopos-cost-status');
-            if (octStatus) {
-                octStatus.textContent = result.message
-                    || (result.cost_price != null
-                        ? `Cost $${Number(result.cost_price).toFixed(2)} pulled from Octopos #${result.octopos_product_id}`
-                        : 'Updated from Octopos');
-                octStatus.style.color = 'var(--success, #059669)';
-            }
-            this.showToast(result.message || 'Cost updated from Octopos', 'success');
-            await this.loadProducts();
-        } catch (err) {
-            this.showToast('Pull from Octopos failed: ' + (err.message || 'error'), 'error');
-        }
-    }
-
-    async pushOneProductCostToOctopos(productId) {
-        try {
-            const costEl = document.getElementById('edit-cost-price');
-            if (costEl && costEl.value !== '') {
-                await this.apiRequest(`/admin/products/${productId}`, {
-                    method: 'PUT',
-                    body: JSON.stringify({ cost_price: costEl.value }),
-                });
-            }
-            const result = await this.apiRequest(`/admin/products/${productId}/push-octopos-cost`, {
-                method: 'POST',
-            });
-            if (result.skipped) {
-                this.showToast(result.reason || 'Octopos push skipped', 'warning');
-                return;
-            }
-            this.showToast('Cost pushed to Octopos', 'success');
-        } catch (err) {
-            this.showToast('Push to Octopos failed: ' + (err.message || 'error'), 'error');
-        }
-    }
-
     async loadLowStock() {
         const container = document.getElementById('lowStockTable');
         if (!container) {
@@ -8238,51 +8169,6 @@ function createProductModal(title, formId, isEdit = false) {
     form.appendChild(basicInfoSection);
     form.appendChild(pricingSection);
 
-    if (isEdit) {
-        const octoposCostSection = document.createElement('div');
-        octoposCostSection.style.marginBottom = '2rem';
-        octoposCostSection.style.paddingBottom = '1.5rem';
-        octoposCostSection.style.borderBottom = '1px solid var(--gray-200)';
-        const octTitle = document.createElement('h3');
-        octTitle.textContent = 'Octopos cost';
-        octTitle.style.fontSize = '1.1rem';
-        octTitle.style.fontWeight = '600';
-        octTitle.style.color = 'var(--primary-green)';
-        octTitle.style.marginBottom = '0.75rem';
-        octoposCostSection.appendChild(octTitle);
-        const octHelp = document.createElement('p');
-        octHelp.style.margin = '0 0 1rem';
-        octHelp.style.fontSize = '0.875rem';
-        octHelp.style.color = 'var(--gray-600)';
-        octHelp.textContent = 'Pull cost from your Octopos catalog (matched by SKU). Saving the product also pushes cost to Octopos when linked.';
-        octoposCostSection.appendChild(octHelp);
-        const octStatus = document.createElement('p');
-        octStatus.id = 'edit-octopos-cost-status';
-        octStatus.style.margin = '0 0 0.75rem';
-        octStatus.style.fontSize = '0.85rem';
-        octStatus.style.color = 'var(--gray-500)';
-        octStatus.textContent = 'Octopos link: not loaded yet';
-        octoposCostSection.appendChild(octStatus);
-        const octBtns = document.createElement('div');
-        octBtns.style.display = 'flex';
-        octBtns.style.flexWrap = 'wrap';
-        octBtns.style.gap = '0.5rem';
-        const pullBtn = document.createElement('button');
-        pullBtn.type = 'button';
-        pullBtn.className = 'btn btn-secondary btn-sm';
-        pullBtn.id = 'edit-pull-octopos-cost-btn';
-        pullBtn.innerHTML = '<i class="fas fa-download" aria-hidden="true"></i> Pull cost from Octopos';
-        const pushBtn = document.createElement('button');
-        pushBtn.type = 'button';
-        pushBtn.className = 'btn btn-secondary btn-sm';
-        pushBtn.id = 'edit-push-octopos-cost-btn';
-        pushBtn.innerHTML = '<i class="fas fa-upload" aria-hidden="true"></i> Push cost to Octopos';
-        octBtns.appendChild(pullBtn);
-        octBtns.appendChild(pushBtn);
-        octoposCostSection.appendChild(octBtns);
-        form.appendChild(octoposCostSection);
-    }
-
     if (additionalSection.children.length > 0) {
         form.appendChild(additionalSection);
     }
@@ -9043,29 +8929,6 @@ async function loadProductForEdit(productId) {
             const costEl = document.getElementById('edit-cost-price');
             if (costEl) costEl.value = product.cost_price != null ? product.cost_price : '';
             document.getElementById('edit-compare-price').value = product.compare_price || '';
-            const octStatus = document.getElementById('edit-octopos-cost-status');
-            if (octStatus) {
-                if (product.octopos_product_id) {
-                    const synced = product.cost_synced_at
-                        ? ` · last sync ${new Date(product.cost_synced_at).toLocaleString()}`
-                        : '';
-                    octStatus.textContent = `Linked to Octopos product #${product.octopos_product_id}${synced}`;
-                    octStatus.style.color = 'var(--gray-600)';
-                } else {
-                    octStatus.textContent = 'Not linked to Octopos — use Pull cost from Octopos to match by SKU.';
-                    octStatus.style.color = 'var(--gray-500)';
-                }
-            }
-            const pullOctBtn = document.getElementById('edit-pull-octopos-cost-btn');
-            if (pullOctBtn && !pullOctBtn.dataset.bound) {
-                pullOctBtn.dataset.bound = '1';
-                pullOctBtn.addEventListener('click', () => window.adminApp.syncOneProductCostFromOctopos(productId));
-            }
-            const pushOctBtn = document.getElementById('edit-push-octopos-cost-btn');
-            if (pushOctBtn && !pushOctBtn.dataset.bound) {
-                pushOctBtn.dataset.bound = '1';
-                pushOctBtn.addEventListener('click', () => window.adminApp.pushOneProductCostToOctopos(productId));
-            }
             document.getElementById('edit-inventory').value = product.inventory_quantity || '';
             document.getElementById('edit-low-stock').value = product.low_stock_threshold || '';
             document.getElementById('edit-weight').value = product.weight || '';

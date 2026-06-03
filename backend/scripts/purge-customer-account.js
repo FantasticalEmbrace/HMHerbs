@@ -83,13 +83,6 @@ async function purgeCustomer(conn, email) {
             summary.deleted.gift_cards_unlinked = r.affectedRows;
         }
 
-        if (await tableExists(conn, 'octopos_customer_cache')) {
-            const [r] = await conn.query(`DELETE FROM octopos_customer_cache WHERE web_user_id = ?`, [
-                userId,
-            ]);
-            summary.deleted.octopos_customer_cache = r.affectedRows;
-        }
-
         await conn.query(`UPDATE users SET referred_by_user_id = NULL WHERE referred_by_user_id = ?`, [
             userId,
         ]);

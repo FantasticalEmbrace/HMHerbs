@@ -47,17 +47,17 @@ router.use(authenticateAdmin);
 async function recordTransaction(pool, {
     gift_card_id, transaction_type, amount, balance_before, balance_after,
     source = 'admin', order_id = null, customer_id = null, admin_user_id = null,
-    octopos_transaction_id = null, description = null, metadata = null
+    description = null, metadata = null
 }) {
     await pool.execute(
         `INSERT INTO gift_card_transactions
             (gift_card_id, transaction_type, amount, balance_before, balance_after,
-             source, order_id, customer_id, admin_user_id, octopos_transaction_id,
+             source, order_id, customer_id, admin_user_id,
              description, metadata)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
             gift_card_id, transaction_type, amount, balance_before, balance_after,
-            source, order_id, customer_id, admin_user_id, octopos_transaction_id,
+            source, order_id, customer_id, admin_user_id,
             description, metadata ? JSON.stringify(metadata) : null
         ]
     );

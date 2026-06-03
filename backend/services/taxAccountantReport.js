@@ -347,7 +347,7 @@ class TaxAccountantReportService {
         const html = `
             <p>Hello,</p>
             <p>Attached is the H&amp;M Herbs sales tax report for <strong>${periodLabel}</strong>.</p>
-            <p>It includes website and POS (Octopos) sales for Georgia, Indiana, Michigan, North Carolina, and Ohio, with worksheets sortable by state and county so each state can be filed separately.</p>
+            <p>It includes website and POS sales for Georgia, Indiana, Michigan, North Carolina, and Ohio, with worksheets sortable by state and county so each state can be filed separately.</p>
             <p>Transaction count: <strong>${rowCount}</strong></p>
             <p>— H&amp;M Herbs automated tax report</p>
         `.trim();

@@ -5,8 +5,6 @@
 //   - Search, filter, paginate
 //   - Full customer profile (addresses, orders, loyalty, gift cards, notes)
 //   - Loyalty point adjustments
-//   - Per-customer Octopos sync
-//   - Bulk Octopos reward-card sync
 //   - Customer notes / tags / status
 
 const express = require('express');
@@ -14,7 +12,6 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const logger = require('../utils/logger');
 const { jsonSafeDeep } = require('../utils/jsonSafeMysql');
-const CustomerOctoposSyncService = require('../services/customer-octopos-sync');
 const { normalizeAdminRole, hasMinAdminRole } = require('../utils/adminRoles');
 const { normalizeCustomerType, VALID_CUSTOMER_TYPES } = require('../services/employeeDiscount');
 
@@ -57,11 +54,70 @@ async function authenticateAdmin(req, res, next) {
 
 router.use(authenticateAdmin);
 
-function octoposCtx(req) {
-    return {
-        baseUrl: req.headers['x-octopos-baseurl'] || null,
-        token:   req.headers['x-octopos-token']   || null,
-    };
+// Adjust a customer's loyalty point balance locally (website-only loyalty).
+async function adjustLoyaltyPoints(pool, userId, pointsChange, { description, adminUserId, source = 'manual', orderId = null, metadata = null } = {}) {
+    const conn = await pool.getConnection();
+    try {
+        await conn.beginTransaction();
+
+        const [[loyalty]] = await conn.query(
+            'SELECT * FROM customer_loyalty WHERE user_id = ? FOR UPDATE',
+            [userId]
+        );
+        if (!loyalty) {
+            await conn.query(
+                'INSERT INTO customer_loyalty (user_id, points_balance) VALUES (?, 0)',
+                [userId]
+            );
+        }
+
+        const [[fresh]] = await conn.query(
+            'SELECT * FROM customer_loyalty WHERE user_id = ?',
+            [userId]
+        );
+
+        const newBalance = Math.max(0, (fresh.points_balance || 0) + pointsChange);
+        const earnedDelta = pointsChange > 0 ? pointsChange : 0;
+        const redeemedDelta = pointsChange < 0 ? Math.abs(pointsChange) : 0;
+
+        await conn.query(
+            `UPDATE customer_loyalty
+                SET points_balance = ?,
+                    lifetime_points_earned = lifetime_points_earned + ?,
+                    lifetime_points_redeemed = lifetime_points_redeemed + ?,
+                    last_earned_at = CASE WHEN ? > 0 THEN CURRENT_TIMESTAMP ELSE last_earned_at END,
+                    last_redeemed_at = CASE WHEN ? > 0 THEN CURRENT_TIMESTAMP ELSE last_redeemed_at END
+              WHERE user_id = ?`,
+            [newBalance, earnedDelta, redeemedDelta, earnedDelta, redeemedDelta, userId]
+        );
+
+        const txType = pointsChange >= 0 ? 'earn' : 'redeem';
+        await conn.query(
+            `INSERT INTO loyalty_transactions
+                (user_id, transaction_type, points_change, points_balance_after,
+                 source, order_id, description, admin_user_id, metadata)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                userId,
+                source === 'manual' ? 'adjust' : txType,
+                pointsChange,
+                newBalance,
+                source,
+                orderId,
+                description || null,
+                adminUserId || null,
+                metadata ? JSON.stringify(metadata) : null,
+            ]
+        );
+
+        await conn.commit();
+        return { success: true, newBalance };
+    } catch (err) {
+        await conn.rollback();
+        throw err;
+    } finally {
+        conn.release();
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -114,10 +170,8 @@ router.get('/', async (req, res) => {
                 u.phone, u.customer_status, u.customer_type, u.tags,
                 u.lifetime_value, u.total_orders, u.last_order_at, u.avg_order_value,
                 u.marketing_email_opt_in, u.marketing_sms_opt_in,
-                u.octopos_customer_id, u.octopos_synced_at,
                 u.created_at, u.last_login,
                 cl.points_balance, cl.tier, cl.last_synced_at AS loyalty_synced_at,
-                cl.octopos_reward_card_number,
                 (SELECT COUNT(*) FROM gift_cards gc
                   WHERE gc.customer_id = u.id AND gc.status IN ('active','inactive')) AS gift_card_count,
                 (SELECT COALESCE(SUM(gc.current_balance),0) FROM gift_cards gc
@@ -184,12 +238,9 @@ router.get('/', async (req, res) => {
                     0 AS avg_order_value,
                     0 AS marketing_email_opt_in,
                     0 AS marketing_sms_opt_in,
-                    NULL AS octopos_customer_id,
-                    NULL AS octopos_synced_at,
                     0 AS points_balance,
                     NULL AS tier,
                     NULL AS loyalty_synced_at,
-                    NULL AS octopos_reward_card_number,
                     0 AS gift_card_count,
                     0 AS gift_card_balance
                  FROM users
@@ -305,8 +356,8 @@ router.get('/:id', async (req, res) => {
 
         const [[customer]] = await req.pool.execute(
             `SELECT u.*, cl.points_balance, cl.tier, cl.lifetime_points_earned,
-                    cl.lifetime_points_redeemed, cl.octopos_reward_card_number,
-                    cl.octopos_reward_card_id, cl.last_synced_at AS loyalty_synced_at,
+                    cl.lifetime_points_redeemed,
+                    cl.last_synced_at AS loyalty_synced_at,
                     cl.sync_status AS loyalty_sync_status
                FROM users u
                LEFT JOIN customer_loyalty cl ON cl.user_id = u.id
@@ -672,8 +723,7 @@ router.post('/:id/loyalty/adjust', async (req, res) => {
         const change = parseInt(points_change, 10);
         if (!change || isNaN(change)) return res.status(400).json({ error: 'points_change must be a non-zero integer' });
 
-        const sync = new CustomerOctoposSyncService(req.pool);
-        const result = await sync.adjustPoints(id, change, {
+        const result = await adjustLoyaltyPoints(req.pool, id, change, {
             description,
             adminUserId: req.admin.id,
             source: 'manual',
@@ -682,142 +732,6 @@ router.post('/:id/loyalty/adjust', async (req, res) => {
     } catch (err) {
         logger.error('Adjust loyalty error', { error: err.message });
         res.status(500).json({ error: 'Failed to adjust loyalty points' });
-    }
-});
-
-// ---------------------------------------------------------------------------
-// LOYALTY - sync from Octopos
-// ---------------------------------------------------------------------------
-router.post('/:id/loyalty/sync', async (req, res) => {
-    try {
-        const id = parseInt(req.params.id, 10);
-        const [[loyalty]] = await req.pool.execute(
-            'SELECT octopos_reward_card_id, octopos_reward_card_number FROM customer_loyalty WHERE user_id = ?',
-            [id]
-        );
-        if (!loyalty?.octopos_reward_card_id) {
-            return res.status(400).json({ error: 'No Octopos reward card linked to this customer' });
-        }
-        const sync = new CustomerOctoposSyncService(req.pool);
-        const result = await sync.syncRewardCardForUser(id, loyalty.octopos_reward_card_id, octoposCtx(req));
-        res.json(result);
-    } catch (err) {
-        logger.error('Sync customer loyalty error', { error: err.message });
-        res.status(500).json({ error: 'Failed to sync from Octopos' });
-    }
-});
-
-// Link an Octopos reward card to a customer
-router.post('/:id/loyalty/link', async (req, res) => {
-    try {
-        const id = parseInt(req.params.id, 10);
-        const { octopos_reward_card_id, octopos_reward_card_number } = req.body || {};
-        if (!octopos_reward_card_id && !octopos_reward_card_number) {
-            return res.status(400).json({ error: 'Provide octopos_reward_card_id or octopos_reward_card_number' });
-        }
-        await req.pool.execute(
-            `INSERT INTO customer_loyalty (user_id, octopos_reward_card_id, octopos_reward_card_number, sync_status)
-             VALUES (?, ?, ?, 'pending')
-             ON DUPLICATE KEY UPDATE
-                octopos_reward_card_id = COALESCE(VALUES(octopos_reward_card_id), octopos_reward_card_id),
-                octopos_reward_card_number = COALESCE(VALUES(octopos_reward_card_number), octopos_reward_card_number),
-                sync_status = 'pending'`,
-            [id, octopos_reward_card_id || null, octopos_reward_card_number || null]
-        );
-
-        if (octopos_reward_card_id) {
-            const sync = new CustomerOctoposSyncService(req.pool);
-            await sync.syncRewardCardForUser(id, octopos_reward_card_id, octoposCtx(req));
-        }
-
-        res.json({ success: true });
-    } catch (err) {
-        logger.error('Link reward card error', { error: err.message });
-        res.status(500).json({ error: 'Failed to link reward card' });
-    }
-});
-
-// Unlink Octopos reward card
-router.delete('/:id/loyalty/link', async (req, res) => {
-    try {
-        await req.pool.execute(
-            `UPDATE customer_loyalty
-                SET octopos_reward_card_id = NULL, octopos_reward_card_number = NULL,
-                    sync_status = 'never', sync_error = NULL
-              WHERE user_id = ?`,
-            [parseInt(req.params.id, 10)]
-        );
-        res.json({ success: true });
-    } catch (err) {
-        res.status(500).json({ error: 'Failed to unlink' });
-    }
-});
-
-// ---------------------------------------------------------------------------
-// BULK Octopos sync (all reward cards)
-// ---------------------------------------------------------------------------
-router.post('/sync/octopos/all', async (req, res) => {
-    try {
-        const sync = new CustomerOctoposSyncService(req.pool);
-        const result = await sync.syncAllRewardCards(octoposCtx(req));
-        res.json(result);
-    } catch (err) {
-        logger.error('Bulk octopos sync error', { error: err.message });
-        res.status(500).json({ error: 'Bulk sync failed' });
-    }
-});
-
-// Unmatched POS customers awaiting linkage
-router.get('/sync/octopos/unmatched', async (req, res) => {
-    try {
-        const [rows] = await req.pool.execute(
-            `SELECT * FROM octopos_customers_cache
-              WHERE web_user_id IS NULL
-              ORDER BY last_synced_at DESC
-              LIMIT 500`
-        );
-        res.json({ customers: rows });
-    } catch (err) {
-        res.status(500).json({ error: 'Failed to load unmatched POS customers' });
-    }
-});
-
-// Link a cached POS customer to an existing user
-router.post('/sync/octopos/link', async (req, res) => {
-    try {
-        const { user_id, octopos_customer_id } = req.body || {};
-        if (!user_id || !octopos_customer_id) {
-            return res.status(400).json({ error: 'user_id and octopos_customer_id required' });
-        }
-        const [[cached]] = await req.pool.execute(
-            'SELECT * FROM octopos_customers_cache WHERE octopos_customer_id = ?',
-            [octopos_customer_id]
-        );
-        if (!cached) return res.status(404).json({ error: 'Cached POS customer not found' });
-
-        await req.pool.execute(
-            'UPDATE users SET octopos_customer_id = ?, octopos_synced_at = CURRENT_TIMESTAMP WHERE id = ?',
-            [octopos_customer_id, user_id]
-        );
-        await req.pool.execute(
-            `INSERT INTO customer_loyalty (user_id, points_balance, tier, octopos_reward_card_number, sync_status, last_synced_at)
-             VALUES (?, ?, ?, ?, 'synced', CURRENT_TIMESTAMP)
-             ON DUPLICATE KEY UPDATE
-                points_balance = VALUES(points_balance),
-                tier = COALESCE(VALUES(tier), tier),
-                octopos_reward_card_number = COALESCE(VALUES(octopos_reward_card_number), octopos_reward_card_number),
-                sync_status = 'synced',
-                last_synced_at = CURRENT_TIMESTAMP`,
-            [user_id, cached.points_balance || 0, cached.tier, cached.octopos_reward_card_number]
-        );
-        await req.pool.execute(
-            'UPDATE octopos_customers_cache SET web_user_id = ? WHERE octopos_customer_id = ?',
-            [user_id, octopos_customer_id]
-        );
-        res.json({ success: true });
-    } catch (err) {
-        logger.error('Link cached POS customer error', { error: err.message });
-        res.status(500).json({ error: 'Failed to link customer' });
     }
 });
 

@@ -32,10 +32,7 @@ const {
 } = require('./utils/customerAccountReactivation');
 const { provisionWebCustomerProfile } = require('./utils/provisionCustomerProfile');
 const { saveRegistrationMailingAddress, normalizeRegistrationMailingAddress } = require('./utils/saveRegistrationMailingAddress');
-const { createOctoposRewardCardForWebUser } = require('./utils/createOctoposRewardCardForWebUser');
-const { pushUserProfileToOctopos } = require('./utils/pushUserProfileToOctopos');
 const { isUsPhoneDisplayOrEmpty } = require('./utils/usPhoneDisplay');
-const { startOctoposAutoSync } = require('./services/octoposAutoSyncScheduler');
 const { startTaxReserveScheduler } = require('./services/taxReserveScheduler');
 const { startTaxAccountantScheduler } = require('./services/taxAccountantScheduler');
 const { ensureSocialOAuthSchema } = require('./utils/ensureSocialOAuthSchema');
@@ -631,23 +628,6 @@ app.post('/api/auth/register', authLimiter, userRegistrationValidation, async (r
             sessionUser = storefrontSessionUserFromDbRow({ ...urows[0], customer_number: null });
         }
 
-        if (!isReactivation) {
-            setImmediate(() => {
-                createOctoposRewardCardForWebUser(
-                    pool,
-                    {
-                        id: userId,
-                        email: emailNorm,
-                        first_name: firstName,
-                        last_name: lastName,
-                        phone: phone || null,
-                        date_of_birth: dob
-                    },
-                    logger
-                ).catch((e) => logger.warn('[octopos] post-register reward card', { message: e.message }));
-            });
-        }
-
         res.status(isReactivation ? 200 : 201).json({
             message: isReactivation ? 'Account reactivated successfully' : 'User created successfully',
             token,
@@ -991,12 +971,6 @@ app.put('/api/user/profile', authenticateToken, async (req, res) => {
                 customerNumber: users[0].customer_number != null ? users[0].customer_number : null,
             }
         });
-
-        setImmediate(() => {
-            pushUserProfileToOctopos(pool, userId, logger).catch((e) =>
-                logger.warn('[octopos] profile push', { message: e.message })
-            );
-        });
     } catch (error) {
         logger.error('Update user profile error:', error);
         res.status(500).json({ error: 'Internal server error' });
@@ -1046,7 +1020,7 @@ app.get('/api/user/loyalty', authenticateToken, async (req, res) => {
         let [[loyalty]] = await pool.execute(
             `SELECT points_balance, points_pending, lifetime_points_earned,
                     lifetime_points_redeemed, tier, tier_progress, member_since,
-                    last_earned_at, last_redeemed_at, octopos_reward_card_number,
+                    last_earned_at, last_redeemed_at,
                     last_synced_at, sync_status
                FROM customer_loyalty WHERE user_id = ?`,
             [userId]
@@ -1059,7 +1033,7 @@ app.get('/api/user/loyalty', authenticateToken, async (req, res) => {
             [[loyalty]] = await pool.execute(
                 `SELECT points_balance, points_pending, lifetime_points_earned,
                         lifetime_points_redeemed, tier, tier_progress, member_since,
-                        last_earned_at, last_redeemed_at, octopos_reward_card_number,
+                        last_earned_at, last_redeemed_at,
                         last_synced_at, sync_status
                    FROM customer_loyalty WHERE user_id = ?`,
                 [userId]
@@ -1580,7 +1554,6 @@ app.use('/api/admin/gift-cards', require('./routes/admin-gift-cards'));
 app.use('/api/admin/dev-tools', require('./routes/admin-dev-tools'));
 app.use('/api/admin', adminRoutes);
 app.use('/api/payment-cards', paymentCardsRoutes);
-app.use('/api/octopos', require('./routes/octopos'));
 // Customer-facing account API (addresses CRUD, password change, order detail,
 // wishlist collections + items). Mounted AFTER the inline /api/user/* handlers
 // (profile, orders list, addresses GET, loyalty, gift-cards) defined above so
@@ -1648,7 +1621,6 @@ app.use('/api/*', (req, res) => {
         logger.error(`ensureProductCatalogImages failed: ${logger.formatMysqlError(e)}`);
     }
 
-    const stopOctoposAutoSync = startOctoposAutoSync(pool);
     const stopTaxReserveScheduler = startTaxReserveScheduler(pool);
     const stopTaxAccountantScheduler = startTaxAccountantScheduler(pool);
 
@@ -1677,10 +1649,6 @@ app.use('/api/*', (req, res) => {
             logger.info(
                 'Checkout CSP: restart this Node process after changing helmet in server.js (e.g. Apple Pay script + NMI styles). Stale processes serve old Content-Security-Policy headers.'
             );
-        }
-        if (typeof stopOctoposAutoSync === 'function' && process.env.OCTOPOS_AUTO_SYNC_ENABLED === 'true') {
-            process.on('SIGTERM', () => stopOctoposAutoSync());
-            process.on('SIGINT', () => stopOctoposAutoSync());
         }
         if (typeof stopTaxReserveScheduler === 'function' && process.env.TAX_LEDGER_SYNC_ENABLED === 'true') {
             process.on('SIGTERM', () => stopTaxReserveScheduler());
