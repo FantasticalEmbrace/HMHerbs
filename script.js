@@ -1390,126 +1390,12 @@ class HMHerbsApp {
         }
     }
 
-    getToastRegion() {
-        let region = document.getElementById('hm-toast-region');
-        if (!region) {
-            region = document.createElement('div');
-            region.id = 'hm-toast-region';
-            region.setAttribute('aria-live', 'polite');
-            region.setAttribute('role', 'region');
-            region.setAttribute('aria-label', 'Notifications');
-            // Self-contained, decoupled from the .notification class so no stylesheet
-            // cascade or stacking context can hide it. Fixed, top-right, max z-index.
-            region.style.cssText = [
-                'position:fixed',
-                'top:calc(var(--hm-header-offset, 4.75rem) + 12px)',
-                'right:16px',
-                'left:auto',
-                'bottom:auto',
-                'display:flex',
-                'flex-direction:column',
-                'gap:10px',
-                'width:auto',
-                'max-width:min(360px, calc(100vw - 2rem))',
-                'margin:0',
-                'padding:0',
-                'z-index:2147483647',
-                'pointer-events:none',
-            ].join(';');
-            (document.body || document.documentElement).appendChild(region);
-        }
-        return region;
-    }
-
     showNotification(message, type = 'info') {
-        const palette = {
-            success: '#059669',
-            error: '#dc2626',
-            warning: '#d97706',
-            info: '#2563eb',
-        };
-
-        const region = this.getToastRegion();
-
-        const notification = document.createElement('div');
-        notification.setAttribute('role', 'alert');
-        // Intentionally NOT using the .notification class for layout/visibility to
-        // avoid conflicts with competing stylesheet rules. All critical styles inline.
-        notification.style.cssText = [
-            'display:flex',
-            'align-items:center',
-            'gap:0.75rem',
-            'box-sizing:border-box',
-            'background:' + (palette[type] || palette.info),
-            'color:#ffffff',
-            'padding:0.85rem 1rem',
-            'border-radius:0.5rem',
-            'box-shadow:0 10px 25px -5px rgba(0,0,0,0.35)',
-            'font-size:0.95rem',
-            'line-height:1.35',
-            'font-weight:500',
-            'opacity:0',
-            'visibility:visible',
-            'transform:translateX(115%)',
-            'transition:transform 260ms ease, opacity 260ms ease',
-            'pointer-events:auto',
-        ].join(';');
-
-        const messageSpan = document.createElement('span');
-        messageSpan.style.cssText = 'flex:1;';
-        messageSpan.textContent = message;
-
-        const closeBtn = document.createElement('button');
-        closeBtn.setAttribute('aria-label', 'Close notification');
-        closeBtn.type = 'button';
-        closeBtn.style.cssText = [
-            'flex-shrink:0',
-            'display:inline-flex',
-            'align-items:center',
-            'justify-content:center',
-            'width:1.5rem',
-            'height:1.5rem',
-            'padding:0',
-            'background:rgba(255,255,255,0.18)',
-            'border:none',
-            'border-radius:9999px',
-            'color:#ffffff',
-            'cursor:pointer',
-            'line-height:1',
-            'font-size:1.1rem',
-        ].join(';');
-        closeBtn.textContent = '\u00d7';
-
-        notification.appendChild(messageSpan);
-        notification.appendChild(closeBtn);
-        region.appendChild(notification);
-
-        requestAnimationFrame(() => {
-            notification.style.transform = 'translateX(0)';
-            notification.style.opacity = '1';
-        });
-
-        if (type === 'success' && /added to cart/i.test(message)) {
-            this.pulseCartBadge();
-            try {
-                window.dispatchEvent(
-                    new CustomEvent('hmherbs:cart-item-added', { detail: { message, cart: this.cart.slice() } })
-                );
-            } catch (_) {
-                /* ignore */
-            }
+        if (typeof window.hmShowToast === 'function') {
+            window.hmShowToast(message, type);
+            return;
         }
-
-        closeBtn.addEventListener('click', () => {
-            if (notification.autoCloseTimeout) {
-                clearTimeout(notification.autoCloseTimeout);
-            }
-            this.closeNotification(notification);
-        });
-
-        notification.autoCloseTimeout = setTimeout(() => {
-            this.closeNotification(notification);
-        }, type === 'error' ? 7000 : 5000);
+        console.info('[HM Herbs]', type, message);
     }
 
     pulseCartBadge() {
@@ -1519,16 +1405,6 @@ class HMHerbsApp {
         void cartToggle.offsetWidth;
         cartToggle.classList.add('cart-added-pulse');
         window.setTimeout(() => cartToggle.classList.remove('cart-added-pulse'), 900);
-    }
-
-    closeNotification(notification) {
-        notification.style.transform = 'translateX(115%)';
-        notification.style.opacity = '0';
-        setTimeout(() => {
-            if (notification.parentNode) {
-                notification.parentNode.removeChild(notification);
-            }
-        }, 300);
     }
 
     announceToScreenReader(message) {

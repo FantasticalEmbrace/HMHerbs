@@ -26,6 +26,22 @@ function assertValidCustomerType(value, res) {
     return normalized;
 }
 
+const MIN_TAX_EXEMPT_ID_LENGTH = 3;
+
+/** Tax exempt flag and ID must stay in sync (matches checkout verification). */
+function normalizeTaxExemptPair(taxExempt, taxExemptId) {
+    if (!taxExempt) {
+        return { tax_exempt: false, tax_exempt_id: null };
+    }
+    const id = taxExemptId != null ? String(taxExemptId).trim() : '';
+    if (id.length < MIN_TAX_EXEMPT_ID_LENGTH) {
+        return {
+            error: `Tax Exempt ID is required (at least ${MIN_TAX_EXEMPT_ID_LENGTH} characters) when Tax exempt is enabled.`,
+        };
+    }
+    return { tax_exempt: true, tax_exempt_id: id };
+}
+
 // ---------------------------------------------------------------------------
 // Local re-implementation of admin auth so this router works standalone.
 // (Mirrors the pattern in routes/admin.js so we don't introduce a new shape.)
@@ -473,6 +489,12 @@ router.post('/', async (req, res) => {
             return res.status(409).json({ error: 'A customer with this email already exists' });
         }
 
+        const taxFields = normalizeTaxExemptPair(!!tax_exempt, tax_exempt_id);
+        if (taxFields.error) {
+            await conn.rollback();
+            return res.status(400).json({ error: taxFields.error });
+        }
+
         const password_hash = await bcrypt.hash(password || `hmh_${Date.now()}_${Math.random()}`, 10);
 
         const [result] = await conn.execute(
@@ -491,7 +513,7 @@ router.post('/', async (req, res) => {
                 customer_status, typeNormalized, tags ? JSON.stringify(tags) : null,
                 !!marketing_email_opt_in, !!marketing_sms_opt_in, !!marketing_postal_opt_in, preferred_contact,
                 referral_source || null, referral_code || null, referred_by_user_id || null,
-                !!tax_exempt, tax_exempt_id || null, admin_notes || null,
+                taxFields.tax_exempt, taxFields.tax_exempt_id, admin_notes || null,
             ]
         );
 
@@ -546,6 +568,28 @@ router.put('/:id', async (req, res) => {
     try {
         const id = parseInt(req.params.id, 10);
         if (!id) return res.status(400).json({ error: 'Invalid customer id' });
+
+        if ('tax_exempt' in req.body || 'tax_exempt_id' in req.body) {
+            const [currentRows] = await req.pool.execute(
+                'SELECT tax_exempt, tax_exempt_id FROM users WHERE id = ? LIMIT 1',
+                [id]
+            );
+            if (!currentRows.length) {
+                return res.status(404).json({ error: 'Customer not found' });
+            }
+            const mergedExempt = 'tax_exempt' in req.body
+                ? Boolean(req.body.tax_exempt)
+                : Boolean(currentRows[0].tax_exempt);
+            const mergedId = 'tax_exempt_id' in req.body
+                ? req.body.tax_exempt_id
+                : currentRows[0].tax_exempt_id;
+            const taxFields = normalizeTaxExemptPair(mergedExempt, mergedId);
+            if (taxFields.error) {
+                return res.status(400).json({ error: taxFields.error });
+            }
+            req.body.tax_exempt = taxFields.tax_exempt;
+            req.body.tax_exempt_id = taxFields.tax_exempt_id;
+        }
 
         const allowed = [
             'email', 'first_name', 'middle_name', 'last_name', 'preferred_name',

@@ -2124,11 +2124,17 @@ class AdminApp {
         });
         if (!ok) return;
         try {
-            await this.apiRequest('/admin/integration-logs', { method: 'DELETE' });
+            const res = await this.apiRequest('/admin/integration-logs', { method: 'DELETE' });
+            if (!res) {
+                throw new Error('Not authorized to clear logs. Sign in as Manager or Admin.');
+            }
             this.showToast('Integration logs cleared', 'success');
             await this.loadIntegrationLogs();
         } catch (err) {
-            this.showToast('Failed to clear logs: ' + (err.message || 'error'), 'error');
+            const msg = err.message === 'Failed to fetch'
+                ? 'Could not reach the server. Check that the backend is running, then try again.'
+                : (err.message || 'error');
+            this.showToast('Failed to clear logs: ' + msg, 'error');
         }
     }
 
@@ -2699,6 +2705,7 @@ class AdminApp {
             }
 
             const myId = this.currentUser?.id;
+            const isDeveloperActor = this.currentUser?.role === 'developer';
             const roleOptions = (currentRole) =>
                 roles
                     .map((r) => {
@@ -2710,6 +2717,9 @@ class AdminApp {
             const rows = users
                 .map((u) => {
                     const isSelf = myId != null && Number(u.id) === Number(myId);
+                    const isDeveloperTarget = u.role === 'developer';
+                    const canManageDeveloperTarget = !isDeveloperTarget || isDeveloperActor;
+                    const roleSelectDisabled = isDeveloperTarget && !isDeveloperActor;
                     const nextRole =
                         u.role === 'admin'
                             ? null
@@ -2732,9 +2742,10 @@ class AdminApp {
                         nextRole && !isSelf
                             ? `<button type="button" class="btn btn-sm btn-secondary" title="Promote to ${nextLabel}" data-team-action="promote" data-team-id="${u.id}" data-team-role="${nextRole}"><i class="fas fa-arrow-up" aria-hidden="true"></i> Promote</button>`
                             : '';
-                    const deleteBtn = isSelf
-                        ? ''
-                        : `<button type="button" class="btn btn-sm btn-danger" title="Remove account" data-team-action="delete" data-team-id="${u.id}" data-team-email="${this._escapeHtml(u.email)}"><i class="fas fa-trash" aria-hidden="true"></i></button>`;
+                    const deleteBtn =
+                        isSelf || !canManageDeveloperTarget
+                            ? ''
+                            : `<button type="button" class="btn btn-sm btn-danger" title="Remove account" data-team-action="delete" data-team-id="${u.id}" data-team-email="${this._escapeHtml(u.email)}"><i class="fas fa-trash" aria-hidden="true"></i></button>`;
                     return `<tr data-team-row="${u.id}">
                         <td>
                             <strong>${this._escapeHtml(u.email)}</strong>
@@ -2746,8 +2757,8 @@ class AdminApp {
                         <td style="font-size:0.85rem;color:var(--gray-600);white-space:nowrap;">${this._escapeHtml(this._formatPersonnelDate(u.lastLogin))}</td>
                         <td>
                             <div class="personnel-actions">
-                                <select class="form-input personnel-role-select" id="team-role-${u.id}" data-team-id="${u.id}" aria-label="Role for ${this._escapeHtml(u.email)}">${roleOptions(u.role)}</select>
-                                <button type="button" class="btn btn-sm btn-primary" data-team-action="save-role" data-team-id="${u.id}">Save</button>
+                                <select class="form-input personnel-role-select" id="team-role-${u.id}" data-team-id="${u.id}" aria-label="Role for ${this._escapeHtml(u.email)}"${roleSelectDisabled ? ' disabled' : ''}>${roleOptions(u.role)}</select>
+                                <button type="button" class="btn btn-sm btn-primary" data-team-action="save-role" data-team-id="${u.id}"${roleSelectDisabled ? ' disabled title="Only a Developer can change this account"' : ''}>Save</button>
                                 ${promoteBtn}
                                 ${deleteBtn}
                             </div>

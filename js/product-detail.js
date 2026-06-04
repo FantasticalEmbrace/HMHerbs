@@ -698,33 +698,11 @@ class ProductDetailPage {
     }
 
     showNotification(message, type = 'success') {
-        // Create notification element
-        const notification = document.createElement('div');
-        notification.className = `notification notification-${type}`;
-        notification.textContent = message;
-        notification.style.cssText = `
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: ${type === 'error' ? '#ef4444' : '#10b981'};
-            color: white;
-            padding: 1rem 1.5rem;
-            border-radius: 0.5rem;
-            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-            z-index: 10000;
-            animation: slideIn 0.3s ease-out;
-        `;
-
-        document.body.appendChild(notification);
-
-        setTimeout(() => {
-            notification.style.animation = 'slideOut 0.3s ease-out';
-            setTimeout(() => {
-                if (notification.parentNode) {
-                    notification.parentNode.removeChild(notification);
-                }
-            }, 300);
-        }, 3000);
+        if (typeof window.hmShowToast === 'function') {
+            window.hmShowToast(message, type);
+            return;
+        }
+        console.info('[Product detail]', type, message);
     }
 
     formatPrice(price) {

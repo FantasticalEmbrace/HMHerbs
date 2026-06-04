@@ -346,8 +346,12 @@
                     <div class="form-group"><label for="cust-${c.id}-referral_source">Referral Source</label><input class="form-input" id="cust-${c.id}-referral_source" name="referral_source" value="${esc(c.referral_source||'')}"></div>
 
                     <div class="form-group" style="grid-column:1/-1;"><h4 style="margin:1rem 0 0.5rem 0;">Tax</h4></div>
-                    <div class="form-group"><label><input type="checkbox" name="tax_exempt" ${c.tax_exempt?'checked':''}> Tax exempt</label></div>
-                    <div class="form-group" style="grid-column:1/-1;"><label for="cust-${c.id}-tax_exempt_id">Tax Exempt ID</label><input class="form-input" id="cust-${c.id}-tax_exempt_id" name="tax_exempt_id" value="${esc(c.tax_exempt_id||'')}"></div>
+                    <div class="form-group"><label><input type="checkbox" name="tax_exempt" id="cust-${c.id}-tax_exempt" ${c.tax_exempt?'checked':''}> Tax exempt</label></div>
+                    <div class="form-group" style="grid-column:1/-1;">
+                        <label for="cust-${c.id}-tax_exempt_id">Tax Exempt ID <span class="tax-exempt-required-mark" style="${c.tax_exempt ? '' : 'display:none;'}color:var(--danger);">*</span></label>
+                        <input class="form-input" id="cust-${c.id}-tax_exempt_id" name="tax_exempt_id" value="${esc(c.tax_exempt_id||'')}" ${c.tax_exempt ? '' : 'disabled'} autocomplete="off" aria-required="${c.tax_exempt ? 'true' : 'false'}">
+                        <small style="display:block;margin-top:0.35rem;color:var(--gray-500);font-size:0.85rem;">Required when Tax exempt is checked (certificate or resale number, at least 3 characters).</small>
+                    </div>
 
                     <div style="grid-column:1/-1;display:flex;gap:0.5rem;justify-content:space-between;border-top:1px solid var(--gray-200);padding-top:1rem;flex-wrap:wrap;">
                         ${this.isFullAdmin ? '<button type="button" class="btn btn-danger" data-action="deactivate"><i class="fas fa-trash" aria-hidden="true"></i> Delete account</button>' : '<span></span>'}
@@ -489,10 +493,37 @@
         }
     };
 
+    AdminApp.prototype._wireTaxExemptFields = function (form) {
+        const checkbox = form.querySelector('[name="tax_exempt"]');
+        const idInput = form.querySelector('[name="tax_exempt_id"]');
+        if (!checkbox || !idInput) return;
+
+        const requiredMark = form.querySelector('.tax-exempt-required-mark');
+        const MIN_LEN = 3;
+
+        const sync = (fromChange) => {
+            const on = checkbox.checked;
+            idInput.disabled = !on;
+            idInput.required = on;
+            idInput.setAttribute('aria-required', on ? 'true' : 'false');
+            if (requiredMark) requiredMark.style.display = on ? 'inline' : 'none';
+            if (!on) {
+                idInput.value = '';
+            } else if (fromChange) {
+                idInput.focus();
+            }
+        };
+
+        checkbox.addEventListener('change', () => sync(true));
+        sync(false);
+        return { checkbox, idInput, MIN_LEN };
+    };
+
     AdminApp.prototype._wireCustomerTabActions = function (content, data, tab) {
         const cId = data.customer.id;
         if (tab === 'profile') {
             const form = content.querySelector('#custProfileForm');
+            const taxFields = this._wireTaxExemptFields(form);
             form.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const fd = new FormData(form);
@@ -503,6 +534,17 @@
                         const field = form.querySelector(`[name="${k}"]`);
                         if (field) payload[k] = field.checked;
                     });
+                if (payload.tax_exempt) {
+                    const id = String(taxFields?.idInput?.value || payload.tax_exempt_id || '').trim();
+                    if (id.length < (taxFields?.MIN_LEN || 3)) {
+                        this.showToast('Enter a Tax Exempt ID (at least 3 characters) when Tax exempt is checked.', 'error');
+                        taxFields?.idInput?.focus();
+                        return;
+                    }
+                    payload.tax_exempt_id = id;
+                } else {
+                    payload.tax_exempt_id = '';
+                }
                 if (!payload.date_of_birth) delete payload.date_of_birth;
                 try {
                     await this.apiRequest(`/admin/customers/${cId}`, { method: 'PUT', body: JSON.stringify(payload) });

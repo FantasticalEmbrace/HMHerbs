@@ -55,6 +55,36 @@
       "ms-vscode.vscode-eslint"
     ]
   },
+  "launch": {
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "type": "node",
+        "request": "launch",
+        "name": "HM Herbs: server + default browser",
+        "program": "${workspaceFolder:Backend}/server.js",
+        "cwd": "${workspaceFolder:Backend}",
+        "console": "integratedTerminal",
+        "outputCapture": "std",
+        "env": { "NODE_ENV": "development" },
+        "serverReadyAction": {
+          "action": "openExternally",
+          "killOnServerStop": true,
+          "pattern": "running on port ([0-9]+)",
+          "uriFormat": "http://localhost:%s/"
+        }
+      },
+      {
+        "type": "node",
+        "request": "launch",
+        "name": "HM Herbs: server (terminal, no auto-browser)",
+        "program": "${workspaceFolder:Backend}/server.js",
+        "cwd": "${workspaceFolder:Backend}",
+        "console": "integratedTerminal",
+        "env": { "NODE_ENV": "development" }
+      }
+    ]
+  },
   "tasks": {
     "version": "2.0.0",
     "tasks": [

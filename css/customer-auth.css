@@ -1018,7 +1018,8 @@ body.auth-modal-open .navbar .header-actions {
 
 /* Error/success toasts must render above the auth overlay blur, not behind it */
 body.auth-modal-open .notification,
-body.auth-modal-open #error-notifications {
+body.auth-modal-open #error-notifications,
+body.auth-modal-open #hm-toast-region {
     z-index: var(--z-notification, 1000000) !important;
     filter: none !important;
     -webkit-filter: none !important;

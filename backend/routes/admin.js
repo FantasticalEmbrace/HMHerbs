@@ -2575,22 +2575,11 @@ router.get('/integration-logs', ...adminAuth, requirePermission('manager'), asyn
 
 router.delete('/integration-logs', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
-        const logFiles = [
-            path.join(__dirname, '..', 'logs', 'combined.log'),
-            path.join(__dirname, '..', 'logs', 'error.log'),
-        ];
-        let cleared = 0;
-
-        for (const filePath of logFiles) {
-            try {
-                await fs.writeFile(filePath, '', 'utf8');
-                cleared += 1;
-            } catch (_) {
-                // Ignore missing files.
-            }
+        const { cleared, total } = await logger.clearRotatingLogFiles();
+        if (cleared === 0) {
+            return res.status(500).json({ error: 'Could not clear log files (they may be locked)' });
         }
-
-        res.json({ message: 'Integration logs cleared', clearedFiles: cleared });
+        res.json({ message: 'Integration logs cleared', clearedFiles: cleared, totalFiles: total });
     } catch (error) {
         logger.error('Integration logs clear error:', error);
         res.status(500).json({ error: 'Failed to clear integration logs' });
@@ -4124,6 +4113,19 @@ function assertCanAssignRole(actorRole, targetRole) {
     }
 }
 
+function assertCanManageDeveloperAccount(actorRole, targetRole, action = 'modify') {
+    if (normalizeAdminRole(targetRole) !== 'developer') return;
+    if (!isDeveloperRole(actorRole)) {
+        const err = new Error(
+            action === 'delete'
+                ? 'Only a Developer account can remove a Developer account'
+                : 'Only a Developer account can modify a Developer account'
+        );
+        err.status = 403;
+        throw err;
+    }
+}
+
 router.get('/team', ...adminAuth, requirePermission('admin'), async (req, res) => {
     try {
         const [rows] = await req.pool.execute(
@@ -4209,6 +4211,16 @@ router.patch('/team/:id', ...adminAuth, requirePermission('admin'), async (req, 
         if (!Number.isInteger(id) || id <= 0) {
             return res.status(400).json({ error: 'Invalid user id' });
         }
+
+        const [targetRows] = await req.pool.execute(
+            'SELECT id, role FROM admin_users WHERE id = ?',
+            [id]
+        );
+        if (!targetRows.length) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        const existingRole = normalizeAdminRole(targetRows[0].role);
+        assertCanManageDeveloperAccount(req.admin.role, existingRole, 'modify');
 
         const updates = [];
         const params = [];
@@ -4312,6 +4324,17 @@ router.delete('/team/:id', ...adminAuth, requirePermission('admin'), async (req,
         }
 
         const targetRole = normalizeAdminRole(targetRows[0].role);
+        assertCanManageDeveloperAccount(req.admin.role, targetRole, 'delete');
+
+        if (targetRole === 'developer') {
+            const [devCount] = await req.pool.execute(
+                "SELECT COUNT(*) AS cnt FROM admin_users WHERE role = 'developer' AND is_active = 1"
+            );
+            if (Number(devCount[0]?.cnt) <= 1) {
+                return res.status(400).json({ error: 'Cannot delete the only Developer account' });
+            }
+        }
+
         if (targetRole === 'admin') {
             const [adminCount] = await req.pool.execute(
                 "SELECT COUNT(*) AS cnt FROM admin_users WHERE role IN ('admin', 'super_admin') AND is_active = 1"

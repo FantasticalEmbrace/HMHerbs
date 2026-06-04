@@ -1,4 +1,26 @@
 const winston = require('winston');
+const fs = require('fs');
+const path = require('path');
+
+const logsDir = path.join(__dirname, '..', 'logs');
+
+if (!fs.existsSync(logsDir)) {
+    fs.mkdirSync(logsDir, { recursive: true });
+}
+
+const FILE_TRANSPORT_OPTIONS = [
+    {
+        filename: path.join(logsDir, 'error.log'),
+        level: 'error',
+        maxsize: 5242880,
+        maxFiles: 5,
+    },
+    {
+        filename: path.join(logsDir, 'combined.log'),
+        maxsize: 5242880,
+        maxFiles: 5,
+    },
+];
 
 // Create logger instance with appropriate configuration
 const logger = winston.createLogger({
@@ -11,21 +33,7 @@ const logger = winston.createLogger({
         winston.format.json()
     ),
     defaultMeta: { service: 'hmherbs-backend' },
-    transports: [
-        // Write all logs with importance level of `error` or less to `error.log`
-        new winston.transports.File({ 
-            filename: 'logs/error.log', 
-            level: 'error',
-            maxsize: 5242880, // 5MB
-            maxFiles: 5
-        }),
-        // Write all logs with importance level of `info` or less to `combined.log`
-        new winston.transports.File({ 
-            filename: 'logs/combined.log',
-            maxsize: 5242880, // 5MB
-            maxFiles: 5
-        })
-    ]
+    transports: FILE_TRANSPORT_OPTIONS.map((options) => new winston.transports.File(options)),
 });
 
 // If we're not in production, log to the console with a simple format
@@ -38,13 +46,40 @@ if (process.env.NODE_ENV !== 'production') {
     }));
 }
 
-// Create logs directory if it doesn't exist
-const fs = require('fs');
-const path = require('path');
-const logsDir = path.join(__dirname, '..', 'logs');
+function addFileTransports() {
+    for (const options of FILE_TRANSPORT_OPTIONS) {
+        logger.add(new winston.transports.File(options));
+    }
+}
 
-if (!fs.existsSync(logsDir)) {
-    fs.mkdirSync(logsDir, { recursive: true });
+/** Close winston file handles, truncate logs, then reopen (Windows-safe). */
+async function clearRotatingLogFiles() {
+    const fileTransports = logger.transports.filter(
+        (t) => t instanceof winston.transports.File
+    );
+
+    await Promise.all(
+        fileTransports.map(
+            (transport) =>
+                new Promise((resolve) => {
+                    transport.close(() => resolve());
+                })
+        )
+    );
+    fileTransports.forEach((transport) => logger.remove(transport));
+
+    let cleared = 0;
+    for (const options of FILE_TRANSPORT_OPTIONS) {
+        try {
+            await fs.promises.writeFile(options.filename, '', 'utf8');
+            cleared += 1;
+        } catch (_) {
+            // Missing or locked file — continue with the rest.
+        }
+    }
+
+    addFileTransports();
+    return { cleared, total: FILE_TRANSPORT_OPTIONS.length };
 }
 
 /** Readable MySQL / Node network error for plain console (avoid winston "second arg" pitfalls). */
@@ -57,6 +92,6 @@ function formatMysqlError(err) {
 }
 
 logger.formatMysqlError = formatMysqlError;
+logger.clearRotatingLogFiles = clearRotatingLogFiles;
 
 module.exports = logger;
-

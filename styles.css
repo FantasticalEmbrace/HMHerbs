@@ -1796,7 +1796,8 @@ select:focus {
   transform: scale(1.05);
 }
 
-@media (max-width: 768px) {
+/* Tablet + mobile: stack copy, then image, then centered CTA below both */
+@media (max-width: 1023px) {
   .edsa-service {
     padding: var(--space-12) 0;
   }
@@ -1807,31 +1808,57 @@ select:focus {
     text-align: center;
   }
 
+  /* Flatten .edsa-text so CTA can sit after the image in the grid */
   .edsa-text {
-    text-align: center;
+    display: contents;
   }
 
   .edsa-text h2 {
+    order: 1;
     font-size: var(--text-3xl);
     text-align: center;
   }
 
   .edsa-description {
+    order: 2;
     font-size: var(--text-base);
+    text-align: center;
   }
 
   .edsa-features {
+    order: 3;
     align-items: center;
+    width: 100%;
+    margin-bottom: var(--space-6);
+  }
+
+  .edsa-image {
+    order: 4;
+    width: 100%;
   }
 
   .edsa-pricing {
+    order: 5;
     justify-content: center;
+    justify-self: center;
+    margin-top: var(--space-4);
+    margin-bottom: var(--space-6);
   }
 
   .edsa-book-btn {
-    display: flex;
-    margin: 0 auto;
+    order: 6;
+    display: inline-flex;
+    width: fit-content;
+    max-width: 100%;
+    justify-self: center;
     justify-content: center;
+  }
+
+  .edsa-manage-link {
+    order: 7;
+    justify-self: center;
+    text-align: center;
+    width: 100%;
   }
 
   .edsa-image img {

@@ -250,8 +250,8 @@ async function createVSCodeConfig() {
                 "name": "Start HM Herbs Backend",
                 "type": "node",
                 "request": "launch",
-                "program": "${workspaceFolder}/backend/server.js",
-                "cwd": "${workspaceFolder}/backend",
+                "program": "${workspaceFolder:Backend}/server.js",
+                "cwd": "${workspaceFolder:Backend}",
                 "env": {
                     "NODE_ENV": "development"
                 },

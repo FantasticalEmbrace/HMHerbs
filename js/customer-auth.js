@@ -1656,6 +1656,10 @@ class CustomerAuth {
     // modal already shows the message in `.auth-error`, and alert() delays
     // `finally` from feeling responsive and traps the UI on "Signing in...").
     showNotification(message, type = 'info', durationMs = 3000) {
+        if (typeof window.hmShowToast === 'function') {
+            window.hmShowToast(message, type, { durationMs });
+            return;
+        }
         const app = window.hmHerbsApp || window.app;
         if (app && typeof app.showNotification === 'function') {
             app.showNotification(message, type, durationMs);

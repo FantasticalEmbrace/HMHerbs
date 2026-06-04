@@ -512,9 +512,16 @@
         font-size: 20px !important;
     }
 
-    .btn {
+    .btn:not(.edsa-book-btn) {
         width: 100% !important;
         max-width: 100% !important;
+    }
+
+    .edsa-book-btn {
+        width: fit-content !important;
+        max-width: 100% !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
     }
 
     .navbar {

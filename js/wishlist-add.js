@@ -30,7 +30,9 @@
             window.customerAuth.showNotification(msg, t);
             return;
         }
-        if (window.hmHerbsApp && typeof window.hmHerbsApp.showNotification === 'function') {
+        if (typeof window.hmShowToast === 'function') {
+            window.hmShowToast(msg, t);
+        } else if (window.hmHerbsApp && typeof window.hmHerbsApp.showNotification === 'function') {
             window.hmHerbsApp.showNotification(msg, t);
             return;
         }

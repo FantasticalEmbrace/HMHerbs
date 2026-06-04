@@ -1265,39 +1265,20 @@ class ProductsPage {
     }
 
     showNotification(message, type = 'info') {
-        const container = document.getElementById('notification-container');
-        if (!container) return;
+        if (typeof window.hmShowToast === 'function') {
+            window.hmShowToast(message, type);
+            return;
+        }
+        console.info('[Products]', type, message);
+    }
 
-        const notification = document.createElement('div');
-        notification.className = `notification notification-${type}`;
-
-        // Create elements safely to prevent XSS
-        const messageSpan = document.createElement('span');
-        messageSpan.className = 'notification-message';
-        messageSpan.textContent = message; // Use textContent instead of innerHTML
-
-        const closeBtn = document.createElement('button');
-        closeBtn.className = 'notification-close';
-        closeBtn.type = 'button';
-        closeBtn.setAttribute('aria-label', 'Close notification');
-        closeBtn.innerHTML =
-            '<svg class="cart-close-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M18.3 5.71a1 1 0 0 0-1.41 0L12 10.59 7.11 5.7A1 1 0 0 0 5.7 7.11L10.59 12 5.7 16.89a1 1 0 1 0 1.41 1.41L12 13.41l4.89 4.89a1 1 0 0 0 1.41-1.41L13.41 12l4.89-4.89a1 1 0 0 0 0-1.4z"/></svg>';
-
-        notification.appendChild(messageSpan);
-        notification.appendChild(closeBtn);
-        container.appendChild(notification);
-
-        // Auto remove after 5 seconds
-        setTimeout(() => {
-            if (notification.parentNode) {
-                notification.remove();
-            }
-        }, 5000);
-
-        // Manual close
-        closeBtn.addEventListener('click', () => {
-            notification.remove();
-        });
+    pulseCartBadge() {
+        const cartToggle = document.querySelector('.cart-toggle');
+        if (!cartToggle) return;
+        cartToggle.classList.remove('cart-added-pulse');
+        void cartToggle.offsetWidth;
+        cartToggle.classList.add('cart-added-pulse');
+        window.setTimeout(() => cartToggle.classList.remove('cart-added-pulse'), 900);
     }
 
     showError(message) {
