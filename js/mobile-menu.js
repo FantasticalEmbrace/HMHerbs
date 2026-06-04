@@ -137,5 +137,32 @@
             });
         }
     });
+
+    // Close menu and restore page scroll when a nav link is chosen (e.g. EDSA on mobile)
+    document.addEventListener('click', function(e) {
+        const link = e.target.closest(
+            '.nav-menu a[href], #nav-menu a[href], #navbar-menu a[href]'
+        );
+        if (!link) return;
+
+        const menu = link.closest('.nav-menu, #nav-menu, #navbar-menu');
+        if (!menu || !menu.classList.contains('show')) return;
+
+        menu.classList.remove('show');
+        document.querySelectorAll('.mobile-menu-toggle').forEach((toggle) => {
+            if (toggle.getAttribute('aria-controls') === menu.id) {
+                toggle.setAttribute('aria-expanded', 'false');
+            }
+        });
+        menu.style.cssText = '';
+        menu.querySelectorAll('li, a').forEach((el) => {
+            el.style.cssText = '';
+        });
+        document.body.style.overflow = '';
+
+        if (typeof window.hmReleaseScrollLocks === 'function') {
+            window.hmReleaseScrollLocks();
+        }
+    }, true);
 })();
 

@@ -37,7 +37,19 @@
         );
     }
 
+    function isEdsaCrossPageNav() {
+        if (typeof window.hmIsEdsaCrossPagePending === 'function') {
+            return window.hmIsEdsaCrossPagePending();
+        }
+        try {
+            return sessionStorage.getItem('hmPendingEdsaNav') === '1';
+        } catch (_) {
+            return false;
+        }
+    }
+
     function scrollToTopIfNoHash() {
+        if (isEdsaCrossPageNav()) return;
         if (!window.location.hash) {
             window.scrollTo(0, 0);
             document.documentElement.scrollTop = 0;
@@ -53,15 +65,23 @@
     // Force scroll to top immediately (before any content loads)
     scrollToTopIfNoHash();
 
+    function releaseAllScrollLocks() {
+        if (typeof window.hmReleaseScrollLocks === 'function') {
+            window.hmReleaseScrollLocks();
+        } else {
+            resetCartAndScrollLocks();
+        }
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
         scrollToTopIfNoHash();
-        resetCartAndScrollLocks();
+        releaseAllScrollLocks();
         syncHmHeaderOffset();
     });
 
     if (document.readyState !== 'loading') {
         scrollToTopIfNoHash();
-        resetCartAndScrollLocks();
+        releaseAllScrollLocks();
         syncHmHeaderOffset();
     }
 
@@ -84,6 +104,7 @@
     window.addEventListener('scroll', onScroll, { passive: true });
 
     window.addEventListener('load', function () {
+        if (isEdsaCrossPageNav()) return;
         if (!window.location.hash && !hasUserScrolled) {
             window.scrollTo(0, 0);
         }

@@ -278,21 +278,6 @@ class VisualBugFixer {
         // Add CSS for scroll optimization
         const scrollOptimizationCSS = document.createElement('style');
         scrollOptimizationCSS.textContent = `
-            /* Scroll optimization */
-            body.scrolling {
-                pointer-events: none;
-            }
-            
-            body.scrolling * {
-                pointer-events: auto;
-            }
-
-            /* Header account/cart controls must stay hoverable and clickable while scrolling */
-            body.scrolling .header,
-            body.scrolling .header * {
-                pointer-events: auto !important;
-            }
-            
             /* Prevent scrollbar layout shifts */
             html {
                 overflow-y: scroll;

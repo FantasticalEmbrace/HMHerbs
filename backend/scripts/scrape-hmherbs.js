@@ -509,7 +509,13 @@ class HMHerbsScraper {
 
             // Clean up the product data
             product.name = this.cleanText(product.name);
-            product.description = this.cleanText(product.description);
+            if (product.description) {
+                if (/<[a-z][\s\S]*>/i.test(product.description)) {
+                    product.description = this.sanitizeDescriptionHtml(product.description);
+                } else {
+                    product.description = this.cleanText(product.description);
+                }
+            }
             product.shortDescription = this.cleanText(product.shortDescription);
 
             // VALIDATE product name BEFORE returning - filter out invalid names
@@ -725,92 +731,141 @@ class HMHerbsScraper {
         return 0;
     }
 
-    extractDescription($) {
-        // Try structured data first (JSON-LD)
-        const jsonLdScripts = $('script[type="application/ld+json"]');
-        for (let i = 0; i < jsonLdScripts.length; i++) {
-            try {
-                const jsonData = JSON.parse($(jsonLdScripts[i]).html());
-                const products = Array.isArray(jsonData) ? jsonData : (jsonData['@graph'] || [jsonData]);
-                for (const item of products) {
-                    if (item['@type'] === 'Product' || item['@type'] === 'http://schema.org/Product') {
-                        if (item.description) {
-                            const desc = this.cleanText(item.description);
-                            if (desc && desc.length > 50) {
-                                return desc;
-                            }
-                        }
-                    }
+    /** Brief summary shown next to price on hmherbs.com PDPs */
+    extractStorefrontShortDescription($) {
+        const storeDesc = $('.store-product-description').first();
+        if (storeDesc.length) {
+            const text = this.cleanText(storeDesc.text().trim());
+            if (text.length > 10) return text;
+        }
+        const itemprop = $('.store-product [itemprop="description"]').attr('content');
+        if (itemprop) {
+            const text = this.cleanText(itemprop);
+            if (text.length > 10) return text;
+        }
+        return '';
+    }
+
+    descriptionsAreSame(a, b) {
+        if (!a || !b) return false;
+        const na = this.htmlToPlainText(a).toLowerCase();
+        const nb = this.htmlToPlainText(b).toLowerCase();
+        return na === nb || na.startsWith(nb) || nb.startsWith(na);
+    }
+
+    htmlToPlainText(html) {
+        if (!html) return '';
+        const raw = String(html);
+        if (!/<[a-z][\s\S]*>/i.test(raw)) {
+            return this.cleanText(raw);
+        }
+        const $ = cheerio.load(`<div id="hm-plain">${raw}</div>`, { decodeEntities: true });
+        return this.cleanText($('#hm-plain').text());
+    }
+
+    sanitizeDescriptionHtml(html) {
+        if (!html) return '';
+        const $ = cheerio.load(`<div id="hm-desc-root">${html}</div>`, { decodeEntities: true });
+        const root = $('#hm-desc-root');
+
+        root.find('script, style, iframe, object, embed, form, link, meta, svg').remove();
+        root.find('img').each((_, el) => {
+            const src = ($(el).attr('src') || '').trim();
+            if (!src || /^javascript:/i.test(src)) $(el).remove();
+        });
+        root.find('*').each((_, el) => {
+            const att = el.attribs || {};
+            Object.keys(att).forEach((name) => {
+                const lower = name.toLowerCase();
+                if (/^on/i.test(lower)) {
+                    $(el).removeAttr(name);
+                    return;
                 }
-            } catch (e) {
-                // Continue if JSON parsing fails
+                if (lower === 'href' || lower === 'src') {
+                    const val = (att[name] || '').trim();
+                    if (/^javascript:/i.test(val)) $(el).removeAttr(name);
+                }
+            });
+        });
+
+        return (root.html() || '').trim();
+    }
+
+    extractDescriptionHtml($, container) {
+        if (!container || !container.length) return '';
+        const html = this.sanitizeDescriptionHtml(container.html() || '');
+        return html.length > 50 ? html : '';
+    }
+
+    extractDescription($) {
+        const shortBlurb = this.extractStorefrontShortDescription($);
+
+        // HM Herbs (Concrete CMS store): long copy is in the detailed block below "Product Description"
+        const detailedBlock = $('.store-product-detailed-description').first();
+        if (detailedBlock.length) {
+            const html = this.extractDescriptionHtml($, detailedBlock);
+            const plain = this.htmlToPlainText(html);
+            if (plain.length > 50 && !this.descriptionsAreSame(plain, shortBlurb)) {
+                return html;
             }
         }
 
-        // Try meta tags
-        const metaDescription = $('meta[property="og:description"]').attr('content') ||
-            $('meta[name="description"]').attr('content') ||
-            $('meta[property="product:description"]').attr('content');
-        if (metaDescription) {
-            const desc = this.cleanText(metaDescription);
-            if (desc && desc.length > 50) {
-                return desc;
-            }
-        }
-
-        // Enhanced: Look for "Product Description" heading and get content after it
-        const productDescHeading = $('h2, h3, h4, .product-description-title').filter((i, el) => {
+        const productDescHeading = $('h2, h3, h4').filter((i, el) => {
             const text = $(el).text().trim().toLowerCase();
-            return text.includes('product description') || text.includes('description');
+            return text === 'product description' || text.startsWith('product description');
         }).first();
 
         if (productDescHeading.length) {
+            const siblingDetailed = productDescHeading.next('.store-product-detailed-description');
+            if (siblingDetailed.length) {
+                const html = this.extractDescriptionHtml($, siblingDetailed);
+                const plain = this.htmlToPlainText(html);
+                if (plain.length > 50 && !this.descriptionsAreSame(plain, shortBlurb)) {
+                    return html;
+                }
+            }
+
             let description = '';
-            // Get all content after the heading until next major section
             productDescHeading.nextAll('p, div, section, ul, ol').each((i, el) => {
-                // Stop if we hit another heading or certain elements
+                if ($(el).hasClass('store-product-description')) return;
                 const tagName = $(el).prop('tagName');
                 if (tagName && ['H1', 'H2', 'H3', 'H4', 'H5', 'H6'].includes(tagName)) {
-                    return false; // Stop at next heading
+                    return false;
                 }
 
                 const text = $(el).text().trim();
-                // Skip if it looks like price, button, or navigation
                 if (text &&
                     text.length > 20 &&
                     !text.includes('$') &&
                     !text.match(/^(add to cart|buy now|add|cart|disclaimer|welcome|note)$/i) &&
                     !text.match(/^(home|shop|products|categories|visit us|get in touch)$/i)) {
                     description += text + ' ';
-                    // Stop after collecting enough content (around 5000 characters)
                     if (description.length > 5000) return false;
                 }
             });
-            if (description.trim().length > 50) {
-                return this.cleanText(description.trim());
+            const merged = this.cleanText(description.trim());
+            if (merged.length > 50 && !this.descriptionsAreSame(merged, shortBlurb)) {
+                return merged;
             }
         }
 
-        // Try multiple description selectors
+        // Try multiple description selectors (exclude short-summary areas)
         const descriptionSelectors = [
-            '.product-description',
+            '.store-product-detailed-description',
+            '.product-description:not(.store-product-description)',
             '.description',
             '.product-details .description',
             '.product-info .description',
             '.product-content',
             '.product-text',
             '.product-long-description',
-            '[itemprop="description"]',
             '.entry-content',
             '.product-details',
             '.product-info',
-            '.woocommerce-product-details__short-description',
             '.product-summary + .product-description',
             '.product-tabs .description',
             '#product-description',
-            '.product-full-description',
-            'main p', // All paragraphs in main content
-            '.content p'
+            '.product-full-description'
         ];
 
         let fullDescription = '';
@@ -832,12 +887,14 @@ class HMHerbsScraper {
             }
         }
 
-        // If we found a description, use it
         if (fullDescription && fullDescription.length > 50) {
-            return this.cleanText(fullDescription);
+            const cleaned = this.cleanText(fullDescription);
+            if (!this.descriptionsAreSame(cleaned, shortBlurb)) {
+                return cleaned;
+            }
         }
 
-        // Fallback: collect paragraphs after product name/price
+        // Fallback: collect paragraphs after product name/price (skip storefront summary)
         const h1 = $('h1').first();
         if (h1.length) {
             let description = '';
@@ -862,27 +919,44 @@ class HMHerbsScraper {
                     if (description.length > 5000) return false;
                 }
             });
-            if (description.trim().length > 50) {
-                return this.cleanText(description.trim());
+            const merged = this.cleanText(description.trim());
+            if (merged.length > 50 && !this.descriptionsAreSame(merged, shortBlurb)) {
+                return merged;
             }
         }
 
-        // Last resort: get all text content from main content area
-        const mainContent = $('main, .main-content, .content, #content, .product-page').first();
-        if (mainContent.length) {
-            let description = '';
-            mainContent.find('p, li').each((i, el) => {
-                const text = $(el).text().trim();
-                if (text &&
-                    text.length > 30 &&
-                    !text.includes('$') &&
-                    !text.match(/^(add to cart|buy now|home|shop|disclaimer|welcome|note)$/i)) {
-                    description += text + ' ';
-                    if (description.length > 5000) return false;
+        // Last resort: detailed section HTML as stored on hmherbs.com
+        if (detailedBlock.length) {
+            const html = this.extractDescriptionHtml($, detailedBlock);
+            if (html.length > 50) return html;
+        }
+
+        // Structured data / meta only when clearly longer than the storefront summary
+        const jsonLdScripts = $('script[type="application/ld+json"]');
+        for (let i = 0; i < jsonLdScripts.length; i++) {
+            try {
+                const jsonData = JSON.parse($(jsonLdScripts[i]).html());
+                const products = Array.isArray(jsonData) ? jsonData : (jsonData['@graph'] || [jsonData]);
+                for (const item of products) {
+                    if (item['@type'] === 'Product' || item['@type'] === 'http://schema.org/Product') {
+                        if (item.description) {
+                            const desc = this.cleanText(item.description);
+                            if (desc && desc.length > 80 && !this.descriptionsAreSame(desc, shortBlurb)) {
+                                return desc;
+                            }
+                        }
+                    }
                 }
-            });
-            if (description.trim().length > 50) {
-                return this.cleanText(description.trim());
+            } catch (e) { }
+        }
+
+        const metaDescription = $('meta[property="og:description"]').attr('content') ||
+            $('meta[name="description"]').attr('content') ||
+            $('meta[property="product:description"]').attr('content');
+        if (metaDescription) {
+            const desc = this.cleanText(metaDescription);
+            if (desc && desc.length > 80 && !this.descriptionsAreSame(desc, shortBlurb)) {
+                return desc;
             }
         }
 
@@ -890,6 +964,9 @@ class HMHerbsScraper {
     }
 
     extractShortDescription($) {
+        const storefront = this.extractStorefrontShortDescription($);
+        if (storefront) return storefront;
+
         // Try structured data
         const jsonLdScripts = $('script[type="application/ld+json"]');
         for (let i = 0; i < jsonLdScripts.length; i++) {
@@ -922,15 +999,16 @@ class HMHerbsScraper {
             }
         }
 
-        // Try short description selectors
+        // Try short description selectors (never use detailed/long blocks)
         const shortDescriptionSelectors = [
+            '.store-product-description',
+            '.store-product-details .store-product-description p',
             '.product-summary',
             '.short-description',
             '.product-excerpt',
             '.product-intro',
             '.product-brief',
             '.product-short-desc',
-            '[itemprop="description"]',
             '.woocommerce-product-details__short-description',
             '.product-summary p'
         ];
@@ -977,19 +1055,6 @@ class HMHerbsScraper {
             });
             if (foundDesc) {
                 return foundDesc;
-            }
-        }
-
-        // Use first sentence of full description if available
-        const fullDesc = this.extractDescription($);
-        if (fullDesc) {
-            const firstSentence = fullDesc.split(/[.!?]/)[0];
-            if (firstSentence && firstSentence.length > 10 && firstSentence.length < 300) {
-                return this.cleanText(firstSentence);
-            }
-            // If no sentence break, use first 200 chars
-            if (fullDesc.length > 10) {
-                return this.cleanText(fullDesc.substring(0, 200).trim());
             }
         }
 

@@ -1378,6 +1378,27 @@
     margin-bottom: 0;
 }
 
+.product-description-content strong,
+.product-description-content b {
+    font-weight: 700;
+    color: var(--gray-900);
+}
+
+.product-description-content h2,
+.product-description-content h3,
+.product-description-content h4 {
+    font-size: var(--text-lg);
+    font-weight: 700;
+    color: var(--gray-900);
+    margin: var(--space-5) 0 var(--space-3);
+}
+
+.product-description-content h2:first-child,
+.product-description-content h3:first-child,
+.product-description-content h4:first-child {
+    margin-top: 0;
+}
+
 /* Disclaimer */
 .product-disclaimer {
     margin-top: var(--space-8);

@@ -8124,6 +8124,38 @@ function createProductModal(title, formId, isEdit = false) {
             textarea.setAttribute('name', field.name);
             if (field.rows) textarea.setAttribute('rows', field.rows.toString());
             formGroup.appendChild(textarea);
+
+            if (field.name === 'long_description') {
+                const previewLabel = document.createElement('div');
+                previewLabel.textContent = 'Long description preview (as on storefront)';
+                previewLabel.style.fontSize = '0.8rem';
+                previewLabel.style.color = 'var(--gray-500)';
+                previewLabel.style.marginTop = '0.75rem';
+                formGroup.appendChild(previewLabel);
+
+                const preview = document.createElement('div');
+                preview.id = `${field.id}-preview`;
+                preview.className = 'product-description-content';
+                preview.style.marginTop = '0.35rem';
+                preview.style.padding = '1rem';
+                preview.style.border = '1px solid var(--gray-200)';
+                preview.style.borderRadius = 'var(--radius-md)';
+                preview.style.background = '#fff';
+                preview.style.maxHeight = '320px';
+                preview.style.overflowY = 'auto';
+                formGroup.appendChild(preview);
+
+                const syncPreview = () => {
+                    const raw = textarea.value || '';
+                    if (typeof HMDescriptionHtml !== 'undefined') {
+                        preview.innerHTML = HMDescriptionHtml.formatLongDescriptionForDisplay(raw);
+                    } else {
+                        preview.textContent = raw;
+                    }
+                };
+                textarea.addEventListener('input', syncPreview);
+                textarea._hmSyncLongDescPreview = syncPreview;
+            }
         } else if (field.type === 'select') {
             const selectWrapper = document.createElement('div');
             selectWrapper.style.display = 'flex';
@@ -8935,7 +8967,13 @@ async function loadProductForEdit(productId) {
             document.getElementById('edit-sku').value = product.sku || '';
             document.getElementById('edit-name').value = product.name || '';
             document.getElementById('edit-short-description').value = product.short_description || '';
-            document.getElementById('edit-long-description').value = product.long_description || '';
+            const longDescEl = document.getElementById('edit-long-description');
+            if (longDescEl) {
+                longDescEl.value = product.long_description || '';
+                if (typeof longDescEl._hmSyncLongDescPreview === 'function') {
+                    longDescEl._hmSyncLongDescPreview();
+                }
+            }
             document.getElementById('edit-price').value = product.price || '';
             const costEl = document.getElementById('edit-cost-price');
             if (costEl) costEl.value = product.cost_price != null ? product.cost_price : '';

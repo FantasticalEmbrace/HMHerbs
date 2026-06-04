@@ -99,6 +99,9 @@ class HMHerbsApp {
 
             // Render initial content - wait for products to be loaded
             await this.renderSpotlightProducts();
+            if (typeof window.hmCompleteEdsaCrossPageNav === 'function') {
+                window.hmCompleteEdsaCrossPageNav();
+            }
             this.updateCartDisplay();
 
             // H&M Herbs app initialized successfully
@@ -392,25 +395,7 @@ class HMHerbsApp {
         // Cart functionality
         this.setupCartEventListeners();
 
-        // Smooth scrolling for in-page anchors (skip href="#" placeholders used by modals)
-        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-            const href = anchor.getAttribute('href') || '';
-            if (href.length <= 1) return;
-            let target;
-            try {
-                target = document.querySelector(href);
-            } catch {
-                return;
-            }
-            if (!target) return;
-            this.addEventListenerWithCleanup(anchor, 'click', (e) => {
-                e.preventDefault();
-                target.scrollIntoView({
-                    behavior: 'smooth',
-                    block: 'start'
-                });
-            });
-        });
+        // In-page section anchors (#edsa-service, #contact, …) are handled by js/section-nav.js
     }
 
     initializeComponents() {
@@ -434,35 +419,6 @@ class HMHerbsApp {
         liveRegion.tabIndex = -1;
         document.body.appendChild(liveRegion);
 
-        // On checkout, focus moves to payment fields and NMI iframes at the bottom of a long form.
-        // Forcing scroll-to-top on focusin made the page feel frozen / unusable.
-        if (hmHerbsIsCheckoutPage()) {
-            return;
-        }
-
-        // Monitor for any focus events that might cause scrolling (home page load quirk only)
-        document.addEventListener('focusin', (e) => {
-            if (e.target.closest('.edsa-modal, .auth-modal, .modal, [role="dialog"]')) {
-                return;
-            }
-            if (document.body.classList.contains('edsa-modal-open')) {
-                return;
-            }
-
-            const rect = e.target.getBoundingClientRect();
-            const viewportHeight = window.innerHeight;
-            const documentHeight = document.documentElement.scrollHeight;
-
-            if (!window.location.hash && (rect.top > viewportHeight * 0.8 || window.scrollY > documentHeight * 0.7)) {
-                if (performance.now() < 3000) {
-                    setTimeout(() => {
-                        window.scrollTo(0, 0);
-                        document.documentElement.scrollTop = 0;
-                        document.body.scrollTop = 0;
-                    }, 0);
-                }
-            }
-        }, { passive: true });
     }
 
     setupCartEventListeners() {
@@ -679,9 +635,18 @@ class HMHerbsApp {
         return element.outerHTML;
     }
 
+    notifySpotlightReady() {
+        if (typeof window.dispatchEvent === 'function') {
+            window.dispatchEvent(new CustomEvent('hmSpotlightReady', { bubbles: true }));
+        }
+    }
+
     async renderSpotlightProducts() {
         const container = document.getElementById('spotlight-products-grid');
-        if (!container) return;
+        if (!container) {
+            this.notifySpotlightReady();
+            return;
+        }
 
         // Check if we're in file:// protocol (local file)
         const isFileProtocol = window.location.protocol === 'file:';
@@ -773,6 +738,7 @@ class HMHerbsApp {
                     </div>
                 `;
             }
+            this.notifySpotlightReady();
         } catch (error) {
             // Log the error but DO NOT use fallback products (they're wrong!)
             console.error('❌ Error in renderSpotlightProducts():', error);
@@ -787,6 +753,7 @@ class HMHerbsApp {
                     </div>
                 `;
             }
+            this.notifySpotlightReady();
         }
     }
 
@@ -870,6 +837,10 @@ class HMHerbsApp {
             }
             newContainer.appendChild(productCard);
         });
+
+        if (typeof window.dispatchEvent === 'function') {
+            window.dispatchEvent(new CustomEvent('hmSpotlightReady', { bubbles: true }));
+        }
     }
 
     renderBestsellers() {
@@ -1604,23 +1575,10 @@ function initImageOptimization() {
 
 // Core Web Vitals Optimization
 function optimizeCoreWebVitals() {
-    // Preload critical resources
-    const criticalResources = [
-        { href: '/styles.css', as: 'style' },
-        { href: '/script.js', as: 'script' }
-    ];
-
-    // Skip preloading if on file:// protocol
-    if (window.location.protocol !== 'file:') {
-        criticalResources.forEach(resource => {
-            const link = document.createElement('link');
-            link.rel = 'preload';
-            link.href = resource.href;
-            link.as = resource.as;
-            document.head.appendChild(link);
-        });
-    }
-
+    // Do not inject <link rel="preload"> for styles.css or script.js here.
+    // They are already requested via <link>/<script> in the HTML. Late JS preloads
+    // are never consumed (especially when script src uses ?v= cache-bust), which
+    // triggers: "preloaded using link preload but not used within a few seconds".
 }
 
 // Service Worker Registration for PWA
@@ -1684,8 +1642,20 @@ if ('scrollRestoration' in history) {
 (function () {
     let isInitialLoad = true;
 
+    const isEdsaCrossPageNav = () => {
+        if (typeof window.hmIsEdsaCrossPagePending === 'function') {
+            return window.hmIsEdsaCrossPagePending();
+        }
+        try {
+            return sessionStorage.getItem('hmPendingEdsaNav') === '1';
+        } catch (_) {
+            return false;
+        }
+    };
+
     // Ensure page starts at top on initial load/refresh only
     const ensureTopOnLoad = () => {
+        if (isEdsaCrossPageNav()) return;
         if (isInitialLoad && !window.location.hash) {
             window.scrollTo(0, 0);
             document.documentElement.scrollTop = 0;

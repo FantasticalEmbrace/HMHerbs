@@ -21,6 +21,47 @@ async function tableExists(conn, tableName) {
     return Number(rows[0].c) > 0;
 }
 
+async function columnExists(conn, table, column) {
+    const [rows] = await conn.query(
+        `SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
+        [table, column]
+    );
+    return Number(rows[0].c) > 0;
+}
+
+async function deleteWhere(conn, table, column, userId, summary) {
+    if (!(await tableExists(conn, table))) return;
+    if (!(await columnExists(conn, table, column))) return;
+    const [r] = await conn.query(`DELETE FROM \`${table}\` WHERE \`${column}\` = ?`, [userId]);
+    if (r.affectedRows) summary.deleted[table] = r.affectedRows;
+}
+
+async function purgeGiftCardsForUser(conn, userId, summary) {
+    if (!(await tableExists(conn, 'gift_cards'))) return;
+
+    const [cards] = await conn.query(
+        `SELECT id FROM gift_cards WHERE customer_id = ? OR purchaser_user_id = ?`,
+        [userId, userId]
+    );
+    const cardIds = cards.map((c) => c.id);
+    if (!cardIds.length) return;
+
+    if (await tableExists(conn, 'gift_card_transactions')) {
+        const ph = cardIds.map(() => '?').join(',');
+        const [rTx] = await conn.query(
+            `DELETE FROM gift_card_transactions WHERE gift_card_id IN (${ph}) OR customer_id = ?`,
+            [...cardIds, userId]
+        );
+        summary.deleted.gift_card_transactions =
+            (summary.deleted.gift_card_transactions || 0) + rTx.affectedRows;
+    }
+
+    const ph = cardIds.map(() => '?').join(',');
+    const [rGc] = await conn.query(`DELETE FROM gift_cards WHERE id IN (${ph})`, cardIds);
+    summary.deleted.gift_cards = rGc.affectedRows;
+}
+
 async function purgeCustomer(conn, email) {
     const normalized = String(email || '').trim().toLowerCase();
     if (!normalized) return { email, status: 'skipped', reason: 'empty email' };
@@ -66,22 +107,34 @@ async function purgeCustomer(conn, email) {
             summary.deleted.product_reviews = r.affectedRows;
         }
 
-        if (await tableExists(conn, 'gift_card_transactions')) {
-            const [r] = await conn.query(
-                `DELETE FROM gift_card_transactions WHERE customer_id = ?`,
+        await purgeGiftCardsForUser(conn, userId, summary);
+
+        if (await tableExists(conn, 'wishlist_collections')) {
+            const [cols] = await conn.query(
+                `SELECT id FROM wishlist_collections WHERE user_id = ?`,
                 [userId]
             );
-            summary.deleted.gift_card_transactions = r.affectedRows;
+            const colIds = cols.map((c) => c.id);
+            if (colIds.length && (await tableExists(conn, 'wishlists'))) {
+                const ph = colIds.map(() => '?').join(',');
+                const [rW] = await conn.query(
+                    `DELETE FROM wishlists WHERE collection_id IN (${ph}) OR user_id = ?`,
+                    [...colIds, userId]
+                );
+                summary.deleted.wishlists = rW.affectedRows;
+            }
+            await deleteWhere(conn, 'wishlist_collections', 'user_id', userId, summary);
+        } else {
+            await deleteWhere(conn, 'wishlists', 'user_id', userId, summary);
         }
 
-        if (await tableExists(conn, 'gift_cards')) {
-            const [r] = await conn.query(
-                `UPDATE gift_cards SET customer_id = NULL, purchaser_user_id = NULL
-                 WHERE customer_id = ? OR purchaser_user_id = ?`,
-                [userId, userId]
-            );
-            summary.deleted.gift_cards_unlinked = r.affectedRows;
-        }
+        await deleteWhere(conn, 'loyalty_transactions', 'user_id', userId, summary);
+        await deleteWhere(conn, 'customer_loyalty', 'user_id', userId, summary);
+        await deleteWhere(conn, 'customer_notes', 'user_id', userId, summary);
+        await deleteWhere(conn, 'customer_communications', 'user_id', userId, summary);
+        await deleteWhere(conn, 'user_addresses', 'user_id', userId, summary);
+        await deleteWhere(conn, 'user_oauth_accounts', 'user_id', userId, summary);
+        await deleteWhere(conn, 'password_reset_tokens', 'user_id', userId, summary);
 
         await conn.query(`UPDATE users SET referred_by_user_id = NULL WHERE referred_by_user_id = ?`, [
             userId,

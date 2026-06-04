@@ -498,17 +498,44 @@ li {
   box-shadow: 0 2px 8px rgba(5, 150, 105, 0.3);
 }
 
-.btn-outline {
+.btn-outline,
+.btn-outline-primary {
   background-color: transparent;
   color: var(--primary-green);
   border-color: var(--primary-green);
 }
 
 .btn-outline:hover,
-.btn-outline:focus {
+.btn-outline:focus,
+.btn-outline-primary:hover,
+.btn-outline-primary:focus {
   background-color: var(--primary-green);
   color: var(--white);
   transform: translateY(-1px);
+}
+
+.btn-lg {
+  padding: var(--space-4) var(--space-8);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  min-height: 48px;
+}
+
+.btn-accent {
+  background-color: var(--accent-gold);
+  color: var(--gray-900);
+  border-color: var(--accent-gold);
+}
+
+/* Hero EDSA button — hover → site green + white text */
+.btn-accent:hover,
+a.btn-accent:hover {
+  background-color: var(--primary-green) !important;
+  color: var(--white) !important;
+  border-color: var(--primary-green) !important;
+  text-decoration: none !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.35);
 }
 
 .link-button {
@@ -607,6 +634,8 @@ select:focus {
 .breadcrumb-item a:focus {
   color: var(--primary-green);
   text-decoration: underline;
+  text-decoration-color: var(--primary-green);
+  text-decoration-thickness: 2px;
 }
 
 .breadcrumb-item:last-child a,
@@ -1054,16 +1083,6 @@ select:focus {
   display: none;
 }
 
-.nav-menu a:hover,
-.nav-menu a:focus {
-  color: var(--primary-green);
-}
-
-.nav-menu a:hover::after,
-.nav-menu a:focus::after {
-  width: 100%;
-}
-
 /* Header Actions */
 .header-actions {
   display: flex;
@@ -1407,10 +1426,27 @@ select:focus {
     transform: scale(0.98) !important;
   }
 
-  .navbar .nav-menu a:hover,
-  .navbar #nav-menu a:hover,
-  .navbar #navbar-menu a:hover {
-    background: var(--gray-50) !important;
+  :is(
+    .nav-menu a,
+    .navbar .nav-menu a,
+    .navbar #nav-menu a,
+    .navbar #navbar-menu a,
+    .hm-accent-link,
+    .edsa-nav-link
+  ):hover {
+    background: var(--primary-green) !important;
+    color: var(--white) !important;
+    text-decoration: none !important;
+  }
+
+  :is(
+    .nav-menu a,
+    .navbar .nav-menu a,
+    .navbar #nav-menu a,
+    .navbar #navbar-menu a
+  ):hover::after {
+    width: 100% !important;
+    background-color: var(--white) !important;
   }
 
   .navbar {
@@ -1771,6 +1807,16 @@ select:focus {
   font-size: 0.9rem;
 }
 
+.edsa-manage-link a {
+  color: var(--primary-green);
+  text-decoration: underline;
+  text-decoration-color: var(--primary-green);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+  background: transparent;
+  background-color: transparent;
+}
+
 .edsa-image {
   display: flex;
   justify-content: center;
@@ -1975,20 +2021,19 @@ select:focus {
 }
 
 .spotlight-cta .btn {
-  padding: var(--space-4) var(--space-8);
-  font-size: var(--text-lg);
-  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
   text-decoration: none;
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-lg);
   transition: all var(--transition-normal);
 }
 
-.spotlight-cta .btn:hover {
+.spotlight-cta .btn-primary:hover,
+.spotlight-cta .btn-primary:focus {
   transform: translateY(-2px);
   box-shadow: 0 8px 25px rgba(5, 150, 105, 0.3);
-  background-color: var(--primary-green-dark);
-  border-color: var(--primary-green-dark);
-  color: var(--white);
 }
 
 /* Flexbox fallback: ensure items have consistent width */
@@ -2491,6 +2536,31 @@ select:focus {
   }
 }
 
+/* In-page nav targets (sticky header clearance) */
+#home,
+#products,
+#health-categories,
+#edsa-service,
+#edsa-heading,
+#edsa-nav-target,
+#about,
+#contact {
+  scroll-margin-top: calc(var(--hm-header-offset, 4.75rem) + 12px);
+}
+
+#edsa-nav-target {
+  scroll-margin-bottom: 1.25rem;
+}
+
+/* Cross-page EDSA nav: avoid flash of hero before scroll completes */
+html.hm-await-edsa-scroll body {
+  visibility: hidden;
+}
+
+html.hm-edsa-scroll-ready body {
+  visibility: visible;
+}
+
 /* About Section */
 .about {
   padding: var(--space-20) 0;
@@ -2532,6 +2602,18 @@ select:focus {
 .contact-content {
   max-width: 800px;
   margin: 0 auto;
+}
+
+.contact-cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  justify-content: center;
+  margin-top: var(--space-8);
+}
+
+.contact-cta .btn {
+  text-decoration: none;
 }
 
 .contact-info {
@@ -2584,19 +2666,13 @@ select:focus {
 }
 
 .contact-item a {
-  color: var(--gray-700);
-  text-decoration: none;
-  transition: color var(--transition-fast);
-}
-
-.contact-item a:hover,
-.contact-item a:focus {
-  color: var(--primary-green) !important;
+  color: var(--primary-green);
   text-decoration: underline;
-}
-
-.contact-item:hover a {
-  color: var(--primary-green) !important;
+  text-decoration-color: var(--primary-green);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+  background: transparent;
+  transition: color var(--transition-fast);
 }
 
 .contact-item p {
@@ -5517,6 +5593,13 @@ body.cart-open .cart-sidebar.open {
 }
 
 .contact-info-box a:hover {
-  text-decoration: underline !important;
-  color: #059669 !important;
+  background-color: var(--primary-green);
+  color: var(--white) !important;
+  text-decoration: none !important;
+  border-radius: var(--radius-md);
+  padding: var(--space-1) var(--space-2);
+  display: inline-block;
 }
+
+/* Accent link hover: see css/hm-accent-links.css (loads after a11y stylesheet) */
+

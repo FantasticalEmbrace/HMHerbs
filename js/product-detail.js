@@ -220,13 +220,14 @@ class ProductDetailPage {
             }
         }
 
-        // Full Description
+        // Full Description — render HTML from source site (never show raw tags as text)
         const descEl = document.getElementById('product-description');
         if (descEl) {
-            if (this.product.description) {
-                // Convert line breaks to paragraphs
-                const paragraphs = this.product.description.split('\n').filter(p => p.trim());
-                descEl.innerHTML = paragraphs.map(p => `<p>${this.escapeHtml(p.trim())}</p>`).join('');
+            const fmt = typeof HMDescriptionHtml !== 'undefined' ? HMDescriptionHtml : null;
+            if (this.product.description && this.product.description.trim()) {
+                descEl.innerHTML = fmt
+                    ? fmt.formatLongDescriptionForDisplay(this.product.description)
+                    : this.escapeHtml(this.product.description);
             } else {
                 descEl.innerHTML = '<p>No description available.</p>';
             }

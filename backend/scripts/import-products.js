@@ -100,7 +100,13 @@ class ProductImporter {
                 name: jsonProduct.name || 'Unknown Product',
                 slug: this.generateSlug(jsonProduct.name || 'unknown-product'),
                 short_description: jsonProduct.shortDescription || jsonProduct.description || '',
-                long_description: jsonProduct.description || jsonProduct.longDescription || '',
+                long_description: (() => {
+                    const short = (jsonProduct.shortDescription || '').trim();
+                    const long = (jsonProduct.description || jsonProduct.longDescription || '').trim();
+                    if (!long) return '';
+                    if (short && long === short) return '';
+                    return long;
+                })(),
                 brand: jsonProduct.brand || 'Unknown',
                 category: jsonProduct.category || 'General',
                 price: parseFloat(jsonProduct.price || 0),
