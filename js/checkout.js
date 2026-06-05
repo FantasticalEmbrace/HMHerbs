@@ -979,7 +979,8 @@ class CheckoutManager {
             product_id: it.id ?? it.product_id,
             variant_id: it.variant_id ?? it.variantId ?? null,
             quantity: it.quantity ?? 1,
-            price: it.price ?? 0
+            price: it.price ?? 0,
+            giftCard: it.giftCard || null
         }));
 
         const emailEl = document.getElementById('email');
@@ -1108,12 +1109,16 @@ class CheckoutManager {
             const decDisabled = qty <= 1 ? 'disabled' : '';
             const incDisabled = maxQ != null && qty >= maxQ ? 'disabled' : '';
             const safeName = this.escapeHtml(item.name);
+            const giftMeta = item.giftCard
+                ? `<div class="order-item-gift-meta">${item.giftCard.recipientEmail ? `To: ${this.escapeHtml(item.giftCard.recipientEmail)}` : 'Physical gift card'}${item.giftCard.cardType === 'digital' ? ' · Digital' : ' · Physical'}</div>`
+                : '';
             const itemDiv = document.createElement('div');
             itemDiv.className = 'order-item';
             itemDiv.innerHTML = `
                 <img src="${item.image || this.createPlaceholderImage()}" alt="${safeName}" class="order-item-image" onerror="this.src='${this.createPlaceholderImage()}'">
                 <div class="order-item-details">
                     <div class="order-item-name">${safeName}</div>
+                    ${giftMeta}
                     <div class="checkout-line-qty" role="group" aria-label="Quantity for ${safeName}">
                         <button type="button" class="checkout-qty-btn" data-checkout-qty="dec" data-index="${index}" aria-label="Decrease quantity" ${decDisabled}>−</button>
                         <input type="number" class="checkout-qty-input" min="1" ${maxAttr} value="${qty}" inputmode="numeric" data-index="${index}" aria-label="Quantity">
@@ -2087,7 +2092,8 @@ class CheckoutManager {
             variant_id: item.variant_id ?? item.variantId ?? null,
             name: item.name,
             price: item.price,
-            quantity: item.quantity
+            quantity: item.quantity,
+            giftCard: item.giftCard || null
         }));
 
         const paymentMethod = document.getElementById('payment-method')?.value || '';

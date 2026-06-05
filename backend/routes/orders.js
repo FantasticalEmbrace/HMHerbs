@@ -8,6 +8,7 @@ const promoEngine = require('../services/webPromotionEngine');
 const { finalizePaidOrder, recalcUserOrderAggregates } = require('../services/finalizePaidOrder');
 const { cartLookupBinds, hasCartIdentity } = require('../utils/cartSession');
 const { redeemGiftCardForOrder, redeemGiftCardForOrderById } = require('../services/giftCardCheckout');
+const { validateGiftCardCartItems } = require('../services/giftCardFulfillment');
 const { isUsPhoneDisplay } = require('../utils/usPhoneDisplay');
 
 function mapCheckoutPromoHttpError(err) {
@@ -31,6 +32,14 @@ function mapCheckoutPromoHttpError(err) {
         INSUFFICIENT_GIFT_CARD_BALANCE: {
             status: 400,
             message: 'Gift card balance does not cover the full order total. Use a credit/debit card or bank account instead.'
+        },
+        DIGITAL_GIFT_CARD_EMAIL_REQUIRED: {
+            status: 400,
+            message: 'Recipient email is required for digital gift cards.'
+        },
+        INVALID_GIFT_CARD_EMAIL: {
+            status: 400,
+            message: 'Please enter a valid recipient email address for the gift card.'
         }
     };
     return table[code] || null;
@@ -89,11 +98,13 @@ function normalizeCartItems(cartItems = []) {
         .map((item) => {
             const quantity = Number(item.quantity);
             const price = Number(item.price);
+            const giftCard = item.giftCard || item.gift_card || null;
             return {
                 product_id: Number(item.product_id ?? item.productId ?? item.id ?? 0),
                 variant_id: item.variant_id ?? item.variantId ?? null,
                 quantity: Number.isFinite(quantity) ? quantity : 0,
-                price: Number.isFinite(price) ? price : 0
+                price: Number.isFinite(price) ? price : 0,
+                giftCard: giftCard && typeof giftCard === 'object' ? giftCard : null
             };
         })
         .filter((item) => item.product_id > 0 && item.quantity > 0 && item.price >= 0);
@@ -146,6 +157,16 @@ router.post('/', async (req, res) => {
         // Validate required fields
         if (!normalizedCustomer.email || normalizedItems.length === 0) {
             return res.status(400).json({ error: 'Missing required order information' });
+        }
+
+        try {
+            await validateGiftCardCartItems(req.pool, normalizedItems);
+        } catch (giftErr) {
+            const mapped = mapCheckoutPromoHttpError(giftErr);
+            if (mapped) {
+                return res.status(mapped.status).json({ error: mapped.message, code: giftErr.code });
+            }
+            throw giftErr;
         }
 
         const phoneTrim = String(normalizedCustomer.phone || '').trim();
@@ -285,12 +306,13 @@ router.post('/', async (req, res) => {
             // Add order items (server catalog price)
             for (const line of checkout.enrichment) {
                 const lineTotal = promoEngine.roundMoney(line.unitPrice * line.quantity);
+                const lineMeta = line.giftCard ? JSON.stringify({ giftCard: line.giftCard }) : null;
                 await connection.execute(
                     `
                     INSERT INTO order_items (
                         order_id, product_id, variant_id, product_name, product_sku,
-                        variant_name, quantity, price, total
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        variant_name, quantity, price, total, metadata
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 `,
                     sqlBinds([
                         orderId,
@@ -301,7 +323,8 @@ router.post('/', async (req, res) => {
                         null,
                         line.quantity,
                         line.unitPrice,
-                        lineTotal
+                        lineTotal,
+                        lineMeta
                     ])
                 );
             }

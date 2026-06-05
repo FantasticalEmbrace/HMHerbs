@@ -165,6 +165,23 @@
     transform: translateY(-8px);
     border-color: var(--primary-green);
     box-shadow: 0 12px 24px rgba(0, 0, 0, 0.12);
+    text-decoration: none;
+}
+
+.browse-card:hover,
+.browse-card:focus,
+.browse-card:focus-visible,
+.browse-card:hover h3,
+.browse-card:hover p,
+.browse-card:focus h3,
+.browse-card:focus p,
+.browse-card:focus-visible h3,
+.browse-card:focus-visible p,
+a.browse-card,
+a.browse-card:hover,
+a.browse-card:focus,
+a.browse-card:focus-visible {
+    text-decoration: none !important;
 }
 
 .browse-card-icon {

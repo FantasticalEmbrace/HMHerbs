@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gift Cards - H&M Herbs & Vitamins</title>
+    <meta name="description"
+        content="Purchase digital or physical H&M Herbs gift cards. Send digital cards by email with recipient account balance tracking.">
+
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="stylesheet" href="css/emergency-fixes.css">
+    <link rel="stylesheet" href="css/hm-notify.css">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="css/browser-compatibility.css">
+    <link rel="stylesheet" href="css/accessibility-enhancements.css">
+    <link rel="stylesheet" href="css/customer-auth.css">
+    <link rel="stylesheet" href="css/mobile-enhancements.css">
+    <link rel="stylesheet" href="css/hm-close-controls.css">
+    <link rel="stylesheet" href="css/site-promo-banner.css">
+    <link rel="stylesheet" href="css/age-gate.css">
+    <link rel="stylesheet" href="css/gift-cards.css">
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <script src="js/mobile-menu.js"></script>
+    <script src="js/nav-current-page.js"></script>
+</head>
+
+<body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    <header class="header" role="banner">
+        <div class="main-header">
+            <div class="container">
+                <nav class="navbar" role="navigation" aria-label="Main navigation">
+                    <div class="logo">
+                        <a href="index.html" aria-label="H&M Herbs & Vitamins - Home">
+                            <img src="images/HM%20Herb%20Logo.png" alt="H&M Herbs & Vitamins" class="logo-wordmark" loading="eager">
+                        </a>
+                    </div>
+                    <button class="mobile-menu-toggle" aria-expanded="false" aria-controls="navbar-menu"
+                        aria-label="Toggle navigation menu">
+                        <span class="hamburger-line"></span>
+                        <span class="hamburger-line"></span>
+                        <span class="hamburger-line"></span>
+                    </button>
+                    <ul class="nav-menu" id="navbar-menu" role="menubar">
+                        <li role="none"><a href="index.html" role="menuitem">Home</a></li>
+                        <li role="none"><a href="products.html" role="menuitem">Products</a></li>
+                        <li role="none"><a href="gift-cards.html" role="menuitem" aria-current="page">Gift Cards</a></li>
+                        <li role="none"><a href="index.html#edsa-service" role="menuitem" class="edsa-nav-link">EDSA Service</a></li>
+                        <li role="none"><a href="index.html#about" role="menuitem">About</a></li>
+                        <li role="none"><a href="index.html#contact" role="menuitem">Contact</a></li>
+                    </ul>
+                    <div class="header-actions">
+                        <div class="customer-auth-container">
+                            <div id="customer-auth-guest" class="auth-state-panel">
+                                <button type="button" class="auth-btn" id="customer-login-btn" aria-label="Sign in">
+                                    <span class="auth-btn-text">Sign In</span>
+                                </button>
+                                <button type="button" class="auth-btn" id="customer-register-btn" aria-label="Create account">
+                                    <span class="auth-btn-text">Register</span>
+                                </button>
+                            </div>
+                            <div id="customer-auth-user" class="auth-state-panel" hidden>
+                                <a href="account.html" class="auth-btn account-link" id="customer-account-btn">
+                                    <span class="auth-btn-text" id="customer-name-display">My Account</span>
+                                </a>
+                                <button type="button" class="auth-btn auth-btn-signout" id="customer-logout-btn">Sign Out</button>
+                            </div>
+                        </div>
+                        <button type="button" class="cart-toggle" aria-label="Shopping cart" aria-controls="cart-sidebar">
+                            <svg class="cart-icon-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z"/></svg>
+                            <span class="cart-count" id="cart-count">0</span>
+                        </button>
+                    </div>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <main id="main-content" class="gift-cards-main">
+        <div class="container">
+            <nav class="breadcrumb-nav" aria-label="Breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="index.html">Home</a></li>
+                    <li class="breadcrumb-item"><a href="products.html">Products</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Gift Cards</li>
+                </ol>
+            </nav>
+
+            <div class="gift-cards-intro">
+                <h1 class="page-title">Gift Cards</h1>
+                <p>Give the gift of wellness. Choose a digital card delivered by email or a physical card mailed to you or your recipient.</p>
+            </div>
+
+            <div class="gift-type-tabs" role="tablist" aria-label="Gift card type">
+                <button type="button" class="gift-type-tab active" data-gift-type="digital" role="tab" aria-selected="true">
+                    <i class="fas fa-envelope" aria-hidden="true"></i> Digital
+                </button>
+                <button type="button" class="gift-type-tab" data-gift-type="physical" role="tab" aria-selected="false">
+                    <i class="fas fa-gift" aria-hidden="true"></i> Physical
+                </button>
+            </div>
+
+            <div id="gift-cards-loading" class="gift-cards-loading">
+                <i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Loading gift cards…
+            </div>
+            <div id="gift-cards-error" class="gift-cards-error" hidden></div>
+
+            <div id="gift-card-panel" class="gift-card-panel" hidden>
+                <div class="gift-card-visual">
+                    <div class="gift-card-visual-icon"><i class="fas fa-gift" aria-hidden="true"></i></div>
+                    <h2 id="gift-panel-title">Digital Gift Card</h2>
+                    <p id="gift-panel-desc"></p>
+                </div>
+
+                <div class="amount-grid" id="amount-grid" role="group" aria-label="Select amount"></div>
+
+                <form id="gift-card-form" class="gift-form">
+                    <div class="form-group">
+                        <label for="recipient-name">Recipient name</label>
+                        <input type="text" id="recipient-name" class="form-input" maxlength="150" autocomplete="name"
+                            placeholder="Who is this gift for?">
+                    </div>
+                    <div class="form-group">
+                        <label for="recipient-email" id="recipient-email-label">Recipient email <span class="required-mark">*</span></label>
+                        <input type="email" id="recipient-email" class="form-input" maxlength="255" autocomplete="email"
+                            placeholder="recipient@example.com">
+                        <small id="recipient-email-help" class="form-help"></small>
+                    </div>
+                    <div class="form-group">
+                        <label for="sender-name">Your name (optional)</label>
+                        <input type="text" id="sender-name" class="form-input" maxlength="150" placeholder="From">
+                    </div>
+                    <div class="form-group">
+                        <label for="personal-message">Personal message (optional)</label>
+                        <textarea id="personal-message" maxlength="500" placeholder="Add a note for the recipient"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary gift-add-btn">
+                        <i class="fas fa-cart-plus" aria-hidden="true"></i> Add to Cart
+                    </button>
+                </form>
+            </div>
+        </div>
+    </main>
+
+    <aside class="cart-sidebar" id="cart-sidebar" aria-label="Shopping cart" aria-hidden="true">
+        <div class="cart-header">
+            <h2 class="cart-title">Shopping Cart</h2>
+            <button type="button" class="cart-close" aria-label="Close cart">×</button>
+        </div>
+        <div class="cart-content">
+            <div class="cart-items" id="cart-items"></div>
+            <div class="cart-empty" id="cart-empty">
+                <p>Your cart is empty</p>
+                <a href="products.html" class="btn btn-primary">Continue Shopping</a>
+            </div>
+        </div>
+        <div class="cart-footer">
+            <div class="cart-total">
+                <span class="total-label">Total: </span>
+                <span class="total-amount" id="cart-total">$0.00</span>
+            </div>
+            <button type="button" class="btn btn-primary btn-block" id="checkout-btn">Proceed to Checkout</button>
+        </div>
+    </aside>
+    <div class="cart-overlay" id="cart-overlay"></div>
+
+    <footer class="footer" role="contentinfo">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h3>H&M Herbs & Vitamins</h3>
+                    <p>Premium natural health products since 1995.</p>
+                </div>
+                <div class="footer-section">
+                    <h4 class="footer-hours-title">Operating Hours</h4>
+                    <div class="footer-hours">
+                        <p>Mon-Fri: 10am-5pm</p>
+                        <p>Sat: 10am-1pm</p>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2025 H&M Herbs & Vitamins. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="js/age-gate.js" defer></script>
+    <script src="js/site-promo-banner.js" defer></script>
+    <script src="js/hm-notify.js"></script>
+    <script src="script.js" defer></script>
+    <script src="js/customer-auth.js" defer></script>
+    <script src="js/gift-cards.js?v=20260604-2" defer></script>
+</body>
+
+</html>

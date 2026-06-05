@@ -18,7 +18,7 @@ class EDSABookingSystem {
         this._displayMonth = null;
         this.businessHours = {
             start: '10:00',
-            end: '18:00',
+            end: '17:00',
             days: [1, 2, 3, 4, 5],
             slotDuration: 60
         };

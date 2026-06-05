@@ -2616,7 +2616,8 @@ html.hm-edsa-scroll-ready body {
   text-decoration: none;
 }
 
-.contact-info {
+.contact .contact-info,
+.contact-content .contact-info {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: var(--space-6);
@@ -2686,7 +2687,8 @@ html.hm-edsa-scroll-ready body {
     padding: var(--space-12) 0;
   }
 
-  .contact-info {
+  .contact .contact-info,
+  .contact-content .contact-info {
     grid-template-columns: 1fr;
     gap: var(--space-4);
   }
@@ -2820,12 +2822,21 @@ html.hm-edsa-scroll-ready body {
 }
 
 .social-links a:hover,
-.social-links a:focus {
+.social-links a:focus-visible {
   background-color: var(--primary-green-dark);
   border-color: var(--primary-green-dark);
   transform: translateY(-2px);
   text-decoration: none;
   box-shadow: 0 4px 8px rgba(5, 150, 105, 0.3);
+}
+
+/* Mouse click — do not keep the hover ring after the link is activated */
+.social-links a:focus:not(:focus-visible) {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: none;
+  box-shadow: none;
+  outline: none;
 }
 
 /* Footer contact info styles - more specific to avoid conflicts */

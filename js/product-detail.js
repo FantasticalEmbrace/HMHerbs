@@ -590,7 +590,7 @@ class ProductDetailPage {
 
                     localStorage.setItem('hmherbs_cart', JSON.stringify(cart));
                     this.updateCartDisplay();
-                    this.showNotification('Product added to cart!', 'success');
+                    this.showNotification('Product added to cart', 'success');
 
                     // Also try to update main app's cart if it becomes available
                     setTimeout(() => {

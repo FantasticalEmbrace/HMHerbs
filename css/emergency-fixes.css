@@ -114,7 +114,7 @@ img[data-skip-error-handling] {
 }
 
 /* CLS Prevention - Reserve space for images without explicit dimensions */
-img:not([width]):not([height]):not([style*="aspect-ratio"]):not(.logo-wordmark):not(.footer-card-logo) {
+img:not([width]):not([height]):not([style*="aspect-ratio"]):not(.logo-wordmark):not(.footer-card-logo):not(.brand-card-image) {
     /* Use a safe default aspect ratio to prevent layout shift */
     aspect-ratio: 16 / 9;
     object-fit: cover;

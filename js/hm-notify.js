@@ -1,16 +1,11 @@
 /**
  * Storefront toast notifications (cart added, errors, etc.)
- * Loaded before script.js / products.js so all pages share one visible UI.
+ * Load on every customer page before visual-bug-fixes.js when possible.
  */
 (function () {
-    const PALETTE = {
-        success: '#059669',
-        error: '#dc2626',
-        warning: '#d97706',
-        info: '#2563eb',
-    };
+    'use strict';
 
-    const CART_ADDED_RE = /added to cart/i;
+    const CART_ADDED_RE = /\badded to (?:your )?cart\b/i;
 
     function getRegion() {
         let region = document.getElementById('hm-toast-region');
@@ -21,7 +16,12 @@
             region.setAttribute('aria-live', 'polite');
             region.setAttribute('role', 'region');
             region.setAttribute('aria-label', 'Notifications');
-            (document.body || document.documentElement).appendChild(region);
+        }
+        const root = document.body || document.documentElement;
+        if (region.parentNode !== root) {
+            root.appendChild(region);
+        } else {
+            root.appendChild(region);
         }
         return region;
     }
@@ -42,9 +42,18 @@
 
     function closeToast(toast) {
         toast.classList.remove('hm-toast--visible');
+        toast.style.opacity = '0';
         window.setTimeout(() => {
             if (toast.parentNode) toast.parentNode.removeChild(toast);
         }, 280);
+    }
+
+    function revealToast(toast) {
+        window.requestAnimationFrame(() => {
+            toast.classList.add('hm-toast--visible');
+            toast.style.opacity = '1';
+            toast.style.visibility = 'visible';
+        });
     }
 
     /**
@@ -62,6 +71,7 @@
         const toast = document.createElement('div');
         toast.className = `hm-toast hm-toast--${type}`;
         toast.setAttribute('role', 'alert');
+        toast.style.opacity = '0';
 
         const row = document.createElement('div');
         row.className = 'hm-toast__row';
@@ -89,15 +99,10 @@
         toast.appendChild(closeBtn);
         region.appendChild(toast);
 
-        // Opacity-only reveal (avoids transform conflicts with emergency-fixes.css)
-        window.requestAnimationFrame(() => {
-            toast.classList.add('hm-toast--visible');
-        });
-        window.setTimeout(() => toast.classList.add('hm-toast--visible'), 48);
+        revealToast(toast);
 
-        const durationMs = opts.durationMs != null
-            ? opts.durationMs
-            : (type === 'error' ? 7000 : 5000);
+        const durationMs =
+            opts.durationMs != null ? opts.durationMs : type === 'error' ? 7000 : 5000;
 
         let timeoutId = window.setTimeout(() => closeToast(toast), durationMs);
 
@@ -111,7 +116,13 @@
             try {
                 window.dispatchEvent(
                     new CustomEvent('hmherbs:cart-item-added', {
-                        detail: { message, cart: window.hmHerbsApp?.cart || window.productsPage?.cart || [] },
+                        detail: {
+                            message,
+                            cart:
+                                window.hmHerbsApp?.cart ||
+                                window.productsPage?.cart ||
+                                [],
+                        },
                     })
                 );
             } catch (_) {
@@ -121,4 +132,5 @@
     }
 
     window.hmShowToast = hmShowToast;
+    window.hmPulseCartBadge = pulseCartBadge;
 })();

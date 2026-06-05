@@ -16,11 +16,13 @@ function normalizeIncomingCartItems(cartItems = []) {
         .map((item) => {
             const quantity = Number(item.quantity);
             const price = Number(item.price);
+            const giftCard = item.giftCard || item.gift_card || null;
             return {
                 product_id: Number(item.product_id ?? item.productId ?? item.id ?? 0),
                 variant_id: item.variant_id ?? item.variantId ?? null,
                 quantity: Number.isFinite(quantity) ? quantity : 0,
-                price: Number.isFinite(price) ? price : 0
+                price: Number.isFinite(price) ? price : 0,
+                giftCard: giftCard && typeof giftCard === 'object' ? giftCard : null
             };
         })
         .filter((item) => item.product_id > 0 && item.quantity > 0 && item.price >= 0);
@@ -443,10 +445,19 @@ function evaluateTotals(rulesParsed, enrichedRows, opts) {
 async function enrichCartLines(pool, normalizedItems) {
     const ids = [...new Set(normalizedItems.map((i) => i.product_id).filter(Boolean))];
     if (ids.length === 0) return [];
-    const [rows] = await pool.execute(
-        `SELECT id, name, sku, category_id, price FROM products WHERE id IN (${ids.map(() => '?').join(',')})`,
-        ids
-    );
+    let rows;
+    try {
+        [rows] = await pool.execute(
+            `SELECT id, name, sku, category_id, price, gift_card_type FROM products WHERE id IN (${ids.map(() => '?').join(',')})`,
+            ids
+        );
+    } catch (e) {
+        if (e.errno !== 1054 && e.code !== 'ER_BAD_FIELD_ERROR') throw e;
+        [rows] = await pool.execute(
+            `SELECT id, name, sku, category_id, price FROM products WHERE id IN (${ids.map(() => '?').join(',')})`,
+            ids
+        );
+    }
     const map = new Map(rows.map((r) => [r.id, r]));
 
     const variantsNeeded = normalizedItems.filter((n) => n.variant_id != null && n.variant_id !== '');
@@ -490,7 +501,9 @@ async function enrichCartLines(pool, normalizedItems) {
             unitPrice: roundMoney(unitPrice),
             name: p.name,
             sku: p.sku,
-            category_id: p.category_id
+            category_id: p.category_id,
+            gift_card_type: p.gift_card_type || null,
+            giftCard: item.giftCard || null
         });
     }
     return enriched;

@@ -4,6 +4,7 @@ const logger = require('../utils/logger');
 const InventoryService = require('./inventory');
 const { generateTrackingNumber } = require('../utils/generateTrackingNumber');
 const { sendOrderConfirmationEmail } = require('./orderConfirmationEmail');
+const { fulfillGiftCardsForOrder } = require('./giftCardFulfillment');
 
 async function recalcUserOrderAggregates(connection, userId) {
     const uid = Number(userId);
@@ -110,6 +111,10 @@ async function finalizePaidOrder(pool, { orderId, paymentId, paymentStatus }) {
 
         await connection.commit();
         logger.info(`Order ${oid} finalized (payment ${paymentId})`);
+
+        void fulfillGiftCardsForOrder(pool, oid).catch((giftErr) => {
+            logger.error(`Order ${oid} gift card fulfillment error:`, giftErr);
+        });
 
         void sendOrderConfirmationEmail(pool, oid).catch((emailErr) => {
             logger.error(`Order ${oid} confirmation email error:`, emailErr);

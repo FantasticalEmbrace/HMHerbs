@@ -211,8 +211,10 @@ class BrandsCategoriesPage {
             'north-american-herb-spice': 'North American Herb & Spice.jpg',
             'north american herb & spice': 'North American Herb & Spice.jpg',
             'north american herb and spice': 'North American Herb & Spice.jpg',
-            'our-father-s-healing-herbs': "Our Father's Healing Herbs.png",
-            "our father's healing herbs": "Our Father's Healing Herbs.png"
+            'our-father-s-healing-herbs': "Our Father's Healing.png",
+            "our father's healing herbs": "Our Father's Healing.png",
+            'our-father-s-healing': "Our Father's Healing.png",
+            "our father's healing": "Our Father's Healing.png"
         };
 
         // Try to match by slug first, then by name
@@ -229,10 +231,25 @@ class BrandsCategoriesPage {
         return `images/brand-images/${imageFile}`;
     }
 
+    isOurFathersHealingBrand(brand) {
+        const name = (brand.name || '').toLowerCase();
+        const slug = (brand.slug || '').toLowerCase();
+        const cleanSlug = slug.replace(/[^a-z0-9]/g, '');
+        return (
+            (name.includes('our father') && name.includes('healing')) ||
+            (slug.includes('our-father') && slug.includes('healing')) ||
+            cleanSlug.includes('ourfathershealing')
+        );
+    }
+
     getDisplayBrandName(brand) {
         const name = brand.name || '';
+        if (this.isOurFathersHealingBrand(brand)) {
+            return "Our Father's Healing";
+        }
+        const lower = name.toLowerCase();
         // Normalize ForMor naming
-        if (name.toLowerCase().includes('formor')) {
+        if (lower.includes('formor')) {
             return 'ForMor';
         }
         // Show a friendlier label for unknown brand bucket
@@ -253,7 +270,9 @@ class BrandsCategoriesPage {
         // Brand-specific background colors (helps logos with transparent backgrounds)
         const brandBackgroundMap = {
             'our-father-s-healing-herbs': '#cbd8e8',
-            "our father's healing herbs": '#cbd8e8'
+            "our father's healing herbs": '#cbd8e8',
+            'our-father-s-healing': '#cbd8e8',
+            "our father's healing": '#cbd8e8'
         };
 
         // Use DocumentFragment for better performance
@@ -300,13 +319,17 @@ class BrandsCategoriesPage {
             if (brand.slug === 'power-thin-phase-2' || brand.name.toLowerCase().includes('powerthin')) {
                 card.className += ' powerthin-card';
             }
+            if (this.isOurFathersHealingBrand(brand)) {
+                card.className += ' our-fathers-healing-card';
+            }
 
             // Try to get brand image, fallback to icon if not found
             const imagePath = isMisc ? null : this.getBrandImagePath(brand);
             if (imagePath) {
                 const img = document.createElement('img');
-                img.src = imagePath;
-                img.alt = `${brand.name} logo`;
+                const cacheBust = this.isOurFathersHealingBrand(brand) ? '?v=2026-06-04' : '';
+                img.src = `${imagePath}${cacheBust}`;
+                img.alt = `${this.getDisplayBrandName(brand)} logo`;
                 img.className = 'brand-card-image';
                 img.onerror = function () {
                     // If image fails to load, replace with fallback icon

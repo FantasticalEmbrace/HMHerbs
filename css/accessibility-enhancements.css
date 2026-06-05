@@ -101,10 +101,33 @@
 }
 
 /* Link contrast improvements */
-a {
+a:not(:is(
+    .nav-menu a,
+    #nav-menu a,
+    #navbar-menu a,
+    .hm-accent-link,
+    .edsa-nav-link,
+    .breadcrumb-item a,
+    .contact-item a,
+    .contact-info-box a,
+    .edsa-manage-link a,
+    .btn,
+    .btn-accent,
+    .auth-btn,
+    .browse-card,
+    .social-links a
+  )) {
   color: var(--primary-green-dark);
   /* Darker for better contrast */
   text-decoration: underline;
+}
+
+a.browse-card,
+a.browse-card:hover,
+a.browse-card:focus,
+a.browse-card:focus-visible,
+a.browse-card:visited {
+  text-decoration: none !important;
 }
 
 a:hover:not(:is(
@@ -119,7 +142,9 @@ a:hover:not(:is(
     .edsa-manage-link a,
     .btn,
     .btn-accent,
-    .auth-btn
+    .auth-btn,
+    .browse-card,
+    .social-links a
   )),
 a:focus:not(:is(
     .nav-menu a,
@@ -133,7 +158,25 @@ a:focus:not(:is(
     .edsa-manage-link a,
     .btn,
     .btn-accent,
-    .auth-btn
+    .auth-btn,
+    .browse-card,
+    .social-links a
+  )),
+a:focus-visible:not(:is(
+    .nav-menu a,
+    #nav-menu a,
+    #navbar-menu a,
+    .hm-accent-link,
+    .edsa-nav-link,
+    .breadcrumb-item a,
+    .contact-item a,
+    .contact-info-box a,
+    .edsa-manage-link a,
+    .btn,
+    .btn-accent,
+    .auth-btn,
+    .browse-card,
+    .social-links a
   )) {
   color: var(--primary-green);
   text-decoration: underline;

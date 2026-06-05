@@ -132,7 +132,7 @@ function ensureCallStoreModal() {
                     <i class="fas fa-phone" aria-hidden="true"></i>
                     <span>${storePhoneDisplay()}</span>
                 </a>
-                <p class="call-store-hours">Mon–Fri 10:00 AM – 6:00 PM<br>Saturday 10:00 AM – 3:00 PM</p>
+                <p class="call-store-hours">Mon–Fri 10:00 AM – 5:00 PM<br>Saturday 10:00 AM – 1:00 PM</p>
                 <button type="button" class="btn btn-secondary call-store-close-btn" data-call-store-close>Close</button>
             </div>
         </div>`;

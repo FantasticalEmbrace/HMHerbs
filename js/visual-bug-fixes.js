@@ -625,7 +625,7 @@ class VisualBugFixer {
     const criticalCSS = document.createElement('style');
     criticalCSS.textContent = `
         /* IMMEDIATE FLICKER FIXES — same exclusions as css/emergency-fixes.css (wishlist modal + dim must stay transform-clean) */
-        *:not(img):not(picture):not(video):not(svg):not(canvas):not(.auth-modal):not(.hm-age-gate):not(.newsletter-popup):not(.cart-sidebar):not(.cart-overlay):not(.auth-icon-svg):not(.header-actions):not(.header-actions *):not(.acct-modal-backdrop):not(.hm-wl-picker-backdrop):not(.acct-modal):not(.wishlist-modal):not(.hm-wl-picker-dim):not(.acct-modal-dim):not(.edsa-modal):not(.edsa-modal *) {
+        *:not(img):not(picture):not(video):not(svg):not(canvas):not(.auth-modal):not(.hm-age-gate):not(.newsletter-popup):not(.cart-sidebar):not(.cart-overlay):not(.auth-icon-svg):not(.header-actions):not(.header-actions *):not(.acct-modal-backdrop):not(.hm-wl-picker-backdrop):not(.acct-modal):not(.wishlist-modal):not(.hm-wl-picker-dim):not(.acct-modal-dim):not(.edsa-modal):not(.edsa-modal *):not(#hm-toast-region):not(#hm-toast-region *) {
             -webkit-backface-visibility: hidden !important;
             backface-visibility: hidden !important;
             -webkit-transform: translateZ(0) !important;

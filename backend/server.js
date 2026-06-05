@@ -23,6 +23,8 @@ const logger = require('./utils/logger');
 const { handlePromoBannerGet, disabledPayload } = require('./utils/promoBanner');
 const { createSeoRedirectMiddleware } = require('./middleware/seoRedirects');
 const { ensureProductSchema } = require('./utils/ensureProductSchema');
+const { ensureGiftCardPurchaseSchema } = require('./utils/ensureGiftCardPurchaseSchema');
+const { ensureGiftCardCatalog } = require('./utils/ensureGiftCardCatalog');
 const { ensureUserPasswordResetSchema } = require('./utils/ensureUserPasswordResetSchema');
 const { ensureEdsaBookingSchema } = require('./utils/ensureEdsaBookingSchema');
 const {
@@ -1097,6 +1099,10 @@ app.post('/api/gift-cards/check-balance', async (req, res) => {
     }
 });
 
+const { getGiftCardCatalog } = require('./routes/gift-cards');
+app.get('/api/gift-cards/catalog', getGiftCardCatalog);
+app.use('/api/gift-cards', require('./routes/gift-cards'));
+
 // US address type-ahead (storefront forms)
 const { searchAddressSuggestions } = require('./services/addressSuggest');
 const addressSuggestLimiter = rateLimit({
@@ -1238,6 +1244,11 @@ app.get('/api/products', async (req, res) => {
             whereConditions.push('LOWER(p.name) NOT LIKE ?');
             queryParams.push(`%${pattern}%`);
         });
+
+        // Gift card products appear on gift-cards.html / category=gift-cards only
+        if (!cat && !hc) {
+            whereConditions.push('(p.gift_card_type IS NULL)');
+        }
 
         // Build ORDER BY clause
         const allowedSortFields = ['name', 'price', 'created_at'];
@@ -1589,6 +1600,13 @@ app.use('/api/*', (req, res) => {
         await ensureProductSchema(pool);
     } catch (e) {
         logger.error(`ensureProductSchema failed: ${logger.formatMysqlError(e)}`);
+    }
+
+    try {
+        await ensureGiftCardPurchaseSchema(pool);
+        await ensureGiftCardCatalog(pool);
+    } catch (e) {
+        logger.error(`ensureGiftCardPurchaseSchema failed: ${logger.formatMysqlError(e)}`);
     }
 
     try {

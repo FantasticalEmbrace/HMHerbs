@@ -1,6 +1,16 @@
 /* Storefront toasts — bottom-center for cart, top-right for other messages */
 
 #hm-toast-region,
+#hm-toast-region *,
+.hm-toast-region,
+.hm-toast-region *,
+.hm-toast,
+.hm-toast * {
+  -webkit-backface-visibility: visible !important;
+  backface-visibility: visible !important;
+}
+
+#hm-toast-region,
 .hm-toast-region {
   position: fixed;
   z-index: 2147483647;
@@ -11,6 +21,7 @@
   padding: 0;
   pointer-events: none;
   max-width: min(420px, calc(100vw - 2rem));
+  transform: none;
 }
 
 .hm-toast-region:not(.hm-toast-region--cart) {
@@ -27,7 +38,8 @@
   right: auto;
   top: auto;
   bottom: max(20px, env(safe-area-inset-bottom, 0px));
-  transform: translateX(-50%);
+  transform: translateX(-50%) !important;
+  -webkit-transform: translateX(-50%) !important;
   align-items: stretch;
   width: min(420px, calc(100vw - 2rem));
 }
@@ -50,7 +62,8 @@
 }
 
 .hm-toast--visible {
-  opacity: 1;
+  opacity: 1 !important;
+  visibility: visible !important;
 }
 
 .hm-toast--success {
