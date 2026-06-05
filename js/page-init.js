@@ -37,11 +37,16 @@
         );
     }
 
-    function isEdsaCrossPageNav() {
+    function isSectionCrossPagePending() {
+        if (typeof window.hmIsSectionCrossPagePending === 'function') {
+            return window.hmIsSectionCrossPagePending();
+        }
         if (typeof window.hmIsEdsaCrossPagePending === 'function') {
             return window.hmIsEdsaCrossPagePending();
         }
         try {
+            const stored = sessionStorage.getItem('hmPendingSectionNav');
+            if (stored && stored.startsWith('#')) return true;
             return sessionStorage.getItem('hmPendingEdsaNav') === '1';
         } catch (_) {
             return false;
@@ -49,7 +54,7 @@
     }
 
     function scrollToTopIfNoHash() {
-        if (isEdsaCrossPageNav()) return;
+        if (isSectionCrossPagePending()) return;
         if (!window.location.hash) {
             window.scrollTo(0, 0);
             document.documentElement.scrollTop = 0;
@@ -104,7 +109,7 @@
     window.addEventListener('scroll', onScroll, { passive: true });
 
     window.addEventListener('load', function () {
-        if (isEdsaCrossPageNav()) return;
+        if (isSectionCrossPagePending()) return;
         if (!window.location.hash && !hasUserScrolled) {
             window.scrollTo(0, 0);
         }

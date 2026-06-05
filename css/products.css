@@ -563,7 +563,12 @@ a.browse-card:focus-visible {
     transform: scale(1.05);
 }
 
-.products-section .product-link {
+.products-section .product-link,
+.products-section .product-link:link,
+.products-section .product-link:visited,
+.products-section .product-link:hover,
+.products-section .product-link:focus,
+.products-section .product-link:focus-visible {
     text-decoration: none;
     color: inherit;
     display: block;
@@ -578,6 +583,19 @@ a.browse-card:focus-visible {
     color: var(--primary-green);
 }
 
+.products-section .product-brand .brand-link,
+.products-section .product-brand .brand-link:link,
+.products-section .product-brand .brand-link:visited,
+.products-section .product-brand .brand-link:hover,
+.products-section .product-brand .brand-link:focus {
+    color: var(--primary-green);
+    text-decoration: none;
+}
+
+.products-section .product-brand .brand-link:hover {
+    color: var(--primary-green-dark);
+}
+
 .products-section .product-title {
     font-size: var(--text-base);
     font-weight: 600;
@@ -588,13 +606,13 @@ a.browse-card:focus-visible {
     transition: color var(--transition-fast);
     overflow-wrap: break-word;
     hyphens: auto;
-    /* Allow title to wrap to multiple lines */
     white-space: normal;
     display: block;
     overflow: hidden;
     min-height: auto;
     max-height: 3em;
     flex-shrink: 0;
+    text-decoration: none;
 }
 
 .products-section .product-description {
@@ -1187,6 +1205,19 @@ a.browse-card:focus-visible {
 .product-variants {
     display: flex;
     flex-direction: column;
+    gap: var(--space-4);
+    margin: var(--space-4) 0;
+}
+
+.variant-selectors {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.variant-option-group {
+    display: flex;
+    flex-direction: column;
     gap: var(--space-2);
 }
 
@@ -1194,6 +1225,14 @@ a.browse-card:focus-visible {
     font-size: var(--text-sm);
     font-weight: 600;
     color: var(--gray-900);
+}
+
+.variant-group-label {
+    font-size: var(--text-xs);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--gray-800);
+    text-transform: uppercase;
 }
 
 .variant-select {
@@ -1364,7 +1403,7 @@ a.browse-card:focus-visible {
 
 .meta-value a:hover {
     color: var(--primary-green-dark);
-    text-decoration: underline;
+    text-decoration: none;
 }
 
 /* Product Description Section */

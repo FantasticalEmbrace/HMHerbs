@@ -8726,6 +8726,11 @@ function createProductModal(title, formId, isEdit = false) {
 
     form.appendChild(cannabisSection);
 
+    // Variants & option matrix editor
+    if (window.HMProductVariantsEditor) {
+        window.HMProductVariantsEditor.mountVariantEditor(form, isEdit ? 'edit' : 'add');
+    }
+
     // Add status section
     const statusSection = document.createElement('div');
     statusSection.style.marginBottom = '2.5rem'; // Increased spacing
@@ -9043,6 +9048,10 @@ async function loadProductForEdit(productId) {
                     }
                 }
             }
+
+            if (form._hmVariantEditor) {
+                form._hmVariantEditor.load(product);
+            }
         } else {
             window.adminApp.showNotification('Failed to load product data', 'error');
         }
@@ -9091,6 +9100,10 @@ async function updateProduct(productId, formData, formElement) {
                 }
                 return true; // Keep URL-based images
             });
+        }
+
+        if (window.HMProductVariantsEditor) {
+            window.HMProductVariantsEditor.attachVariantPayload(productData, formElement);
         }
 
         const app = window.adminApp;
@@ -9170,6 +9183,10 @@ async function createProduct(formData, formElement) {
             });
         } else {
             productData.images = [];
+        }
+
+        if (window.HMProductVariantsEditor) {
+            window.HMProductVariantsEditor.attachVariantPayload(productData, formElement);
         }
 
         const app = window.adminApp;

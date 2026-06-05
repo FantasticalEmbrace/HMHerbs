@@ -701,7 +701,9 @@ select:focus {
   gap: var(--space-4);
 }
 
-.top-link {
+.top-link,
+.top-link:link,
+.top-link:visited {
   color: var(--white);
   text-decoration: none;
   font-size: var(--text-sm);
@@ -712,9 +714,11 @@ select:focus {
 }
 
 .top-link:hover,
-.top-link:focus {
+.top-link:focus,
+.top-link:focus-visible {
   opacity: 0.8;
   color: var(--white);
+  text-decoration: none;
 }
 
 .main-header {
@@ -2099,9 +2103,11 @@ select:focus {
   transition: color 0.2s ease;
 }
 
-.product-title-link:hover {
+.product-title-link:hover,
+.product-title-link:focus,
+.product-title-link:visited {
   color: var(--primary-green);
-  text-decoration: underline;
+  text-decoration: none;
 }
 
 .product-description {
@@ -2666,14 +2672,20 @@ html.hm-edsa-scroll-ready body {
   font-size: var(--text-lg);
 }
 
-.contact-item a {
+.contact-item a,
+.contact-item a:link,
+.contact-item a:visited {
   color: var(--primary-green);
-  text-decoration: underline;
-  text-decoration-color: var(--primary-green);
-  text-decoration-thickness: 2px;
-  text-underline-offset: 3px;
+  text-decoration: none;
   background: transparent;
   transition: color var(--transition-fast);
+}
+
+.contact-item a:hover,
+.contact-item a:focus,
+.contact-item a:focus-visible {
+  color: var(--primary-green-dark);
+  text-decoration: none;
 }
 
 .contact-item p {

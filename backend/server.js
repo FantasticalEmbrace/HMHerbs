@@ -23,6 +23,7 @@ const logger = require('./utils/logger');
 const { handlePromoBannerGet, disabledPayload } = require('./utils/promoBanner');
 const { createSeoRedirectMiddleware } = require('./middleware/seoRedirects');
 const { ensureProductSchema } = require('./utils/ensureProductSchema');
+const { ensureProductVariantSchema } = require('./utils/ensureProductVariantSchema');
 const { ensureGiftCardPurchaseSchema } = require('./utils/ensureGiftCardPurchaseSchema');
 const { ensureGiftCardCatalog } = require('./utils/ensureGiftCardCatalog');
 const { ensureUserPasswordResetSchema } = require('./utils/ensureUserPasswordResetSchema');
@@ -1415,9 +1416,19 @@ app.get('/api/products/:slug', async (req, res) => {
 
         // Get product variants
         const [variants] = await pool.execute(
-            'SELECT id, sku, name, price, compare_price, inventory_quantity, is_active FROM product_variants WHERE product_id = ? AND is_active = 1 ORDER BY sort_order',
+            'SELECT id, sku, name, price, compare_price, inventory_quantity, is_active, attributes FROM product_variants WHERE product_id = ? AND is_active = 1 ORDER BY sort_order',
             [product.id]
         );
+
+        let variantOptionGroups = product.variant_option_groups;
+        if (typeof variantOptionGroups === 'string') {
+            try {
+                variantOptionGroups = JSON.parse(variantOptionGroups);
+            } catch {
+                variantOptionGroups = null;
+            }
+        }
+        product.variant_option_groups = Array.isArray(variantOptionGroups) ? variantOptionGroups : [];
 
         // Get health categories
         const [healthCategories] = await pool.execute(`
@@ -1442,7 +1453,17 @@ app.get('/api/products/:slug', async (req, res) => {
                 image_url: sanitizeLegacyProductImageUrl(row.image_url, product.slug, product.sku)
             }));
         }
-        product.variants = variants;
+        product.variants = variants.map((row) => {
+            let attributes = row.attributes;
+            if (typeof attributes === 'string') {
+                try {
+                    attributes = JSON.parse(attributes);
+                } catch {
+                    attributes = null;
+                }
+            }
+            return { ...row, attributes: attributes && typeof attributes === 'object' ? attributes : null };
+        });
         product.health_categories = healthCategories;
 
         // Map database field names to frontend-expected names
@@ -1600,6 +1621,12 @@ app.use('/api/*', (req, res) => {
         await ensureProductSchema(pool);
     } catch (e) {
         logger.error(`ensureProductSchema failed: ${logger.formatMysqlError(e)}`);
+    }
+
+    try {
+        await ensureProductVariantSchema(pool);
+    } catch (e) {
+        logger.error(`ensureProductVariantSchema failed: ${logger.formatMysqlError(e)}`);
     }
 
     try {

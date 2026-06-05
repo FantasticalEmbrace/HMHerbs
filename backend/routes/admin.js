@@ -10,6 +10,17 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs').promises;
 const logger = require('../utils/logger');
+const { saveProductVariants } = require('../utils/saveProductVariants');
+
+function parseJsonField(value, fallback = null) {
+    if (value == null || value === '') return fallback;
+    if (typeof value === 'object') return value;
+    try {
+        return JSON.parse(value);
+    } catch {
+        return fallback;
+    }
+}
 const {
     sendAdminResolutionEmail,
     sendStaffCancelledCustomerEmail,
@@ -944,7 +955,7 @@ router.post('/products', ...adminAuth, requirePermission('manager'), productVali
             sku, name, short_description, long_description, brand_id, category_id,
             price, compare_price, cost_price, weight, inventory_quantity, low_stock_threshold,
             is_active, is_featured, is_cannabis, coa_url, coa_updated_at,
-            health_categories, images, variants
+            health_categories, images, variants, variant_option_groups
         } = req.body;
 
         // Validate required fields
@@ -1070,15 +1081,15 @@ router.post('/products', ...adminAuth, requirePermission('manager'), productVali
                 logger.info('No images to add for product', { productId: productId });
             }
 
-            // Add variants
+            // Add variants (with optional matrix option groups)
             if (variants && variants.length > 0) {
-                for (let i = 0; i < variants.length; i++) {
-                    const variant = variants[i];
-                    await connection.execute(
-                        'INSERT INTO product_variants (product_id, sku, name, price, inventory_quantity, sort_order) VALUES (?, ?, ?, ?, ?, ?)',
-                        [productId, variant.sku, variant.name, variant.price, variant.inventory_quantity || 0, i]
-                    );
-                }
+                await saveProductVariants(
+                    connection,
+                    productId,
+                    sku,
+                    variant_option_groups,
+                    variants
+                );
             }
 
             await connection.commit();
@@ -1295,6 +1306,7 @@ router.get('/products/:id', ...marketingAuth, async (req, res) => {
                 p.price, p.compare_price, p.cost_price, p.cost_synced_at,
                 p.weight, p.inventory_quantity, p.low_stock_threshold,
                 p.is_active, p.is_featured, p.is_cannabis, p.coa_url, p.coa_updated_at,
+                p.variant_option_groups,
                 p.created_at, p.updated_at,
                 p.brand_id, p.category_id,
                 b.name as brand_name, b.slug as brand_slug,
@@ -1310,6 +1322,7 @@ router.get('/products/:id', ...marketingAuth, async (req, res) => {
         }
 
         const product = products[0];
+        product.variant_option_groups = parseJsonField(product.variant_option_groups, []);
 
         // Get product images - handle gracefully if table doesn't exist
         try {
@@ -1328,12 +1341,15 @@ router.get('/products/:id', ...marketingAuth, async (req, res) => {
         // Get product variants - handle gracefully if table doesn't exist
         try {
             const [variants] = await req.pool.execute(`
-                SELECT id, sku, name, price, inventory_quantity, sort_order
+                SELECT id, sku, name, price, compare_price, inventory_quantity, weight, is_active, sort_order, attributes
                 FROM product_variants
                 WHERE product_id = ?
                 ORDER BY sort_order ASC
             `, [id]);
-            product.variants = variants || [];
+            product.variants = (variants || []).map((row) => ({
+                ...row,
+                attributes: parseJsonField(row.attributes, null),
+            }));
         } catch (variantError) {
             logger.warn('Product variants table error (may not exist):', variantError.message);
             product.variants = [];
@@ -1378,7 +1394,7 @@ router.put('/products/:id', ...adminAuth, requirePermission('manager'), async (r
 
         // Check if product exists
         const [existing] = await req.pool.execute(
-            'SELECT id FROM products WHERE id = ?',
+            'SELECT id, sku FROM products WHERE id = ?',
             [id]
         );
 
@@ -1529,6 +1545,17 @@ router.put('/products/:id', ...adminAuth, requirePermission('manager'), async (r
                         );
                     }
                 }
+            }
+
+            // Handle variants / matrix update
+            if (updateData.variants !== undefined) {
+                await saveProductVariants(
+                    connection,
+                    id,
+                    existing[0].sku,
+                    updateData.variant_option_groups,
+                    updateData.variants
+                );
             }
 
             await connection.commit();

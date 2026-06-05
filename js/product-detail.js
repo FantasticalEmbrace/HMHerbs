@@ -380,28 +380,177 @@ class ProductDetailPage {
     }
 
     renderVariants() {
-        const variants = this.product.variants || [];
+        const variants = (this.product.variants || []).map((v) => ({
+            ...v,
+            attributes: this.parseJsonField(v.attributes),
+        }));
+        const container = document.getElementById('product-variants');
+        const selectorsEl = document.getElementById('variant-selectors');
 
-        if (variants.length === 0) {
-            document.getElementById('product-variants').style.display = 'none';
+        if (!container || !selectorsEl || variants.length === 0) {
+            if (container) container.style.display = 'none';
             return;
         }
 
-        const variantSelect = document.getElementById('variant-select');
-        if (variantSelect) {
-            variantSelect.innerHTML = variants.map((variant) => `
-                <option value="${variant.id}" data-price="${variant.price}" data-compare-price="${variant.compare_price || ''}">
-                    ${variant.name} - ${this.formatPrice(variant.price)}
-                </option>
-            `).join('');
+        const groups = this.parseOptionGroups(this.product.variant_option_groups);
+        const matrixKeys = this.getMatrixDimensionKeys(variants, groups);
+        selectorsEl.innerHTML = '';
+        this._variantSelectMode = null;
+        this._matrixSelections = {};
 
-            // Set first variant as selected
-            if (variants.length > 0) {
-                this.selectedVariant = variants[0];
-            }
+        if (matrixKeys.length > 1) {
+            this._variantSelectMode = 'matrix';
+            matrixKeys.forEach((key) => {
+                const values = this.getUniqueAttributeValues(variants, key, groups);
+                if (!values.length) return;
 
-            document.getElementById('product-variants').style.display = 'block';
+                const groupWrap = document.createElement('div');
+                groupWrap.className = 'variant-option-group';
+
+                const label = document.createElement('label');
+                label.className = 'variant-label variant-group-label';
+                label.textContent = key.toUpperCase();
+                label.setAttribute('for', `variant-matrix-${key}`);
+
+                const select = document.createElement('select');
+                select.id = `variant-matrix-${key}`;
+                select.className = 'variant-select';
+                select.dataset.matrixKey = key;
+                select.innerHTML = values.map((val) => `<option value="${this.escapeAttr(val)}">${this.escapeHtml(val)}</option>`).join('');
+
+                this._matrixSelections[key] = values[0];
+                select.addEventListener('change', (e) => {
+                    this._matrixSelections[key] = e.target.value;
+                    this.applyMatrixSelection(variants, matrixKeys);
+                });
+
+                groupWrap.appendChild(label);
+                groupWrap.appendChild(select);
+                selectorsEl.appendChild(groupWrap);
+            });
+
+            this.applyMatrixSelection(variants, matrixKeys);
+        } else {
+            this._variantSelectMode = 'single';
+            const groupName = groups[0]?.name || 'Select Option';
+            const groupWrap = document.createElement('div');
+            groupWrap.className = 'variant-option-group';
+
+            const label = document.createElement('label');
+            label.className = 'variant-label variant-group-label';
+            label.textContent = groupName.toUpperCase();
+            label.setAttribute('for', 'variant-select');
+
+            const select = document.createElement('select');
+            select.id = 'variant-select';
+            select.className = 'variant-select';
+            select.innerHTML = variants.map((variant) => {
+                const labelText = this.formatVariantOptionLabel(variant);
+                return `<option value="${variant.id}" data-price="${variant.price}" data-compare-price="${variant.compare_price || ''}">${this.escapeHtml(labelText)}</option>`;
+            }).join('');
+
+            select.addEventListener('change', (e) => {
+                const variant = variants.find((v) => String(v.id) === String(e.target.value));
+                if (variant) {
+                    this.selectedVariant = variant;
+                    this.updatePrice();
+                    this.updateStockStatus();
+                }
+            });
+
+            groupWrap.appendChild(label);
+            groupWrap.appendChild(select);
+            selectorsEl.appendChild(groupWrap);
+
+            this.selectedVariant = variants[0];
+            this.updatePrice();
+            this.updateStockStatus();
         }
+
+        container.style.display = 'flex';
+    }
+
+    parseJsonField(value) {
+        if (value == null || value === '') return null;
+        if (typeof value === 'object') return value;
+        try {
+            return JSON.parse(value);
+        } catch {
+            return null;
+        }
+    }
+
+    parseOptionGroups(raw) {
+        const parsed = this.parseJsonField(raw);
+        if (!Array.isArray(parsed)) return [];
+        return parsed.filter((g) => g && g.name && Array.isArray(g.values) && g.values.length);
+    }
+
+    getMatrixDimensionKeys(variants, groups) {
+        if (groups.length > 1) {
+            return groups.map((g) => g.name);
+        }
+
+        const keys = new Set();
+        variants.forEach((v) => {
+            if (v.attributes && typeof v.attributes === 'object') {
+                Object.keys(v.attributes).forEach((k) => keys.add(k));
+            }
+        });
+
+        const keyList = [...keys];
+        const structural = keyList.filter((k) => {
+            const vals = new Set(variants.map((v) => v.attributes?.[k]).filter(Boolean));
+            return vals.size > 1;
+        });
+
+        return structural.length > 1 ? structural : [];
+    }
+
+    getUniqueAttributeValues(variants, key, groups) {
+        const fromGroup = groups.find((g) => g.name === key);
+        if (fromGroup && fromGroup.values.length) {
+            return fromGroup.values;
+        }
+        const vals = new Set();
+        variants.forEach((v) => {
+            const val = v.attributes?.[key];
+            if (val) vals.add(String(val));
+        });
+        return [...vals];
+    }
+
+    applyMatrixSelection(variants, matrixKeys) {
+        const match = variants.find((v) => {
+            if (!v.attributes) return false;
+            return matrixKeys.every((key) => {
+                const selected = this._matrixSelections[key];
+                return selected == null || String(v.attributes[key]) === String(selected);
+            });
+        });
+
+        if (match) {
+            this.selectedVariant = match;
+            this.updatePrice();
+            this.updateStockStatus();
+        }
+    }
+
+    formatVariantOptionLabel(variant) {
+        const name = variant.name || '';
+        if (/\$\s*[\d,.]+\s*$/.test(name)) return name;
+        return `${name} - ${this.formatPrice(variant.price)}`;
+    }
+
+    escapeHtml(str) {
+        return String(str || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+    }
+
+    escapeAttr(str) {
+        return String(str || '').replace(/"/g, '&quot;');
     }
 
     updateStockStatus() {
@@ -475,21 +624,7 @@ class ProductDetailPage {
             });
         }
 
-        // Variant selection
-        const variantSelect = document.getElementById('variant-select');
-        if (variantSelect) {
-            variantSelect.addEventListener('change', (e) => {
-                const variantId = e.target.value;
-                const variant = this.product.variants.find(v => String(v.id) === String(variantId));
-                if (variant) {
-                    this.selectedVariant = variant;
-                    this.updatePrice();
-                    this.updateStockStatus();
-                }
-            });
-        }
-
-        // Add to Cart
+        // Variant selection is bound in renderVariants() (single dropdown or matrix)
         const addToCartBtn = document.getElementById('add-to-cart-btn');
         if (addToCartBtn) {
             addToCartBtn.addEventListener('click', () => {

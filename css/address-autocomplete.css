@@ -3,12 +3,19 @@
     position: relative;
 }
 
+/* Elevate the whole field row so the dropdown stacks above fields below it. */
+.form-group.hm-address-ac-active,
+.form-group:has(.hm-address-autocomplete-wrap.is-open) {
+    position: relative;
+    z-index: 50;
+}
+
 .hm-address-suggest-list {
     position: absolute;
     left: 0;
     right: 0;
     top: calc(100% + 2px);
-    z-index: var(--z-popover, 1060);
+    z-index: 2;
     margin: 0;
     padding: 0.35rem 0;
     list-style: none;
@@ -22,6 +29,9 @@
 
 .hm-address-suggest-list[hidden] {
     display: none !important;
+    border: none;
+    box-shadow: none;
+    padding: 0;
 }
 
 .hm-address-suggest-item {

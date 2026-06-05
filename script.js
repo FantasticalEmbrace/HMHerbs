@@ -99,7 +99,9 @@ class HMHerbsApp {
 
             // Render initial content - wait for products to be loaded
             await this.renderSpotlightProducts();
-            if (typeof window.hmCompleteEdsaCrossPageNav === 'function') {
+            if (typeof window.hmCompleteCrossPageSectionNav === 'function') {
+                window.hmCompleteCrossPageSectionNav();
+            } else if (typeof window.hmCompleteEdsaCrossPageNav === 'function') {
                 window.hmCompleteEdsaCrossPageNav();
             }
             this.updateCartDisplay();
@@ -1642,11 +1644,16 @@ if ('scrollRestoration' in history) {
 (function () {
     let isInitialLoad = true;
 
-    const isEdsaCrossPageNav = () => {
+    const isSectionCrossPageNav = () => {
+        if (typeof window.hmIsSectionCrossPagePending === 'function') {
+            return window.hmIsSectionCrossPagePending();
+        }
         if (typeof window.hmIsEdsaCrossPagePending === 'function') {
             return window.hmIsEdsaCrossPagePending();
         }
         try {
+            const stored = sessionStorage.getItem('hmPendingSectionNav');
+            if (stored && stored.startsWith('#')) return true;
             return sessionStorage.getItem('hmPendingEdsaNav') === '1';
         } catch (_) {
             return false;
@@ -1655,7 +1662,7 @@ if ('scrollRestoration' in history) {
 
     // Ensure page starts at top on initial load/refresh only
     const ensureTopOnLoad = () => {
-        if (isEdsaCrossPageNav()) return;
+        if (isSectionCrossPageNav()) return;
         if (isInitialLoad && !window.location.hash) {
             window.scrollTo(0, 0);
             document.documentElement.scrollTop = 0;

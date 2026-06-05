@@ -767,7 +767,7 @@ a.auth-btn:focus-visible {
     -webkit-transform: none !important;
     filter: none;
     -webkit-filter: none;
-    overflow: auto;
+    overflow: hidden;
     overflow-x: hidden;
     overscroll-behavior: contain;
     display: flex;
@@ -935,16 +935,22 @@ a.auth-btn:focus-visible {
     border-radius: var(--radius-xl, 12px);
     box-shadow: var(--shadow-xl);
     padding: var(--space-6) var(--space-6) var(--space-5);
-    flex-shrink: 0;
+    flex-shrink: 1;
+    min-height: 0;
 }
 
 .acct-modal-backdrop .acct-modal {
     width: 100%;
     max-width: 520px;
-    max-height: min(90dvh, calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 32px));
+    max-height: calc(
+        100dvh
+        - max(var(--space-4), env(safe-area-inset-top, 0px))
+        - max(var(--space-4), env(safe-area-inset-bottom, 0px))
+    );
     overflow-x: hidden;
     overflow-y: auto;
-    margin: 0 auto;
+    margin: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 /* Pin close control to the card corner (hm-close-controls uses position: relative). */

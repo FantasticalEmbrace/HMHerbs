@@ -68,13 +68,10 @@ a[href*="edsa-manage-appointment"]:hover,
 .contact-item a:focus,
 .contact .contact-item a:hover,
 #contact .contact-item a:hover {
-  color: var(--primary-green) !important;
+  color: var(--primary-green-dark) !important;
   background: transparent !important;
   background-color: transparent !important;
-  text-decoration: underline !important;
-  text-decoration-color: var(--primary-green) !important;
-  text-decoration-thickness: 2px !important;
-  text-underline-offset: 3px;
+  text-decoration: none !important;
   box-shadow: none !important;
   padding: 0 !important;
   display: inline !important;

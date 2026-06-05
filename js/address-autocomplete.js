@@ -116,6 +116,8 @@
 
             list.setAttribute('role', 'listbox');
 
+            list.hidden = true;
+
             wrap.appendChild(list);
 
         }
@@ -144,6 +146,22 @@
 
 
 
+        function showList() {
+
+            list.hidden = false;
+
+            wrap.classList.add('is-open');
+
+            const formGroup = wrap.closest('.form-group');
+
+            if (formGroup) formGroup.classList.add('hm-address-ac-active');
+
+            line1.setAttribute('aria-expanded', 'true');
+
+        }
+
+
+
         function hideList() {
 
             list.hidden = true;
@@ -155,6 +173,12 @@
             suggestions = [];
 
             line1.removeAttribute('aria-expanded');
+
+            wrap.classList.remove('is-open');
+
+            const formGroup = wrap.closest('.form-group');
+
+            if (formGroup) formGroup.classList.remove('hm-address-ac-active');
 
         }
 
@@ -174,9 +198,7 @@
 
             list.appendChild(li);
 
-            list.hidden = false;
-
-            line1.setAttribute('aria-expanded', 'true');
+            showList();
 
         }
 
@@ -238,9 +260,7 @@
 
             });
 
-            list.hidden = false;
-
-            line1.setAttribute('aria-expanded', 'true');
+            showList();
 
         }
 
@@ -372,6 +392,7 @@
 
         });
 
+        hideList();
     }
 
 
