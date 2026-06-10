@@ -37,12 +37,12 @@
 
 .gift-type-tab:hover,
 .gift-type-tab:focus-visible {
-    border-color: var(--primary-green, #2d5a27);
+    border-color: var(--primary-green, #10b981);
 }
 
 .gift-type-tab.active {
-    background: var(--primary-green, #2d5a27);
-    border-color: var(--primary-green, #2d5a27);
+    background: var(--primary-green, #10b981);
+    border-color: var(--primary-green, #10b981);
     color: #fff;
 }
 
@@ -62,7 +62,7 @@
 
 .gift-card-visual-icon {
     font-size: 3rem;
-    color: var(--primary-green, #2d5a27);
+    color: var(--primary-green, #10b981);
     margin-bottom: 0.5rem;
 }
 
@@ -97,13 +97,13 @@
 
 .amount-btn:hover,
 .amount-btn:focus-visible {
-    border-color: var(--primary-green, #2d5a27);
+    border-color: var(--primary-green, #10b981);
 }
 
 .amount-btn.selected {
-    border-color: var(--primary-green, #2d5a27);
+    border-color: var(--primary-green, #10b981);
     background: rgba(45, 90, 39, 0.08);
-    color: var(--primary-green, #2d5a27);
+    color: var(--primary-green, #10b981);
 }
 
 .gift-form .form-group {
@@ -168,7 +168,7 @@
 
 .browse-card-gift .browse-card-icon {
     background: rgba(45, 90, 39, 0.12);
-    color: var(--primary-green, #2d5a27);
+    color: var(--primary-green, #10b981);
 }
 
 @media (min-width: 480px) {

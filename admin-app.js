@@ -127,6 +127,84 @@ class AdminApp {
         return 'badge-info';
     }
 
+    _formatOrderStatus(status) {
+        const labels = {
+            pending: 'Order placed',
+            processing: 'Processing',
+            label_created: 'Shipping label created',
+            shipped: 'Shipped',
+            in_transit: 'In transit',
+            delivered: 'Delivered',
+            cancelled: 'Cancelled',
+            refunded: 'Refunded',
+        };
+        const key = String(status || '').toLowerCase();
+        return labels[key] || key.replace(/_/g, ' ');
+    }
+
+    _formatFulfillmentStatus(status) {
+        const labels = {
+            unfulfilled: 'Awaiting fulfillment',
+            partial: 'Label created — awaiting carrier scan',
+            fulfilled: 'Fulfilled',
+        };
+        const key = String(status || '').toLowerCase();
+        return labels[key] || key;
+    }
+
+    _formatPaymentMethod(order) {
+        let method = String(order?.payment_method || '').trim().toLowerCase();
+        if (!method && order?.notes) {
+            const match = String(order.notes).match(/Payment method:\s*([a-z_]+)/i);
+            if (match) method = match[1].toLowerCase();
+        }
+        const labels = {
+            gift_card: 'Gift card',
+            card: 'Credit card',
+            credit_card: 'Credit card',
+            bank_account: 'Bank account',
+            nmi: 'Credit card',
+        };
+        return labels[method] || (method ? method.replace(/_/g, ' ') : '—');
+    }
+
+    _renderOrderProgress(order) {
+        const trackingLink = window.HMTrackingLink
+            ? window.HMTrackingLink.renderTrackingLink(order, (s) => this.escapeHtml(s), {
+                empty: '<span style="color:var(--gray-500);">—</span>',
+            })
+            : (order.tracking_url && order.tracking_number
+                ? `<a href="${this.escapeHtml(order.tracking_url)}" target="_blank" rel="noopener" style="color:var(--primary-green);font-weight:600;">${this.escapeHtml(order.tracking_number)}</a>`
+                : '<span style="color:var(--gray-500);">—</span>');
+        const steps = [
+            { key: 'placed', label: 'Order placed', done: true, at: order.created_at },
+            { key: 'label', label: 'Shipping label created', done: !!order.label_created_at || !!order.label_url, at: order.label_created_at },
+            { key: 'shipped', label: 'Shipped', done: ['shipped', 'in_transit', 'delivered'].includes(String(order.status || '').toLowerCase()), at: order.shipped_at },
+            { key: 'delivered', label: 'Delivered', done: String(order.status || '').toLowerCase() === 'delivered', at: order.delivered_at },
+        ];
+        const timeline = steps.map((step) => `
+            <div style="display:flex;gap:0.75rem;align-items:flex-start;margin-bottom:0.5rem;">
+                <span style="width:10px;height:10px;border-radius:50%;margin-top:0.35rem;flex-shrink:0;background:${step.done ? 'var(--primary-green)' : 'var(--gray-300)'};"></span>
+                <div>
+                    <div style="font-weight:${step.done ? '600' : '400'};color:${step.done ? 'var(--gray-800)' : 'var(--gray-500)'};">${this.escapeHtml(step.label)}</div>
+                    ${step.at ? `<div style="font-size:0.8rem;color:var(--gray-500);">${this.formatAdminDateTime(step.at)}</div>` : ''}
+                </div>
+            </div>`).join('');
+
+        return `
+            <div style="padding:1rem;background:var(--gray-50);border:1px solid var(--gray-200);border-radius:8px;">
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;margin-bottom:1rem;">
+                    <div><div style="font-size:0.75rem;color:var(--gray-500);text-transform:uppercase;">Status</div><div style="font-weight:600;">${this.escapeHtml(this._formatOrderStatus(order.status))}</div></div>
+                    <div><div style="font-size:0.75rem;color:var(--gray-500);text-transform:uppercase;">Fulfillment</div><div>${this.escapeHtml(this._formatFulfillmentStatus(order.fulfillment_status))}</div></div>
+                    <div><div style="font-size:0.75rem;color:var(--gray-500);text-transform:uppercase;">Payment</div><div>${this.escapeHtml(order.payment_status || '—')}${order.payment_method || (order.notes && /Payment method:/i.test(order.notes)) ? ` · ${this.escapeHtml(this._formatPaymentMethod(order))}` : ''}</div></div>
+                    <div><div style="font-size:0.75rem;color:var(--gray-500);text-transform:uppercase;">Tracking</div><div>${trackingLink}</div></div>
+                </div>
+                ${order.tracking_status_detail ? `<p style="margin:0 0 1rem;font-size:0.9rem;color:var(--gray-700);"><strong>Carrier update:</strong> ${this.escapeHtml(order.tracking_status_detail)}${order.tracking_status_updated_at ? ` <span style="color:var(--gray-500);">(${this.formatAdminDateTime(order.tracking_status_updated_at)})</span>` : ''}</p>` : ''}
+                <div style="border-top:1px solid var(--gray-200);padding-top:0.75rem;">${timeline}</div>
+                <p style="font-size:0.8rem;color:var(--gray-500);margin:0.75rem 0 0;">Status and tracking update automatically from Shippo when labels are created and carriers scan packages.</p>
+            </div>`;
+    }
+
     _mountAdminModal(html) {
         const root = document.getElementById('adminModalRoot');
         if (!root) return null;
@@ -177,6 +255,32 @@ class AdminApp {
             : '<div style="color:var(--gray-500);">—</div>';
     }
 
+    async refreshOrderProgressPanel(orderId, modal) {
+        if (!modal) return;
+        try {
+            const data = await this.apiRequest(`/admin/orders/${orderId}`);
+            if (!data?.order) return;
+            const panel = modal.querySelector('#order-progress-panel');
+            if (panel) {
+                panel.innerHTML = `
+                    <h4 style="margin:1rem 0 0.75rem;color:var(--gray-800);">Order progress</h4>
+                    ${this._renderOrderProgress(data.order)}`;
+            }
+            const badges = modal.querySelector('.modal-content > div:first-child .badge');
+            // refresh header badges
+            const headerBadges = modal.querySelectorAll('.modal-content > div:first-child span.badge');
+            if (headerBadges.length >= 1) {
+                headerBadges[0].textContent = this._formatOrderStatus(data.order.status);
+                headerBadges[0].className = `badge ${this._orderStatusBadgeClass(data.order.status)}`;
+            }
+            if (headerBadges.length >= 3 && data.order.fulfillment_status) {
+                headerBadges[2].textContent = this._formatFulfillmentStatus(data.order.fulfillment_status);
+            }
+        } catch (_) {
+            /* non-fatal */
+        }
+    }
+
     async showOrderDetail(orderId) {
         if (!this.authToken) {
             this.showNotification('Please log in to view orders.', 'error');
@@ -219,9 +323,9 @@ class AdminApp {
                         <h3 style="margin:0 0 0.35rem;color:var(--primary-green);">Order <code>${this.escapeHtml(order.order_number)}</code></h3>
                         <div style="font-size:0.85rem;color:var(--gray-500);">${this.formatAdminDateTime(order.created_at)}</div>
                         <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-top:0.75rem;">
-                            <span class="badge ${this._orderStatusBadgeClass(order.status)}">${this.escapeHtml(order.status)}</span>
+                            <span class="badge ${this._orderStatusBadgeClass(order.status)}">${this.escapeHtml(this._formatOrderStatus(order.status))}</span>
                             <span class="badge ${order.payment_status === 'paid' ? 'badge-success' : 'badge-warning'}">${this.escapeHtml(order.payment_status)}</span>
-                            ${order.fulfillment_status ? `<span class="badge badge-info">${this.escapeHtml(order.fulfillment_status)}</span>` : ''}
+                            ${order.fulfillment_status ? `<span class="badge badge-info">${this.escapeHtml(this._formatFulfillmentStatus(order.fulfillment_status))}</span>` : ''}
                         </div>
                     </div>
                     ${closeBtn}
@@ -263,51 +367,24 @@ class AdminApp {
                     ${itemsHtml}
                 </div>
 
-                <form id="orderDetailForm" style="padding:0 1.5rem 1.5rem;border-top:1px solid var(--gray-200);">
-                    <h4 style="margin:1rem 0 0.75rem;color:var(--gray-800);">Update order</h4>
-                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;">
-                        <div class="form-group">
-                            <label for="order-edit-status">Status</label>
-                            <select class="form-input" id="order-edit-status" name="status">
-                                ${['pending', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'].map((s) =>
-                                    `<option value="${s}" ${order.status === s ? 'selected' : ''}>${s}</option>`).join('')}
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="order-edit-payment">Payment</label>
-                            <select class="form-input" id="order-edit-payment" name="payment_status">
-                                ${['pending', 'paid', 'failed', 'refunded'].map((s) =>
-                                    `<option value="${s}" ${order.payment_status === s ? 'selected' : ''}>${s}</option>`).join('')}
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="order-edit-fulfillment">Fulfillment</label>
-                            <select class="form-input" id="order-edit-fulfillment" name="fulfillment_status">
-                                ${['unfulfilled', 'partial', 'fulfilled'].map((s) =>
-                                    `<option value="${s}" ${order.fulfillment_status === s ? 'selected' : ''}>${s}</option>`).join('')}
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="order-edit-tracking">Tracking #</label>
-                            <input class="form-input" id="order-edit-tracking" name="tracking_number" value="${this.escapeHtml(order.tracking_number || '')}">
-                        </div>
-                        <div class="form-group" style="grid-column:1/-1;">
-                            <label for="order-edit-tracking-url">Tracking URL</label>
-                            <input class="form-input" id="order-edit-tracking-url" name="tracking_url" value="${this.escapeHtml(order.tracking_url || '')}">
-                        </div>
-                        <div class="form-group" style="grid-column:1/-1;">
-                            <label for="order-edit-notes">Notes</label>
-                            <textarea class="form-input" id="order-edit-notes" name="notes" rows="3">${this.escapeHtml(order.notes || '')}</textarea>
-                        </div>
-                    </div>
-                    <div style="display:flex;justify-content:flex-end;gap:0.5rem;margin-top:1rem;">
-                        <button type="button" class="btn btn-secondary" onclick="this.closest('.modal').remove()">Close</button>
-                        <button type="submit" class="btn btn-primary" id="orderDetailSaveBtn">Save changes</button>
-                    </div>
-                </form>
+                <div id="order-progress-panel" style="padding:0 1.5rem 1.5rem;border-top:1px solid var(--gray-200);">
+                    <h4 style="margin:1rem 0 0.75rem;color:var(--gray-800);">Order progress</h4>
+                    ${this._renderOrderProgress(order)}
+                </div>
+
+                <div id="order-shipping-fulfillment" style="padding:0 1.5rem 1.5rem;border-top:1px solid var(--gray-200);"></div>
+
+                <div style="padding:0 1.5rem 1.5rem;display:flex;justify-content:flex-end;">
+                    <button type="button" class="btn btn-secondary" onclick="this.closest('.modal').remove()">Close</button>
+                </div>
             `);
 
             if (!modal) return;
+
+            const shipSlot = modal.querySelector('#order-shipping-fulfillment');
+            if (shipSlot && window.HMShippingFulfillment) {
+                void window.HMShippingFulfillment.mount(orderId, shipSlot, this, modal);
+            }
 
             const viewCustomerBtn = modal.querySelector('#orderViewCustomerBtn');
             if (viewCustomerBtn && order.user_id && typeof this.showCustomerProfile === 'function') {
@@ -317,43 +394,6 @@ class AdminApp {
                 });
             }
 
-            const form = modal.querySelector('#orderDetailForm');
-            if (form) {
-                form.addEventListener('submit', async (e) => {
-                    e.preventDefault();
-                    const saveBtn = modal.querySelector('#orderDetailSaveBtn');
-                    if (saveBtn) {
-                        saveBtn.disabled = true;
-                        saveBtn.textContent = 'Saving…';
-                    }
-                    try {
-                        const payload = {
-                            status: form.status.value,
-                            payment_status: form.payment_status.value,
-                            fulfillment_status: form.fulfillment_status.value,
-                            tracking_number: form.tracking_number.value,
-                            tracking_url: form.tracking_url.value,
-                            notes: form.notes.value,
-                        };
-                        const updated = await this.apiRequest(`/admin/orders/${orderId}`, {
-                            method: 'PATCH',
-                            body: JSON.stringify(payload),
-                        });
-                        if (updated) {
-                            this.showNotification('Order updated', 'success');
-                            modal.remove();
-                            await this.loadOrders();
-                        }
-                    } catch (err) {
-                        this.showNotification(err.message || 'Failed to update order', 'error');
-                    } finally {
-                        if (saveBtn) {
-                            saveBtn.disabled = false;
-                            saveBtn.textContent = 'Save changes';
-                        }
-                    }
-                });
-            }
         } catch (error) {
             this.showNotification(error.message || 'Failed to load order', 'error');
         }
@@ -1475,7 +1515,7 @@ class AdminApp {
                 const v = (document.getElementById('promo-icon-url')?.value || '').trim().slice(0, 200);
                 return /^\/uploads\/promo-icons\/[a-zA-Z0-9._-]+$/.test(v) ? v : '';
             })(),
-            customBg: (document.getElementById('promo-custom-bg')?.value || '#2d5a27').trim(),
+            customBg: (document.getElementById('promo-custom-bg')?.value || '#10b981').trim(),
             customText: (document.getElementById('promo-custom-text')?.value || '#ffffff').trim(),
             customAccent: (document.getElementById('promo-custom-accent')?.value || '#fbbf24').trim(),
         };
@@ -1497,7 +1537,7 @@ class AdminApp {
         if (el('promo-link-label')) el('promo-link-label').value = cfg.linkLabel || '';
         if (el('promo-icon')) el('promo-icon').value = cfg.icon || '';
         if (el('promo-icon-url')) el('promo-icon-url').value = cfg.iconUrl || '';
-        if (el('promo-custom-bg')) el('promo-custom-bg').value = cfg.customBg || '#2d5a27';
+        if (el('promo-custom-bg')) el('promo-custom-bg').value = cfg.customBg || '#10b981';
         if (el('promo-custom-text')) el('promo-custom-text').value = cfg.customText || '#ffffff';
         if (el('promo-custom-accent')) el('promo-custom-accent').value = cfg.customAccent || '#fbbf24';
         this._togglePromoCustomColors();
@@ -4553,8 +4593,8 @@ class AdminApp {
                                 <td>${this.escapeHtml((order.shipping_first_name || '') + ' ' + (order.shipping_last_name || ''))}</td>
                                 <td>${this.escapeHtml(order.email)}</td>
                                 <td>
-                                    <span class="badge ${order.status === 'completed' ? 'badge-success' : order.status === 'pending' ? 'badge-warning' : 'badge-info'}">
-                                        ${this.escapeHtml(order.status)}
+                                    <span class="badge ${this._orderStatusBadgeClass(order.status)}">
+                                        ${this.escapeHtml(this._formatOrderStatus(order.status))}
                                     </span>
                                 </td>
                                 <td>
@@ -6963,7 +7003,7 @@ class AdminApp {
             color: 'white',
             backgroundColor: type === 'success' ? 'var(--success)' : type === 'error' ? 'var(--error)' : 'var(--info)',
             boxShadow: 'var(--shadow-lg)',
-            zIndex: '9999',
+            zIndex: '15000',
             transform: 'translateX(100%)',
             transition: 'transform 0.3s ease'
         });

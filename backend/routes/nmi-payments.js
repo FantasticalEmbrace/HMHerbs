@@ -19,12 +19,12 @@ const {
 
 const router = express.Router();
 
-/** Payment method is stored in orders.notes (no payment_method column). */
 function getOrderPaymentMethod(orderRow) {
+    const fromColumn = String(orderRow?.payment_method || '').trim().toLowerCase();
+    if (fromColumn) return fromColumn;
     const notes = String(orderRow?.notes || '');
     const match = notes.match(/Payment method:\s*([a-z_]+)/i);
-    if (match) return match[1].toLowerCase();
-    return String(orderRow?.payment_method || '').toLowerCase();
+    return match ? match[1].toLowerCase() : '';
 }
 
 async function getAuthenticatedUserFromRequest(req) {

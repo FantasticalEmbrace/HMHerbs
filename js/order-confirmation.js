@@ -63,14 +63,14 @@ function renderConfirmation(root, data) {
            </div>`
         : '';
 
-    const trackingRow = tracking
-        ? `<dt>Tracking number</dt>
-           <dd class="tracking-highlight">${escapeHtml(tracking)}</dd>
-           ${
-               trackingUrl
-                   ? `<dt>Track shipment</dt><dd><a href="${escapeHtml(trackingUrl)}">View tracking</a></dd>`
-                   : ''
-           }`
+    const trackingRow = tracking && trackingUrl
+        ? `<dt>Tracking</dt>
+           <dd class="tracking-highlight"><a href="${escapeHtml(trackingUrl)}" target="_blank" rel="noopener">${escapeHtml(tracking)}</a></dd>`
+        : tracking && !/^HMTRK/i.test(tracking)
+          ? `<dt>Tracking number</dt><dd class="tracking-highlight">${escapeHtml(tracking)}</dd>`
+          : null;
+    const trackingSection = trackingRow != null
+        ? trackingRow
         : paid
           ? `<dt>Tracking</dt><dd>We will send tracking updates by email when your package ships.</dd>`
           : '';
@@ -94,7 +94,7 @@ function renderConfirmation(root, data) {
                 <dd>${escapeHtml(data.orderNumber || data.orderId)}</dd>
                 <dt>Order total</dt>
                 <dd>${formatMoney(data.totalAmount)}</dd>
-                ${trackingRow}
+                ${trackingSection}
             </dl>
             ${itemsHtml}
         </div>

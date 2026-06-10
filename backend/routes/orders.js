@@ -75,12 +75,9 @@ function generateOrderNumber() {
     return `HM${y}${m}${day}-${seq}`;
 }
 
-function buildOrderNotes(paymentMethod, orderNotes) {
-    const parts = [];
+function buildOrderNotes(orderNotes) {
     const note = String(orderNotes || '').trim();
-    if (note) parts.push(note);
-    if (paymentMethod) parts.push(`Payment method: ${paymentMethod}`);
-    return parts.length ? parts.join('\n\n') : null;
+    return note || null;
 }
 
 function normalizeCustomerInfo(customerInfo = {}) {
@@ -142,7 +139,9 @@ router.post('/', async (req, res) => {
             promoCode: rawPromoCode,
             awaitingNmiPayment,
             giftCard: rawGiftCard,
-            orderNotes: rawOrderNotes
+            orderNotes: rawOrderNotes,
+            shippingMethod: rawShippingMethod,
+            shippingAmount: rawShippingAmount,
         } = req.body || {};
 
         const deferCartClear = Boolean(awaitingNmiPayment);
@@ -206,7 +205,9 @@ router.post('/', async (req, res) => {
                 promoCode: String(rawPromoCode || '').trim(),
                 email: orderEmail,
                 applyTaxExemption,
-                customerType: authUser?.customer_type
+                customerType: authUser?.customer_type,
+                shippingMethod: String(rawShippingMethod || '').trim() || undefined,
+                shippingAmount: rawShippingAmount != null ? Number(rawShippingAmount) : undefined,
             });
         } catch (promoErr) {
             const mapped = mapCheckoutPromoHttpError(promoErr);
@@ -227,7 +228,8 @@ router.post('/', async (req, res) => {
         const computedShipping = Number(t.shippingAfter) || 0;
         const computedTotal = Number(t.totalAmount) || 0;
         const orderNumber = generateOrderNumber();
-        const orderNotes = buildOrderNotes(paymentMethod, rawOrderNotes);
+        const orderNotes = buildOrderNotes(rawOrderNotes);
+        const storedPaymentMethod = String(paymentMethod || '').trim().toLowerCase() || null;
 
         // Start transaction
         const connection = await req.pool.getConnection();
@@ -265,8 +267,10 @@ router.post('/', async (req, res) => {
                     billing_country,
                     web_promotion_id,
                     promo_code,
-                    notes
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    notes,
+                    shipping_method,
+                    payment_method
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `,
                 sqlBinds([
                     orderNumber,
@@ -297,7 +301,9 @@ router.post('/', async (req, res) => {
                     bill.country,
                     checkout.promotion ? checkout.promotion.id : null,
                     checkout.promotion ? String(checkout.promotion.code) : null,
-                    orderNotes
+                    orderNotes,
+                    String(rawShippingMethod || '').trim() || null,
+                    storedPaymentMethod
                 ])
             );
 
@@ -581,6 +587,8 @@ router.get('/:orderId/confirmation-summary', async (req, res) => {
             [orderId]
         );
 
+        const { resolveTrackingInfo } = require('../utils/trackingUrl');
+        const tracking = resolveTrackingInfo(order);
         res.json({
             orderId: order.id,
             orderNumber: order.order_number,
@@ -588,8 +596,8 @@ router.get('/:orderId/confirmation-summary', async (req, res) => {
             status: order.status,
             paymentStatus: order.payment_status,
             totalAmount: Number(order.total_amount),
-            trackingNumber: order.tracking_number,
-            trackingUrl: order.tracking_url,
+            trackingNumber: tracking.tracking_number,
+            trackingUrl: tracking.tracking_url,
             createdAt: order.created_at,
             customerName: [order.shipping_first_name, order.shipping_last_name].filter(Boolean).join(' '),
             items: items.map((row) => ({

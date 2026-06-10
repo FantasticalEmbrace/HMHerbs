@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin sign-in — HM Herbs</title>
+    <link rel="stylesheet" href="css/brand-tokens.css">
     <style>
         body {
             font-family: Inter, system-ui, sans-serif;
@@ -12,7 +13,7 @@
             justify-content: center;
             min-height: 100vh;
             margin: 0;
-            background: linear-gradient(135deg, #2d5a27 0%, #1d3a17 100%);
+            background: linear-gradient(135deg, var(--brand-sidebar-from) 0%, var(--brand-sidebar-to) 100%);
             color: #fff;
         }
         .box {
@@ -24,7 +25,7 @@
             text-align: center;
         }
         .error { color: #dc2626; }
-        a { color: #2d5a27; }
+        a { color: var(--brand-primary); }
     </style>
 </head>
 <body>

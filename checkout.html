@@ -181,7 +181,7 @@
         }
 
         .gift-card-manual-toggle:hover {
-            color: var(--secondary-sage, #3d7a35);
+            color: var(--secondary-sage, #6ee7b7);
         }
 
         /* NMI Collect.js: one outer border on .nmi-field-host; iframes stay borderless inside */
@@ -968,6 +968,11 @@
                                 <button type="button" class="btn btn-secondary" id="checkout-apply-promo" style="white-space:nowrap;">Apply</button>
                             </div>
                             <small id="checkout-promo-feedback" style="display:block; margin-top:0.35rem; min-height:1.1rem; color: var(--gray-600);"></small>
+                        </div>
+                        <div id="checkout-shipping-methods" class="checkout-shipping-methods" style="display:none;margin-bottom:var(--space-4);">
+                            <h3 style="font-size:1rem;margin:0 0 0.75rem;color:var(--gray-800);">Shipping method</h3>
+                            <div id="checkout-shipping-options" class="checkout-shipping-options" role="radiogroup" aria-label="Shipping method"></div>
+                            <small id="checkout-shipping-note" style="display:block;margin-top:0.5rem;color:var(--gray-500);"></small>
                         </div>
                         <div class="order-totals">
                             <div class="order-total-row">

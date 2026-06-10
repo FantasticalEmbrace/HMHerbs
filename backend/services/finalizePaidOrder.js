@@ -2,7 +2,6 @@
 
 const logger = require('../utils/logger');
 const InventoryService = require('./inventory');
-const { generateTrackingNumber } = require('../utils/generateTrackingNumber');
 const { sendOrderConfirmationEmail } = require('./orderConfirmationEmail');
 const { fulfillGiftCardsForOrder } = require('./giftCardFulfillment');
 
@@ -53,8 +52,6 @@ async function finalizePaidOrder(pool, { orderId, paymentId, paymentStatus }) {
     }
 
     const orderRow = orders[0];
-    const trackingNumber =
-        String(orderRow.tracking_number || '').trim() || generateTrackingNumber();
 
     const [orderItems] = await pool.execute(
         `
@@ -76,19 +73,17 @@ async function finalizePaidOrder(pool, { orderId, paymentId, paymentStatus }) {
                 `UPDATE orders
                     SET status = 'processing',
                         payment_status = ?,
-                        tracking_number = COALESCE(NULLIF(TRIM(tracking_number), ''), ?),
-                        notes = CONCAT(COALESCE(notes, ''), IF(COALESCE(notes, '') = '', '', '\n'), ?)
+                        payment_reference = ?
                   WHERE id = ? AND status = 'pending'`,
-                [paidStatus, trackingNumber, `Payment reference: ${paymentId}`, oid]
+                [paidStatus, String(paymentId).trim(), oid]
             );
         } else {
             await connection.execute(
                 `UPDATE orders
                     SET status = 'processing',
-                        payment_status = ?,
-                        tracking_number = COALESCE(NULLIF(TRIM(tracking_number), ''), ?)
+                        payment_status = ?
                   WHERE id = ? AND status = 'pending'`,
-                [paidStatus, trackingNumber, oid]
+                [paidStatus, oid]
             );
         }
 
@@ -123,7 +118,6 @@ async function finalizePaidOrder(pool, { orderId, paymentId, paymentStatus }) {
         return {
             orderId: oid,
             orderNumber: orderRow.order_number,
-            trackingNumber
         };
     } catch (e) {
         await connection.rollback();

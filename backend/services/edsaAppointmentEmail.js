@@ -110,7 +110,7 @@ async function sendBookingReceivedEmail(booking) {
     const subject = `H&M Herbs — EDSA appointment request #${booking.bookingId}`;
     const html = `
         <div style="font-family:Inter,system-ui,sans-serif;color:#111827;max-width:560px;">
-            <h2 style="color:#2d5a27;margin:0 0 8px;">Your EDSA appointment request is received</h2>
+            <h2 style="color:#10b981;margin:0 0 8px;">Your EDSA appointment request is received</h2>
             <p>Hello ${escapeHtml(name)},</p>
             <p>Thank you for booking with H&amp;M Herbs &amp; Vitamins. We have your request and will contact you if any changes are needed.</p>
             <p><strong>Confirmation #:</strong> ${escapeHtml(booking.bookingId)}<br>
@@ -118,8 +118,8 @@ async function sendBookingReceivedEmail(booking) {
                <strong>Time:</strong> ${escapeHtml(timeText)}<br>
                <strong>Location:</strong> 1140 Battlefield Pkwy, Fort Oglethorpe, GA 30742</p>
             <p>
-              <a href="${escapeHtml(links.confirmation)}" style="background:#2d5a27;color:#fff;padding:10px 20px;text-decoration:none;border-radius:5px;display:inline-block;margin-right:8px;">View confirmation</a>
-              <a href="${escapeHtml(links.manage)}" style="background:#fff;color:#2d5a27;padding:10px 20px;text-decoration:none;border-radius:5px;border:1px solid #2d5a27;display:inline-block;">Change or cancel</a>
+              <a href="${escapeHtml(links.confirmation)}" style="background:#10b981;color:#fff;padding:10px 20px;text-decoration:none;border-radius:5px;display:inline-block;margin-right:8px;">View confirmation</a>
+              <a href="${escapeHtml(links.manage)}" style="background:#fff;color:#10b981;padding:10px 20px;text-decoration:none;border-radius:5px;border:1px solid #10b981;display:inline-block;">Change or cancel</a>
             </p>
             <p style="font-size:13px;color:#6b7280;">Questions? Call us at (706) 861-9454.</p>
         </div>`;
@@ -144,7 +144,7 @@ async function sendBookingReceivedStoreEmail(booking) {
     const subject = `[EDSA] New booking #${booking.bookingId} — ${customerName}`;
     const html = `
         <div style="font-family:Inter,system-ui,sans-serif;color:#111827;max-width:560px;">
-            <h2 style="color:#2d5a27;margin:0 0 8px;">New EDSA appointment booked online</h2>
+            <h2 style="color:#10b981;margin:0 0 8px;">New EDSA appointment booked online</h2>
             <p><strong>#${escapeHtml(booking.bookingId)}</strong> — ${escapeHtml(customerName)}<br>
                ${escapeHtml(when)}<br>
                ${escapeHtml(booking.email)} · ${escapeHtml(booking.phone || '—')}</p>
@@ -170,7 +170,7 @@ function storeAdminLinkHtml(bookingId) {
     const id = Number(bookingId);
     const query = Number.isFinite(id) && id > 0 ? `?booking=${id}` : '';
     const adminLink = `${base}${query}#edsa`;
-    return `<p><a href="${escapeHtml(adminLink)}" style="background:#2d5a27;color:#fff;padding:10px 20px;text-decoration:none;border-radius:5px;display:inline-block;">Open admin — EDSA bookings</a></p>`;
+    return `<p><a href="${escapeHtml(adminLink)}" style="background:#10b981;color:#fff;padding:10px 20px;text-decoration:none;border-radius:5px;display:inline-block;">Open admin — EDSA bookings</a></p>`;
 }
 
 /** Customer cancelled online — immediate confirmation. */
@@ -183,11 +183,11 @@ async function sendAppointmentCancelledEmail(booking) {
     const subject = `H&M Herbs — EDSA appointment cancelled (#${booking.bookingId})`;
     const html = `
         <div style="font-family:Inter,system-ui,sans-serif;color:#111827;max-width:560px;">
-            <h2 style="color:#2d5a27;margin:0 0 8px;">Your appointment is cancelled</h2>
+            <h2 style="color:#10b981;margin:0 0 8px;">Your appointment is cancelled</h2>
             <p>Hello ${escapeHtml(name)},</p>
             <p>Confirmation #${escapeHtml(booking.bookingId)} for <strong>${escapeHtml(when)}</strong> has been cancelled as you requested.</p>
             <p>To book a new session, visit our website or call (706) 861-9454.</p>
-            <p><a href="${escapeHtml(`${getStorefrontPublicBaseUrl()}/index.html`)}" style="background:#2d5a27;color:#fff;padding:10px 20px;text-decoration:none;border-radius:5px;display:inline-block;">Visit H&amp;M Herbs</a></p>
+            <p><a href="${escapeHtml(`${getStorefrontPublicBaseUrl()}/index.html`)}" style="background:#10b981;color:#fff;padding:10px 20px;text-decoration:none;border-radius:5px;display:inline-block;">Visit H&amp;M Herbs</a></p>
         </div>`;
     const text = [`Your EDSA appointment #${booking.bookingId} (${when}) is cancelled.`, `Book again: ${getStorefrontPublicBaseUrl()}`].join('\n');
     await sendEmail({ to: email, subject, html, text, logTag: 'EDSA cancellation email' });
@@ -201,7 +201,7 @@ async function sendAppointmentCancelledStoreEmail(booking) {
     const subject = `[EDSA] Cancelled #${booking.bookingId} — ${customerName}`;
     const html = `
         <div style="font-family:Inter,system-ui,sans-serif;color:#111827;max-width:560px;">
-            <h2 style="color:#2d5a27;margin:0 0 8px;">EDSA appointment cancelled online</h2>
+            <h2 style="color:#10b981;margin:0 0 8px;">EDSA appointment cancelled online</h2>
             <p><strong>#${escapeHtml(booking.bookingId)}</strong> — ${escapeHtml(customerName)}<br>
                ${escapeHtml(when)}<br>
                ${escapeHtml(booking.email)} · ${escapeHtml(booking.phone || '—')}</p>
@@ -221,13 +221,13 @@ async function sendAppointmentRescheduledEmail(booking, previousDate, previousTi
     const subject = `H&M Herbs — EDSA appointment rescheduled (#${booking.bookingId})`;
     const html = `
         <div style="font-family:Inter,system-ui,sans-serif;color:#111827;max-width:560px;">
-            <h2 style="color:#2d5a27;margin:0 0 8px;">Your appointment is rescheduled</h2>
+            <h2 style="color:#10b981;margin:0 0 8px;">Your appointment is rescheduled</h2>
             <p>Hello ${escapeHtml(name)},</p>
             <p>Confirmation #${escapeHtml(booking.bookingId)} is updated:</p>
             <p><strong>Previous:</strong> ${escapeHtml(oldWhen)}<br>
                <strong>New:</strong> ${escapeHtml(newWhen)}</p>
-            <p><a href="${escapeHtml(links.confirmation)}" style="background:#2d5a27;color:#fff;padding:10px 20px;text-decoration:none;border-radius:5px;display:inline-block;margin-right:8px;">View confirmation</a>
-               <a href="${escapeHtml(links.manage)}" style="color:#2d5a27;">Manage appointment</a></p>
+            <p><a href="${escapeHtml(links.confirmation)}" style="background:#10b981;color:#fff;padding:10px 20px;text-decoration:none;border-radius:5px;display:inline-block;margin-right:8px;">View confirmation</a>
+               <a href="${escapeHtml(links.manage)}" style="color:#10b981;">Manage appointment</a></p>
         </div>`;
     const text = [`Appointment #${booking.bookingId} rescheduled.`, `Was: ${oldWhen}`, `Now: ${newWhen}`, links.confirmation].join('\n');
     await sendEmail({ to: email, subject, html, text, logTag: 'EDSA reschedule email' });
@@ -242,7 +242,7 @@ async function sendAppointmentRescheduledStoreEmail(booking, previousDate, previ
     const subject = `[EDSA] Rescheduled #${booking.bookingId} — ${customerName}`;
     const html = `
         <div style="font-family:Inter,system-ui,sans-serif;color:#111827;max-width:560px;">
-            <h2 style="color:#2d5a27;margin:0 0 8px;">EDSA appointment rescheduled online</h2>
+            <h2 style="color:#10b981;margin:0 0 8px;">EDSA appointment rescheduled online</h2>
             <p><strong>#${escapeHtml(booking.bookingId)}</strong> — ${escapeHtml(customerName)}<br>
                Was: ${escapeHtml(oldWhen)}<br>
                Now: <strong>${escapeHtml(newWhen)}</strong><br>
@@ -260,11 +260,11 @@ async function sendChangeRequestReceivedEmail(booking, requestType) {
     const subject = `H&M Herbs — We received your ${label} request`;
     const html = `
         <div style="font-family:Inter,system-ui,sans-serif;color:#111827;max-width:560px;">
-            <h2 style="color:#2d5a27;margin:0 0 8px;">We received your ${escapeHtml(label)} request</h2>
+            <h2 style="color:#10b981;margin:0 0 8px;">We received your ${escapeHtml(label)} request</h2>
             <p>Confirmation #${escapeHtml(booking.bookingId)} for ${escapeHtml(formatDate(booking.preferredDate))} at ${escapeHtml(formatTime(booking.preferredTime))} is now in review.</p>
             ${extra}
             <p>Our team will confirm by email or phone shortly.</p>
-            <p><a href="${escapeHtml(links.manage)}" style="background:#2d5a27;color:#fff;padding:10px 20px;text-decoration:none;border-radius:5px;display:inline-block;">Manage appointment</a></p>
+            <p><a href="${escapeHtml(links.manage)}" style="background:#10b981;color:#fff;padding:10px 20px;text-decoration:none;border-radius:5px;display:inline-block;">Manage appointment</a></p>
         </div>`;
     const text = [
         `We received your ${label} request.`,
@@ -297,7 +297,7 @@ async function sendChangeRequestStoreNotificationEmail(booking, requestType) {
     const subject = `[EDSA] ${label} request #${booking.bookingId} — ${customerName}`;
     const html = `
         <div style="font-family:Inter,system-ui,sans-serif;color:#111827;max-width:560px;">
-            <h2 style="color:#2d5a27;margin:0 0 8px;">EDSA ${escapeHtml(label)} request</h2>
+            <h2 style="color:#10b981;margin:0 0 8px;">EDSA ${escapeHtml(label)} request</h2>
             <p><strong>Confirmation #:</strong> ${escapeHtml(booking.bookingId)}<br>
                <strong>Customer:</strong> ${escapeHtml(customerName)}<br>
                <strong>Email:</strong> ${escapeHtml(booking.email)}<br>
@@ -342,10 +342,10 @@ async function sendAdminResolutionEmail(booking) {
         : `${formatDate(booking.preferredDate)} at ${formatTime(booking.preferredTime)}`;
     const html = `
         <div style="font-family:Inter,system-ui,sans-serif;color:#111827;max-width:560px;">
-            <h2 style="color:#2d5a27;margin:0 0 8px;">Your EDSA appointment was ${escapeHtml(statusLabel)}</h2>
+            <h2 style="color:#10b981;margin:0 0 8px;">Your EDSA appointment was ${escapeHtml(statusLabel)}</h2>
             <p><strong>Confirmation #:</strong> ${escapeHtml(booking.bookingId)}<br>
                <strong>Appointment:</strong> ${escapeHtml(when)}</p>
-            <p><a href="${escapeHtml(links.confirmation)}" style="background:#2d5a27;color:#fff;padding:10px 20px;text-decoration:none;border-radius:5px;display:inline-block;">View details</a></p>
+            <p><a href="${escapeHtml(links.confirmation)}" style="background:#10b981;color:#fff;padding:10px 20px;text-decoration:none;border-radius:5px;display:inline-block;">View details</a></p>
         </div>`;
     const text = [
         `Your EDSA appointment was ${statusLabel}.`,
@@ -366,11 +366,11 @@ async function sendStaffCancelledCustomerEmail(booking) {
     const subject = `H&M Herbs — Your EDSA appointment was cancelled (#${booking.bookingId})`;
     const html = `
         <div style="font-family:Inter,system-ui,sans-serif;color:#111827;max-width:560px;">
-            <h2 style="color:#2d5a27;margin:0 0 8px;">Your appointment was cancelled</h2>
+            <h2 style="color:#10b981;margin:0 0 8px;">Your appointment was cancelled</h2>
             <p>Hello ${escapeHtml(name)},</p>
             <p>H&amp;M Herbs &amp; Vitamins has cancelled your EDSA session scheduled for <strong>${escapeHtml(when)}</strong> (confirmation #${escapeHtml(booking.bookingId)}).</p>
             <p>Questions or want to rebook? Call us at (706) 861-9454 or visit our website.</p>
-            <p><a href="${escapeHtml(`${getStorefrontPublicBaseUrl()}/index.html`)}" style="background:#2d5a27;color:#fff;padding:10px 20px;text-decoration:none;border-radius:5px;display:inline-block;">Visit H&amp;M Herbs</a></p>
+            <p><a href="${escapeHtml(`${getStorefrontPublicBaseUrl()}/index.html`)}" style="background:#10b981;color:#fff;padding:10px 20px;text-decoration:none;border-radius:5px;display:inline-block;">Visit H&amp;M Herbs</a></p>
         </div>`;
     const text = [`Your EDSA appointment #${booking.bookingId} (${when}) was cancelled by our team.`, links.manage].join('\n');
     await sendEmail({ to: email, subject, html, text, logTag: 'EDSA staff-cancel customer email' });
@@ -387,13 +387,13 @@ async function sendStaffRescheduledCustomerEmail(booking, previousDate, previous
     const subject = `H&M Herbs — Your EDSA appointment was updated (#${booking.bookingId})`;
     const html = `
         <div style="font-family:Inter,system-ui,sans-serif;color:#111827;max-width:560px;">
-            <h2 style="color:#2d5a27;margin:0 0 8px;">Your appointment time was updated</h2>
+            <h2 style="color:#10b981;margin:0 0 8px;">Your appointment time was updated</h2>
             <p>Hello ${escapeHtml(name)},</p>
             <p>Our team updated your EDSA appointment (confirmation #${escapeHtml(booking.bookingId)}):</p>
             <p><strong>Previous:</strong> ${escapeHtml(oldWhen)}<br>
                <strong>New:</strong> ${escapeHtml(newWhen)}</p>
-            <p><a href="${escapeHtml(links.confirmation)}" style="background:#2d5a27;color:#fff;padding:10px 20px;text-decoration:none;border-radius:5px;display:inline-block;margin-right:8px;">View confirmation</a>
-               <a href="${escapeHtml(links.manage)}" style="color:#2d5a27;">Manage appointment</a></p>
+            <p><a href="${escapeHtml(links.confirmation)}" style="background:#10b981;color:#fff;padding:10px 20px;text-decoration:none;border-radius:5px;display:inline-block;margin-right:8px;">View confirmation</a>
+               <a href="${escapeHtml(links.manage)}" style="color:#10b981;">Manage appointment</a></p>
         </div>`;
     const text = [`Appointment #${booking.bookingId} updated by our team.`, `Was: ${oldWhen}`, `Now: ${newWhen}`].join('\n');
     await sendEmail({ to: email, subject, html, text, logTag: 'EDSA staff-reschedule customer email' });

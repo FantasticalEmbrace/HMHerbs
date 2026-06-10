@@ -2,9 +2,13 @@
 
 const employeeDiscount = require('./employeeDiscount');
 
+const {
+    FREE_SHIPPING_THRESHOLD,
+    FIRST_CLASS_SHIPPING,
+} = require('../config/shippingConfig');
+
 const TAX_RATE = 0.08;
-const FREE_SHIPPING_THRESHOLD = 50;
-const STANDARD_SHIPPING = 5.99;
+const STANDARD_SHIPPING = FIRST_CLASS_SHIPPING;
 
 function roundMoney(value) {
     return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
@@ -393,11 +397,21 @@ function hasFreeStandardShippingEffect(rules) {
     return (rules.effects || []).some((e) => String(e?.type || '').toLowerCase() === 'free_standard_shipping');
 }
 
+function resolveShippingBefore(merchandiseSub, opts = {}) {
+    const method = String(opts.shippingMethod || '').trim();
+    if (method === 'free_standard' && merchandiseSub >= FREE_SHIPPING_THRESHOLD) return 0;
+    if (method === 'first_class' && merchandiseSub < FREE_SHIPPING_THRESHOLD) return STANDARD_SHIPPING;
+    if (method.startsWith('shippo:') && Number.isFinite(Number(opts.shippingAmount))) {
+        return roundMoney(Number(opts.shippingAmount));
+    }
+    return merchandiseSub >= FREE_SHIPPING_THRESHOLD ? 0 : STANDARD_SHIPPING;
+}
+
 function evaluateTotals(rulesParsed, enrichedRows, opts) {
     const { applyTaxExemption } = opts;
     const merchandiseSub = merchandiseSubtotal(enrichedRows);
 
-    let shippingBefore = merchandiseSub >= FREE_SHIPPING_THRESHOLD ? 0 : STANDARD_SHIPPING;
+    let shippingBefore = resolveShippingBefore(merchandiseSub, opts);
 
     const nt = normalizeTriggerReward(rulesParsed.triggerReward);
     let eligibleSub;
@@ -552,7 +566,15 @@ async function promotionUsageExceeded(pool, promotion, email) {
 /**
  * Validates code + carts; returns totals and metadata. Throws with .code / .status for HTTP mapping.
  */
-async function previewOrApplyTotals(pool, { cartItems, promoCode, email, applyTaxExemption, customerType }) {
+async function previewOrApplyTotals(pool, {
+    cartItems,
+    promoCode,
+    email,
+    applyTaxExemption,
+    customerType,
+    shippingMethod,
+    shippingAmount,
+}) {
     const normalized = normalizeIncomingCartItems(cartItems);
     if (normalized.length === 0) {
         const err = new Error('EMPTY_CART');
@@ -593,9 +615,8 @@ async function previewOrApplyTotals(pool, { cartItems, promoCode, email, applyTa
     }
 
     const taxExempt = Boolean(applyTaxExemption);
-    let totalsBase = evaluateTotals(rulesParsed, enriched, {
-        applyTaxExemption: taxExempt
-    });
+    const shippingOpts = { applyTaxExemption: taxExempt, shippingMethod, shippingAmount };
+    let totalsBase = evaluateTotals(rulesParsed, enriched, shippingOpts);
 
     const empSettings = await employeeDiscount.loadEmployeeDiscountSettings(pool);
     totalsBase = employeeDiscount.applyEmployeeDiscountToTotals(
@@ -610,7 +631,7 @@ async function previewOrApplyTotals(pool, { cartItems, promoCode, email, applyTa
         totalsNoPromo = evaluateTotals(
             { scope: 'all', productIds: [], categoryIds: [], effects: [] },
             enriched,
-            { applyTaxExemption: taxExempt }
+            shippingOpts
         );
         totalsNoPromo = employeeDiscount.applyEmployeeDiscountToTotals(
             totalsNoPromo,

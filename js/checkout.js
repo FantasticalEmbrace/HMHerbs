@@ -36,6 +36,9 @@ class CheckoutManager {
         this.shipping = 0;
         this.tax = 0;
         this.total = 0;
+        this.shippingOptions = [];
+        this.selectedShippingMethod = null;
+        this.selectedShippingAmount = 0;
         this.taxStatus = {
             checked: false,
             loggedIn: false,
@@ -822,7 +825,9 @@ class CheckoutManager {
             body: JSON.stringify({
                 promoCode: code,
                 cartItems: items,
-                email
+                email,
+                shippingMethod: this.selectedShippingMethod,
+                shippingAmount: this.selectedShippingAmount,
             })
         });
         const data = await response.json().catch(() => ({}));
@@ -830,6 +835,112 @@ class CheckoutManager {
             throw new Error(data.error || data.message || 'Could not calculate total');
         }
         return data.totals;
+    }
+
+    getShippingAddressForQuote() {
+        return {
+            postalCode: document.getElementById('shipping-zip')?.value?.trim() || '',
+            state: document.getElementById('shipping-state')?.value?.trim() || '',
+            country: document.getElementById('shipping-country')?.value || 'United States',
+        };
+    }
+
+    async fetchShippingOptions() {
+        if (!this.cart.length) {
+            this.shippingOptions = [];
+            this.renderShippingOptions();
+            return;
+        }
+        const addr = this.getShippingAddressForQuote();
+        const cartItems = this.cart.map((it) => ({
+            product_id: it.id ?? it.product_id,
+            variant_id: it.variant_id ?? it.variantId ?? null,
+            name: it.name,
+            price: it.price ?? 0,
+            quantity: it.quantity ?? 1,
+        }));
+        const merchandiseSubtotal = cartItems.reduce(
+            (s, i) => s + (Number(i.price) || 0) * (Number(i.quantity) || 1),
+            0
+        );
+        try {
+            const apiOrigin = this.getApiOrigin();
+            const res = await fetch(`${apiOrigin}/api/shipping/options`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    cartItems,
+                    postalCode: addr.postalCode,
+                    state: addr.state,
+                    country: addr.country,
+                    merchandiseSubtotal,
+                }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || 'Shipping options unavailable');
+            this.shippingOptions = Array.isArray(data.options) ? data.options : [];
+            const current = this.selectedShippingMethod;
+            const stillValid = this.shippingOptions.some((o) => o.method === current);
+            if (!stillValid && this.shippingOptions.length) {
+                const pick = this.shippingOptions[0];
+                this.selectedShippingMethod = pick.method;
+                this.selectedShippingAmount = Number(pick.amount) || 0;
+            }
+            this.renderShippingOptions(data);
+            await this.refreshCheckoutTotals();
+        } catch (e) {
+            console.warn('Shipping options:', e);
+            this.shippingOptions = [];
+            this.selectedShippingMethod = merchandiseSubtotal >= 50 ? 'free_standard' : 'first_class';
+            this.selectedShippingAmount = merchandiseSubtotal >= 50 ? 0 : 9.99;
+            this.renderShippingOptions();
+        }
+    }
+
+    renderShippingOptions(meta = {}) {
+        const wrap = document.getElementById('checkout-shipping-methods');
+        const list = document.getElementById('checkout-shipping-options');
+        const note = document.getElementById('checkout-shipping-note');
+        if (!wrap || !list) return;
+
+        if (!this.cart.length || !this.shippingOptions.length) {
+            wrap.style.display = 'none';
+            return;
+        }
+
+        wrap.style.display = 'block';
+        list.innerHTML = this.shippingOptions
+            .map((opt) => {
+                const checked = opt.method === this.selectedShippingMethod ? 'checked' : '';
+                const priceLabel = Number(opt.amount) === 0 ? 'FREE' : `$${Number(opt.amount).toFixed(2)}`;
+                return `
+                    <label class="checkout-shipping-option" style="display:flex;gap:0.75rem;align-items:flex-start;padding:0.75rem;border:1px solid var(--gray-200);border-radius:8px;margin-bottom:0.5rem;cursor:pointer;">
+                        <input type="radio" name="checkout_shipping_method" value="${opt.method}" data-amount="${opt.amount}" ${checked} style="margin-top:0.2rem;">
+                        <span style="flex:1;">
+                            <strong>${opt.label}</strong>
+                            <span style="float:right;font-weight:600;">${priceLabel}</span>
+                            ${opt.description ? `<div style="font-size:0.85rem;color:var(--gray-500);margin-top:0.2rem;">${opt.description}</div>` : ''}
+                        </span>
+                    </label>`;
+            })
+            .join('');
+
+        list.querySelectorAll('input[type="radio"]').forEach((radio) => {
+            radio.addEventListener('change', async () => {
+                if (!radio.checked) return;
+                this.selectedShippingMethod = radio.value;
+                this.selectedShippingAmount = parseFloat(radio.dataset.amount) || 0;
+                await this.refreshCheckoutTotals();
+            });
+        });
+
+        if (note) {
+            let text = 'Free standard shipping on orders $50+. First class $9.99 under $50.';
+            if (meta.weightsKnown === false) {
+                text += ' Carrier rates appear once product weights are on file.';
+            }
+            note.textContent = text;
+        }
     }
 
     async loadTaxExemptStatus() {
@@ -999,7 +1110,9 @@ class CheckoutManager {
                 body: JSON.stringify({
                     promoCode: code,
                     cartItems,
-                    email
+                    email,
+                    shippingMethod: this.selectedShippingMethod,
+                    shippingAmount: this.selectedShippingAmount,
                 })
             });
             let data = {};
@@ -1045,6 +1158,7 @@ class CheckoutManager {
                 this.cart = JSON.parse(cartData);
                 if (this.cart.length > 0) {
                     this.renderOrderSummary();
+                    void this.fetchShippingOptions();
                     this.calculateTotals();
                 } else {
                     this.showEmptyCart();
@@ -1057,6 +1171,7 @@ class CheckoutManager {
                     if (this.cart.length > 0) {
                         sessionStorage.setItem('checkout_cart', localCart);
                         this.renderOrderSummary();
+                        void this.fetchShippingOptions();
                         this.calculateTotals();
                     } else {
                         this.showEmptyCart();
@@ -1144,6 +1259,7 @@ class CheckoutManager {
         if (totalsContainer) {
             totalsContainer.style.display = 'block';
         }
+        void this.fetchShippingOptions();
     }
 
     async removeItem(index) {
@@ -1187,8 +1303,12 @@ class CheckoutManager {
                 return sum + ((item.price || 0) * (item.quantity || 1));
             }, 0);
 
-            // Calculate shipping (free over $50, otherwise $5.99)
-            this.shipping = this.subtotal >= 50 ? 0 : 5.99;
+            // Calculate shipping (free over $50, otherwise $9.99 first class)
+            if (this.selectedShippingMethod && Number.isFinite(this.selectedShippingAmount)) {
+                this.shipping = this.selectedShippingAmount;
+            } else {
+                this.shipping = this.subtotal >= 50 ? 0 : 9.99;
+            }
 
             // Calculate tax — server verifies on submit
             this.tax = this.taxStatus.verified ? 0 : Math.round(this.subtotal * 0.08 * 100) / 100;
@@ -1251,6 +1371,15 @@ class CheckoutManager {
     }
 
     setupEventListeners() {
+        const shippingZip = document.getElementById('shipping-zip');
+        const shippingState = document.getElementById('shipping-state');
+        const debouncedShippingRefresh = () => {
+            clearTimeout(this._shippingOptionsTimer);
+            this._shippingOptionsTimer = setTimeout(() => void this.fetchShippingOptions(), 400);
+        };
+        if (shippingZip) shippingZip.addEventListener('input', debouncedShippingRefresh);
+        if (shippingState) shippingState.addEventListener('change', debouncedShippingRefresh);
+
         // Same as shipping checkbox
         const sameAsShipping = document.getElementById('same-as-shipping');
         const billingFields = document.getElementById('billing-address-fields');
@@ -2158,6 +2287,8 @@ class CheckoutManager {
             orderNotes: document.getElementById('order-notes')?.value || '',
             cartItems,
             promoCode: document.getElementById('checkout-promo-code')?.value?.trim() || '',
+            shippingMethod: this.selectedShippingMethod,
+            shippingAmount: this.selectedShippingAmount,
             subtotal: this.subtotal,
             tax: this.tax,
             shipping: this.shipping,

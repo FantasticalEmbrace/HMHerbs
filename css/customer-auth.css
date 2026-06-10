@@ -886,7 +886,7 @@ a.auth-btn:focus-visible {
 }
 
 .wishlist-modal .hm-wl-picker-account-link {
-    color: var(--primary-green, #2d5a27);
+    color: var(--primary-green, #10b981);
     font-weight: 500;
 }
 

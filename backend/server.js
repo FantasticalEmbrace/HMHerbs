@@ -24,6 +24,7 @@ const { handlePromoBannerGet, disabledPayload } = require('./utils/promoBanner')
 const { createSeoRedirectMiddleware } = require('./middleware/seoRedirects');
 const { ensureProductSchema } = require('./utils/ensureProductSchema');
 const { ensureProductVariantSchema } = require('./utils/ensureProductVariantSchema');
+const { ensureShippingSchema } = require('./utils/ensureShippingSchema');
 const { ensureGiftCardPurchaseSchema } = require('./utils/ensureGiftCardPurchaseSchema');
 const { ensureGiftCardCatalog } = require('./utils/ensureGiftCardCatalog');
 const { ensureUserPasswordResetSchema } = require('./utils/ensureUserPasswordResetSchema');
@@ -774,7 +775,7 @@ app.post('/api/auth/forgot-password', authLimiter, userForgotPasswordValidation,
                         <h2>Password reset</h2>
                         <p>Hello ${first},</p>
                         <p>We received a request to reset the password for your H&amp;M Herbs account.</p>
-                        <p><a href="${resetUrl}" style="background:#2d5a27;color:#fff;padding:10px 20px;text-decoration:none;border-radius:5px;display:inline-block;">Choose a new password</a></p>
+                        <p><a href="${resetUrl}" style="background:#10b981;color:#fff;padding:10px 20px;text-decoration:none;border-radius:5px;display:inline-block;">Choose a new password</a></p>
                         <p>Or copy this link into your browser:</p>
                         <p style="word-break:break-all;">${resetUrl}</p>
                         <p>This link expires in one hour. If you did not ask for this, you can ignore this email.</p>
@@ -984,8 +985,9 @@ app.get('/api/user/orders', authenticateToken, async (req, res) => {
     try {
         const userId = req.user.id;
         const [orders] = await pool.execute(
-            `SELECT /* hmherbs-user-orders-v3 */
+            `SELECT /* hmherbs-user-orders-v5 */
                     o.id, o.order_number, o.total_amount AS total, o.status, o.created_at,
+                    o.tracking_number, o.tracking_url, o.shipping_carrier, o.shipped_at, o.fulfillment_status,
                     (SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = o.id) AS item_count
              FROM orders o
              WHERE o.user_id = ?
@@ -994,7 +996,8 @@ app.get('/api/user/orders', authenticateToken, async (req, res) => {
             [userId]
         );
 
-        res.json({ orders: jsonSafeDeep(orders) });
+        const { enrichOrderTracking } = require('./utils/trackingUrl');
+        res.json({ orders: jsonSafeDeep(orders.map(enrichOrderTracking)) });
     } catch (error) {
         logger.error('Get user orders error:', error);
         res.status(500).json({ error: 'Internal server error' });
@@ -1579,6 +1582,7 @@ app.use('/api/cart', cartRoutes);
 app.use('/api/promotions', require('./routes/promotions'));
 app.use('/api/payments', require('./routes/nmi-payments'));
 app.use('/api/orders', require('./routes/orders'));
+app.use('/api/shipping', require('./routes/shipping'));
 app.use('/api/edsa', edsaRoutes);
 app.use('/api/menu', require('./routes/menu'));
 app.use('/api/admin/customers', require('./routes/admin-customers'));
@@ -1627,6 +1631,12 @@ app.use('/api/*', (req, res) => {
         await ensureProductVariantSchema(pool);
     } catch (e) {
         logger.error(`ensureProductVariantSchema failed: ${logger.formatMysqlError(e)}`);
+    }
+
+    try {
+        await ensureShippingSchema(pool);
+    } catch (e) {
+        logger.error(`ensureShippingSchema failed: ${logger.formatMysqlError(e)}`);
     }
 
     try {

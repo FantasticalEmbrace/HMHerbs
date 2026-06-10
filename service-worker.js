@@ -301,10 +301,10 @@ async function handleNavigationRequest(request) {
             color: #9ca3af;
             margin-bottom: 20px;
           }
-          h1 { color: #2d5a27; margin-bottom: 20px; }
+          h1 { color: #10b981; margin-bottom: 20px; }
           p { margin-bottom: 20px; line-height: 1.6; }
           .retry-btn {
-            background: #2d5a27;
+            background: #10b981;
             color: white;
             border: none;
             padding: 12px 24px;
@@ -312,7 +312,7 @@ async function handleNavigationRequest(request) {
             cursor: pointer;
             font-size: 16px;
           }
-          .retry-btn:hover { background: #1d3a17; }
+          .retry-btn:hover { background: #059669; }
         </style>
       </head>
       <body>

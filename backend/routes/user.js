@@ -18,6 +18,8 @@ const express = require('express');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const { jsonSafeDeep } = require('../utils/jsonSafeMysql');
+const { syncOrderTracking } = require('../services/shippoTracking');
+const { enrichOrderTracking } = require('../utils/trackingUrl');
 
 function buildRouter({ pool, authenticateToken, logger }) {
     const router = express.Router();
@@ -238,10 +240,22 @@ function buildRouter({ pool, authenticateToken, logger }) {
     router.get('/orders/:id', requireAuth, handle(async (req, res) => {
         const userId = req.user.id;
         const id = Number(req.params.id);
+        const [[pre]] = await pool.execute(
+            'SELECT id, status, tracking_number, shipping_carrier FROM orders WHERE id = ? AND user_id = ?',
+            [id, userId]
+        );
+        if (!pre) return res.status(404).json({ error: 'Order not found' });
+        if (pre.tracking_number && ['label_created', 'shipped', 'in_transit'].includes(String(pre.status || '').toLowerCase())) {
+            await syncOrderTracking(pool, id);
+        }
         const [[raw]] = await pool.execute(
             `SELECT id, order_number, status, subtotal,
                     tax_amount, shipping_amount, discount_amount, total_amount,
                     payment_status, notes, created_at, updated_at,
+                    tracking_number, tracking_url, shipping_carrier, shipping_service,
+                    label_url, shipped_at, delivered_at, label_created_at,
+                    fulfillment_status, shipping_method,
+                    tracking_status, tracking_status_detail, tracking_status_updated_at,
                     shipping_first_name, shipping_last_name, shipping_company,
                     shipping_address_line_1, shipping_address_line_2, shipping_city,
                     shipping_state, shipping_postal_code, shipping_country,
@@ -284,6 +298,19 @@ function buildRouter({ pool, authenticateToken, logger }) {
             notes: raw.notes,
             created_at: raw.created_at,
             updated_at: raw.updated_at,
+            tracking_number: raw.tracking_number,
+            tracking_url: raw.tracking_url,
+            shipping_carrier: raw.shipping_carrier,
+            shipping_service: raw.shipping_service,
+            label_url: raw.label_url,
+            shipped_at: raw.shipped_at,
+            delivered_at: raw.delivered_at,
+            label_created_at: raw.label_created_at,
+            fulfillment_status: raw.fulfillment_status,
+            shipping_method: raw.shipping_method,
+            tracking_status: raw.tracking_status,
+            tracking_status_detail: raw.tracking_status_detail,
+            tracking_status_updated_at: raw.tracking_status_updated_at,
         };
 
         const [items] = await pool.execute(
@@ -300,7 +327,12 @@ function buildRouter({ pool, authenticateToken, logger }) {
         const shipping = addrFromOrder('shipping');
         const billing = addrFromOrder('billing');
 
-        res.json(jsonSafeDeep({ order, items, shipping_address: shipping, billing_address: billing }));
+        res.json(jsonSafeDeep({
+            order: enrichOrderTracking(order),
+            items,
+            shipping_address: shipping,
+            billing_address: billing,
+        }));
     }));
 
     // ===================================================================

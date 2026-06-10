@@ -31,7 +31,7 @@ async function sendGiftCardRecipientEmail({
         : `A $${amount} H&M Herbs gift card is on the way from ${from}`;
 
     const messageBlock = personalMessage
-        ? `<p style="font-style:italic;border-left:3px solid #2d5a27;padding-left:12px;">${escapeHtml(personalMessage)}</p>`
+        ? `<p style="font-style:italic;border-left:3px solid #10b981;padding-left:12px;">${escapeHtml(personalMessage)}</p>`
         : '';
 
     const codeBlock = isDigital
@@ -42,7 +42,7 @@ async function sendGiftCardRecipientEmail({
 
     const accountBlock = isNewAccount && resetToken
         ? `<p>We created an account for you so you can track your gift card balance.</p>
-           <p><a href="${setupUrl}" style="background:#2d5a27;color:#fff;padding:10px 20px;text-decoration:none;border-radius:5px;display:inline-block;">Set up your account</a></p>
+           <p><a href="${setupUrl}" style="background:#10b981;color:#fff;padding:10px 20px;text-decoration:none;border-radius:5px;display:inline-block;">Set up your account</a></p>
            <p style="word-break:break-all;font-size:13px;">Or copy this link: ${setupUrl}</p>`
         : `<p><a href="${setupUrl}">View your gift cards in your account</a></p>`;
 

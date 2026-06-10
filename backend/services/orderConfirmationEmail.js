@@ -2,6 +2,7 @@
 
 const logger = require('../utils/logger');
 const { getStorefrontPublicBaseUrl } = require('../utils/storefrontUrl');
+const { resolveTrackingInfo } = require('../utils/trackingUrl');
 
 function formatMoney(amount) {
     const n = Number(amount);
@@ -45,7 +46,7 @@ async function sendOrderConfirmationEmail(pool, orderId) {
 
     const [orders] = await pool.execute(
         `SELECT id, order_number, email, total_amount, tracking_number, tracking_url,
-                shipping_first_name, shipping_last_name, payment_status, status
+                shipping_carrier, shipping_first_name, shipping_last_name, payment_status, status
            FROM orders WHERE id = ? LIMIT 1`,
         [oid]
     );
@@ -63,8 +64,9 @@ async function sendOrderConfirmationEmail(pool, orderId) {
 
     const first = String(order.shipping_first_name || '').trim() || 'there';
     const orderNumber = String(order.order_number || oid);
-    const tracking = String(order.tracking_number || '').trim();
-    const trackingUrl = String(order.tracking_url || '').trim();
+    const trackingInfo = resolveTrackingInfo(order);
+    const tracking = trackingInfo.tracking_number || '';
+    const trackingUrl = trackingInfo.tracking_url || '';
     const base = getStorefrontPublicBaseUrl();
     const confirmUrl = `${base}/order-confirmation.html?order=${encodeURIComponent(String(oid))}&email=${encodeURIComponent(email)}`;
 
@@ -77,20 +79,17 @@ async function sendOrderConfirmationEmail(pool, orderId) {
         )
         .join('');
 
-    const trackingBlock = tracking
+    const trackingBlock = tracking && trackingUrl
         ? `<p style="margin:16px 0;padding:12px 16px;background:#f0fdf4;border-radius:8px;border:1px solid #bbf7d0;">
-            <strong>Tracking number:</strong> ${escapeHtml(tracking)}<br>
-            ${
-                trackingUrl
-                    ? `<a href="${escapeHtml(trackingUrl)}" style="color:#2d5a27;">Track your shipment</a>`
-                    : 'We will email you when your carrier scan is available.'
-            }
+            <strong>Tracking:</strong>
+            <a href="${escapeHtml(trackingUrl)}" style="color:#10b981;font-weight:600;text-decoration:none;">${escapeHtml(tracking)}</a><br>
+            <a href="${escapeHtml(trackingUrl)}" style="display:inline-block;margin-top:10px;padding:10px 18px;background:#10b981;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">Track your shipment</a>
            </p>`
         : '';
 
     const html = `
         <div style="font-family:Inter,system-ui,sans-serif;color:#111827;max-width:560px;">
-            <h2 style="color:#2d5a27;margin:0 0 8px;">Thank you for your order!</h2>
+            <h2 style="color:#10b981;margin:0 0 8px;">Thank you for your order!</h2>
             <p>Hello ${escapeHtml(first)},</p>
             <p>We have received your payment and are preparing your order for shipment.</p>
             <p><strong>Order number:</strong> ${escapeHtml(orderNumber)}<br>
@@ -106,7 +105,7 @@ async function sendOrderConfirmationEmail(pool, orderId) {
                 </thead>
                 <tbody>${itemRows || '<tr><td colspan="3">Your order items</td></tr>'}</tbody>
             </table>
-            <p><a href="${escapeHtml(confirmUrl)}" style="background:#2d5a27;color:#fff;padding:10px 20px;text-decoration:none;border-radius:5px;display:inline-block;">View order confirmation</a></p>
+            <p><a href="${escapeHtml(confirmUrl)}" style="background:#10b981;color:#fff;padding:10px 20px;text-decoration:none;border-radius:5px;display:inline-block;">View order confirmation</a></p>
             <p style="font-size:13px;color:#6b7280;">Questions? Call us at (706) 861-9454 or reply to this email.</p>
         </div>`;
 

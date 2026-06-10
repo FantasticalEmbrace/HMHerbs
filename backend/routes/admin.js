@@ -485,7 +485,7 @@ router.post('/auth/forgot-password', adminAuthLimiter, async (req, res) => {
                         <h2>Password reset</h2>
                         <p>Hello ${first},</p>
                         <p>You requested to reset your H&amp;M Herbs admin password.</p>
-                        <p><a href="${resetUrl}" style="background:#2d5a27;color:#fff;padding:10px 20px;text-decoration:none;border-radius:5px;display:inline-block;">Choose a new password</a></p>
+                        <p><a href="${resetUrl}" style="background:#10b981;color:#fff;padding:10px 20px;text-decoration:none;border-radius:5px;display:inline-block;">Choose a new password</a></p>
                         <p>Or copy this link into your browser:</p>
                         <p style="word-break:break-all;">${resetUrl}</p>
                         <p>This link expires in one hour. If you did not ask for this, you can ignore this email.</p>
@@ -2154,14 +2154,15 @@ router.get('/orders/:id', ...adminAuth, async (req, res) => {
             [orderId]
         );
 
-        res.json({ order: orders[0], items });
+        const { enrichOrderTracking } = require('../utils/trackingUrl');
+        res.json({ order: enrichOrderTracking(orders[0]), items });
     } catch (error) {
         logger.error('Admin order detail fetch error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 });
 
-// Update order status / tracking (admin)
+// Update order notes (status/tracking are automated via Shippo)
 router.patch('/orders/:id', ...adminAuth, async (req, res) => {
     try {
         const orderId = parseInt(req.params.id, 10);
@@ -2174,56 +2175,17 @@ router.patch('/orders/:id', ...adminAuth, async (req, res) => {
             return res.status(404).json({ error: 'Order not found' });
         }
 
-        const allowedStatus = new Set(['pending', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded']);
-        const allowedPayment = new Set(['pending', 'paid', 'failed', 'refunded']);
-        const allowedFulfillment = new Set(['unfulfilled', 'partial', 'fulfilled']);
+        const body = req.body || {};
+        const blockedFields = ['status', 'fulfillment_status', 'tracking_number', 'tracking_url', 'payment_status'];
+        const attempted = blockedFields.filter((f) => body[f] !== undefined);
+        if (attempted.length) {
+            return res.status(400).json({
+                error: 'Order status, fulfillment, payment, and tracking are updated automatically by Shippo. Only admin notes can be edited here.',
+            });
+        }
 
         const updates = [];
         const params = [];
-        const body = req.body || {};
-
-        if (body.status !== undefined) {
-            const status = String(body.status).toLowerCase();
-            if (!allowedStatus.has(status)) {
-                return res.status(400).json({ error: 'Invalid order status' });
-            }
-            updates.push('status = ?');
-            params.push(status);
-            if (status === 'shipped') {
-                updates.push('shipped_at = COALESCE(shipped_at, NOW())');
-            }
-            if (status === 'delivered') {
-                updates.push('delivered_at = COALESCE(delivered_at, NOW())');
-            }
-        }
-
-        if (body.payment_status !== undefined) {
-            const paymentStatus = String(body.payment_status).toLowerCase();
-            if (!allowedPayment.has(paymentStatus)) {
-                return res.status(400).json({ error: 'Invalid payment status' });
-            }
-            updates.push('payment_status = ?');
-            params.push(paymentStatus);
-        }
-
-        if (body.fulfillment_status !== undefined) {
-            const fulfillmentStatus = String(body.fulfillment_status).toLowerCase();
-            if (!allowedFulfillment.has(fulfillmentStatus)) {
-                return res.status(400).json({ error: 'Invalid fulfillment status' });
-            }
-            updates.push('fulfillment_status = ?');
-            params.push(fulfillmentStatus);
-        }
-
-        if (body.tracking_number !== undefined) {
-            updates.push('tracking_number = ?');
-            params.push(body.tracking_number ? String(body.tracking_number).trim() : null);
-        }
-
-        if (body.tracking_url !== undefined) {
-            updates.push('tracking_url = ?');
-            params.push(body.tracking_url ? String(body.tracking_url).trim() : null);
-        }
 
         if (body.notes !== undefined) {
             updates.push('notes = ?');

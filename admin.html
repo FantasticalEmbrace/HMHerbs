@@ -19,15 +19,15 @@
 
     <!-- Browser Compatibility -->
     <link rel="stylesheet" href="css/browser-compatibility.css">
+    <link rel="stylesheet" href="css/brand-tokens.css">
 
     <style>
-        /* Admin Panel Styles - Matching Frontend Design */
+        /* Admin Panel Styles — brand tokens from css/brand-tokens.css */
         :root {
-            --primary-green: #2d5a27;
-            --secondary-sage: #87a96b;
             --accent-gold: #d4af37;
-            --light-green: #f0f7ed;
-            --dark-green: #1a3d16;
+            --admin-sidebar-from: var(--brand-sidebar-from);
+            --admin-sidebar-to: var(--brand-sidebar-to);
+            --dark-green: var(--brand-primary-dark);
 
             --gray-50: #f9fafb;
             --gray-100: #f3f4f6;
@@ -83,7 +83,7 @@
         /* Sidebar */
         .sidebar {
             width: 280px;
-            background: linear-gradient(135deg, var(--primary-green) 0%, var(--dark-green) 100%);
+            background: linear-gradient(135deg, var(--admin-sidebar-from) 0%, var(--admin-sidebar-to) 100%);
             color: white;
             padding: 2rem 0;
             box-shadow: var(--shadow-lg);
@@ -150,16 +150,17 @@
             font-weight: 500;
         }
 
-        .nav-link:hover,
-        .nav-link.active {
+        .nav-link:hover {
             background: rgba(255, 255, 255, 0.1);
             color: white;
             transform: translateX(4px);
         }
 
-        .nav-link.active {
+        .nav-link.active,
+        .nav-link.active:hover {
             background: var(--accent-gold);
-            color: var(--primary-green);
+            color: #fff;
+            transform: translateX(4px);
         }
 
         .nav-link i,
@@ -500,7 +501,7 @@
         }
 
         .stat-card.success {
-            border-left-color: var(--success);
+            border-left-color: var(--primary-green-light);
         }
 
         .stat-card.warning {
@@ -1291,7 +1292,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            background: linear-gradient(135deg, var(--primary-green) 0%, var(--dark-green) 100%);
+            background: linear-gradient(135deg, var(--admin-sidebar-from) 0%, var(--admin-sidebar-to) 100%);
             padding: 2rem;
         }
 
@@ -2957,7 +2958,7 @@
                             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:0.75rem;">
                                 <div class="form-group">
                                     <label for="promo-custom-bg">Background</label>
-                                    <input class="form-input" id="promo-custom-bg" type="color" value="#2d5a27">
+                                    <input class="form-input" id="promo-custom-bg" type="color" value="#10b981">
                                 </div>
                                 <div class="form-group">
                                     <label for="promo-custom-text">Text</label>
@@ -3731,6 +3732,8 @@
     <link rel="stylesheet" href="css/products.css">
     <script src="js/description-html.js"></script>
     <script src="js/admin-product-variants.js"></script>
+    <script src="js/tracking-link.js"></script>
+    <script src="js/admin-shipping.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="admin-app.js"></script>
     <script src="admin-edsa-calendar.js"></script>

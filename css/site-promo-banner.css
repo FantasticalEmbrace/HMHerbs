@@ -1,7 +1,7 @@
 /* Site-wide promo bar (admin-configured). Loaded on storefront pages. */
 
 .site-promo-banner {
-    --promo-bg: #2d5a27;
+    --promo-bg: #10b981;
     --promo-text: #ffffff;
     --promo-accent: #fbbf24;
     --promo-border: rgba(255, 255, 255, 0.2);
@@ -16,7 +16,7 @@
 }
 
 .site-promo-banner[data-preset="sale"] {
-    --promo-bg: linear-gradient(100deg, #1e4620 0%, #2d5a27 45%, #3d7a35 100%);
+    --promo-bg: linear-gradient(100deg, #047857 0%, #10b981 45%, #34d399 100%);
     background: var(--promo-bg);
 }
 

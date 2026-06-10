@@ -69,7 +69,7 @@ router.get('/', async (req, res) => {
 
         const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
         const tax = Math.round(subtotal * 0.08 * 100) / 100;
-        const shipping = subtotal >= 25 ? 0 : 5.99;
+        const shipping = subtotal >= 50 ? 0 : 9.99;
         const total = subtotal + tax + shipping;
 
         res.json({

@@ -41,7 +41,7 @@
         bar.setAttribute('aria-label', 'Store promotion');
 
         if (data.preset === 'custom') {
-            bar.style.setProperty('--promo-bg', data.customBg || '#2d5a27');
+            bar.style.setProperty('--promo-bg', data.customBg || '#10b981');
             bar.style.setProperty('--promo-text', data.customText || '#ffffff');
             bar.style.setProperty('--promo-accent', data.customAccent || '#fbbf24');
         }

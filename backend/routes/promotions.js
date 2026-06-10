@@ -28,7 +28,7 @@ async function authUserLite(pool, req) {
 /** POST body: cartItems[{ id|product_id, variant_id?, price, quantity }], promoCode?, email? */
 router.post('/preview', async (req, res) => {
     try {
-        const { cartItems, promoCode, email: bodyEmail } = req.body || {};
+        const { cartItems, promoCode, email: bodyEmail, shippingMethod, shippingAmount } = req.body || {};
         const authUser = await authUserLite(req.pool, req);
 
         const hasTaxExemptProof = Boolean(
@@ -45,7 +45,9 @@ router.post('/preview', async (req, res) => {
             promoCode,
             email: emailResolved || null,
             applyTaxExemption,
-            customerType: authUser?.customer_type
+            customerType: authUser?.customer_type,
+            shippingMethod: shippingMethod ? String(shippingMethod).trim() : undefined,
+            shippingAmount: shippingAmount != null ? Number(shippingAmount) : undefined,
         });
 
         res.json({

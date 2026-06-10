@@ -1,0 +1,18 @@
+/**
+ * HM Herbs canonical brand colors — single source of truth.
+ * Storefront, admin content, emails, and standalone pages should use these tokens.
+ */
+:root {
+    --brand-primary: #10b981;
+    --brand-primary-light: #34d399;
+    --brand-primary-dark: #059669;
+    --brand-sidebar-from: #047857;
+    --brand-sidebar-to: #065f46;
+
+    /* Aliases used across the site */
+    --primary-green: var(--brand-primary);
+    --primary-green-light: var(--brand-primary-light);
+    --primary-green-dark: var(--brand-primary-dark);
+    --light-green: #ecfdf5;
+    --secondary-sage: #6ee7b7;
+}

@@ -1,10 +1,13 @@
 /* H&M Herbs & Vitamins - Modern CSS Design System */
 /* Botanical theme with accessibility and responsive design */
+/* Brand greens: css/brand-tokens.css (--brand-primary #10b981) */
+
+@import url('brand-tokens.css');
 
 /* CSS Custom Properties (Design Tokens) */
 :root {
-  /* Colors - Simplified Health & Wellness Theme */
-  --primary-green: #10b981;
+  /* Colors - aligned with brand-tokens.css */
+  --primary-green: var(--brand-primary, #10b981);
   --primary-green-light: #34d399;
   --primary-green-dark: #059669;
   --secondary-sage: #6ee7b7;
