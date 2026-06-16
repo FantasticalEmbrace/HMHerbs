@@ -4,7 +4,7 @@
 /* FLICKER PREVENTION - Hardware acceleration for smooth rendering */
 /* Exclude overlays: translateZ on them breaks viewport-fixed positioning
    (dialog centers in document height instead of the visible viewport). */
-*:not(img):not(picture):not(video):not(svg):not(canvas):not(.auth-modal):not(.hm-age-gate):not(.newsletter-popup):not(.cart-sidebar):not(.cart-overlay):not(.header-actions):not(.header-actions *):not(.acct-modal-backdrop):not(.hm-wl-picker-backdrop):not(.acct-modal):not(.wishlist-modal):not(.hm-wl-picker-dim):not(.acct-modal-dim):not(.edsa-modal):not(.edsa-modal *):not(#hm-toast-region):not(#hm-toast-region *):not(.hm-address-autocomplete-wrap):not(.hm-address-autocomplete-wrap *):not(.hm-address-suggest-list):not(.hm-address-suggest-list *) {
+*:not(img):not(picture):not(video):not(svg):not(canvas):not(.auth-modal):not(.hm-age-gate):not(.newsletter-popup):not(.cookie-popup):not(.cookie-popup *):not(.cart-sidebar):not(.cart-overlay):not(.header-actions):not(.header-actions *):not(.acct-modal-backdrop):not(.hm-wl-picker-backdrop):not(.acct-modal):not(.wishlist-modal):not(.hm-wl-picker-dim):not(.acct-modal-dim):not(.edsa-modal):not(.edsa-modal *):not(#hm-toast-region):not(#hm-toast-region *):not(.hm-address-autocomplete-wrap):not(.hm-address-autocomplete-wrap *):not(.hm-address-suggest-list):not(.hm-address-suggest-list *) {
     -webkit-backface-visibility: hidden;
     backface-visibility: hidden;
     -webkit-transform: translateZ(0);

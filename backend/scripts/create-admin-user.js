@@ -2,9 +2,9 @@
 /**
  * Create or update an admin panel user (team login).
  * Usage:
- *   node scripts/create-admin-user.js --email marketing@example.com --password 'YourPass123' --first Marketing --last User --role marketing
+ *   node scripts/create-admin-user.js --email staff@example.com --password 'YourPass123' --first Jane --last Doe --role assistant_manager
  *
- * Roles: developer | admin | manager | assistant_manager | marketing
+ * Roles: developer | admin | manager | assistant_manager
  */
 
 const bcrypt = require('bcrypt');
@@ -32,10 +32,10 @@ async function main() {
     const password = String(args.password || '');
     const firstName = String(args.firstName || '').trim();
     const lastName = String(args.lastName || '').trim();
-    const role = normalizeAdminRole(args.role || 'marketing');
+    const role = normalizeAdminRole(args.role || 'assistant_manager');
 
     if (!email || !password || password.length < 8) {
-        console.error('Usage: --email you@domain.com --password "8+ chars" --first Name --last Name [--role marketing]');
+        console.error('Usage: --email you@domain.com --password "8+ chars" --first Name --last Name [--role assistant_manager]');
         process.exit(1);
     }
     if (!firstName || !lastName) {

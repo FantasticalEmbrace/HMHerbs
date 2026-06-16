@@ -3,6 +3,22 @@
 
 const GDPR_CLOSE_ICON_SVG = '<svg class="cart-close-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M18.3 5.71a1 1 0 0 0-1.41 0L12 10.59 7.11 5.7A1 1 0 0 0 5.7 7.11L10.59 12 5.7 16.89a1 1 0 1 0 1.41 1.41L12 13.41l4.89 4.89a1 1 0 0 0 1.41-1.41L13.41 12l4.89-4.89a1 1 0 0 0 0-1.4z"/></svg>';
 
+const COOKIE_POPUP_MARKUP = `
+<div class="cookie-popup" id="cookie-banner" aria-hidden="true" role="dialog" aria-labelledby="cookie-title" aria-modal="true">
+    <div class="cookie-popup-overlay" aria-hidden="true"></div>
+    <div class="cookie-popup-content">
+        <div class="cookie-popup-body">
+            <h3 id="cookie-title" class="cookie-popup-title">We Value Your Privacy</h3>
+            <p class="cookie-popup-text">We use essential cookies to make our website work properly. We also use Google Analytics to understand how visitors use our site and improve it. You can choose which cookies to accept.</p>
+            <div class="cookie-popup-actions">
+                <button id="cookie-accept" class="btn btn-secondary" type="button">Accept All</button>
+                <button id="cookie-reject" class="btn btn-secondary" type="button">Essential Only</button>
+                <button id="cookie-settings" class="btn btn-outline" type="button">Customize</button>
+            </div>
+        </div>
+    </div>
+</div>`;
+
 class GDPRCompliance {
     constructor() {
         this.config = {
@@ -25,12 +41,69 @@ class GDPRCompliance {
     }
 
     /**
-     * Reserved for pages that inject the banner at runtime. Static templates already
-     * include #cookie-banner in the HTML; if this method is missing, init() throws
-     * and cookie buttons never receive listeners.
+     * Inject centered cookie popup on pages that do not include it in HTML.
      */
     mountPrivacyConsentBar() {
-        // No-op: banner markup lives in page HTML (e.g. index.html).
+        if (document.getElementById('cookie-banner')) return;
+        const mount = document.createElement('div');
+        mount.innerHTML = COOKIE_POPUP_MARKUP.trim();
+        const popup = mount.firstElementChild;
+        if (popup) document.body.appendChild(popup);
+    }
+
+    isAgeVerified() {
+        try {
+            return localStorage.getItem('hmherbs_age_verified_21') === 'true';
+        } catch (_) {
+            return false;
+        }
+    }
+
+    hasNewsletterPopupScript() {
+        try {
+            return Array.from(document.scripts).some((script) =>
+                (script.src || '').includes('newsletter-popup')
+            );
+        } catch (_) {
+            return false;
+        }
+    }
+
+    whenAgeVerified(callback) {
+        if (this.isAgeVerified()) {
+            callback();
+            return;
+        }
+        window.addEventListener('hmherbs:age-verified', callback, { once: true });
+    }
+
+    whenNewsletterPopupDone(callback) {
+        if (window.__hmNewsletterPopupDone) {
+            callback();
+            return;
+        }
+        window.addEventListener('hmherbs:newsletter-popup-done', callback, { once: true });
+    }
+
+    scheduleCookiePopup() {
+        const COOKIE_DELAY_MS = 400;
+        const COOKIE_DELAY_AFTER_NEWSLETTER_MS = 320;
+        const COOKIE_DELAY_AFTER_AGE_MS = 800;
+
+        const show = (delayMs) => {
+            if (this.consentGiven) return;
+            window.setTimeout(() => this.showCookieBanner(), delayMs);
+        };
+
+        const afterAgeVerified = () => {
+            if (this.hasNewsletterPopupScript()) {
+                this.whenNewsletterPopupDone(() => show(COOKIE_DELAY_AFTER_NEWSLETTER_MS));
+            } else {
+                show(COOKIE_DELAY_AFTER_AGE_MS);
+            }
+        };
+
+        this.whenAgeVerified(afterAgeVerified);
     }
 
     init() {
@@ -45,16 +118,13 @@ class GDPRCompliance {
         // Setup event listeners
         this.setupEventListeners();
 
-        // Show cookie banner if consent not given
+        // Show cookie popup if consent not given
         if (!this.consentGiven) {
-            // Small delay to ensure DOM is ready
-            setTimeout(() => {
-                this.showCookieBanner();
-            }, 100);
+            this.scheduleCookiePopup();
         } else {
             // Apply consent preferences
             this.applyConsentPreferences();
-            // Ensure banner is hidden if consent was already given
+            // Ensure popup is hidden if consent was already given
             this.hideCookieBanner();
         }
 
@@ -81,6 +151,9 @@ class GDPRCompliance {
     }
 
     setupEventListeners() {
+        if (this._cookieListenersBound) return;
+        this._cookieListenersBound = true;
+
         // Cookie banner buttons
         const acceptAllBtn = document.getElementById('cookie-accept');
         const rejectAllBtn = document.getElementById('cookie-reject');
@@ -114,49 +187,63 @@ class GDPRCompliance {
     }
 
     showCookieBanner() {
-        const banner = document.getElementById('cookie-banner');
-        if (banner) {
-            // Set aria-hidden to false FIRST, before showing or focusing
-            banner.setAttribute('aria-hidden', 'false');
-            banner.classList.add('show');
+        if (this.consentGiven) return;
 
-            // Focus management for accessibility - ensure aria-hidden is false before focusing.
-            // CRITICAL: pass preventScroll so the browser does NOT scroll the page
-            // down to the bottom-pinned cookie banner on initial page load.
-            const firstButton = banner.querySelector('button');
-            if (firstButton) {
+        let banner = document.getElementById('cookie-banner');
+        if (!banner) {
+            this.mountPrivacyConsentBar();
+            banner = document.getElementById('cookie-banner');
+            this.setupEventListeners();
+        }
+        if (!banner || banner.classList.contains('show')) return;
+
+        try {
+            window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+        } catch (_) {
+            window.scrollTo(0, 0);
+        }
+
+        document.body.appendChild(banner);
+
+        banner.style.display = 'flex';
+        banner.style.visibility = '';
+        banner.style.opacity = '';
+        banner.style.pointerEvents = '';
+        banner.setAttribute('aria-hidden', 'false');
+
+        requestAnimationFrame(() => {
+            banner.classList.add('show');
+        });
+
+        const firstButton = banner.querySelector('button');
+        if (firstButton) {
+            requestAnimationFrame(() => {
                 requestAnimationFrame(() => {
-                    requestAnimationFrame(() => {
-                        try {
-                            firstButton.focus({ preventScroll: true });
-                        } catch (e) {
-                            firstButton.focus();
-                        }
-                    });
+                    try {
+                        firstButton.focus({ preventScroll: true });
+                    } catch (_) {
+                        firstButton.focus();
+                    }
                 });
-            }
+            });
         }
     }
 
     hideCookieBanner() {
         const banner = document.getElementById('cookie-banner');
-        if (banner) {
-            // Remove focus from any buttons in the banner before hiding
-            const focusedButton = banner.querySelector('button:focus');
-            if (focusedButton) {
-                focusedButton.blur();
+        if (!banner) return;
+
+        const focusedButton = banner.querySelector('button:focus');
+        if (focusedButton) focusedButton.blur();
+
+        banner.setAttribute('aria-hidden', 'true');
+        banner.classList.remove('show');
+
+        setTimeout(() => {
+            if (!banner.classList.contains('show')) {
+                banner.style.display = 'none';
             }
-
-            // Set aria-hidden to true BEFORE hiding
-            banner.setAttribute('aria-hidden', 'true');
-            banner.classList.remove('show');
-
-            // Force hide with inline styles as backup
-            banner.style.display = 'none';
-            banner.style.visibility = 'hidden';
-            banner.style.opacity = '0';
-            banner.style.transform = 'translateY(100%)';
-        }
+        }, 300);
     }
 
 
@@ -884,10 +971,18 @@ class GDPRCompliance {
     }
 }
 
-// Initialize GDPR compliance when DOM is loaded
-document.addEventListener('DOMContentLoaded', () => {
-    window.gdprCompliance = new GDPRCompliance();
-});
+// Initialize GDPR compliance when DOM is ready (defer scripts can run after DOMContentLoaded).
+function bootGdprCompliance() {
+    if (!window.gdprCompliance) {
+        window.gdprCompliance = new GDPRCompliance();
+    }
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bootGdprCompliance);
+} else {
+    bootGdprCompliance();
+}
 
 // Export for potential module usage
 if (typeof module !== 'undefined' && module.exports) {

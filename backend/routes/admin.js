@@ -34,6 +34,11 @@ const {
     appointmentSnapshot,
     normalizeDateYmd
 } = require('../utils/edsaBookingOps');
+const {
+    listBlockedDates,
+    addBlockedDate,
+    removeBlockedDate
+} = require('../services/edsaBlockedDates');
 
 // Configure multer for brand logo uploads
 const brandLogoStorage = multer.diskStorage({
@@ -178,15 +183,9 @@ const AnalyticsService = require('../services/analytics');
 const GoogleBusinessProfileService = require('../services/google-business-profile');
 const GoogleCalendarOAuthService = require('../services/google-calendar-oauth');
 const googleCalendarService = require('../services/google-calendar');
+const { resolveCanManageStoreHours } = require('../utils/storeHoursAccess');
 const { TaxLedgerService, toDateKey } = require('../services/taxLedger');
 const { TaxAccountantReportService } = require('../services/taxAccountantReport');
-
-const GBP_STORE_HOUR_KEYS = new Set([
-    'store_holiday_schedule',
-    'store_hours_weekdays',
-    'store_hours_saturday',
-    'store_hours_sunday',
-]);
 
 async function loadGoogleBusinessStoreHours(pool) {
     const keys = [...GBP_STORE_HOUR_KEYS];
@@ -215,6 +214,9 @@ async function loadGoogleBusinessStoreHours(pool) {
 }
 
 async function tryAutoSyncGoogleBusinessHours(req, updatedKeyNames = []) {
+    if (!(await resolveCanManageStoreHours(req.pool, req.admin?.role, req.admin?.id))) {
+        return { skipped: true, reason: 'insufficient_permissions' };
+    }
     const touchesHours = updatedKeyNames.some((key) => GBP_STORE_HOUR_KEYS.has(key));
     if (!touchesHours) return { skipped: true, reason: 'hours_not_updated' };
 
@@ -251,18 +253,20 @@ const { parseRules, promotionHasApplicableMerchOrShipping } = require('../servic
 const {
     ADMIN_ROLES,
     ROLE_LABELS,
-    MARKETING_SETTING_KEYS,
     normalizeAdminRole,
-    isMarketingRole,
     isDeveloperRole,
     hasMinAdminRole,
     defaultSectionForRole,
     allowedSectionsForRole,
+    canManageStoreHours,
+    STORE_HOUR_SETTING_KEYS,
 } = require('../utils/adminRoles');
+
+const GBP_STORE_HOUR_KEYS = new Set(STORE_HOUR_SETTING_KEYS);
+
 const {
     authenticateAdmin,
     adminAuth,
-    marketingAuth,
     requirePermission,
 } = require('../middleware/adminAuth');
 
@@ -288,6 +292,28 @@ const adminAuthLimiter = rateLimit({
 });
 
 // Admin Authentication
+router.post('/auth/pos-handoff', adminAuthLimiter, async (req, res) => {
+    try {
+        if (!req.pool) {
+            return res.status(500).json({ error: 'Database connection not available.' });
+        }
+        const code = String(req.body?.code || req.query?.code || '').trim();
+        const { exchangeHandoffCode } = require('../services/posAdminHandoff');
+        const result = await exchangeHandoffCode(req.pool, code);
+        res.json({
+            message: 'Admin session started from POS',
+            token: result.token,
+            admin: result.admin,
+            allowedSections: result.allowedSections,
+            defaultSection: result.defaultSection
+        });
+    } catch (error) {
+        const status =
+            error.code === 'INVALID_HANDOFF' || error.code === 'ADMIN_ACCESS_DENIED' ? 401 : 500;
+        res.status(status).json({ error: error.message || 'Handoff failed', code: error.code });
+    }
+});
+
 router.post('/auth/login', adminAuthLimiter, ...adminLoginValidation, async (req, res) => {
     try {
         // Check if database pool is available
@@ -350,6 +376,7 @@ router.post('/auth/login', adminAuthLimiter, ...adminLoginValidation, async (req
         );
 
         const role = normalizeAdminRole(admin.role);
+        const canHours = await resolveCanManageStoreHours(req.pool, role, admin.id);
         res.json({
             message: 'Admin login successful',
             token,
@@ -363,6 +390,8 @@ router.post('/auth/login', adminAuthLimiter, ...adminLoginValidation, async (req
             },
             allowedSections: allowedSectionsForRole(role),
             defaultSection: defaultSectionForRole(role),
+            canManageStoreHours: canHours,
+            canManageStoreHoursDelegation: canManageStoreHours(role),
         });
     } catch (error) {
         // Log full error details for debugging
@@ -560,9 +589,10 @@ router.post('/auth/reset-password', adminAuthLimiter, async (req, res) => {
     }
 });
 
-// Current session (used by admin panel on load; works for all roles including Marketing)
-router.get('/auth/me', ...marketingAuth, async (req, res) => {
+// Current session (used by admin panel on load)
+router.get('/auth/me', ...adminAuth, async (req, res) => {
     const role = normalizeAdminRole(req.admin.role);
+    const canHours = await resolveCanManageStoreHours(req.pool, role, req.admin.id);
     res.json({
         admin: {
             id: req.admin.id,
@@ -575,6 +605,8 @@ router.get('/auth/me', ...marketingAuth, async (req, res) => {
         allowedSections: allowedSectionsForRole(role),
         defaultSection: defaultSectionForRole(role),
         roles: ADMIN_ROLES.map((r) => ({ id: r, label: ROLE_LABELS[r] || r })),
+        canManageStoreHours: canHours,
+        canManageStoreHoursDelegation: canManageStoreHours(role),
     });
 });
 
@@ -750,15 +782,8 @@ router.get('/dashboard/stats', ...adminAuth, async (req, res) => {
 });
 
 // Product Management
-router.get('/products', ...marketingAuth, async (req, res) => {
+router.get('/products', ...adminAuth, async (req, res) => {
     try {
-        if (isMarketingRole(req.admin.role)) {
-            const search = String(req.query.search || '').trim();
-            if (!search) {
-                return res.status(403).json({ error: 'Product search is required for this account' });
-            }
-        }
-
         // First, verify database tables exist
         try {
             await req.pool.execute('SELECT 1 FROM products LIMIT 1');
@@ -1296,7 +1321,7 @@ router.post('/products/upload-coa', ...adminAuth, requirePermission('manager'), 
 });
 
 // Get Single Product by ID
-router.get('/products/:id', ...marketingAuth, async (req, res) => {
+router.get('/products/:id', ...adminAuth, async (req, res) => {
     try {
         const { id } = req.params;
 
@@ -1619,8 +1644,8 @@ router.post('/brands/upload-logo', ...adminAuth, requirePermission('manager'), u
 
 router.post(
     '/promo-banner/upload-icon',
-    ...marketingAuth,
-    requirePermission('marketing'),
+    ...adminAuth,
+    requirePermission('manager'),
     uploadPromoBannerIcon.single('icon'),
     async (req, res) => {
         try {
@@ -2097,6 +2122,7 @@ router.get('/orders', ...adminAuth, async (req, res) => {
             SELECT 
                 o.id, o.order_number, o.email, o.status, o.payment_status,
                 o.total_amount, o.created_at, o.shipping_first_name, o.shipping_last_name,
+                COALESCE(o.sales_channel, 'online') AS sales_channel,
                 COUNT(oi.id) as item_count
             FROM orders o
             LEFT JOIN order_items oi ON o.id = oi.order_id
@@ -2418,26 +2444,62 @@ router.put('/edsa/bookings/:id', ...adminAuth, async (req, res) => {
     }
 });
 
-// OAuth refresh tokens — redacted from GET /settings
+// EDSA blocked dates (staff closes calendar days to online booking)
+router.get('/edsa/blocked-dates', ...adminAuth, async (req, res) => {
+    try {
+        const from = req.query.from || null;
+        const to = req.query.to || null;
+        const blockedDates = await listBlockedDates(req.pool, from, to);
+        res.json({ blockedDates });
+    } catch (error) {
+        logger.error('Admin EDSA blocked dates fetch error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+router.post('/edsa/blocked-dates', ...adminAuth, async (req, res) => {
+    try {
+        const { date, reason } = req.body || {};
+        const created = await addBlockedDate(req.pool, date, reason, req.admin?.id || null);
+        res.status(201).json({ message: 'Date blocked from online booking', ...created });
+    } catch (error) {
+        if (error.status === 409) {
+            return res.status(409).json({ error: error.message });
+        }
+        if (error.status === 400) {
+            return res.status(400).json({ error: error.message });
+        }
+        logger.error('Admin EDSA block date error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+router.delete('/edsa/blocked-dates/:date', ...adminAuth, async (req, res) => {
+    try {
+        const removed = await removeBlockedDate(req.pool, req.params.date);
+        res.json({ message: 'Date unblocked', ...removed });
+    } catch (error) {
+        if (error.status === 404) {
+            return res.status(404).json({ error: error.message });
+        }
+        if (error.status === 400) {
+            return res.status(400).json({ error: error.message });
+        }
+        logger.error('Admin EDSA unblock date error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Get System Settings
 const SETTINGS_REDACT_KEYS = new Set(['gbp_refresh_token', 'gcal_refresh_token']);
 
-// Get System Settings (marketing role: promo banner key only; admin/manager: all settings)
-router.get('/settings', ...marketingAuth, async (req, res) => {
+router.get('/settings', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
-        if (!isMarketingRole(req.admin.role) && !hasMinAdminRole(req.admin.role, 'admin')) {
-            return res.status(403).json({ error: 'Insufficient permissions' });
-        }
-
         const [settings] = await req.pool.execute(
             'SELECT key_name, value, description, type FROM settings ORDER BY key_name'
         );
 
-        let rows = settings || [];
-        if (isMarketingRole(req.admin.role)) {
-            rows = rows.filter((row) => MARKETING_SETTING_KEYS.has(row.key_name));
-        }
-
-        const safe = rows.map((row) => {
+        const safe = (settings || []).map((row) => {
             if (!SETTINGS_REDACT_KEYS.has(row.key_name)) return row;
             return {
                 ...row,
@@ -2453,28 +2515,24 @@ router.get('/settings', ...marketingAuth, async (req, res) => {
 });
 
 // Update System Settings
-router.put('/settings', ...marketingAuth, settingsValidation, async (req, res) => {
+router.put('/settings', ...adminAuth, requirePermission('manager'), settingsValidation, async (req, res) => {
     try {
-        if (!isMarketingRole(req.admin.role) && !hasMinAdminRole(req.admin.role, 'admin')) {
-            return res.status(403).json({ error: 'Insufficient permissions' });
-        }
-
         const { settings } = req.body;
-        const updatedKeyNames = (settings || []).map((s) => s.key_name).filter(Boolean);
-
-        if (isMarketingRole(req.admin.role)) {
-            const invalid = updatedKeyNames.filter((key) => !MARKETING_SETTING_KEYS.has(key));
-            if (invalid.length) {
-                return res.status(403).json({ error: 'Insufficient permissions' });
+        const mayEditHours = await resolveCanManageStoreHours(req.pool, req.admin?.role, req.admin?.id);
+        const filteredSettings = (settings || []).filter((setting) => {
+            if (STORE_HOUR_SETTING_KEYS.includes(setting.key_name)) {
+                return mayEditHours;
             }
-        }
+            return true;
+        });
+        const updatedKeyNames = filteredSettings.map((s) => s.key_name).filter(Boolean);
 
         const connection = await req.pool.getConnection();
 
         try {
             await connection.beginTransaction();
 
-            for (const setting of settings) {
+            for (const setting of filteredSettings) {
                 const keyName = setting.key_name;
                 if (SETTINGS_REDACT_KEYS.has(keyName)) continue;
                 const value = setting.value ?? '';
@@ -2492,9 +2550,7 @@ router.put('/settings', ...marketingAuth, settingsValidation, async (req, res) =
 
             await connection.commit();
 
-            const googleBusinessSync = isMarketingRole(req.admin.role)
-                ? { skipped: true, reason: 'marketing_scope' }
-                : await tryAutoSyncGoogleBusinessHours(req, updatedKeyNames);
+            const googleBusinessSync = await tryAutoSyncGoogleBusinessHours(req, updatedKeyNames);
 
             res.json({
                 message: 'Settings updated successfully',
@@ -2662,12 +2718,19 @@ router.get('/settings/google-business/locations', ...adminAuth, requirePermissio
         const locations = await GoogleBusinessProfileService.listLocations(req.pool, req);
         res.json({ locations });
     } catch (error) {
+        if (error.code === 'GOOGLE_TOKEN_EXPIRED') {
+            logger.warn('[integration][google-business] Stored refresh token expired; cleared connection');
+            return res.status(401).json({ error: error.message, code: error.code });
+        }
         logger.error('[integration][google-business] List locations error:', error);
         res.status(500).json({ error: error.message || 'Failed to list Google locations' });
     }
 });
 
 router.post('/settings/google-business/sync-hours', ...adminAuth, requirePermission('manager'), async (req, res) => {
+    if (!(await resolveCanManageStoreHours(req.pool, req.admin?.role, req.admin?.id))) {
+        return res.status(403).json({ error: 'You do not have permission to sync store hours' });
+    }
     try {
         const { holidaySchedule, regularHours } = await loadGoogleBusinessStoreHours(req.pool);
         const result = await GoogleBusinessProfileService.syncHours(req.pool, req, {
@@ -2687,6 +2750,10 @@ router.post('/settings/google-business/sync-hours', ...adminAuth, requirePermiss
             location: result.location || null,
         });
     } catch (error) {
+        if (error.code === 'GOOGLE_TOKEN_EXPIRED') {
+            logger.warn('[integration][google-business] Stored refresh token expired during hours sync');
+            return res.status(401).json({ error: error.message, code: error.code });
+        }
         logger.error('[integration][google-business] Hours sync failed', {
             error: error.message,
             actor: req.admin?.email || 'unknown',
@@ -2775,8 +2842,85 @@ router.get('/settings/google-calendar/calendars', ...adminAuth, requirePermissio
         const calendars = await GoogleCalendarOAuthService.listCalendars(req.pool, req);
         res.json({ calendars });
     } catch (error) {
+        if (error.code === 'GOOGLE_TOKEN_EXPIRED') {
+            googleCalendarService.resetClient();
+            logger.warn('[integration][google-calendar] Stored refresh token expired; cleared connection');
+            return res.status(401).json({ error: error.message, code: error.code });
+        }
         logger.error('[integration][google-calendar] List calendars error:', error);
         res.status(500).json({ error: error.message || 'Failed to list Google calendars' });
+    }
+});
+
+router.get('/settings/pos-devices', ...adminAuth, requirePermission('manager'), async (req, res) => {
+    try {
+        const { listDevices } = require('../services/posDeviceRegistry');
+        const devices = await listDevices(req.pool);
+        res.json({
+            devices: devices.map((d) => ({
+                id: d.id,
+                deviceLabel: d.device_label,
+                keyPrefix: d.key_prefix,
+                isActive: Boolean(d.is_active),
+                lastSeenAt: d.last_seen_at,
+                createdAt: d.created_at,
+            })),
+        });
+    } catch (e) {
+        logger.error('List POS devices error:', e);
+        res.status(500).json({ error: 'Failed to list POS devices' });
+    }
+});
+
+router.post('/settings/pos-devices', ...adminAuth, requirePermission('manager'), async (req, res) => {
+    try {
+        const { createDevice } = require('../services/posDeviceRegistry');
+        const created = await createDevice(req.pool, req.body?.deviceLabel || req.body?.device_label);
+        res.status(201).json({
+            device: {
+                id: created.id,
+                deviceLabel: created.deviceLabel,
+                keyPrefix: created.keyPrefix,
+            },
+            apiKey: created.apiKey,
+        });
+    } catch (e) {
+        const status =
+            e.code === 'DUPLICATE_DEVICE_LABEL' ? 409 : e.code ? 400 : 500;
+        res.status(status).json({
+            error: e.message,
+            code: e.code,
+            existingDeviceId: e.existingDeviceId,
+        });
+    }
+});
+
+router.post('/settings/pos-devices/:id/regenerate-key', ...adminAuth, requirePermission('manager'), async (req, res) => {
+    try {
+        const { regenerateDeviceKey } = require('../services/posDeviceRegistry');
+        const regenerated = await regenerateDeviceKey(req.pool, Number(req.params.id));
+        res.json({
+            device: {
+                id: regenerated.id,
+                deviceLabel: regenerated.deviceLabel,
+                keyPrefix: regenerated.keyPrefix,
+            },
+            apiKey: regenerated.apiKey,
+        });
+    } catch (e) {
+        const status = e.code === 'DEVICE_NOT_FOUND' ? 404 : e.code ? 400 : 500;
+        res.status(status).json({ error: e.message, code: e.code });
+    }
+});
+
+router.delete('/settings/pos-devices/:id', ...adminAuth, requirePermission('manager'), async (req, res) => {
+    try {
+        const { revokeDevice } = require('../services/posDeviceRegistry');
+        const ok = await revokeDevice(req.pool, Number(req.params.id));
+        if (!ok) return res.status(404).json({ error: 'Device not found' });
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: 'Failed to revoke device' });
     }
 });
 
@@ -3519,7 +3663,7 @@ router.get('/pos/discounts/analytics', ...adminAuth, async (req, res) => {
 // ===== EMAIL CAMPAIGN MANAGEMENT ENDPOINTS =====
 
 // Get all email campaigns
-router.get('/email-campaigns', ...marketingAuth, requirePermission('marketing'), async (req, res) => {
+router.get('/email-campaigns', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const emailCampaignService = new EmailCampaignService(req.pool);
         const campaigns = await emailCampaignService.getCampaigns(req.query);
@@ -3531,7 +3675,7 @@ router.get('/email-campaigns', ...marketingAuth, requirePermission('marketing'),
 });
 
 // Create new email campaign
-router.post('/email-campaigns', ...marketingAuth, requirePermission('marketing'), async (req, res) => {
+router.post('/email-campaigns', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const emailCampaignService = new EmailCampaignService(req.pool);
         const campaign = await emailCampaignService.createCampaign(req.body, req.admin.id);
@@ -3543,7 +3687,7 @@ router.post('/email-campaigns', ...marketingAuth, requirePermission('marketing')
 });
 
 // Get email campaign by ID
-router.get('/email-campaigns/:id', ...marketingAuth, requirePermission('marketing'), async (req, res) => {
+router.get('/email-campaigns/:id', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const emailCampaignService = new EmailCampaignService(req.pool);
         const campaign = await emailCampaignService.getCampaignById(req.params.id);
@@ -3555,7 +3699,7 @@ router.get('/email-campaigns/:id', ...marketingAuth, requirePermission('marketin
 });
 
 // Update email campaign
-router.put('/email-campaigns/:id', ...marketingAuth, requirePermission('marketing'), async (req, res) => {
+router.put('/email-campaigns/:id', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const emailCampaignService = new EmailCampaignService(req.pool);
         const campaign = await emailCampaignService.updateCampaign(req.params.id, req.body, req.admin.id);
@@ -3567,7 +3711,7 @@ router.put('/email-campaigns/:id', ...marketingAuth, requirePermission('marketin
 });
 
 // Delete email campaign
-router.delete('/email-campaigns/:id', ...marketingAuth, requirePermission('marketing'), async (req, res) => {
+router.delete('/email-campaigns/:id', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const emailCampaignService = new EmailCampaignService(req.pool);
         const result = await emailCampaignService.deleteCampaign(req.params.id);
@@ -3579,7 +3723,7 @@ router.delete('/email-campaigns/:id', ...marketingAuth, requirePermission('marke
 });
 
 // Get email campaign analytics
-router.get('/email-campaigns/:id/analytics', ...marketingAuth, requirePermission('marketing'), async (req, res) => {
+router.get('/email-campaigns/:id/analytics', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const emailCampaignService = new EmailCampaignService(req.pool);
         const analytics = await emailCampaignService.getCampaignAnalytics(req.params.id, req.query.days || 30);
@@ -3593,7 +3737,7 @@ router.get('/email-campaigns/:id/analytics', ...marketingAuth, requirePermission
 // Marketing hub: GET/PUT /api/admin/marketing-settings registered in server.js (main app) for reliable matching.
 
 // Checkout promotion codes (rules JSON evaluated server-side at checkout)
-router.get('/promotions', ...marketingAuth, requirePermission('marketing'), async (req, res) => {
+router.get('/promotions', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const [rows] = await req.pool.execute(`
             SELECT id, code, description, is_active, starts_at, ends_at,
@@ -3607,7 +3751,7 @@ router.get('/promotions', ...marketingAuth, requirePermission('marketing'), asyn
     }
 });
 
-router.get('/promotions/:id', ...marketingAuth, requirePermission('marketing'), async (req, res) => {
+router.get('/promotions/:id', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const id = Number(req.params.id);
         if (!Number.isInteger(id) || id <= 0) {
@@ -3629,7 +3773,7 @@ router.get('/promotions/:id', ...marketingAuth, requirePermission('marketing'), 
     }
 });
 
-router.post('/promotions', ...marketingAuth, requirePermission('marketing'), async (req, res) => {
+router.post('/promotions', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const body = req.body || {};
         const codeRaw = String(body.code || '').trim();
@@ -3695,7 +3839,7 @@ router.post('/promotions', ...marketingAuth, requirePermission('marketing'), asy
     }
 });
 
-router.put('/promotions/:id', ...marketingAuth, requirePermission('marketing'), async (req, res) => {
+router.put('/promotions/:id', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const id = Number(req.params.id);
         if (!Number.isInteger(id) || id <= 0) {
@@ -3769,7 +3913,7 @@ router.put('/promotions/:id', ...marketingAuth, requirePermission('marketing'), 
     }
 });
 
-router.delete('/promotions/:id', ...marketingAuth, requirePermission('marketing'), async (req, res) => {
+router.delete('/promotions/:id', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const id = Number(req.params.id);
         if (!Number.isInteger(id) || id <= 0) {
@@ -3789,7 +3933,7 @@ router.delete('/promotions/:id', ...marketingAuth, requirePermission('marketing'
 // ===== EMAIL SUBSCRIBER MANAGEMENT ENDPOINTS =====
 
 // Get all email subscribers
-router.get('/email-subscribers', ...marketingAuth, requirePermission('marketing'), async (req, res) => {
+router.get('/email-subscribers', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const emailCampaignService = new EmailCampaignService(req.pool);
         const subscribers = await emailCampaignService.getSubscribers(req.query);
@@ -3801,7 +3945,7 @@ router.get('/email-subscribers', ...marketingAuth, requirePermission('marketing'
 });
 
 // Get email subscriber by ID
-router.get('/email-subscribers/:id', ...marketingAuth, requirePermission('marketing'), async (req, res) => {
+router.get('/email-subscribers/:id', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const emailCampaignService = new EmailCampaignService(req.pool);
         const subscriber = await emailCampaignService.getSubscriberById(req.params.id);
@@ -3813,7 +3957,7 @@ router.get('/email-subscribers/:id', ...marketingAuth, requirePermission('market
 });
 
 // Update subscriber status
-router.put('/email-subscribers/:id/status', ...marketingAuth, requirePermission('marketing'), async (req, res) => {
+router.put('/email-subscribers/:id/status', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const emailCampaignService = new EmailCampaignService(req.pool);
         const subscriber = await emailCampaignService.updateSubscriberStatus(
@@ -3829,7 +3973,7 @@ router.put('/email-subscribers/:id/status', ...marketingAuth, requirePermission(
 });
 
 // Mark offer as claimed
-router.post('/email-subscribers/:id/claim-offer', ...marketingAuth, requirePermission('marketing'), async (req, res) => {
+router.post('/email-subscribers/:id/claim-offer', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const emailCampaignService = new EmailCampaignService(req.pool);
         const result = await emailCampaignService.claimOffer(req.params.id, req.body.order_reference);
@@ -3841,7 +3985,7 @@ router.post('/email-subscribers/:id/claim-offer', ...marketingAuth, requirePermi
 });
 
 // Export subscribers
-router.get('/email-subscribers/export', ...marketingAuth, requirePermission('marketing'), async (req, res) => {
+router.get('/email-subscribers/export', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const emailCampaignService = new EmailCampaignService(req.pool);
         const format = req.query.format || 'csv';
@@ -3937,7 +4081,7 @@ router.get('/analytics/pos-discounts', ...adminAuth, async (req, res) => {
 });
 
 // Get email marketing overview
-router.get('/analytics/email-marketing', ...marketingAuth, requirePermission('marketing'), async (req, res) => {
+router.get('/analytics/email-marketing', ...adminAuth, requirePermission('manager'), async (req, res) => {
     try {
         const emailCampaignService = new EmailCampaignService(req.pool);
         const overview = await emailCampaignService.getEmailMarketingOverview(req.query.days || 30);
@@ -4028,6 +4172,7 @@ router.get('/tax-ledger/export/accountant.xlsx', ...adminAuth, requirePermission
     try {
         const startDate = String(req.query.startDate || '').slice(0, 10);
         const endDate = String(req.query.endDate || '').slice(0, 10);
+        const stateCode = String(req.query.state || req.query.stateCode || '').trim().toUpperCase();
         if (!startDate || !endDate) {
             return res.status(400).json({ error: 'startDate and endDate are required (YYYY-MM-DD)' });
         }
@@ -4036,21 +4181,57 @@ router.get('/tax-ledger/export/accountant.xlsx', ...adminAuth, requirePermission
         await ledger.syncDateRange(startDate, endDate);
 
         const report = new TaxAccountantReportService(req.pool);
-        const { buffer, rowCount } = await report.buildExcelBuffer(startDate, endDate);
+        const { buffer, rowCount, stateCode: exportedState } = await report.buildExcelBuffer(
+            startDate,
+            endDate,
+            stateCode || null
+        );
+
+        const filename = exportedState
+            ? `hmherbs-tax-${exportedState}-${startDate}-to-${endDate}.xlsx`
+            : `hmherbs-tax-online-${startDate}-to-${endDate}.xlsx`;
 
         res.setHeader(
             'Content-Type',
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         );
-        res.setHeader(
-            'Content-Disposition',
-            `attachment; filename="hmherbs-tax-report-${startDate}-to-${endDate}.xlsx"`
-        );
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         res.setHeader('X-Row-Count', String(rowCount));
         return res.send(buffer);
     } catch (error) {
         logger.error('Export tax accountant workbook error:', error);
         res.status(500).json({ error: error.message || 'Failed to export tax report' });
+    }
+});
+
+router.get('/tax-ledger/export/accountant-states', ...adminAuth, requirePermission('manager'), async (req, res) => {
+    try {
+        const startDate = String(req.query.startDate || '').slice(0, 10);
+        const endDate = String(req.query.endDate || '').slice(0, 10);
+        if (!startDate || !endDate) {
+            return res.status(400).json({ error: 'startDate and endDate are required (YYYY-MM-DD)' });
+        }
+
+        const ledger = new TaxLedgerService(req.pool);
+        await ledger.syncDateRange(startDate, endDate);
+
+        const report = new TaxAccountantReportService(req.pool);
+        const { files, rowCount } = await report.buildStateExcelFiles(startDate, endDate);
+
+        res.json({
+            startDate,
+            endDate,
+            rowCount,
+            files: files.map((f) => ({
+                stateCode: f.stateCode,
+                stateLabel: f.stateLabel,
+                filename: f.filename,
+                rowCount: f.rowCount
+            }))
+        });
+    } catch (error) {
+        logger.error('List tax accountant state exports error:', error);
+        res.status(500).json({ error: error.message || 'Failed to list state exports' });
     }
 });
 
@@ -4117,11 +4298,29 @@ function assertCanManageDeveloperAccount(actorRole, targetRole, action = 'modify
 
 router.get('/team', ...adminAuth, requirePermission('admin'), async (req, res) => {
     try {
+        const personnel = require('../services/posPersonnel');
         const [rows] = await req.pool.execute(
-            `SELECT id, email, first_name, last_name, role, is_active, last_login, created_at, updated_at
+            `SELECT id, email, first_name, last_name, role, is_active, last_login, created_at, updated_at,
+                    can_manage_store_hours
              FROM admin_users
              ORDER BY email ASC`
         );
+        const posRows = await personnel.listEmployees(req.pool);
+        const registerByAdmin = new Map();
+        const registerOnlyEmployees = [];
+        for (const row of posRows) {
+            const reg = {
+                id: row.id,
+                employeeCode: row.employee_code,
+                firstName: row.first_name,
+                lastName: row.last_name,
+                email: row.email,
+                isActive: Boolean(row.is_active),
+                hourlyRate: row.hourly_rate != null ? Number(row.hourly_rate) : null,
+            };
+            if (row.admin_user_id) registerByAdmin.set(row.admin_user_id, reg);
+            else registerOnlyEmployees.push(reg);
+        }
         const users = rows.map((row) => {
             const role = normalizeAdminRole(row.role);
             return {
@@ -4135,9 +4334,11 @@ router.get('/team', ...adminAuth, requirePermission('admin'), async (req, res) =
                 lastLogin: row.last_login,
                 createdAt: row.created_at,
                 updatedAt: row.updated_at,
+                register: registerByAdmin.get(row.id) || null,
+                canManageStoreHours: role === 'manager' ? Boolean(row.can_manage_store_hours) : false,
             };
         });
-        res.json({ users, roles: teamRolesForActor(req.admin.role) });
+        res.json({ users, registerOnlyEmployees, roles: teamRolesForActor(req.admin.role) });
     } catch (error) {
         logger.error('List admin team error:', error);
         res.status(500).json({ error: 'Failed to load team accounts' });
@@ -4150,7 +4351,7 @@ router.post('/team', ...adminAuth, requirePermission('admin'), async (req, res) 
         const password = String(req.body?.password || '');
         const firstName = String(req.body?.firstName || req.body?.first_name || '').trim();
         const lastName = String(req.body?.lastName || req.body?.last_name || '').trim();
-        const role = normalizeAdminRole(req.body?.role || 'marketing');
+        const role = normalizeAdminRole(req.body?.role || 'assistant_manager');
 
         if (!email || !password || password.length < 8) {
             return res.status(400).json({ error: 'Email and password (8+ characters) are required' });
@@ -4194,6 +4395,34 @@ router.post('/team', ...adminAuth, requirePermission('admin'), async (req, res) 
     }
 });
 
+function mapTeamRegisterRow(employee) {
+    if (!employee) return null;
+    return {
+        id: employee.id,
+        employeeCode: employee.employee_code,
+        firstName: employee.first_name,
+        lastName: employee.last_name,
+        email: employee.email,
+        isActive: Boolean(employee.is_active),
+        hourlyRate: employee.hourly_rate != null ? Number(employee.hourly_rate) : null,
+    };
+}
+
+router.put('/team/:id/register', ...adminAuth, requirePermission('admin'), async (req, res) => {
+    try {
+        const adminUserId = Number(req.params.id);
+        if (!Number.isInteger(adminUserId) || adminUserId <= 0) {
+            return res.status(400).json({ error: 'Invalid user id' });
+        }
+        const posPersonnel = require('../services/posPersonnel');
+        const employee = await posPersonnel.upsertRegisterForAdminUser(req.pool, adminUserId, req.body);
+        res.json({ register: mapTeamRegisterRow(employee) });
+    } catch (e) {
+        const status = e.code === 'ER_DUP_ENTRY' ? 409 : e.code ? 400 : 500;
+        res.status(status).json({ error: e.message, code: e.code });
+    }
+});
+
 router.patch('/team/:id', ...adminAuth, requirePermission('admin'), async (req, res) => {
     try {
         const id = Number(req.params.id);
@@ -4222,6 +4451,22 @@ router.patch('/team/:id', ...adminAuth, requirePermission('admin'), async (req, 
             assertCanAssignRole(req.admin.role, role);
             updates.push('role = ?');
             params.push(role);
+            if (role !== 'manager') {
+                updates.push('can_manage_store_hours = 0');
+            }
+        }
+
+        if (req.body?.canManageStoreHours != null || req.body?.can_manage_store_hours != null) {
+            if (!canManageStoreHours(req.admin.role)) {
+                return res.status(403).json({ error: 'Only Admin or Developer can change store hours permissions' });
+            }
+            const nextRole = req.body?.role != null ? normalizeAdminRole(req.body.role) : existingRole;
+            if (nextRole !== 'manager') {
+                return res.status(400).json({ error: 'Store hours permission only applies to Manager accounts' });
+            }
+            const flag = req.body.canManageStoreHours ?? req.body.can_manage_store_hours;
+            updates.push('can_manage_store_hours = ?');
+            params.push(flag ? 1 : 0);
         }
 
         if (req.body?.isActive != null || req.body?.is_active != null) {
@@ -4266,7 +4511,7 @@ router.patch('/team/:id', ...adminAuth, requirePermission('admin'), async (req, 
         }
 
         const [updated] = await req.pool.execute(
-            'SELECT id, email, first_name, last_name, role, is_active FROM admin_users WHERE id = ?',
+            'SELECT id, email, first_name, last_name, role, is_active, can_manage_store_hours FROM admin_users WHERE id = ?',
             [id]
         );
         const row = updated[0];
@@ -4282,6 +4527,7 @@ router.patch('/team/:id', ...adminAuth, requirePermission('admin'), async (req, 
                       role,
                       roleLabel: ROLE_LABELS[role] || role,
                       isActive: Boolean(row.is_active),
+                      canManageStoreHours: role === 'manager' ? Boolean(row.can_manage_store_hours) : false,
                   }
                 : null,
         });

@@ -78,12 +78,12 @@ class NavDropdowns {
             if (!response.ok) {
                 throw new Error('Failed to load categories');
             }
-            this.categories = await response.json();
+            this.categories = this.sortCategories(await response.json());
             this.populateCategoriesDropdown();
         } catch (error) {
             console.log('⚠️ Using fallback categories (API unavailable)');
             // Use fallback categories from seed data
-            this.categories = this.getFallbackCategories();
+            this.categories = this.sortCategories(this.getFallbackCategories());
             this.populateCategoriesDropdown();
         }
     }
@@ -270,31 +270,37 @@ class NavDropdowns {
         ];
     }
 
+    sortCategories(categories = []) {
+        return [...categories].sort((a, b) =>
+            (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' })
+        );
+    }
+
     getFallbackCategories() {
         return [
-            { name: 'Blood Pressure', slug: 'blood-pressure' },
-            { name: 'Heart Health', slug: 'heart-health' },
             { name: 'Allergies', slug: 'allergies' },
-            { name: 'Digestive Health', slug: 'digestive-health' },
-            { name: 'Joint & Arthritis', slug: 'joint-arthritis' },
-            { name: 'Immune Support', slug: 'immune-support' },
-            { name: 'Stress & Anxiety', slug: 'stress-anxiety' },
-            { name: 'Sleep Support', slug: 'sleep-support' },
-            { name: 'Energy & Vitality', slug: 'energy-vitality' },
+            { name: 'Anti-Aging', slug: 'anti-aging' },
+            { name: 'Blood Pressure', slug: 'blood-pressure' },
+            { name: 'Bone Health', slug: 'bone-health' },
             { name: 'Brain Health', slug: 'brain-health' },
-            { name: 'Womens Health', slug: 'womens-health' },
+            { name: 'CBD', slug: 'cbd' },
+            { name: 'Digestive Health', slug: 'digestive-health' },
+            { name: 'Energy & Vitality', slug: 'energy-vitality' },
+            { name: 'Eye Health', slug: 'eye-health' },
+            { name: 'Heart Health', slug: 'heart-health' },
+            { name: 'Immune Support', slug: 'immune-support' },
+            { name: 'Joint & Arthritis', slug: 'joint-arthritis' },
+            { name: 'Liver Support', slug: 'liver-support' },
             { name: 'Mens Health', slug: 'mens-health' },
             { name: 'Pet Health', slug: 'pet-health' },
-            { name: 'Weight Management', slug: 'weight-management' },
-            { name: 'Skin Health', slug: 'skin-health' },
-            { name: 'Eye Health', slug: 'eye-health' },
-            { name: 'Liver Support', slug: 'liver-support' },
             { name: 'Respiratory Health', slug: 'respiratory-health' },
-            { name: 'Bone Health', slug: 'bone-health' },
-            { name: 'Anti-Aging', slug: 'anti-aging' }
+            { name: 'Skin Health', slug: 'skin-health' },
+            { name: 'Sleep Support', slug: 'sleep-support' },
+            { name: 'Stress & Anxiety', slug: 'stress-anxiety' },
+            { name: 'Weight Management', slug: 'weight-management' },
+            { name: 'Womens Health', slug: 'womens-health' }
         ];
     }
-}
 
 // Initialize when DOM is ready
 (function () {

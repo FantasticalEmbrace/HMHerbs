@@ -4,6 +4,17 @@ const logger = require('../utils/logger');
 
 const SCOPE = 'https://www.googleapis.com/auth/calendar';
 
+function isOAuthTokenError(error) {
+    const msg = String(
+        error?.message || error?.response?.data?.error || error?.response?.data?.error_description || ''
+    ).toLowerCase();
+    return (
+        msg.includes('invalid_grant') ||
+        msg.includes('token has been expired') ||
+        msg.includes('token has been revoked')
+    );
+}
+
 const SETTINGS_KEYS = {
     refreshToken: 'gcal_refresh_token',
     connectedEmail: 'gcal_connected_email',
@@ -257,17 +268,33 @@ class GoogleCalendarOAuthService {
         return { auth: client, calendarId: creds.calendarId || 'primary' };
     }
 
+    async _handleAuthApiCall(pool, fn) {
+        try {
+            return await fn();
+        } catch (error) {
+            if (isOAuthTokenError(error)) {
+                await this.disconnect(pool).catch(() => {});
+                const err = new Error('Google Calendar connection expired. Please connect again in Settings.');
+                err.code = 'GOOGLE_TOKEN_EXPIRED';
+                throw err;
+            }
+            throw error;
+        }
+    }
+
     async listCalendars(pool, req) {
-        const { auth } = await this.getAuthenticatedClient(pool, req);
-        const calendar = google.calendar({ version: 'v3', auth });
-        const response = await calendar.calendarList.list({ minAccessRole: 'writer' });
-        const items = response.data?.items || [];
-        return items.map((item) => ({
-            id: item.id,
-            summary: item.summary || item.id,
-            primary: Boolean(item.primary),
-            accessRole: item.accessRole || null,
-        }));
+        return this._handleAuthApiCall(pool, async () => {
+            const { auth } = await this.getAuthenticatedClient(pool, req);
+            const calendar = google.calendar({ version: 'v3', auth });
+            const response = await calendar.calendarList.list({ minAccessRole: 'writer' });
+            const items = response.data?.items || [];
+            return items.map((item) => ({
+                id: item.id,
+                summary: item.summary || item.id,
+                primary: Boolean(item.primary),
+                accessRole: item.accessRole || null,
+            }));
+        });
     }
 }
 

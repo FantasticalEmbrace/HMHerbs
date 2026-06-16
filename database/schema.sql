@@ -362,7 +362,7 @@ CREATE TABLE admin_users (
     password_hash VARCHAR(255) NOT NULL,
     first_name VARCHAR(100) NOT NULL,
     last_name VARCHAR(100) NOT NULL,
-    role ENUM('admin', 'manager', 'assistant_manager', 'marketing') DEFAULT 'assistant_manager',
+    role ENUM('developer', 'admin', 'manager', 'assistant_manager') DEFAULT 'assistant_manager',
     is_active BOOLEAN DEFAULT TRUE,
     last_login TIMESTAMP NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

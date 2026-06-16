@@ -8,6 +8,7 @@ const ORDER_PATCHES = [
     { column: 'tracking_status_updated_at', sql: 'ALTER TABLE orders ADD COLUMN tracking_status_updated_at DATETIME NULL' },
     { column: 'label_created_at', sql: 'ALTER TABLE orders ADD COLUMN label_created_at TIMESTAMP NULL' },
     { column: 'shipped_email_sent', sql: 'ALTER TABLE orders ADD COLUMN shipped_email_sent TINYINT(1) NOT NULL DEFAULT 0' },
+    { column: 'label_email_sent', sql: 'ALTER TABLE orders ADD COLUMN label_email_sent TINYINT(1) NOT NULL DEFAULT 0' },
     { column: 'shipping_method', sql: 'ALTER TABLE orders ADD COLUMN shipping_method VARCHAR(64) NULL' },
     { column: 'shipping_carrier', sql: 'ALTER TABLE orders ADD COLUMN shipping_carrier VARCHAR(32) NULL' },
     { column: 'shipping_service', sql: 'ALTER TABLE orders ADD COLUMN shipping_service VARCHAR(128) NULL' },
@@ -19,6 +20,12 @@ const ORDER_PATCHES = [
     { column: 'shipping_box_id', sql: 'ALTER TABLE orders ADD COLUMN shipping_box_id INT NULL' },
     { column: 'payment_method', sql: 'ALTER TABLE orders ADD COLUMN payment_method VARCHAR(32) NULL' },
     { column: 'payment_reference', sql: 'ALTER TABLE orders ADD COLUMN payment_reference VARCHAR(128) NULL' },
+    {
+        column: 'sales_channel',
+        sql: `ALTER TABLE orders ADD COLUMN sales_channel
+              ENUM('online', 'in_store', 'mobile', 'phone', 'other') NOT NULL DEFAULT 'online'
+              COMMENT 'online=website checkout; in_store=POS/retail'`
+    },
 ];
 
 async function tableExists(pool, tableName) {

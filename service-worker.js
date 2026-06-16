@@ -1,8 +1,8 @@
 // H&M Herbs & Vitamins - Service Worker
 // Progressive Web App functionality with offline support
 
-const STATIC_CACHE = 'hmherbs-static-v1.0.34';
-const DYNAMIC_CACHE = 'hmherbs-dynamic-v1.0.34';
+const STATIC_CACHE = 'hmherbs-static-v1.0.36';
+const DYNAMIC_CACHE = 'hmherbs-dynamic-v1.0.36';
 
 // Files to cache for offline functionality
 const STATIC_FILES = [
@@ -144,6 +144,7 @@ self.addEventListener('fetch', event => {
   if (
     url.pathname === '/js/checkout.js' ||
     url.pathname === '/js/customer-auth.js' ||
+    url.pathname === '/gdpr-compliance.js' ||
     url.pathname === '/js/edsa-ui.js' ||
     url.pathname === '/js/edsa-booking.js' ||
     url.pathname === '/js/edsa-confirmation.js' ||

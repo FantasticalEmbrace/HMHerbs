@@ -810,6 +810,16 @@
                                 <div id="googlepaybutton"></div>
                             </div>
                             <div id="nmi-collect-fields" class="checkout-nmi-collect" style="display: none;">
+                                <div id="saved-cards-block" style="display:none;margin-bottom:var(--space-4);">
+                                    <label for="saved-card-select" class="form-label">Saved payment methods</label>
+                                    <select id="saved-card-select" class="form-select">
+                                        <option value="">Use a new card</option>
+                                    </select>
+                                    <label style="display:flex;align-items:center;gap:0.5rem;margin-top:var(--space-3);cursor:pointer;">
+                                        <input type="checkbox" id="save-card-checkbox" checked>
+                                        Save this card for next time
+                                    </label>
+                                </div>
                                 <div class="form-group">
                                     <label for="ccnumber">Card number <span class="required">*</span></label>
                                     <div id="ccnumber" class="nmi-field-host" aria-label="Card number"></div>
@@ -1263,6 +1273,7 @@
     <!-- Scripts -->
     <script src="js/age-gate.js" defer></script>
     <script src="js/site-promo-banner.js" defer></script>
+    <script src="js/site-store-info.js" defer></script>
     <script src="js/mobile-menu.js"></script>
     <script src="js/nav-current-page.js"></script>
     <script src="js/section-nav.js"></script>
@@ -1275,7 +1286,7 @@
     <script src="js/nmi-public-token.js" defer></script>
     <script src="js/checkout.js?v=20260522-wallets" defer></script>
     <script src="script.js" defer></script>
-    <script src="gdpr-compliance.js" defer></script>
+    <script src="gdpr-compliance.js?v=20260616b" defer></script>
 </body>
 
 </html>

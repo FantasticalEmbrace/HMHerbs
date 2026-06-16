@@ -108,33 +108,9 @@
     function render(container, orderId, ctx, app, modal) {
         const { order, lines, boxes, missingWeights, hasLabel } = ctx;
 
-        const statusLabel = {
-            label_created: 'Shipping label created',
-            shipped: 'Shipped',
-            in_transit: 'In transit',
-            delivered: 'Delivered',
-            processing: 'Processing',
-            pending: 'Order placed',
-        }[String(order.status || '').toLowerCase()] || order.status;
-
         if (hasLabel && order.label_url) {
-            container.innerHTML = `
-                <h4 style="margin:0 0 0.75rem;color:var(--gray-800);">Shipping label</h4>
-                <div style="padding:1rem;background:var(--gray-50);border-radius:8px;border:1px solid var(--gray-200);">
-                    <div style="margin-bottom:0.5rem;"><span class="badge badge-info">${esc(statusLabel)}</span></div>
-                    <div><strong>Carrier:</strong> ${esc(order.shipping_carrier || '—')}</div>
-                    <div><strong>Service:</strong> ${esc(order.shipping_service || '—')}</div>
-                    <div><strong>Tracking:</strong> ${
-                        window.HMTrackingLink
-                            ? window.HMTrackingLink.renderTrackingLink(order, esc)
-                            : esc(order.tracking_number || '—')
-                    }</div>
-                    ${order.tracking_status_detail ? `<div style="margin-top:0.5rem;font-size:0.9rem;color:var(--gray-600);">${esc(order.tracking_status_detail)}</div>` : ''}
-                    <div style="margin-top:0.75rem;display:flex;gap:0.5rem;flex-wrap:wrap;">
-                        <a class="btn btn-primary btn-sm" href="${esc(order.label_url)}" target="_blank" rel="noopener"><i class="fas fa-print"></i> Print label</a>
-                    </div>
-                    <p style="font-size:0.8rem;color:var(--gray-500);margin:0.75rem 0 0;">Customer is emailed when the carrier first scans the package. Status updates automatically from Shippo.</p>
-                </div>`;
+            container.innerHTML = '';
+            container.style.display = 'none';
             return;
         }
 

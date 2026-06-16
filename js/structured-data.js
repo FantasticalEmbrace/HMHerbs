@@ -117,19 +117,19 @@ class StructuredDataManager {
                         "@type": "ListItem",
                         "position": 1,
                         "name": "Blood Pressure & Heart Health",
-                        "url": `${this.baseUrl}/#health-categories`
+                        "url": `${this.baseUrl}/categories.html`
                     },
                     {
                         "@type": "ListItem",
                         "position": 2,
                         "name": "Allergies & Immune Support",
-                        "url": `${this.baseUrl}/#health-categories`
+                        "url": `${this.baseUrl}/categories.html`
                     },
                     {
                         "@type": "ListItem",
                         "position": 3,
                         "name": "Digestive Health",
-                        "url": `${this.baseUrl}/#health-categories`
+                        "url": `${this.baseUrl}/categories.html`
                     }
                 ]
             }

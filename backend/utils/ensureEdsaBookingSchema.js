@@ -58,6 +58,19 @@ async function ensureEdsaBookingSchema(pool) {
             column: 'google_calendar_event_id',
             sql: 'ALTER TABLE edsa_bookings ADD COLUMN google_calendar_event_id VARCHAR(255) NULL',
         },
+        {
+            column: 'payment_status',
+            sql: `ALTER TABLE edsa_bookings ADD COLUMN payment_status
+                  ENUM('pending', 'paid', 'failed', 'refunded') NOT NULL DEFAULT 'pending'`,
+        },
+        {
+            column: 'payment_reference',
+            sql: 'ALTER TABLE edsa_bookings ADD COLUMN payment_reference VARCHAR(128) NULL',
+        },
+        {
+            column: 'amount_charged',
+            sql: 'ALTER TABLE edsa_bookings ADD COLUMN amount_charged DECIMAL(10,2) NULL',
+        },
     ];
 
     for (const patch of patches) {

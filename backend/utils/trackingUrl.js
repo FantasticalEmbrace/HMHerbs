@@ -11,6 +11,29 @@ function normalizeCarrier(carrier) {
         .replace(/[^a-z0-9]/g, '');
 }
 
+/** Guess carrier from tracking number when Shippo omits provider (common in sandbox). */
+function inferCarrierFromTracking(trackingNumber) {
+    const t = String(trackingNumber || '').trim().toUpperCase();
+    if (!t || isPlaceholderTracking(t)) return '';
+    if (t.startsWith('1Z')) return 'ups';
+    if (/^(94|92|93|95|96)\d/.test(t)) return 'usps';
+    if (/^\d{12,22}$/.test(t)) return 'fedex';
+    if (t.startsWith('TBA')) return 'amazon';
+    return '';
+}
+
+function resolveCarrier(orderOrCarrier, trackingNumber) {
+    const fromField = typeof orderOrCarrier === 'object'
+        ? orderOrCarrier?.shipping_carrier
+        : orderOrCarrier;
+    const carrier = String(fromField || '').trim();
+    if (carrier) return carrier;
+    const num = typeof orderOrCarrier === 'object'
+        ? orderOrCarrier?.tracking_number
+        : trackingNumber;
+    return inferCarrierFromTracking(num);
+}
+
 /**
  * Build a carrier tracking page URL from carrier + tracking number.
  * @returns {string|null}
@@ -58,7 +81,7 @@ function resolveTrackingUrl(order) {
     const num = String(order?.tracking_number || '').trim();
     if (!num || isPlaceholderTracking(num)) return null;
 
-    return buildCarrierTrackingUrl(order?.shipping_carrier, num);
+    return buildCarrierTrackingUrl(resolveCarrier(order, num), num);
 }
 
 /**
@@ -81,15 +104,19 @@ function resolveTrackingInfo(order) {
 function enrichOrderTracking(order) {
     if (!order || typeof order !== 'object') return order;
     const info = resolveTrackingInfo(order);
+    const carrier = resolveCarrier(order, info.tracking_number);
     return {
         ...order,
         tracking_number: info.tracking_number,
         tracking_url: info.tracking_url,
+        shipping_carrier: carrier || order.shipping_carrier || null,
     };
 }
 
 module.exports = {
     isPlaceholderTracking,
+    inferCarrierFromTracking,
+    resolveCarrier,
     buildCarrierTrackingUrl,
     resolveTrackingUrl,
     resolveTrackingInfo,

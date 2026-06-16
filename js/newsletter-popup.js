@@ -6,6 +6,13 @@ const HMHERBS_MAILCHIMP_SIGNUP_URL =
     'https://mailchi.mp/7cd1b02d1358/subscribe-to-newsletter';
 
 const HMHERBS_AGE_VERIFIED_KEY = 'hmherbs_age_verified_21';
+const HMHERBS_NEWSLETTER_DONE_EVENT = 'hmherbs:newsletter-popup-done';
+
+function notifyNewsletterPopupDone() {
+    if (window.__hmNewsletterPopupDone) return;
+    window.__hmNewsletterPopupDone = true;
+    window.dispatchEvent(new CustomEvent(HMHERBS_NEWSLETTER_DONE_EVENT));
+}
 
 class NewsletterPopup {
     constructor() {
@@ -44,6 +51,7 @@ class NewsletterPopup {
     init() {
         // Check if popup has already been shown
         if (this.hasBeenShown()) {
+            notifyNewsletterPopupDone();
             return;
         }
 
@@ -76,6 +84,7 @@ class NewsletterPopup {
     showPopup() {
         // Don't show if already shown or if user is on admin page
         if (this.hasBeenShown() || window.location.pathname.includes('admin')) {
+            notifyNewsletterPopupDone();
             return;
         }
 
@@ -181,6 +190,7 @@ class NewsletterPopup {
             if (popup.parentNode) {
                 popup.parentNode.removeChild(popup);
             }
+            notifyNewsletterPopupDone();
         }, 300);
     }
 }

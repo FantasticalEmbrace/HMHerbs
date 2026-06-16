@@ -56,6 +56,14 @@ class AccountManager {
         this.loadUserProfile();
         this.handleHashNavigation();
         window.addEventListener('hashchange', () => this.handleHashNavigation());
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                const ordersSection = document.getElementById('orders');
+                if (ordersSection?.classList.contains('active')) {
+                    this.loadOrders();
+                }
+            }
+        });
     }
 
     setupEventListeners() {
@@ -283,30 +291,36 @@ class AccountManager {
         return labels[key] || key.replace(/_/g, ' ');
     }
 
+    _formatSalesChannel(channel) {
+        const labels = {
+            online: 'Online',
+            in_store: 'In-store',
+            mobile: 'Mobile',
+            phone: 'Phone',
+            other: 'Other'
+        };
+        const key = String(channel || 'online').toLowerCase();
+        return labels[key] || key;
+    }
+
     renderOrder(order) {
         const statusClass = order.status || 'pending';
         const statusLabel = this._formatOrderStatus(statusClass);
+        const channelLabel = this._formatSalesChannel(order.sales_channel);
         const date = new Date(order.created_at).toLocaleDateString();
         const number = order.order_number || `#${order.id}`;
-        const trackingHtml = window.HMTrackingLink
-            ? window.HMTrackingLink.renderTrackingLink(order, (s) => this._esc(s))
-            : (order.tracking_number ? this._esc(order.tracking_number) : '');
-        const trackingLine = trackingHtml && trackingHtml !== '—'
-            ? `<p><strong>Tracking:</strong> ${trackingHtml}</p>`
-            : '';
         return `
             <div class="order-card" data-order-id="${order.id}">
                 <div class="order-header">
                     <div>
                         <div class="order-number">Order ${this._esc(number)}</div>
-                        <div class="order-date">${date}</div>
+                        <div class="order-date">${date} · ${this._esc(channelLabel)}</div>
                     </div>
                     <span class="order-status ${this._esc(statusClass)}">${this._esc(statusLabel)}</span>
                 </div>
                 <div class="order-details">
                     <p><strong>Total:</strong> $${parseFloat(order.total || 0).toFixed(2)}</p>
                     <p><strong>Items:</strong> ${order.item_count || 0}</p>
-                    ${trackingLine}
                 </div>
                 <div style="text-align:right;margin-top:0.5rem;">
                     <button class="btn btn-secondary btn-sm" data-act="order-detail" data-id="${order.id}">View Details</button>
@@ -372,32 +386,17 @@ class AccountManager {
                 </div>
             </div>` : '';
         const statusLabel = this._formatOrderStatus(order.status);
-        const trackingLinkHtml = window.HMTrackingLink
-            ? window.HMTrackingLink.renderTrackingLink(order, esc)
-            : '';
-        const hasTrackingLink = trackingLinkHtml && trackingLinkHtml !== '—';
         const st = String(order.status || '').toLowerCase();
-        const trackingBlock = hasTrackingLink ? `
-            <div style="margin-bottom:1rem;padding:0.75rem 1rem;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;">
-                <div style="font-weight:600;margin-bottom:0.35rem;">${esc(statusLabel)}</div>
-                ${order.shipping_carrier ? `<div>Carrier: ${esc(order.shipping_carrier)}</div>` : ''}
-                ${order.tracking_status_detail ? `<div style="margin-top:0.35rem;font-size:0.9rem;color:var(--gray-600,#4b5563);">${esc(order.tracking_status_detail)}</div>` : ''}
-                <div style="margin-top:0.5rem;"><strong>Tracking:</strong> ${trackingLinkHtml}</div>
-                <p style="font-size:0.8rem;color:var(--gray-500);margin:0.5rem 0 0;">Tap the tracking number to view live carrier updates.</p>
-            </div>` : (['label_created', 'shipped', 'in_transit', 'delivered'].includes(st)
-                ? `<div style="margin-bottom:1rem;padding:0.75rem 1rem;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;">
-                    <div style="font-weight:600;margin-bottom:0.25rem;">${esc(statusLabel)}</div>
-                    <p style="margin:0;font-size:0.9rem;color:var(--gray-600,#4b5563);">Tracking will appear here shortly after your shipping label is created.</p>
-                   </div>`
-                : (st === 'processing' || st === 'pending'
-                    ? `<div style="margin-bottom:1rem;padding:0.75rem 1rem;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;">
-                        <div style="font-weight:600;margin-bottom:0.25rem;">${esc(statusLabel)}</div>
-                        <p style="margin:0;font-size:0.9rem;color:var(--gray-600,#4b5563);">Tracking will appear here once your order ships.</p>
-                       </div>`
-                    : ''));
+        const progressBlock = ['cancelled', 'refunded'].includes(st)
+            ? `<div style="margin-bottom:1rem;padding:0.75rem 1rem;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;">
+                <div style="font-weight:600;">${esc(statusLabel)}</div>
+               </div>`
+            : (window.HMOrderProgress
+                ? window.HMOrderProgress.render(order, esc)
+                : '');
 
         return `
-            ${trackingBlock}
+            ${progressBlock}
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-bottom:1rem;">
                 ${addrHtml(shipping_address, 'Ship To')}
                 ${addrHtml(billing_address, 'Bill To')}

@@ -2,7 +2,7 @@
 <html lang="en">
 
 <head>
-    <!-- CRITICAL: File protocol handler MUST BE FIRST -->
+    <!-- CRITICAL: File protocol handler MUST BE FIRST --
     <script src="js/file-protocol-handler.js"></script>
 
     <meta charset="UTF-8">
@@ -359,19 +359,6 @@
                         <i class="fas fa-th-large" aria-hidden="true"></i>
                         View All Products
                     </a>
-                </div>
-            </div>
-        </section>
-
-        <!-- Health Categories Section -->
-        <section class="health-categories" id="health-categories" aria-labelledby="health-categories-heading">
-            <div class="container">
-                <div class="section-header">
-                    <h2 id="health-categories-heading">Category</h2>
-                    <p>Find products specifically for your health needs - organized by condition</p>
-                </div>
-                <div class="health-categories-grid" id="health-categories-grid">
-                    <!-- Health categories will be dynamically loaded here -->
                 </div>
             </div>
         </section>
@@ -913,19 +900,20 @@
     <!-- Cart Overlay -->
     <div class="cart-overlay" id="cart-overlay"></div>
 
-    <!-- Cookie Consent Banner -->
-    <div class="cookie-banner" id="cookie-banner" aria-hidden="true" role="dialog" aria-labelledby="cookie-title"
+    <!-- Cookie Consent Popup -->
+    <div class="cookie-popup" id="cookie-banner" aria-hidden="true" role="dialog" aria-labelledby="cookie-title"
         aria-modal="true">
-        <div class="cookie-content">
-            <div class="cookie-text">
-                <h3 id="cookie-title">We Value Your Privacy</h3>
-                <p>We use essential cookies to make our website work properly. We also use Google Analytics to
+        <div class="cookie-popup-overlay" aria-hidden="true"></div>
+        <div class="cookie-popup-content">
+            <div class="cookie-popup-body">
+                <h3 id="cookie-title" class="cookie-popup-title">We Value Your Privacy</h3>
+                <p class="cookie-popup-text">We use essential cookies to make our website work properly. We also use Google Analytics to
                     understand how visitors use our site and improve it. You can choose which cookies to accept.</p>
-            </div>
-            <div class="cookie-actions">
-                <button id="cookie-accept" class="btn btn-secondary">Accept All</button>
-                <button id="cookie-reject" class="btn btn-secondary">Essential Only</button>
-                <button id="cookie-settings" class="btn btn-outline">Customize</button>
+                <div class="cookie-popup-actions">
+                    <button id="cookie-accept" class="btn btn-secondary" type="button">Accept All</button>
+                    <button id="cookie-reject" class="btn btn-secondary" type="button">Essential Only</button>
+                    <button id="cookie-settings" class="btn btn-outline" type="button">Customize</button>
+                </div>
             </div>
         </div>
     </div>
@@ -1043,7 +1031,7 @@
                             <div class="form-group">
                                 <label for="register-phone">Phone</label>
                                 <input type="tel" id="register-phone" class="form-input"
-                                    placeholder="(601) 398-5600" maxlength="14" inputmode="numeric"
+                                    placeholder="(555) 555-0100" maxlength="14" inputmode="numeric"
                                     autocomplete="tel">
                             </div>
                             <p class="form-help register-address-intro">Start typing your street address for suggestions, or enter it manually.</p>
@@ -1103,6 +1091,7 @@
     <script src="js/page-init.js"></script>
     <script src="js/age-gate.js" defer></script>
     <script src="js/site-promo-banner.js" defer></script>
+    <script src="js/site-store-info.js" defer></script>
 
     <!-- Cart / storefront toasts (before visual-bug-fixes — it must not override toast positioning) -->
     <script src="js/hm-notify.js"></script>
@@ -1126,12 +1115,11 @@
     <script src="js/phone-us-format.js" defer></script>
     <script src="js/address-autocomplete.js" defer></script>
     <script src="js/edsa-ui.js" defer></script>
-    <script src="js/edsa-booking.js?v=14" defer></script>
+    <script src="js/edsa-booking.js?v=15" defer></script>
     <script src="js/newsletter-popup.js" defer></script>
     <script src="js/testimonials-carousel.js" defer></script>
     <script src="js/customer-auth.js" defer></script>
-    <script src="js/brands-categories.js" defer></script>
-    <script src="gdpr-compliance.js" defer></script>
+    <script src="gdpr-compliance.js?v=20260616b" defer></script>
     <script src="ccpa-compliance.js" defer></script>
 
     <!-- Ensure EDSA image loads correctly -->

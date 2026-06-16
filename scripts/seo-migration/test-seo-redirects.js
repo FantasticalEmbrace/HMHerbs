@@ -35,7 +35,7 @@ const cases = [
     ['/search', 301, '/products.html'],
     ['/index.php/brand', 301, '/brands.html'],
     ['/index.php/category', 301, '/categories.html'],
-    ['/index.php/cbd', 301, '/products.html?search=CBD'],
+    ['/index.php/cbd', 301, '/products.html?category=cbd'],
     ['/categories/herbs', 301, '/categories.html'],
     ['/health-conditions/immune', 301, '/products.html?category=immune'],
     ['/brands/flexcin', 301, '/products.html?brand=flexcin'],

@@ -22,7 +22,8 @@ INSERT INTO health_categories (name, slug, description, sort_order) VALUES
 ('Liver Support', 'liver-support', 'Liver detox and hepatic support supplements', 17),
 ('Respiratory Health', 'respiratory-health', 'Lung and respiratory system support', 18),
 ('Bone Health', 'bone-health', 'Calcium, vitamin D, and bone strength supplements', 19),
-('Anti-Aging', 'anti-aging', 'Antioxidants and anti-aging supplements', 20);
+('Anti-Aging', 'anti-aging', 'Antioxidants and anti-aging supplements', 20),
+('CBD', 'cbd', 'Premium hemp and CBD products for natural wellness support', 0);
 
 -- Insert major brands
 INSERT INTO brands (name, slug, description) VALUES
@@ -58,7 +59,8 @@ INSERT INTO product_categories (name, slug, description, sort_order) VALUES
 ('Capsules & Tablets', 'capsules-tablets', 'Traditional capsule and tablet supplements', 12),
 ('Powders', 'powders', 'Powder supplements and drink mixes', 13),
 ('Pet Supplements', 'pet-supplements', 'Health products for pets', 14),
-('Specialty Formulas', 'specialty-formulas', 'Unique and specialized formulations', 15);
+('Specialty Formulas', 'specialty-formulas', 'Unique and specialized formulations', 15),
+('CBD', 'cbd', 'Hemp-derived CBD oils, gummies, topicals, and wellness products', 16);
 
 -- Sample products removed - products will be populated via scraping tool
 -- Use the admin console "Scrape HM Herbs" button to populate products from the original website

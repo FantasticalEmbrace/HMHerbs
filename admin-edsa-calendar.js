@@ -125,6 +125,8 @@
             if (!this._edsaCalendarView) this._edsaCalendarView = 'month';
             if (!this._edsaCalendarCursor) this._edsaCalendarCursor = new Date();
             if (!this._edsaBookingsList) this._edsaBookingsList = [];
+            if (!this._edsaBlockedDates) this._edsaBlockedDates = new Set();
+            if (this._edsaBlockMode == null) this._edsaBlockMode = false;
         },
 
         getEdsaCalendarRange() {
@@ -150,13 +152,18 @@
                             <button type="button" class="btn btn-sm ${view === 'week' ? 'btn-primary' : 'btn-secondary'}" data-edsa-view="week">Week</button>
                             <button type="button" class="btn btn-sm ${view === 'month' ? 'btn-primary' : 'btn-secondary'}" data-edsa-view="month">Month</button>
                         </div>
+                        <button type="button" class="btn btn-sm ${this._edsaBlockMode ? 'btn-primary' : 'btn-secondary'}" id="edsa-cal-block-mode">
+                            ${this._edsaBlockMode ? 'Block mode on' : 'Block dates'}
+                        </button>
                     </div>
                     <div class="edsa-cal-legend">
                         <span><i class="edsa-legend-dot edsa-ev-confirmed"></i> Confirmed</span>
                         <span><i class="edsa-legend-dot edsa-ev-pending"></i> Pending</span>
                         <span><i class="edsa-legend-dot edsa-ev-cancelled"></i> Cancelled</span>
                         <span><i class="edsa-legend-dot edsa-ev-request"></i> Customer request</span>
+                        <span><i class="edsa-legend-dot edsa-ev-blocked"></i> Blocked day</span>
                     </div>
+                    <div id="edsa-blocked-dates-panel" class="edsa-blocked-panel"></div>
                     <div id="edsa-cal-body" class="edsa-cal-body"></div>
                     <details class="edsa-cal-table-toggle">
                         <summary>All bookings (table)</summary>
@@ -218,10 +225,12 @@
                 const inMonth = day.getMonth() === cursor.getMonth();
                 const isToday = sameYmd(day, today);
                 const dayBookings = bookingsForYmd(bookings, ymd);
+                const isBlocked = this._edsaBlockedDates && this._edsaBlockedDates.has(ymd);
                 const classes = [
                     'edsa-month-cell',
                     inMonth ? '' : 'edsa-month-other',
                     isToday ? 'edsa-month-today' : '',
+                    isBlocked ? 'edsa-month-blocked' : '',
                 ]
                     .filter(Boolean)
                     .join(' ');
@@ -235,8 +244,8 @@
                         ? `<span class="edsa-month-more">+${dayBookings.length - 3} more</span>`
                         : '';
 
-                html += `<div class="${classes}" data-edsa-day="${ymd}">
-                    <div class="edsa-month-num">${day.getDate()}</div>
+                html += `<div class="${classes}" data-edsa-day="${ymd}"${isBlocked ? ' title="Blocked from online booking"' : ''}>
+                    <div class="edsa-month-num">${day.getDate()}${isBlocked ? ' <span class="edsa-blocked-mark">×</span>' : ''}</div>
                     <div class="edsa-month-events">${events}${more}</div>
                 </div>`;
             }
@@ -339,11 +348,27 @@
                 if (!cell || e.target.closest('[data-edsa-id]')) return;
                 const ymd = cell.getAttribute('data-edsa-day');
                 if (!ymd) return;
+
+                if (this._edsaBlockMode) {
+                    void this.toggleEdsaBlockedDate(ymd);
+                    return;
+                }
+
                 const [y, m, d] = ymd.split('-').map(Number);
                 this._edsaCalendarCursor = new Date(y, m - 1, d);
                 this._edsaCalendarView = 'day';
                 this.renderEdsaCalendarBody();
                 this.bindEdsaCalendarViewButtons();
+            });
+
+            document.getElementById('edsa-cal-block-mode')?.addEventListener('click', () => {
+                this._edsaBlockMode = !this._edsaBlockMode;
+                const btn = document.getElementById('edsa-cal-block-mode');
+                if (btn) {
+                    btn.textContent = this._edsaBlockMode ? 'Block mode on' : 'Block dates';
+                    btn.className = `btn btn-sm ${this._edsaBlockMode ? 'btn-primary' : 'btn-secondary'}`;
+                }
+                this.renderEdsaBlockedDatesPanel();
             });
         },
 
@@ -371,18 +396,75 @@
             if (!container) return;
             const range = this.getEdsaCalendarRange();
             try {
-                const response = await this.apiRequest(
-                    `/admin/edsa/bookings?limit=500&from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`
-                );
-                if (response?.bookings) {
-                    this._edsaBookingsById = new Map(response.bookings.map((b) => [Number(b.id), b]));
-                    this._edsaBookingsList = response.bookings;
+                const [bookingsRes, blockedRes] = await Promise.all([
+                    this.apiRequest(
+                        `/admin/edsa/bookings?limit=500&from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`
+                    ),
+                    this.apiRequest(
+                        `/admin/edsa/blocked-dates?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`
+                    )
+                ]);
+                if (bookingsRes?.bookings) {
+                    this._edsaBookingsById = new Map(bookingsRes.bookings.map((b) => [Number(b.id), b]));
+                    this._edsaBookingsList = bookingsRes.bookings;
                 }
+                const blocked = blockedRes?.blockedDates || [];
+                this._edsaBlockedDates = new Set(blocked.map((b) => String(b.date || b.block_date || '').slice(0, 10)));
+                this._edsaBlockedDatesList = blocked;
             } catch (e) {
                 console.warn('EDSA calendar refresh:', e);
             }
             this.renderEdsaCalendarBody();
+            this.renderEdsaBlockedDatesPanel();
             this.bindEdsaCalendarViewButtons();
+        },
+
+        renderEdsaBlockedDatesPanel() {
+            const panel = document.getElementById('edsa-blocked-dates-panel');
+            if (!panel) return;
+            const blocked = this._edsaBlockedDatesList || [];
+            if (!blocked.length) {
+                panel.innerHTML = this._edsaBlockMode
+                    ? '<p class="edsa-blocked-hint">Block mode is on — click a day on the calendar to block or unblock it from online booking.</p>'
+                    : '';
+                return;
+            }
+            const chips = blocked
+                .map((b) => {
+                    const date = String(b.date || b.block_date || '').slice(0, 10);
+                    return `<button type="button" class="btn btn-sm btn-secondary edsa-blocked-chip" data-unblock-date="${this.escapeHtml(date)}">${this.escapeHtml(date)} ×</button>`;
+                })
+                .join('');
+            panel.innerHTML = `<div class="edsa-blocked-wrap"><span class="edsa-blocked-label">Blocked dates:</span> ${chips}</div>`;
+            panel.querySelectorAll('[data-unblock-date]').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    void this.toggleEdsaBlockedDate(btn.getAttribute('data-unblock-date'), true);
+                });
+            });
+        },
+
+        async toggleEdsaBlockedDate(ymd, forceUnblock = false) {
+            const date = String(ymd || '').slice(0, 10);
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+            const isBlocked = this._edsaBlockedDates && this._edsaBlockedDates.has(date);
+            try {
+                if (isBlocked || forceUnblock) {
+                    await this.apiRequest(`/admin/edsa/blocked-dates/${encodeURIComponent(date)}`, {
+                        method: 'DELETE'
+                    });
+                    this.showToast(`${date} unblocked`, 'success');
+                } else {
+                    await this.apiRequest('/admin/edsa/blocked-dates', {
+                        method: 'POST',
+                        body: JSON.stringify({ date })
+                    });
+                    this.showToast(`${date} blocked from online booking`, 'success');
+                }
+            } catch (e) {
+                this.showToast(e.message || 'Could not update blocked date', 'error');
+                return;
+            }
+            await this.refreshEdsaCalendar();
         },
     };
 

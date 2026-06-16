@@ -3,7 +3,6 @@ const logger = require('../utils/logger');
 const {
     normalizeAdminRole,
     hasMinAdminRole,
-    isMarketingRole,
     isDeveloperRole,
 } = require('../utils/adminRoles');
 
@@ -41,14 +40,6 @@ async function authenticateAdmin(req, res, next) {
     }
 }
 
-/** Marketing accounts may only call routes that omit this middleware. */
-function blockMarketingRole(req, res, next) {
-    if (isMarketingRole(req.admin?.role)) {
-        return res.status(403).json({ error: 'Insufficient permissions' });
-    }
-    next();
-}
-
 function requirePermission(minRole) {
     return (req, res, next) => {
         if (!hasMinAdminRole(req.admin?.role, minRole)) {
@@ -65,15 +56,12 @@ function requireDeveloperRole(req, res, next) {
     next();
 }
 
-/** Chains used on admin routes */
-const adminAuth = [authenticateAdmin, blockMarketingRole];
-const marketingAuth = [authenticateAdmin];
+/** Chain used on admin routes */
+const adminAuth = [authenticateAdmin];
 
 module.exports = {
     authenticateAdmin,
-    blockMarketingRole,
     requirePermission,
     requireDeveloperRole,
     adminAuth,
-    marketingAuth,
 };

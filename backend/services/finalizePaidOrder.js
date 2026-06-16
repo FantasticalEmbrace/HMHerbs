@@ -33,9 +33,9 @@ async function recalcUserOrderAggregates(connection, userId) {
 /**
  * Completes a pending order: set paid, deduct inventory, update user aggregates.
  * @param {import('mysql2/promise').Pool} pool
- * @param {{ orderId: number, paymentId: string, paymentStatus: string }} opts
+ * @param {{ orderId: number, paymentId: string, paymentStatus: string, skipConfirmationEmail?: boolean }} opts
  */
-async function finalizePaidOrder(pool, { orderId, paymentId, paymentStatus }) {
+async function finalizePaidOrder(pool, { orderId, paymentId, paymentStatus, skipConfirmationEmail = false }) {
     const oid = Number(orderId);
     if (!Number.isFinite(oid) || oid < 1) {
         const err = new Error('INVALID_ORDER');
@@ -111,9 +111,11 @@ async function finalizePaidOrder(pool, { orderId, paymentId, paymentStatus }) {
             logger.error(`Order ${oid} gift card fulfillment error:`, giftErr);
         });
 
-        void sendOrderConfirmationEmail(pool, oid).catch((emailErr) => {
-            logger.error(`Order ${oid} confirmation email error:`, emailErr);
-        });
+        if (!skipConfirmationEmail) {
+            void sendOrderConfirmationEmail(pool, oid).catch((emailErr) => {
+                logger.error(`Order ${oid} confirmation email error:`, emailErr);
+            });
+        }
 
         return {
             orderId: oid,

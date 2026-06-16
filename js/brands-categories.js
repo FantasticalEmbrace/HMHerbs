@@ -28,7 +28,8 @@ class BrandsCategoriesPage {
     async init() {
         if (this.isBrandsPage || this.hasBrandsGrid) {
             await this.loadBrands();
-        } else if (this.isCategoriesPage) {
+        }
+        if (this.isCategoriesPage || document.getElementById('health-categories-grid')) {
             await this.loadCategories();
         }
     }
@@ -55,7 +56,8 @@ class BrandsCategoriesPage {
     }
 
     async loadCategories() {
-        const grid = document.getElementById('categories-grid');
+        const grid = document.getElementById('categories-grid') ||
+            document.getElementById('health-categories-grid');
         if (!grid) return;
 
         try {
@@ -66,11 +68,11 @@ class BrandsCategoriesPage {
             if (!response.ok) throw new Error('Failed to load categories');
 
             const categories = await response.json();
-            this.renderCategories(categories, grid);
+            this.renderCategories(this.sortCategories(categories), grid);
         } catch (error) {
             // Use fallback on any error
             const fallbackCategories = this.getFallbackCategories();
-            this.renderCategories(fallbackCategories, grid);
+            this.renderCategories(this.sortCategories(fallbackCategories), grid);
         }
     }
 
@@ -80,6 +82,12 @@ class BrandsCategoriesPage {
             const nameB = (this.getDisplayBrandName(b) || b?.name || '').toLowerCase();
             return nameA.localeCompare(nameB);
         });
+    }
+
+    sortCategories(categories = []) {
+        return [...categories].sort((a, b) =>
+            (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' })
+        );
     }
 
     getBrandImagePath(brand) {
@@ -416,7 +424,8 @@ class BrandsCategoriesPage {
             'liver-support': 'fa-leaf',
             'respiratory-health': 'fa-lungs',
             'bone-health': 'fa-bone',
-            'anti-aging': 'fa-star'
+            'anti-aging': 'fa-star',
+            'cbd': 'fa-cannabis'
         };
 
         categories.forEach((category, index) => {
@@ -501,26 +510,27 @@ class BrandsCategoriesPage {
 
     getFallbackCategories() {
         return [
-            { name: 'Blood Pressure', slug: 'blood-pressure', description: 'Natural supplements to support healthy blood pressure levels' },
-            { name: 'Heart Health', slug: 'heart-health', description: 'Cardiovascular support and heart health supplements' },
             { name: 'Allergies', slug: 'allergies', description: 'Natural allergy relief and immune system support' },
+            { name: 'Anti-Aging', slug: 'anti-aging', description: 'Antioxidants and anti-aging supplements' },
+            { name: 'Blood Pressure', slug: 'blood-pressure', description: 'Natural supplements to support healthy blood pressure levels' },
+            { name: 'Bone Health', slug: 'bone-health', description: 'Calcium, vitamin D, and bone strength supplements' },
+            { name: 'CBD', slug: 'cbd', description: 'Premium hemp and CBD oils, gummies, topicals, and wellness products' },
             { name: 'Digestive Health', slug: 'digestive-health', description: 'Digestive enzymes, probiotics, and gut health support' },
-            { name: 'Joint & Arthritis', slug: 'joint-arthritis', description: 'Joint support, arthritis relief, and mobility supplements' },
-            { name: 'Immune Support', slug: 'immune-support', description: 'Immune system boosters and wellness supplements' },
-            { name: 'Stress & Anxiety', slug: 'stress-anxiety', description: 'Natural stress relief and anxiety management' },
-            { name: 'Sleep Support', slug: 'sleep-support', description: 'Natural sleep aids and relaxation supplements' },
             { name: 'Energy & Vitality', slug: 'energy-vitality', description: 'Energy boosters and vitality supplements' },
-            { name: 'Brain Health', slug: 'brain-health', description: 'Cognitive support and brain health supplements' },
-            { name: 'Womens Health', slug: 'womens-health', description: 'Specialized supplements for womens health needs' },
+            { name: 'Eye Health', slug: 'eye-health', description: 'Vision support and eye health supplements' },
+            { name: 'Heart Health', slug: 'heart-health', description: 'Cardiovascular support and heart health supplements' },
+            { name: 'Immune Support', slug: 'immune-support', description: 'Immune system boosters and wellness supplements' },
+            { name: 'Joint & Arthritis', slug: 'joint-arthritis', description: 'Joint support, arthritis relief, and mobility supplements' },
+            { name: 'Liver Support', slug: 'liver-support', description: 'Liver detox and hepatic support supplements' },
             { name: 'Mens Health', slug: 'mens-health', description: 'Specialized supplements for mens health needs' },
             { name: 'Pet Health', slug: 'pet-health', description: 'Natural health products for cats and dogs' },
-            { name: 'Weight Management', slug: 'weight-management', description: 'Natural weight loss and metabolism support' },
-            { name: 'Skin Health', slug: 'skin-health', description: 'Supplements and topicals for healthy skin' },
-            { name: 'Eye Health', slug: 'eye-health', description: 'Vision support and eye health supplements' },
-            { name: 'Liver Support', slug: 'liver-support', description: 'Liver detox and hepatic support supplements' },
             { name: 'Respiratory Health', slug: 'respiratory-health', description: 'Lung and respiratory system support' },
-            { name: 'Bone Health', slug: 'bone-health', description: 'Calcium, vitamin D, and bone strength supplements' },
-            { name: 'Anti-Aging', slug: 'anti-aging', description: 'Antioxidants and anti-aging supplements' }
+            { name: 'Skin Health', slug: 'skin-health', description: 'Supplements and topicals for healthy skin' },
+            { name: 'Sleep Support', slug: 'sleep-support', description: 'Natural sleep aids and relaxation supplements' },
+            { name: 'Stress & Anxiety', slug: 'stress-anxiety', description: 'Natural stress relief and anxiety management' },
+            { name: 'Weight Management', slug: 'weight-management', description: 'Natural weight loss and metabolism support' },
+            { name: 'Womens Health', slug: 'womens-health', description: 'Specialized supplements for womens health needs' },
+            { name: 'Brain Health', slug: 'brain-health', description: 'Cognitive support and brain health supplements' }
         ];
     }
 }

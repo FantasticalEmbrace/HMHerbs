@@ -174,6 +174,87 @@ function addDetailSheet(workbook, sheetName, rows) {
     return sheet;
 }
 
+async function buildStateAccountantWorkbook(stateCode, rows) {
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'H&M Herbs';
+    workbook.created = new Date();
+    const label = STATE_LABELS[stateCode] || stateCode;
+
+    addDetailSheet(workbook, 'Transactions', rows);
+
+    const summaryCounty = workbook.addWorksheet('Summary by County');
+    summaryCounty.addRow(['County', 'Orders', 'Taxable Amount', 'Tax Collected']);
+    for (const agg of aggregateByStateCounty(rows)) {
+        summaryCounty.addRow([
+            agg.county_name,
+            agg.order_count,
+            agg.taxable_total,
+            agg.tax_total
+        ]);
+    }
+    for (let r = 2; r <= summaryCounty.rowCount; r += 1) {
+        summaryCounty.getCell(r, 3).numFmt = MONEY_FMT;
+        summaryCounty.getCell(r, 4).numFmt = MONEY_FMT;
+    }
+    summaryCounty.columns = [{ width: 22 }, { width: 10 }, { width: 18 }, { width: 14 }];
+    styleHeaderRow(summaryCounty, 4);
+
+    const totals = aggregateByState(rows)[0] || {
+        order_count: 0,
+        taxable_total: 0,
+        tax_total: 0
+    };
+    const summaryState = workbook.addWorksheet('State Summary');
+    summaryState.addRow(['State', 'Orders', 'Taxable Amount', 'Tax Collected']);
+    summaryState.addRow([label, totals.order_count, totals.taxable_total, totals.tax_total]);
+    summaryState.getCell(2, 3).numFmt = MONEY_FMT;
+    summaryState.getCell(2, 4).numFmt = MONEY_FMT;
+    summaryState.columns = [{ width: 18 }, { width: 10 }, { width: 18 }, { width: 14 }];
+    styleHeaderRow(summaryState, 4);
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    return Buffer.from(buffer);
+}
+
+async function buildAccountantWorkbooksByState(rows, { startDate, endDate } = {}) {
+    const periodSuffix =
+        startDate && endDate ? `${startDate}-to-${endDate}` : 'report';
+    const files = [];
+
+    for (const code of TARGET_STATE_ORDER) {
+        const stateRows = rows.filter((r) => r.state_code === code);
+        if (!stateRows.length) continue;
+        const label = STATE_LABELS[code] || code;
+        const buffer = await buildStateAccountantWorkbook(code, stateRows);
+        files.push({
+            stateCode: code,
+            stateLabel: label,
+            filename: `hmherbs-tax-${code}-${periodSuffix}.xlsx`,
+            buffer,
+            rowCount: stateRows.length
+        });
+    }
+
+    const otherCodes = [...new Set(rows.map((r) => r.state_code))].filter(
+        (code) => !TARGET_STATE_ORDER.includes(code)
+    );
+    for (const code of otherCodes) {
+        const stateRows = rows.filter((r) => r.state_code === code);
+        if (!stateRows.length) continue;
+        const buffer = await buildStateAccountantWorkbook(code, stateRows);
+        files.push({
+            stateCode: code,
+            stateLabel: code,
+            filename: `hmherbs-tax-${code}-${periodSuffix}.xlsx`,
+            buffer,
+            rowCount: stateRows.length
+        });
+    }
+
+    return files;
+}
+
+/** @deprecated Combined workbook — prefer buildAccountantWorkbooksByState for filing. */
 async function buildAccountantWorkbook(rows) {
     const workbook = new ExcelJS.Workbook();
     workbook.creator = 'H&M Herbs';
@@ -292,6 +373,7 @@ class TaxAccountantReportService {
                 AND (te.order_id = o.order_number OR te.order_id = CAST(o.id AS CHAR))
               WHERE te.created_at >= ?
                 AND te.created_at < DATE_ADD(?, INTERVAL 1 DAY)
+                AND te.source = 'webstore'
                 AND te.state_code IN ('GA', 'NC', 'IN', 'MI', 'OH')
               ORDER BY te.state_code ASC, te.county_name ASC, te.created_at ASC, te.id ASC`,
             [`${startDate} 00:00:00`, `${endDate} 00:00:00`]
@@ -313,10 +395,31 @@ class TaxAccountantReportService {
         });
     }
 
-    async buildExcelBuffer(startDate, endDate) {
+    async buildExcelBuffer(startDate, endDate, stateCode = null) {
         const rows = await this.fetchReportRows(startDate, endDate);
-        const buffer = await buildAccountantWorkbook(rows);
-        return { buffer, rowCount: rows.length, rows };
+        if (stateCode) {
+            const code = String(stateCode).toUpperCase();
+            const stateRows = rows.filter((r) => r.state_code === code);
+            const buffer = await buildStateAccountantWorkbook(code, stateRows);
+            return { buffer, rowCount: stateRows.length, rows: stateRows, stateCode: code };
+        }
+        const files = await buildAccountantWorkbooksByState(rows, { startDate, endDate });
+        if (files.length === 1) {
+            return {
+                buffer: files[0].buffer,
+                rowCount: files[0].rowCount,
+                rows,
+                files
+            };
+        }
+        const buffer = files.length ? files[0].buffer : await buildAccountantWorkbook([]);
+        return { buffer, rowCount: rows.length, rows, files };
+    }
+
+    async buildStateExcelFiles(startDate, endDate) {
+        const rows = await this.fetchReportRows(startDate, endDate);
+        const files = await buildAccountantWorkbooksByState(rows, { startDate, endDate });
+        return { files, rowCount: rows.length, rows };
     }
 
     async wasScheduledReportSent(periodStart, periodEnd) {
@@ -339,29 +442,54 @@ class TaxAccountantReportService {
         );
     }
 
-    async sendReportEmail({ startDate, endDate, buffer, rowCount, recipientEmail }) {
+    async sendReportEmail({ startDate, endDate, files, rowCount, recipientEmail }) {
         const mail = await getMailTransporter();
         const to = recipientEmail || getAccountantEmail();
         const periodLabel = `${startDate} through ${endDate}`;
-        const subject = `H&M Herbs Sales Tax Report — ${periodLabel}`;
+        const subject = `H&M Herbs Online Sales Tax — ${periodLabel}`;
+        const stateList = (files || []).map((f) => f.stateLabel).join(', ') || 'none';
+        const attachmentCount = (files || []).length;
         const html = `
             <p>Hello,</p>
-            <p>Attached is the H&amp;M Herbs sales tax report for <strong>${periodLabel}</strong>.</p>
-            <p>It includes website and POS sales for Georgia, Indiana, Michigan, North Carolina, and Ohio, with worksheets sortable by state and county so each state can be filed separately.</p>
-            <p>Transaction count: <strong>${rowCount}</strong></p>
+            <p>Attached are <strong>${attachmentCount}</strong> separate Excel workbook(s) for H&amp;M Herbs <strong>online (website) sales tax</strong> for <strong>${periodLabel}</strong>.</p>
+            <p>States included: <strong>${stateList}</strong>. In-store/POS sales are <em>not</em> included — those are handled separately at the register.</p>
+            <p>Each file is for one state, with transaction detail and county summaries for filing.</p>
+            <p>Online transaction count: <strong>${rowCount}</strong></p>
             <p>— H&amp;M Herbs automated tax report</p>
         `.trim();
         const text = [
-            `H&M Herbs sales tax report for ${periodLabel}.`,
-            `Transactions: ${rowCount}. Website + POS. States: GA, IN, MI, NC, OH.`,
-            'See attached Excel workbook.'
+            `H&M Herbs online sales tax for ${periodLabel}.`,
+            `${attachmentCount} Excel file(s): ${stateList}.`,
+            `Online transactions: ${rowCount}. In-store sales excluded.`,
+            'One spreadsheet per state is attached.'
         ].join('\n');
 
-        const filename = `hmherbs-tax-report-${startDate}-to-${endDate}.xlsx`;
+        if (!files?.length) {
+            logger.warn('[tax-report] No state workbooks to email', { periodLabel });
+            return {
+                sent: false,
+                skipped: true,
+                reason: 'No online tax transactions in period',
+                to,
+                filenames: []
+            };
+        }
+
+        const attachments = files.map((file) => ({
+            filename: file.filename,
+            content: file.buffer,
+            contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        }));
 
         if (!mail) {
             logger.warn('[tax-report] Email skipped — SMTP not configured', { to, subject });
-            return { sent: false, skipped: true, reason: 'SMTP not configured', to, filename };
+            return {
+                sent: false,
+                skipped: true,
+                reason: 'SMTP not configured',
+                to,
+                filenames: attachments.map((a) => a.filename)
+            };
         }
 
         await mail.transporter.sendMail({
@@ -370,17 +498,10 @@ class TaxAccountantReportService {
             subject,
             html,
             text,
-            attachments: [
-                {
-                    filename,
-                    content: buffer,
-                    contentType:
-                        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-                }
-            ]
+            attachments
         });
 
-        return { sent: true, to, filename };
+        return { sent: true, to, filenames: attachments.map((a) => a.filename) };
     }
 
     /**
@@ -417,11 +538,11 @@ class TaxAccountantReportService {
             syncSummary = await this.ledger.syncDateRange(range.startDate, range.endDate);
         }
 
-        const { buffer, rowCount } = await this.buildExcelBuffer(range.startDate, range.endDate);
+        const { files, rowCount } = await this.buildStateExcelFiles(range.startDate, range.endDate);
         const emailResult = await this.sendReportEmail({
             startDate: range.startDate,
             endDate: range.endDate,
-            buffer,
+            files,
             rowCount,
             recipientEmail: to
         });
@@ -439,6 +560,12 @@ class TaxAccountantReportService {
         return {
             ...range,
             rowCount,
+            stateFiles: (files || []).map((f) => ({
+                stateCode: f.stateCode,
+                stateLabel: f.stateLabel,
+                filename: f.filename,
+                rowCount: f.rowCount
+            })),
             recipientEmail: to,
             email: emailResult,
             syncSummary,
@@ -465,6 +592,8 @@ module.exports = {
     getPreviousMonthRange,
     parseDateRange,
     buildAccountantWorkbook,
+    buildStateAccountantWorkbook,
+    buildAccountantWorkbooksByState,
     STATE_LABELS,
     TARGET_STATE_ORDER
 };

@@ -94,6 +94,8 @@
     }
 
     function releaseScrollLocks() {
+        if (!document.body) return;
+
         document
             .querySelectorAll('.nav-menu.show, #nav-menu.show, #navbar-menu.show')
             .forEach((menu) => {
@@ -351,9 +353,17 @@
         window.hmCompleteEdsaCrossPageNav = completeEdsaCrossPageNav;
 
         initClickDelegation();
-        releaseScrollLocks();
-        initCrossPageSectionLanding();
-        initHashLanding();
+
+        const runOnReady = () => {
+            releaseScrollLocks();
+            initCrossPageSectionLanding();
+            initHashLanding();
+        };
+        if (document.body) {
+            runOnReady();
+        } else {
+            document.addEventListener('DOMContentLoaded', runOnReady, { once: true });
+        }
 
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', () => {

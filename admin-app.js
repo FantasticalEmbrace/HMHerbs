@@ -10,6 +10,8 @@ class AdminApp {
         this.currentUser = null;
         this.allowedSections = null;
         this.defaultSection = 'dashboard';
+        this.canManageStoreHours = false;
+        this.canManageStoreHoursDelegation = false;
         this.eventListeners = []; // Track event listeners for cleanup
         this.timeouts = []; // Track timeouts for cleanup
         this.allProducts = []; // Store all products for search/filtering
@@ -73,6 +75,19 @@ class AdminApp {
         if (loginScreen) loginScreen.style.display = 'flex';
         if (adminDashboard) adminDashboard.style.display = 'none';
 
+        const handoffOk = await this.tryPosHandoffFromUrl();
+        if (handoffOk) {
+            try {
+                await this.loadDashboard();
+            } catch (error) {
+                console.error('Failed to load dashboard after POS handoff:', error);
+                this.logout();
+            }
+            this.setupEventListeners();
+            void this.setupGoogleSignIn();
+            return;
+        }
+
         // Check if user is already logged in
         if (this.authToken) {
             try {
@@ -99,6 +114,37 @@ class AdminApp {
 
         this.setupEventListeners();
         void this.setupGoogleSignIn();
+    }
+
+    async tryPosHandoffFromUrl() {
+        const params = new URLSearchParams(window.location.search);
+        const code = params.get('pos_handoff');
+        if (!code) return false;
+        try {
+            const response = await fetch(`${this.apiBaseUrl}/admin/auth/pos-handoff`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code })
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(data.error || 'POS admin handoff failed');
+            }
+            this.authToken = data.token;
+            localStorage.setItem('adminToken', this.authToken);
+            window.history.replaceState({}, document.title, window.location.pathname);
+            this.showToast('Signed in from POS register', 'success');
+            return true;
+        } catch (error) {
+            console.warn('POS admin handoff:', error.message);
+            window.history.replaceState({}, document.title, window.location.pathname);
+            const loginError = document.getElementById('loginError');
+            if (loginError) {
+                loginError.textContent = error.message || 'POS sign-in link expired. Use your password.';
+                loginError.style.display = 'block';
+            }
+            return false;
+        }
     }
 
     // Helper function to escape HTML to prevent XSS
@@ -168,7 +214,25 @@ class AdminApp {
         return labels[method] || (method ? method.replace(/_/g, ' ') : '—');
     }
 
+    _formatSalesChannel(order) {
+        const channel = String(order?.sales_channel || 'online').trim().toLowerCase();
+        const labels = {
+            online: 'Online',
+            in_store: 'In-store',
+            mobile: 'Mobile',
+            phone: 'Phone',
+            other: 'Other'
+        };
+        return labels[channel] || channel.replace(/_/g, ' ');
+    }
+
+    _salesChannelBadgeClass(order) {
+        const channel = String(order?.sales_channel || 'online').trim().toLowerCase();
+        return channel === 'in_store' ? 'badge-info' : 'badge-secondary';
+    }
+
     _renderOrderProgress(order) {
+        const hasLabel = !!(order.label_url || order.label_created_at);
         const trackingLink = window.HMTrackingLink
             ? window.HMTrackingLink.renderTrackingLink(order, (s) => this.escapeHtml(s), {
                 empty: '<span style="color:var(--gray-500);">—</span>',
@@ -176,31 +240,64 @@ class AdminApp {
             : (order.tracking_url && order.tracking_number
                 ? `<a href="${this.escapeHtml(order.tracking_url)}" target="_blank" rel="noopener" style="color:var(--primary-green);font-weight:600;">${this.escapeHtml(order.tracking_number)}</a>`
                 : '<span style="color:var(--gray-500);">—</span>');
+
+        const gridCells = [
+            `<div><div style="font-size:0.75rem;color:var(--gray-500);text-transform:uppercase;">Status</div><div style="font-weight:600;">${this.escapeHtml(this._formatOrderStatus(order.status))}</div></div>`,
+        ];
+        if (hasLabel) {
+            gridCells.push(
+                `<div><div style="font-size:0.75rem;color:var(--gray-500);text-transform:uppercase;">Carrier</div><div>${this.escapeHtml(order.shipping_carrier || '—')}</div></div>`,
+                `<div><div style="font-size:0.75rem;color:var(--gray-500);text-transform:uppercase;">Service</div><div>${this.escapeHtml(order.shipping_service || '—')}</div></div>`
+            );
+        } else {
+            gridCells.push(
+                `<div><div style="font-size:0.75rem;color:var(--gray-500);text-transform:uppercase;">Fulfillment</div><div>${this.escapeHtml(this._formatFulfillmentStatus(order.fulfillment_status))}</div></div>`
+            );
+        }
+        gridCells.push(
+            `<div><div style="font-size:0.75rem;color:var(--gray-500);text-transform:uppercase;">Payment</div><div>${this.escapeHtml(order.payment_status || '—')}${order.payment_method || (order.notes && /Payment method:/i.test(order.notes)) ? ` · ${this.escapeHtml(this._formatPaymentMethod(order))}` : ''}</div></div>`,
+            `<div><div style="font-size:0.75rem;color:var(--gray-500);text-transform:uppercase;">Tracking</div><div>${trackingLink}</div></div>`
+        );
+
         const steps = [
             { key: 'placed', label: 'Order placed', done: true, at: order.created_at },
             { key: 'label', label: 'Shipping label created', done: !!order.label_created_at || !!order.label_url, at: order.label_created_at },
             { key: 'shipped', label: 'Shipped', done: ['shipped', 'in_transit', 'delivered'].includes(String(order.status || '').toLowerCase()), at: order.shipped_at },
             { key: 'delivered', label: 'Delivered', done: String(order.status || '').toLowerCase() === 'delivered', at: order.delivered_at },
         ];
-        const timeline = steps.map((step) => `
+        const st = String(order.status || '').toLowerCase();
+        const detailForStep = (step) => {
+            const detail = String(order.tracking_status_detail || '').trim();
+            if (!detail || !step.done) return '';
+            if (step.key === 'label' && st === 'label_created') return detail;
+            if (step.key === 'shipped' && (st === 'shipped' || st === 'in_transit')) return detail;
+            if (step.key === 'delivered' && st === 'delivered') return detail;
+            return '';
+        };
+        const timeline = steps.map((step) => {
+            const stepDetail = detailForStep(step);
+            return `
             <div style="display:flex;gap:0.75rem;align-items:flex-start;margin-bottom:0.5rem;">
                 <span style="width:10px;height:10px;border-radius:50%;margin-top:0.35rem;flex-shrink:0;background:${step.done ? 'var(--primary-green)' : 'var(--gray-300)'};"></span>
                 <div>
                     <div style="font-weight:${step.done ? '600' : '400'};color:${step.done ? 'var(--gray-800)' : 'var(--gray-500)'};">${this.escapeHtml(step.label)}</div>
                     ${step.at ? `<div style="font-size:0.8rem;color:var(--gray-500);">${this.formatAdminDateTime(step.at)}</div>` : ''}
+                    ${stepDetail ? `<div style="font-size:0.8rem;color:var(--gray-600);margin-top:0.15rem;">${this.escapeHtml(stepDetail)}</div>` : ''}
                 </div>
-            </div>`).join('');
+            </div>`;
+        }).join('');
+
+        const printLabel = hasLabel && order.label_url
+            ? `<div style="margin-top:0.75rem;"><a class="btn btn-primary btn-sm" href="${this.escapeHtml(order.label_url)}" target="_blank" rel="noopener"><i class="fas fa-print"></i> Print label</a></div>`
+            : '';
 
         return `
             <div style="padding:1rem;background:var(--gray-50);border:1px solid var(--gray-200);border-radius:8px;">
-                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;margin-bottom:1rem;">
-                    <div><div style="font-size:0.75rem;color:var(--gray-500);text-transform:uppercase;">Status</div><div style="font-weight:600;">${this.escapeHtml(this._formatOrderStatus(order.status))}</div></div>
-                    <div><div style="font-size:0.75rem;color:var(--gray-500);text-transform:uppercase;">Fulfillment</div><div>${this.escapeHtml(this._formatFulfillmentStatus(order.fulfillment_status))}</div></div>
-                    <div><div style="font-size:0.75rem;color:var(--gray-500);text-transform:uppercase;">Payment</div><div>${this.escapeHtml(order.payment_status || '—')}${order.payment_method || (order.notes && /Payment method:/i.test(order.notes)) ? ` · ${this.escapeHtml(this._formatPaymentMethod(order))}` : ''}</div></div>
-                    <div><div style="font-size:0.75rem;color:var(--gray-500);text-transform:uppercase;">Tracking</div><div>${trackingLink}</div></div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1rem;margin-bottom:1rem;">
+                    ${gridCells.join('')}
                 </div>
-                ${order.tracking_status_detail ? `<p style="margin:0 0 1rem;font-size:0.9rem;color:var(--gray-700);"><strong>Carrier update:</strong> ${this.escapeHtml(order.tracking_status_detail)}${order.tracking_status_updated_at ? ` <span style="color:var(--gray-500);">(${this.formatAdminDateTime(order.tracking_status_updated_at)})</span>` : ''}</p>` : ''}
                 <div style="border-top:1px solid var(--gray-200);padding-top:0.75rem;">${timeline}</div>
+                ${printLabel}
                 <p style="font-size:0.8rem;color:var(--gray-500);margin:0.75rem 0 0;">Status and tracking update automatically from Shippo when labels are created and carriers scan packages.</p>
             </div>`;
     }
@@ -324,6 +421,7 @@ class AdminApp {
                         <div style="font-size:0.85rem;color:var(--gray-500);">${this.formatAdminDateTime(order.created_at)}</div>
                         <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-top:0.75rem;">
                             <span class="badge ${this._orderStatusBadgeClass(order.status)}">${this.escapeHtml(this._formatOrderStatus(order.status))}</span>
+                            <span class="badge ${this._salesChannelBadgeClass(order)}">${this.escapeHtml(this._formatSalesChannel(order))}</span>
                             <span class="badge ${order.payment_status === 'paid' ? 'badge-success' : 'badge-warning'}">${this.escapeHtml(order.payment_status)}</span>
                             ${order.fulfillment_status ? `<span class="badge badge-info">${this.escapeHtml(this._formatFulfillmentStatus(order.fulfillment_status))}</span>` : ''}
                         </div>
@@ -598,6 +696,8 @@ class AdminApp {
                 this.authToken = data.token;
                 this.currentUser = data.admin;
                 this.allowedSections = data.allowedSections ?? null;
+                this.canManageStoreHours = Boolean(data.canManageStoreHours);
+                this.canManageStoreHoursDelegation = Boolean(data.canManageStoreHoursDelegation);
                 this.defaultSection = data.defaultSection || 'dashboard';
                 localStorage.setItem('adminToken', this.authToken);
 
@@ -711,6 +811,8 @@ class AdminApp {
             if (!data?.admin) return false;
             this.currentUser = data.admin;
             this.allowedSections = data.allowedSections ?? null;
+            this.canManageStoreHours = Boolean(data.canManageStoreHours);
+            this.canManageStoreHoursDelegation = Boolean(data.canManageStoreHoursDelegation);
             this.defaultSection = data.defaultSection || 'dashboard';
             return true;
         } catch {
@@ -766,6 +868,70 @@ class AdminApp {
             );
             sec.style.display = visibleItems.length ? '' : 'none';
         });
+
+        this._applyStoreHoursFieldAccess();
+    }
+
+    _showStoreHoursPermissionAlert() {
+        return this.showAdminAlert({
+            title: 'Store hours restricted',
+            message:
+                'Store hours and holidays can only be edited by Admin or Developer accounts, unless an Admin has enabled that permission on your personnel profile. You can still update contact details.',
+        });
+    }
+
+    _applyStoreHoursFieldAccess() {
+        const allowed = Boolean(this.canManageStoreHours);
+        ['store_hours_weekdays', 'store_hours_saturday', 'store_hours_sunday'].forEach((name) => {
+            const el = document.querySelector(`[name="${name}"]`);
+            if (!el) return;
+            el.readOnly = !allowed;
+            el.disabled = false;
+            el.classList.toggle('store-hours-readonly', !allowed);
+            if (!allowed && !el.dataset.hoursGuardBound) {
+                el.dataset.hoursGuardBound = '1';
+                const guard = (e) => {
+                    if (this.canManageStoreHours) return;
+                    e.preventDefault();
+                    el.blur();
+                    this._showStoreHoursPermissionAlert();
+                };
+                el.addEventListener('focus', guard);
+                el.addEventListener('mousedown', guard);
+                el.addEventListener('keydown', (e) => {
+                    if (!this.canManageStoreHours && !e.ctrlKey && !e.metaKey && e.key.length === 1) {
+                        guard(e);
+                    }
+                });
+            }
+        });
+        const holidayCard = document.getElementById('holiday-schedule-card');
+        if (holidayCard) {
+            holidayCard.querySelectorAll('input, select, button').forEach((el) => {
+                el.disabled = false;
+            });
+            if (!holidayCard.dataset.hoursGuardBound) {
+                holidayCard.dataset.hoursGuardBound = '1';
+                holidayCard.addEventListener(
+                    'click',
+                    (e) => {
+                        if (this.canManageStoreHours) return;
+                        const interactive = e.target.closest('input, select, button');
+                        if (!interactive) return;
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this._showStoreHoursPermissionAlert();
+                    },
+                    true
+                );
+            }
+        }
+        const saveBtn = document.querySelector('#store-info-settings-form button[type="submit"]');
+        if (saveBtn) {
+            saveBtn.textContent = allowed ? 'Save store info & holidays' : 'Save store info';
+        }
+        const syncBtn = document.getElementById('store-hours-sync-google-btn');
+        if (syncBtn) syncBtn.disabled = !allowed;
     }
 
     async loadDashboard() {
@@ -789,7 +955,7 @@ class AdminApp {
 
         const landing = this.canAccessSection(this.defaultSection)
             ? this.defaultSection
-            : (this.allowedSections && this.allowedSections[0]) || 'marketing';
+            : (this.allowedSections && this.allowedSections[0]) || 'dashboard';
 
         await this.showSection(landing, { skipHashUpdate: true });
 
@@ -1090,6 +1256,11 @@ class AdminApp {
                     await this.loadCustomers();
                 }
                 break;
+            case 'customer-groups':
+                if (typeof this.loadCustomerGroups === 'function') {
+                    await this.loadCustomerGroups();
+                }
+                break;
             case 'gift-cards':
                 if (typeof this.loadGiftCards === 'function') {
                     await this.loadGiftCards();
@@ -1100,6 +1271,15 @@ class AdminApp {
                 break;
             case 'personnel':
                 await this.loadAdminTeam();
+                if (window.AdminPersonnelPos) {
+                    window.AdminPersonnelPos.init();
+                }
+                break;
+            case 'pos':
+                await this.loadPosSettings();
+                if (window.AdminPosHub) {
+                    await window.AdminPosHub.init();
+                }
                 break;
             case 'settings':
                 await this.loadStoreInfoSettings();
@@ -1306,6 +1486,27 @@ class AdminApp {
         };
     }
 
+    _posCashDiscountSettingMeta() {
+        return {
+            pos_cash_discount_enabled: 'Enable in-store cash discount (card price vs lower cash price)',
+            pos_cash_discount_percent: 'Cash discount percent off merchandise (max 15)',
+            pos_store_logo_url: 'Optional store logo URL for POS customer display',
+            store_card_payment_processor: 'Store card processor for website and integrated POS: epi or nmi_durango',
+            pos_card_payment_adapter: 'POS card payment mode: external_terminal, integrated, or custom',
+            pos_custom_payment_driver_url: 'Optional URL to custom POS payment driver script when adapter is custom',
+            pos_receipt_header_text: 'Optional extra line printed under store name on POS receipts',
+            pos_receipt_footer_text: 'Closing message on POS receipts',
+            pos_receipt_show_address: 'Show store address on POS receipts',
+            pos_receipt_show_phone: 'Show store phone on POS receipts',
+            pos_receipt_show_logo: 'Show logo on POS receipts',
+            pos_receipt_show_sku: 'Show SKU on each line item on POS receipts',
+            pos_receipt_show_platform_line: 'Show Business One POS line on receipts',
+            pos_session_timeout_minutes: 'Minutes before POS employee must re-enter PIN',
+            pos_pin_max_attempts: 'Failed PIN attempts before lockout',
+            pos_pin_lockout_minutes: 'Minutes to lock PIN entry after too many failures',
+        };
+    }
+
     _storeInfoSettingMeta() {
         return {
             store_name: 'Store display name',
@@ -1433,6 +1634,10 @@ class AdminApp {
     }
 
     addHolidayFromSelection() {
+        if (!this.canManageStoreHours) {
+            this._showStoreHoursPermissionAlert();
+            return;
+        }
         const select = document.getElementById('holiday-template-type');
         if (!select) return;
         if (select.value === '__custom__') {
@@ -1494,6 +1699,10 @@ class AdminApp {
     }
 
     removeHolidayAt(index) {
+        if (!this.canManageStoreHours) {
+            this._showStoreHoursPermissionAlert();
+            return;
+        }
         if (!Number.isInteger(index)) return;
         this.holidaySchedule = this.holidaySchedule.filter((_, i) => i !== index);
         this._renderHolidayScheduleList();
@@ -1859,7 +2068,15 @@ class AdminApp {
 
     _buildStoreInfoSettingsPayload(form, { includePromoBanner = false } = {}) {
         const meta = this._storeInfoSettingMeta();
-        const rows = Object.keys(meta).map((key) => {
+        const hourKeys = new Set([
+            'store_hours_weekdays',
+            'store_hours_saturday',
+            'store_hours_sunday',
+            'store_holiday_schedule',
+        ]);
+        const rows = Object.keys(meta)
+            .filter((key) => this.canManageStoreHours || !hourKeys.has(key))
+            .map((key) => {
             const input = key === 'store_holiday_schedule' ? null : form.querySelector(`[name="${key}"]`);
             const value = key === 'store_holiday_schedule'
                 ? JSON.stringify(this.holidaySchedule || [])
@@ -1892,6 +2109,10 @@ class AdminApp {
     }
 
     async revertHolidayToDefaultAt(index) {
+        if (!this.canManageStoreHours) {
+            this._showStoreHoursPermissionAlert();
+            return;
+        }
         if (!Number.isInteger(index)) return;
         const item = this.holidaySchedule[index];
         if (!item) return;
@@ -1946,6 +2167,72 @@ class AdminApp {
         }
     }
 
+    _applyPosSettingsToForm(map) {
+        const form = document.getElementById('pos-settings-form');
+        if (!form) return;
+        const enabled = String(map.get('pos_cash_discount_enabled') || 'false').toLowerCase();
+        const enabledEl = form.querySelector('[name="pos_cash_discount_enabled"]');
+        if (enabledEl) enabledEl.checked = enabled === 'true' || enabled === '1';
+        const percentEl = form.querySelector('[name="pos_cash_discount_percent"]');
+        if (percentEl) {
+            const p = Number(map.get('pos_cash_discount_percent'));
+            percentEl.value = Number.isFinite(p) ? String(p) : '0';
+        }
+        const logoEl = form.querySelector('[name="pos_store_logo_url"]');
+        if (logoEl) logoEl.value = String(map.get('pos_store_logo_url') || '');
+        const storeProcessor = String(map.get('store_card_payment_processor') || 'epi').toLowerCase();
+        const storeProcessorEl = form.querySelector(`[name="store_card_payment_processor"][value="${['epi', 'nmi_durango'].includes(storeProcessor) ? storeProcessor : 'epi'}"]`);
+        if (storeProcessorEl) storeProcessorEl.checked = true;
+        const rawAdapter = String(map.get('pos_card_payment_adapter') || 'external_terminal').toLowerCase();
+        let posMode = rawAdapter;
+        if (rawAdapter === 'epi' || rawAdapter === 'nmi_durango') {
+            posMode = 'integrated';
+            const legacyProcessorEl = form.querySelector(`[name="store_card_payment_processor"][value="${rawAdapter}"]`);
+            if (legacyProcessorEl) legacyProcessorEl.checked = true;
+        }
+        if (!['external_terminal', 'integrated', 'custom'].includes(posMode)) posMode = 'external_terminal';
+        const adapterEl = form.querySelector(`[name="pos_card_payment_adapter"][value="${posMode}"]`);
+        if (adapterEl) adapterEl.checked = true;
+        const customDriverEl = form.querySelector('[name="pos_custom_payment_driver_url"]');
+        if (customDriverEl) customDriverEl.value = String(map.get('pos_custom_payment_driver_url') || '');
+        this._syncPosCustomDriverUrlVisibility();
+        const headerEl = form.querySelector('[name="pos_receipt_header_text"]');
+        if (headerEl) headerEl.value = String(map.get('pos_receipt_header_text') || '');
+        const footerEl = form.querySelector('[name="pos_receipt_footer_text"]');
+        if (footerEl) {
+            footerEl.value = String(map.get('pos_receipt_footer_text') || 'Thank you for your purchase!');
+        }
+        const receiptBools = [
+            'pos_receipt_show_address',
+            'pos_receipt_show_phone',
+            'pos_receipt_show_logo',
+            'pos_receipt_show_sku',
+            'pos_receipt_show_platform_line',
+        ];
+        for (const key of receiptBools) {
+            const el = form.querySelector(`[name="${key}"]`);
+            if (!el) continue;
+            const raw = String(map.get(key) ?? 'true').toLowerCase();
+            el.checked = raw === 'true' || raw === '1' || raw === '';
+        }
+        const timeoutEl = form.querySelector('[name="pos_session_timeout_minutes"]');
+        if (timeoutEl) timeoutEl.value = String(map.get('pos_session_timeout_minutes') || '30');
+        const attemptsEl = form.querySelector('[name="pos_pin_max_attempts"]');
+        if (attemptsEl) attemptsEl.value = String(map.get('pos_pin_max_attempts') || '10');
+        const lockoutEl = form.querySelector('[name="pos_pin_lockout_minutes"]');
+        if (lockoutEl) lockoutEl.value = String(map.get('pos_pin_lockout_minutes') || '15');
+    }
+
+    _syncPosCustomDriverUrlVisibility() {
+        const form = document.getElementById('pos-settings-form');
+        if (!form) return;
+        const adapter = String(
+            form.querySelector('[name="pos_card_payment_adapter"]:checked')?.value || 'external_terminal'
+        );
+        const group = document.getElementById('pos-custom-driver-url-group');
+        if (group) group.style.display = adapter === 'custom' ? '' : 'none';
+    }
+
     _buildEmployeeDiscountSettingsPayload(form) {
         const meta = this._employeeDiscountSettingMeta();
         const enabledEl = form.querySelector('[name="employee_discount_enabled"]');
@@ -1960,6 +2247,117 @@ class AdminApp {
                     description: meta[key],
                     type: 'boolean',
                 };
+            }
+            return {
+                key_name: key,
+                value: String(percent),
+                description: meta[key],
+                type: 'number',
+            };
+        });
+    }
+
+    _buildPosSettingsPayload(form) {
+        const meta = this._posCashDiscountSettingMeta();
+        const enabledEl = form.querySelector('[name="pos_cash_discount_enabled"]');
+        let percent = Number(form.querySelector('[name="pos_cash_discount_percent"]')?.value);
+        if (!Number.isFinite(percent) || percent < 0) percent = 0;
+        if (percent > 15) percent = 15;
+        const logoUrl = String(form.querySelector('[name="pos_store_logo_url"]')?.value || '').trim();
+        let storeProcessor = String(
+            form.querySelector('[name="store_card_payment_processor"]:checked')?.value || 'epi'
+        ).toLowerCase();
+        if (!['epi', 'nmi_durango'].includes(storeProcessor)) storeProcessor = 'epi';
+        let adapter = String(
+            form.querySelector('[name="pos_card_payment_adapter"]:checked')?.value || 'external_terminal'
+        ).toLowerCase();
+        if (!['external_terminal', 'integrated', 'custom'].includes(adapter)) adapter = 'external_terminal';
+        const customDriverUrl = String(form.querySelector('[name="pos_custom_payment_driver_url"]')?.value || '').trim();
+        const headerText = String(form.querySelector('[name="pos_receipt_header_text"]')?.value || '').trim().slice(0, 200);
+        const footerText = String(form.querySelector('[name="pos_receipt_footer_text"]')?.value || '').trim().slice(0, 500);
+        return Object.keys(meta).map((key) => {
+            if (key === 'pos_cash_discount_enabled') {
+                return {
+                    key_name: key,
+                    value: enabledEl?.checked ? 'true' : 'false',
+                    description: meta[key],
+                    type: 'boolean',
+                };
+            }
+            if (key === 'pos_store_logo_url') {
+                return {
+                    key_name: key,
+                    value: logoUrl,
+                    description: meta[key],
+                    type: 'string',
+                };
+            }
+            if (key === 'store_card_payment_processor') {
+                return {
+                    key_name: key,
+                    value: storeProcessor,
+                    description: meta[key],
+                    type: 'string',
+                };
+            }
+            if (key === 'pos_card_payment_adapter') {
+                return {
+                    key_name: key,
+                    value: adapter,
+                    description: meta[key],
+                    type: 'string',
+                };
+            }
+            if (key === 'pos_custom_payment_driver_url') {
+                return {
+                    key_name: key,
+                    value: customDriverUrl,
+                    description: meta[key],
+                    type: 'string',
+                };
+            }
+            if (key === 'pos_receipt_header_text') {
+                return {
+                    key_name: key,
+                    value: headerText,
+                    description: meta[key],
+                    type: 'string',
+                };
+            }
+            if (key === 'pos_receipt_footer_text') {
+                return {
+                    key_name: key,
+                    value: footerText || 'Thank you for your purchase!',
+                    description: meta[key],
+                    type: 'string',
+                };
+            }
+            if (key.startsWith('pos_receipt_show_')) {
+                const el = form.querySelector(`[name="${key}"]`);
+                return {
+                    key_name: key,
+                    value: el?.checked ? 'true' : 'false',
+                    description: meta[key],
+                    type: 'boolean',
+                };
+            }
+            if (key === 'pos_session_timeout_minutes') {
+                let minutes = Number(form.querySelector('[name="pos_session_timeout_minutes"]')?.value);
+                if (!Number.isFinite(minutes)) minutes = 30;
+                minutes = Math.min(480, Math.max(5, Math.round(minutes)));
+                return { key_name: key, value: String(minutes), description: meta[key], type: 'number' };
+            }
+            if (key === 'pos_pin_max_attempts') {
+                let attempts = Number(form.querySelector('[name="pos_pin_max_attempts"]')?.value);
+                if (!Number.isFinite(attempts)) attempts = 10;
+                attempts = Math.min(20, Math.max(3, Math.round(attempts)));
+                return { key_name: key, value: String(attempts), description: meta[key], type: 'number' };
+            }
+            if (key === 'pos_pin_lockout_minutes') {
+                let lockout = Number(form.querySelector('[name="pos_pin_lockout_minutes"]')?.value);
+                if (!Number.isFinite(lockout)) lockout = 15;
+                lockout = Math.min(120, Math.max(5, Math.round(lockout)));
+                return { key_name: key, value: String(lockout), description: meta[key], type: 'number' };
             }
             return {
                 key_name: key,
@@ -2015,6 +2413,206 @@ class AdminApp {
         }
     }
 
+    async loadPosSettings() {
+        const form = document.getElementById('pos-settings-form');
+        if (!form || !this.authToken) return;
+        const msg = document.querySelector('[data-pos-settings-save-msg]');
+        if (msg) msg.textContent = '';
+        try {
+            const res = await this.apiRequest('/admin/pos/settings');
+            const settings = Array.isArray(res?.settings) ? res.settings : [];
+            const map = new Map(settings.map((item) => [item.key_name, item.value || '']));
+            this._applyPosSettingsToForm(map);
+            await this.loadPosDevices();
+        } catch (err) {
+            if (msg) {
+                msg.textContent = 'Failed to load POS settings.';
+                msg.style.color = 'var(--error)';
+            }
+            this.showToast('Failed to load POS settings: ' + (err.message || 'error'), 'error');
+        }
+    }
+
+    async savePosSettings(e) {
+        if (e && typeof e.preventDefault === 'function') e.preventDefault();
+        const form = document.getElementById('pos-settings-form');
+        if (!form) return;
+        const msg = document.querySelector('[data-pos-settings-save-msg]');
+        if (msg) msg.textContent = '';
+        const settings = this._buildPosSettingsPayload(form);
+        try {
+            await this.apiRequest('/admin/pos/settings', {
+                method: 'PUT',
+                body: JSON.stringify({ settings }),
+            });
+            if (msg) {
+                msg.textContent = 'POS settings saved.';
+                msg.style.color = 'var(--success)';
+            }
+            this.showToast('POS settings saved', 'success');
+        } catch (err) {
+            if (msg) {
+                msg.textContent = err.message || 'Save failed.';
+                msg.style.color = 'var(--error)';
+            }
+            this.showToast('Could not save POS settings: ' + (err.message || 'error'), 'error');
+        }
+    }
+
+    /** @deprecated use loadPosSettings */
+    async loadPosCashDiscountSettings() {
+        return this.loadPosSettings();
+    }
+
+    /** @deprecated use savePosSettings */
+    async savePosCashDiscountSettings(e) {
+        return this.savePosSettings(e);
+    }
+
+    async loadPosDevices() {
+        const list = document.getElementById('pos-devices-list');
+        if (!list || !this.authToken) return;
+        try {
+            const res = await this.apiRequest('/admin/pos/devices');
+            const devices = Array.isArray(res?.devices) ? res.devices : [];
+            if (!devices.length) {
+                list.innerHTML =
+                    '<p style="margin:0;color:var(--gray-500);font-size:0.9rem;">No register keys yet. Generate one for each tablet.</p>';
+                return;
+            }
+            list.innerHTML = devices
+                .map((d) => {
+                    const status = d.isActive ? 'Active' : 'Revoked';
+                    const seen = d.lastSeenAt ? this.formatAdminDateTime(d.lastSeenAt) : 'Never';
+                    const keyBtn = d.isActive
+                        ? `<button type="button" class="btn btn-secondary btn-sm" data-regenerate-pos-device="${d.id}">New key</button>`
+                        : `<button type="button" class="btn btn-secondary btn-sm" data-regenerate-pos-device="${d.id}">Reactivate &amp; new key</button>`;
+                    return `<div style="display:flex;justify-content:space-between;gap:0.75rem;align-items:center;padding:0.55rem 0;border-bottom:1px solid var(--gray-200);">
+                        <div>
+                            <div style="font-weight:600;">${this.escapeHtml(d.deviceLabel)}</div>
+                            <div style="font-size:0.85rem;color:var(--gray-600);">${this.escapeHtml(d.keyPrefix)}… · ${status} · Last seen ${this.escapeHtml(seen)}</div>
+                        </div>
+                        <div style="display:flex;gap:0.35rem;flex-wrap:wrap;justify-content:flex-end;">
+                            ${keyBtn}
+                            ${d.isActive ? `<button type="button" class="btn btn-ghost btn-sm" data-revoke-pos-device="${d.id}">Revoke</button>` : ''}
+                        </div>
+                    </div>`;
+                })
+                .join('');
+            list.querySelectorAll('[data-revoke-pos-device]').forEach((btn) => {
+                btn.addEventListener('click', () => this.revokePosDevice(btn.getAttribute('data-revoke-pos-device')));
+            });
+            list.querySelectorAll('[data-regenerate-pos-device]').forEach((btn) => {
+                btn.addEventListener('click', () => this.regeneratePosDevice(btn.getAttribute('data-regenerate-pos-device')));
+            });
+        } catch (err) {
+            list.innerHTML = `<p style="margin:0;color:var(--error);font-size:0.9rem;">${this.escapeHtml(err.message || 'Could not load devices')}</p>`;
+        }
+    }
+
+    _showPosDeviceKeyMessage(msgEl, apiKey) {
+        const msg = msgEl || document.getElementById('pos-device-create-msg');
+        if (!msg) return;
+        if (apiKey) {
+            msg.innerHTML = `<strong>Copy this key now</strong> (shown once): <code style="user-select:all">${this.escapeHtml(apiKey)}</code>`;
+            msg.style.color = 'var(--gray-800)';
+        } else {
+            msg.textContent = 'New register key created.';
+            msg.style.color = 'var(--success)';
+        }
+    }
+
+    async regeneratePosDevice(id, { skipConfirm = false } = {}) {
+        if (!id) return;
+        if (!skipConfirm) {
+            const ok = await this.showAdminConfirm({
+                title: 'Generate a new key?',
+                message:
+                    'The previous key for this register will stop working immediately. Copy the new key into POS setup on the tablet.',
+                confirmLabel: 'Generate new key',
+                cancelLabel: 'Cancel',
+            });
+            if (!ok) return;
+        }
+
+        const msg = document.getElementById('pos-device-create-msg');
+        if (msg) {
+            msg.textContent = 'Generating…';
+            msg.style.color = '';
+        }
+        try {
+            const res = await this.apiRequest(`/admin/pos/devices/${id}/regenerate-key`, {
+                method: 'POST',
+            });
+            this._showPosDeviceKeyMessage(msg, res?.apiKey);
+            await this.loadPosDevices();
+            this.showToast('New register key generated', 'success');
+        } catch (err) {
+            if (msg) {
+                msg.textContent = err.message || 'Could not regenerate device key';
+                msg.style.color = 'var(--error)';
+            }
+            this.showToast(err.message || 'Could not regenerate device key', 'error');
+        }
+    }
+
+    async createPosDevice() {
+        const msg = document.getElementById('pos-device-create-msg');
+        const labelInput = document.getElementById('pos-new-device-label');
+        const label = String(labelInput?.value || '').trim();
+        if (!label) {
+            if (msg) msg.textContent = 'Enter a register name first.';
+            return;
+        }
+        if (msg) msg.textContent = 'Generating…';
+        try {
+            const res = await this.apiRequest('/admin/pos/devices', {
+                method: 'POST',
+                body: JSON.stringify({ deviceLabel: label }),
+            });
+            this._showPosDeviceKeyMessage(msg, res?.apiKey);
+            if (labelInput) labelInput.value = '';
+            await this.loadPosDevices();
+        } catch (err) {
+            if (err.code === 'DUPLICATE_DEVICE_LABEL' || /duplicate entry/i.test(err.message || '')) {
+                const regenerate = await this.showAdminConfirm({
+                    title: 'Register already exists',
+                    message: `"${label}" is already registered. Generate a new key for it? The old key will stop working.`,
+                    confirmLabel: 'Generate new key',
+                    cancelLabel: 'Cancel',
+                });
+                if (regenerate) {
+                    if (err.existingDeviceId) {
+                        await this.regeneratePosDevice(err.existingDeviceId, { skipConfirm: true });
+                        return;
+                    }
+                    await this.loadPosDevices();
+                    const list = document.getElementById('pos-devices-list');
+                    const matchBtn = list?.querySelector('[data-regenerate-pos-device]');
+                    if (matchBtn) {
+                        await this.regeneratePosDevice(matchBtn.getAttribute('data-regenerate-pos-device'));
+                        return;
+                    }
+                }
+            }
+            if (msg) {
+                msg.textContent = err.message || 'Could not create device key';
+                msg.style.color = 'var(--error)';
+            }
+        }
+    }
+
+    async revokePosDevice(id) {
+        if (!id || !confirm('Revoke this register key? That tablet will need a new key.')) return;
+        try {
+            await this.apiRequest(`/admin/pos/devices/${id}`, { method: 'DELETE' });
+            await this.loadPosDevices();
+            this.showToast('Register key revoked', 'success');
+        } catch (err) {
+            this.showToast(err.message || 'Could not revoke device', 'error');
+        }
+    }
+
     async loadStoreInfoSettings() {
         const form = document.getElementById('store-info-settings-form');
         if (!form || !this.authToken) return;
@@ -2045,11 +2643,10 @@ class AdminApp {
             this._renderHolidayTemplateOptions();
             this._toggleCustomHolidayFields();
             this._renderHolidayScheduleList();
-            if (this.currentUser?.role !== 'marketing') {
-                await this.loadGoogleBusinessStatus();
-                await this.loadGoogleCalendarStatus();
-                await this.loadIntegrationLogs();
-            }
+            await this.loadGoogleBusinessStatus();
+            await this.loadGoogleCalendarStatus();
+            await this.loadIntegrationLogs();
+            this._applyStoreHoursFieldAccess();
         } catch (err) {
             if (msg) {
                 msg.textContent = 'Failed to load store info.';
@@ -2205,6 +2802,12 @@ class AdminApp {
                 'http://localhost:3001/api/admin/settings/google-calendar/callback is listed on your OAuth client.'
             );
         }
+        if (/invalid_grant|connection expired|google_token_expired/i.test(text)) {
+            if (/business profile/i.test(text)) {
+                return 'Your Google Business Profile connection expired. Go to Settings and click Connect Google Account again.';
+            }
+            return 'Your Google Calendar connection expired. Go to Settings and click Connect Google Calendar again.';
+        }
         if (/Cloud Console|My Business Account Management|Business Business Information|quota|QPM/i.test(text)) {
             return '';
         }
@@ -2299,7 +2902,7 @@ class AdminApp {
             this.gbpStatus = status;
             this.gbpGoogleSyncUnavailable = Boolean(status.apiAccessPending);
             this._renderGoogleBusinessStatus(status);
-            if (status.connected && !status.apiAccessPending) {
+            if (status.connected) {
                 await this.loadGoogleBusinessLocations(status.locationName || '');
             }
         } catch (err) {
@@ -2338,6 +2941,11 @@ class AdminApp {
                 this._renderGoogleBusinessStatus(this.gbpStatus);
             }
         } catch (err) {
+            if (err.code === 'GOOGLE_TOKEN_EXPIRED') {
+                await this.loadGoogleBusinessStatus();
+                this.showToast(this._friendlyGoogleApiError(err.message), 'warning');
+                return;
+            }
             this.gbpGoogleSyncUnavailable = true;
             if (this.gbpStatus) {
                 this.gbpStatus.apiAccessPending = true;
@@ -2512,7 +3120,12 @@ class AdminApp {
                     })
                     .join('');
             if (selectedId) select.value = selectedId;
-        } catch (_) {
+        } catch (err) {
+            const msg = String(err?.message || '');
+            if (/expired|invalid_grant|google_token_expired/i.test(msg)) {
+                await this.loadGoogleCalendarStatus();
+                this._setGcalActionMsg(this._friendlyGoogleApiError(msg), true);
+            }
             select.innerHTML = '<option value="">Could not load calendars</option>';
         }
     }
@@ -2591,6 +3204,10 @@ class AdminApp {
     }
 
     async syncStoreHoursToGoogleBusiness() {
+        if (!this.canManageStoreHours) {
+            this._showStoreHoursPermissionAlert();
+            return;
+        }
         const btn = document.getElementById('store-hours-sync-google-btn');
         const originalText = btn ? btn.textContent : '';
         if (!this.gbpStatus?.readyToSync) {
@@ -2687,7 +3304,6 @@ class AdminApp {
             admin: 'badge-role-admin',
             manager: 'badge-role-manager',
             assistant_manager: 'badge-role-assistant',
-            marketing: 'badge-role-marketing',
         };
         const cls = map[role] || 'badge-info';
         const label =
@@ -2696,7 +3312,6 @@ class AdminApp {
                 admin: 'Admin',
                 manager: 'Manager',
                 assistant_manager: 'Assistant Manager',
-                marketing: 'Marketing',
             }[role] || role;
         return `<span class="badge ${cls}" style="display:inline-block;padding:0.2rem 0.55rem;border-radius:9999px;font-size:0.75rem;font-weight:600;">${this._escapeHtml(label)}</span>`;
     }
@@ -2720,12 +3335,16 @@ class AdminApp {
 
         list.innerHTML =
             '<div class="loading" style="padding:2rem;text-align:center;color:var(--gray-500);"><div class="spinner" style="margin:0 auto 0.75rem;"></div>Loading personnel…</div>';
+        const profileMount = document.getElementById('admin-team-profile');
+        if (profileMount) profileMount.style.display = 'none';
 
         try {
             const res = await this.apiRequest('/admin/team');
             const users = Array.isArray(res?.users) ? res.users : [];
             const roles = Array.isArray(res?.roles) ? res.roles : [];
             this._teamRoleOptions = roles;
+            this._teamUsersCache = users;
+            this._registerOnlyCache = Array.isArray(res?.registerOnlyEmployees) ? res.registerOnlyEmployees : [];
 
             if (roleSelect && roleSelect.options.length === 0) {
                 roles.forEach((r) => {
@@ -2734,32 +3353,24 @@ class AdminApp {
                     opt.textContent = r.label || r.id;
                     roleSelect.appendChild(opt);
                 });
-                const marketingOpt = roleSelect.querySelector('option[value="marketing"]');
-                if (marketingOpt) marketingOpt.selected = true;
+                const assistantOpt = roleSelect.querySelector('option[value="assistant_manager"]');
+                if (assistantOpt) assistantOpt.selected = true;
             }
 
-            if (!users.length) {
+            if (!users.length && !this._registerOnlyCache.length) {
                 list.innerHTML =
-                    '<div style="text-align:center;padding:2.5rem 1rem;color:var(--gray-500);"><i class="fas fa-users" style="font-size:2.5rem;opacity:0.25;display:block;margin-bottom:0.75rem;"></i><p style="margin:0;">No personnel accounts yet. Add someone below.</p></div>';
+                    '<div style="text-align:center;padding:2.5rem 1rem;color:var(--gray-500);"><i class="fas fa-users" style="font-size:2.5rem;opacity:0.25;display:block;margin-bottom:0.75rem;"></i><p style="margin:0;">No personnel yet. Add someone above.</p></div>';
                 return;
             }
 
             const myId = this.currentUser?.id;
             const isDeveloperActor = this.currentUser?.role === 'developer';
-            const roleOptions = (currentRole) =>
-                roles
-                    .map((r) => {
-                        const sel = r.id === currentRole ? ' selected' : '';
-                        return `<option value="${this._escapeHtml(r.id)}"${sel}>${this._escapeHtml(r.label || r.id)}</option>`;
-                    })
-                    .join('');
 
             const rows = users
                 .map((u) => {
                     const isSelf = myId != null && Number(u.id) === Number(myId);
                     const isDeveloperTarget = u.role === 'developer';
                     const canManageDeveloperTarget = !isDeveloperTarget || isDeveloperActor;
-                    const roleSelectDisabled = isDeveloperTarget && !isDeveloperActor;
                     const nextRole =
                         u.role === 'admin'
                             ? null
@@ -2767,9 +3378,7 @@ class AdminApp {
                               ? 'admin'
                               : u.role === 'assistant_manager'
                                 ? 'manager'
-                                : u.role === 'marketing'
-                                  ? 'assistant_manager'
-                                  : null;
+                                : null;
                     const nextLabel =
                         nextRole === 'admin'
                             ? 'Admin'
@@ -2797,14 +3406,32 @@ class AdminApp {
                         <td style="font-size:0.85rem;color:var(--gray-600);white-space:nowrap;">${this._escapeHtml(this._formatPersonnelDate(u.lastLogin))}</td>
                         <td>
                             <div class="personnel-actions">
-                                <select class="form-input personnel-role-select" id="team-role-${u.id}" data-team-id="${u.id}" aria-label="Role for ${this._escapeHtml(u.email)}"${roleSelectDisabled ? ' disabled' : ''}>${roleOptions(u.role)}</select>
-                                <button type="button" class="btn btn-sm btn-primary" data-team-action="save-role" data-team-id="${u.id}"${roleSelectDisabled ? ' disabled title="Only a Developer can change this account"' : ''}>Save</button>
+                                <button type="button" class="btn btn-sm btn-secondary btn-icon-edit" title="Edit profile" data-team-action="edit" data-team-id="${u.id}" aria-label="Edit ${this._escapeHtml(u.email)}">
+                                    <i class="fas fa-pen" aria-hidden="true"></i>
+                                </button>
                                 ${promoteBtn}
                                 ${deleteBtn}
                             </div>
                         </td>
                     </tr>`;
                 })
+                .join('');
+
+            const registerRows = (this._registerOnlyCache || [])
+                .map((r) => `<tr data-register-row="${r.id}">
+                        <td><span style="color:var(--gray-500);">—</span></td>
+                        <td>${this._escapeHtml(r.firstName)} ${this._escapeHtml(r.lastName)}</td>
+                        <td><span class="badge" style="background:#fef3c7;color:#92400e;">Register only</span></td>
+                        <td>${r.isActive ? '<span class="badge badge-success">Active</span>' : '<span class="badge" style="background:#f3f4f6;color:#6b7280;">Inactive</span>'}</td>
+                        <td style="font-size:0.85rem;color:var(--gray-600);white-space:nowrap;">—</td>
+                        <td>
+                            <div class="personnel-actions">
+                                <button type="button" class="btn btn-sm btn-secondary btn-icon-edit" title="Edit profile" data-team-action="edit-register" data-register-id="${r.id}" aria-label="Edit ${this._escapeHtml(r.firstName)} ${this._escapeHtml(r.lastName)}">
+                                    <i class="fas fa-pen" aria-hidden="true"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>`)
                 .join('');
 
             list.innerHTML = `
@@ -2820,7 +3447,7 @@ class AdminApp {
                                 <th style="text-align:right;">Actions</th>
                             </tr>
                         </thead>
-                        <tbody>${rows}</tbody>
+                        <tbody>${rows}${registerRows}</tbody>
                     </table>
                 </div>`;
 
@@ -2836,13 +3463,20 @@ class AdminApp {
     async _handleTeamListClick(ev) {
         const btn = ev.target.closest('[data-team-action]');
         if (!btn) return;
+
+        if (btn.dataset.teamAction === 'edit-register') {
+            const registerId = Number(btn.dataset.registerId);
+            if (Number.isInteger(registerId) && registerId > 0) {
+                this.openPersonnelProfile('register', registerId);
+            }
+            return;
+        }
+
         const id = Number(btn.dataset.teamId);
         if (!Number.isInteger(id) || id <= 0) return;
 
-        if (btn.dataset.teamAction === 'save-role') {
-            const sel = document.getElementById(`team-role-${id}`);
-            if (!sel) return;
-            await this.updateTeamMemberRole(id, sel.value);
+        if (btn.dataset.teamAction === 'edit') {
+            this.openPersonnelProfile('admin', id);
             return;
         }
         if (btn.dataset.teamAction === 'promote') {
@@ -2863,9 +3497,379 @@ class AdminApp {
             });
             this.showToast(promoted ? 'Role promoted' : 'Role updated', 'success');
             await this.loadAdminTeam();
+            this.openPersonnelProfile('admin', id);
         } catch (err) {
             this.showToast(err.message || 'Update failed', 'error');
         }
+    }
+
+    _normalizeRegisterPin(value) {
+        return String(value || '').replace(/\D/g, '').slice(0, 4);
+    }
+
+    _isValidRegisterPin(pin) {
+        return /^\d{4}$/.test(this._normalizeRegisterPin(pin));
+    }
+
+    _registerFieldsHtml(reg, { pinRequired = false, pinFirst = false } = {}) {
+        const pinBlock = `
+            <div class="form-group personnel-pin-field">
+                <label for="profile-register-pin">Register PIN <span style="font-weight:400;color:var(--gray-600);">(4 digits)</span></label>
+                <input class="form-input" id="profile-register-pin" name="pin" type="text" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="${pinRequired ? 'Enter 4-digit PIN' : 'Enter new PIN to change'}" style="max-width:8rem;font-size:1.35rem;letter-spacing:0.35em;text-align:center;font-weight:600;">
+                <small class="form-help">${pinRequired ? 'Required for register sign-in.' : 'Leave blank to keep the current PIN.'}</small>
+            </div>`;
+        const idBlock = `
+            <div class="form-group">
+                <label for="profile-register-code">Register employee ID</label>
+                <input class="form-input" id="profile-register-code" name="employeeCode" maxlength="8" value="${this._escapeHtml(reg?.employeeCode || '')}" placeholder="e.g. 1042">
+                <small class="form-help">Shown on shift reports (2–8 characters).</small>
+            </div>`;
+        const rest = `
+            <div class="form-group">
+                <label for="profile-register-hourly">Hourly rate (optional)</label>
+                <input class="form-input" id="profile-register-hourly" name="hourlyRate" type="number" min="0" step="0.01" placeholder="0.00" value="${reg?.hourlyRate != null ? this._escapeHtml(String(reg.hourlyRate)) : ''}">
+            </div>
+            <div class="form-group">
+                <label><input type="checkbox" name="registerActive" ${!reg || reg.isActive ? 'checked' : ''}> Active on register</label>
+            </div>`;
+        return pinFirst ? pinBlock + idBlock + rest : idBlock + pinBlock + rest;
+    }
+
+    _closePersonnelProfileModal() {
+        const existing = document.getElementById('personnel-profile-modal');
+        if (existing) existing.remove();
+    }
+
+    openPersonnelProfile(kind, id) {
+        this._closePersonnelProfileModal();
+
+        let title = '';
+        let subtitle = '';
+        let statusBadge = '';
+        let formBody = '';
+        let profileKind = kind;
+        let profileId = id;
+
+        if (kind === 'register') {
+            const reg = (this._registerOnlyCache || []).find((r) => Number(r.id) === Number(id));
+            if (!reg) return;
+            title = `${reg.firstName} ${reg.lastName}`;
+            subtitle = 'Register employee';
+            statusBadge = reg.isActive
+                ? '<span class="badge badge-success">Active</span>'
+                : '<span class="badge" style="background:#f3f4f6;color:#6b7280;">Inactive</span>';
+            formBody = `
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+                    <div class="form-group">
+                        <label for="team-profile-first">First name</label>
+                        <input class="form-input" id="team-profile-first" name="firstName" required maxlength="100" value="${this._escapeHtml(reg.firstName)}">
+                    </div>
+                    <div class="form-group">
+                        <label for="team-profile-last">Last name</label>
+                        <input class="form-input" id="team-profile-last" name="lastName" required maxlength="100" value="${this._escapeHtml(reg.lastName)}">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="team-profile-email">Email (optional)</label>
+                    <input class="form-input" id="team-profile-email" name="email" type="email" maxlength="255" value="${this._escapeHtml(reg.email || '')}">
+                </div>
+                ${this._registerFieldsHtml(reg, { pinFirst: true })}`;
+        } else {
+            const user = (this._teamUsersCache || []).find((u) => Number(u.id) === Number(id));
+            if (!user) return;
+            const roles = this._teamRoleOptions || [];
+            const isDeveloperActor = this.currentUser?.role === 'developer';
+            const isDeveloperTarget = user.role === 'developer';
+            const roleSelectDisabled = isDeveloperTarget && !isDeveloperActor;
+            const roleOptions = roles
+                .map((r) => {
+                    const sel = r.id === user.role ? ' selected' : '';
+                    return `<option value="${this._escapeHtml(r.id)}"${sel}>${this._escapeHtml(r.label || r.id)}</option>`;
+                })
+                .join('');
+            const reg = user.register || null;
+            const storeHoursDelegationBlock =
+                user.role === 'manager' && this.canManageStoreHoursDelegation
+                    ? `
+                <div style="margin:0.5rem 0 0.25rem;padding-top:1rem;border-top:1px solid var(--gray-200);">
+                    <h5 style="margin:0 0 0.75rem;font-size:0.95rem;color:var(--gray-700);">Store hours</h5>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label>
+                            <input type="checkbox" name="canManageStoreHours" ${user.canManageStoreHours ? 'checked' : ''}>
+                            Allow this manager to edit store hours and holidays
+                        </label>
+                        <small class="form-help" style="display:block;margin-top:0.35rem;">
+                            When enabled, they can update footer hours and sync to Google Business Profile.
+                        </small>
+                    </div>
+                </div>`
+                    : '';
+            title = `${user.firstName} ${user.lastName}`;
+            subtitle = user.email;
+            statusBadge = user.isActive
+                ? '<span class="badge badge-success">Active</span>'
+                : '<span class="badge" style="background:#f3f4f6;color:#6b7280;">Inactive</span>';
+            formBody = `
+                ${this._registerFieldsHtml(reg, { pinRequired: !reg, pinFirst: true })}
+                <div style="margin:0.5rem 0 0.25rem;padding-top:1rem;border-top:1px solid var(--gray-200);">
+                    <h5 style="margin:0 0 0.75rem;font-size:0.95rem;color:var(--gray-700);">Admin login</h5>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+                    <div class="form-group">
+                        <label for="team-profile-first">First name</label>
+                        <input class="form-input" id="team-profile-first" name="firstName" required maxlength="100" value="${this._escapeHtml(user.firstName)}">
+                    </div>
+                    <div class="form-group">
+                        <label for="team-profile-last">Last name</label>
+                        <input class="form-input" id="team-profile-last" name="lastName" required maxlength="100" value="${this._escapeHtml(user.lastName)}">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="team-profile-role">Role</label>
+                    <select class="form-input" id="team-profile-role" name="role"${roleSelectDisabled ? ' disabled' : ''}>${roleOptions}</select>
+                </div>
+                <div class="form-group">
+                    <label><input type="checkbox" name="isActive" ${user.isActive ? 'checked' : ''}> Active admin account</label>
+                </div>
+                <div class="form-group">
+                    <label for="team-profile-password">New password (optional)</label>
+                    <input class="form-input" id="team-profile-password" name="password" type="password" minlength="8" autocomplete="new-password" placeholder="Leave blank to keep current">
+                </div>
+                ${storeHoursDelegationBlock}`;
+        }
+
+        const overlay = document.createElement('div');
+        overlay.id = 'personnel-profile-modal';
+        overlay.className = 'admin-branded-dialog-overlay';
+        overlay.style.cssText =
+            'position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:11000;display:flex;align-items:flex-start;justify-content:center;padding:1.5rem;overflow-y:auto;';
+
+        const box = document.createElement('div');
+        box.style.cssText =
+            'background:#fff;border-radius:12px;max-width:480px;width:100%;box-shadow:0 20px 40px rgba(0,0,0,0.15);padding:1.5rem;margin:auto;';
+        box.setAttribute('role', 'dialog');
+        box.setAttribute('aria-modal', 'true');
+
+        box.innerHTML = `
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:0.75rem;margin-bottom:1rem;">
+                <div>
+                    <h2 style="margin:0 0 0.2rem;font-size:1.25rem;color:var(--primary-green);">${this._escapeHtml(title)}</h2>
+                    <p style="margin:0;color:var(--gray-600);font-size:0.9rem;">${this._escapeHtml(subtitle)}</p>
+                </div>
+                ${statusBadge}
+            </div>
+            <form id="admin-team-profile-form" class="pos-employee-profile-form" style="max-width:none;">
+                ${formBody}
+                <p id="admin-team-profile-msg" style="min-height:1.25rem;font-size:0.9rem;margin:0;"></p>
+                <div style="display:flex;gap:0.75rem;justify-content:flex-end;margin-top:0.5rem;">
+                    <button type="button" class="btn btn-secondary" id="personnel-profile-cancel">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-save" aria-hidden="true"></i> Save</button>
+                </div>
+            </form>`;
+
+        overlay.appendChild(box);
+        document.body.appendChild(overlay);
+
+        const form = box.querySelector('#admin-team-profile-form');
+        const cancelBtn = box.querySelector('#personnel-profile-cancel');
+        const pinInput = box.querySelector('#profile-register-pin');
+
+        if (pinInput) {
+            pinInput.focus();
+            pinInput.addEventListener('input', () => {
+                const next = this._normalizeRegisterPin(pinInput.value);
+                if (pinInput.value !== next) pinInput.value = next;
+            });
+        }
+
+        const onKey = (e) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                this._closePersonnelProfileModal();
+                document.removeEventListener('keydown', onKey);
+            }
+        };
+        document.addEventListener('keydown', onKey);
+
+        cancelBtn?.addEventListener('click', () => {
+            this._closePersonnelProfileModal();
+            document.removeEventListener('keydown', onKey);
+        });
+
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) {
+                this._closePersonnelProfileModal();
+                document.removeEventListener('keydown', onKey);
+            }
+        });
+
+        if (form) {
+            form.addEventListener('submit', async (e) => {
+                const ok = await this.savePersonnelProfile(e, profileKind, profileId);
+                if (ok) {
+                    this._closePersonnelProfileModal();
+                    document.removeEventListener('keydown', onKey);
+                }
+            });
+        }
+    }
+
+    async savePersonnelProfile(ev, kind, id) {
+        ev.preventDefault();
+        const form = ev.target;
+        const msg = document.getElementById('admin-team-profile-msg');
+        if (msg) {
+            msg.textContent = '';
+            msg.style.color = '';
+        }
+
+        const fd = new FormData(form);
+        const firstName = String(fd.get('firstName') || '').trim();
+        const lastName = String(fd.get('lastName') || '').trim();
+        const email = String(fd.get('email') || '').trim() || null;
+        const pin = this._normalizeRegisterPin(fd.get('pin'));
+        const employeeCode = String(fd.get('employeeCode') || '').trim();
+        const hourlyRaw = String(fd.get('hourlyRate') || '').trim();
+        const registerActive = !!form.querySelector('[name="registerActive"]')?.checked;
+
+        if (pin && !this._isValidRegisterPin(pin)) {
+            if (msg) {
+                msg.textContent = 'Register PIN must be exactly 4 digits.';
+                msg.style.color = 'var(--error)';
+            }
+            return false;
+        }
+
+        if (employeeCode && employeeCode.length < 2) {
+            if (msg) {
+                msg.textContent = 'Register employee ID must be 2–8 characters.';
+                msg.style.color = 'var(--error)';
+            }
+            return false;
+        }
+
+        try {
+            if (kind === 'register') {
+                const payload = {
+                    employeeCode,
+                    firstName,
+                    lastName,
+                    email,
+                    isActive: registerActive,
+                    hourlyRate: hourlyRaw === '' ? null : Number(hourlyRaw),
+                };
+                if (pin) payload.pin = pin;
+                await this.apiRequest(`/admin/personnel/employees/${id}`, {
+                    method: 'PUT',
+                    body: JSON.stringify(payload),
+                });
+            } else {
+                const user = (this._teamUsersCache || []).find((u) => Number(u.id) === Number(id));
+                const existingReg = user?.register || null;
+
+                if (!existingReg && (pin || employeeCode)) {
+                    if (!employeeCode) {
+                        if (msg) {
+                            msg.textContent = 'Enter a register employee ID (2–8 characters) when setting up register access.';
+                            msg.style.color = 'var(--error)';
+                        }
+                        return false;
+                    }
+                    if (!pin) {
+                        if (msg) {
+                            msg.textContent = 'Enter a 4-digit register PIN when setting up register access.';
+                            msg.style.color = 'var(--error)';
+                        }
+                        return false;
+                    }
+                }
+
+                const payload = {
+                    firstName,
+                    lastName,
+                    isActive: !!form.querySelector('[name="isActive"]')?.checked,
+                };
+                const roleSel = form.querySelector('[name="role"]');
+                const nextRole = roleSel && !roleSel.disabled ? roleSel.value : user?.role;
+                if (roleSel && !roleSel.disabled) payload.role = roleSel.value;
+                const hoursDelegationChk = form.querySelector('[name="canManageStoreHours"]');
+                if (hoursDelegationChk && nextRole === 'manager') {
+                    payload.canManageStoreHours = hoursDelegationChk.checked;
+                }
+                const password = String(fd.get('password') || '');
+                if (password) payload.password = password;
+
+                await this.apiRequest(`/admin/team/${id}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify(payload),
+                });
+
+                if (employeeCode || existingReg || pin) {
+                    await this.apiRequest(`/admin/team/${id}/register`, {
+                        method: 'PUT',
+                        body: JSON.stringify({
+                            registerEnabled: !!(existingReg || (employeeCode && pin)),
+                            employeeCode,
+                            pin: pin || undefined,
+                            firstName,
+                            lastName,
+                            email: user?.email || null,
+                            isActive: registerActive,
+                            hourlyRate: hourlyRaw === '' ? null : Number(hourlyRaw),
+                        }),
+                    });
+                }
+            }
+
+            this.showToast('Profile saved', 'success');
+            await this.loadAdminTeam();
+            return true;
+        } catch (err) {
+            if (msg) {
+                msg.textContent = err.message || 'Save failed';
+                msg.style.color = 'var(--error)';
+            } else {
+                this.showToast(err.message || 'Save failed', 'error');
+            }
+            return false;
+        }
+    }
+
+    async handleCreateRegisterOnlyEmployee(ev) {
+        if (ev) ev.preventDefault();
+        const form = document.getElementById('register-only-create-form');
+        if (!form) return;
+        const fd = new FormData(form);
+        const pin = this._normalizeRegisterPin(fd.get('pin'));
+        if (!this._isValidRegisterPin(pin)) {
+            this.showToast('Register PIN must be exactly 4 digits', 'warning');
+            return;
+        }
+        try {
+            await this.apiRequest('/admin/personnel/employees', {
+                method: 'POST',
+                body: JSON.stringify({
+                    employeeCode: fd.get('employeeCode'),
+                    firstName: fd.get('firstName'),
+                    lastName: fd.get('lastName'),
+                    email: fd.get('email'),
+                    pin,
+                }),
+            });
+            this.showToast('Register employee added', 'success');
+            form.reset();
+            await this.loadAdminTeam();
+        } catch (err) {
+            this.showToast(err.message || 'Create failed', 'error');
+        }
+    }
+
+    openAdminTeamProfile(id) {
+        this.openPersonnelProfile('admin', id);
+    }
+
+    async saveAdminTeamProfile(ev, id) {
+        return this.savePersonnelProfile(ev, 'admin', id);
     }
 
     async deleteTeamMember(id, email) {
@@ -2907,8 +3911,8 @@ class AdminApp {
                 msg.style.color = 'var(--success)';
             }
             form.reset();
-            const marketingOpt = form.querySelector('#team-create-role option[value="marketing"]');
-            if (marketingOpt) marketingOpt.selected = true;
+            const assistantOpt = form.querySelector('#team-create-role option[value="assistant_manager"]');
+            if (assistantOpt) assistantOpt.selected = true;
             await this.loadAdminTeam();
         } catch (err) {
             if (msg) {
@@ -4433,37 +5437,49 @@ class AdminApp {
             return;
         }
 
-        const url = `${this.apiBaseUrl}/admin/tax-ledger/export/accountant.xlsx?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`;
-        this.showNotification('Building Excel report (syncing POS + website)…', 'info');
-        const response = await fetch(url, {
-            method: 'GET',
-            headers: {
-                Authorization: `Bearer ${this.authToken}`
-            }
-        });
+        this.showNotification('Building online sales tax reports by state…', 'info');
 
-        if (!response.ok) {
-            let message = `Excel export failed (${response.status})`;
-            try {
-                const err = await response.json();
-                if (err?.error) message = err.error;
-            } catch (_) {
-                /* ignore */
-            }
-            this.showNotification(message, 'error');
+        let stateFiles = [];
+        try {
+            const listRes = await this.apiRequest(
+                `/admin/tax-ledger/export/accountant-states?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`
+            );
+            stateFiles = listRes?.files || [];
+        } catch (error) {
+            this.showNotification(error?.message || 'Could not list state reports', 'error');
             return;
         }
 
-        const blob = await response.blob();
-        const href = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = href;
-        link.download = `hmherbs-tax-report-${startDate}-to-${endDate}.xlsx`;
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        URL.revokeObjectURL(href);
-        this.showNotification('Tax report Excel downloaded', 'success');
+        if (!stateFiles.length) {
+            this.showNotification('No online tax transactions in that date range', 'warning');
+            return;
+        }
+
+        for (const file of stateFiles) {
+            const url = `${this.apiBaseUrl}/admin/tax-ledger/export/accountant.xlsx?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}&state=${encodeURIComponent(file.stateCode)}`;
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: { Authorization: `Bearer ${this.authToken}` }
+            });
+            if (!response.ok) {
+                this.showNotification(`Download failed for ${file.stateLabel}`, 'error');
+                continue;
+            }
+            const blob = await response.blob();
+            const href = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = href;
+            link.download = file.filename || `hmherbs-tax-${file.stateCode}-${startDate}-to-${endDate}.xlsx`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(href);
+        }
+
+        this.showNotification(
+            `Downloaded ${stateFiles.length} state Excel file(s) (online sales only)`,
+            'success'
+        );
     }
 
     async sendTaxAccountantReport() {
@@ -4475,14 +5491,14 @@ class AdminApp {
 
         const ok = await this.showAdminConfirm({
             title: 'Email tax report to accountant?',
-            message: `Send the Excel sales tax report for ${startDate} through ${endDate} to the accountant? This syncs website and POS data for that period first.`,
+            message: `Send separate online sales tax Excel files (one per state) for ${startDate} through ${endDate}? In-store sales are excluded. Website orders are synced first.`,
             confirmLabel: 'Send email',
             cancelLabel: 'Cancel'
         });
         if (!ok) return;
 
         try {
-            this.showNotification('Syncing sales and sending email…', 'info');
+            this.showNotification('Syncing online sales and sending email…', 'info');
             const response = await this.apiRequest('/admin/tax-ledger/send-accountant-report', {
                 method: 'POST',
                 body: JSON.stringify({ startDate, endDate, syncBeforeExport: true })
@@ -4490,7 +5506,11 @@ class AdminApp {
             if (!response?.success) return;
             const to = response.result?.recipientEmail || 'accountant';
             const count = response.result?.rowCount ?? 0;
-            this.showNotification(`Tax report emailed to ${to} (${count} transactions)`, 'success');
+            const fileCount = response.result?.stateFiles?.length ?? 0;
+            this.showNotification(
+                `Tax report emailed to ${to} (${fileCount} file(s), ${count} online transactions)`,
+                'success'
+            );
         } catch (error) {
             this.showNotification(error?.message || 'Failed to send tax report', 'error');
         }
@@ -4576,6 +5596,7 @@ class AdminApp {
                     <thead>
                         <tr>
                             <th>Order #</th>
+                            <th>Channel</th>
                             <th>Customer</th>
                             <th>Email</th>
                             <th>Status</th>
@@ -4590,6 +5611,11 @@ class AdminApp {
                         ${orders.map(order => `
                             <tr>
                                 <td><code>${this.escapeHtml(order.order_number)}</code></td>
+                                <td>
+                                    <span class="badge ${this._salesChannelBadgeClass(order)}">
+                                        ${this.escapeHtml(this._formatSalesChannel(order))}
+                                    </span>
+                                </td>
                                 <td>${this.escapeHtml((order.shipping_first_name || '') + ' ' + (order.shipping_last_name || ''))}</td>
                                 <td>${this.escapeHtml(order.email)}</td>
                                 <td>
@@ -6870,6 +7896,17 @@ class AdminApp {
         const response = await fetch(url, config);
 
         if (response.status === 401) {
+            let data = {};
+            try {
+                data = await response.json();
+            } catch (_) {
+                /* ignore */
+            }
+            if (data.code === 'GOOGLE_TOKEN_EXPIRED') {
+                const err = new Error(data.error || 'Google connection expired');
+                err.code = data.code;
+                throw err;
+            }
             this.logout();
             throw new Error('Authentication required');
         }
@@ -6911,7 +7948,10 @@ class AdminApp {
             }
             // Include status code and message for better debugging
             const errorMessage = data.error || data.message || `API request failed with status ${response.status}`;
-            throw new Error(errorMessage);
+            const err = new Error(errorMessage);
+            err.code = data.code;
+            err.existingDeviceId = data.existingDeviceId;
+            throw err;
         }
 
         return data;
@@ -10501,6 +11541,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (adminTeamRefresh && window.adminApp) {
         adminTeamRefresh.addEventListener('click', () => window.adminApp.loadAdminTeam());
     }
+    const registerOnlyForm = document.getElementById('register-only-create-form');
+    if (registerOnlyForm && window.adminApp) {
+        registerOnlyForm.addEventListener('submit', (ev) => window.adminApp.handleCreateRegisterOnlyEmployee(ev));
+    }
     const employeeDiscountForm = document.getElementById('employee-discount-settings-form');
     if (employeeDiscountForm && window.adminApp) {
         employeeDiscountForm.addEventListener('submit', (ev) => window.adminApp.saveEmployeeDiscountSettings(ev));
@@ -10508,6 +11552,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const employeeDiscountReloadBtn = document.getElementById('employee-discount-reload-btn');
     if (employeeDiscountReloadBtn && window.adminApp) {
         employeeDiscountReloadBtn.addEventListener('click', () => window.adminApp.loadEmployeeDiscountSettings());
+    }
+    const posSettingsForm = document.getElementById('pos-settings-form');
+    if (posSettingsForm && window.adminApp) {
+        posSettingsForm.addEventListener('submit', (ev) => window.adminApp.savePosSettings(ev));
+        posSettingsForm.querySelectorAll('[name="pos_card_payment_adapter"]').forEach((el) => {
+            el.addEventListener('change', () => window.adminApp._syncPosCustomDriverUrlVisibility());
+        });
+    }
+    const posSettingsReloadBtn = document.getElementById('pos-settings-reload-btn');
+    if (posSettingsReloadBtn && window.adminApp) {
+        posSettingsReloadBtn.addEventListener('click', () => window.adminApp.loadPosSettings());
+    }
+    const posDeviceCreateBtn = document.getElementById('pos-device-create-btn');
+    if (posDeviceCreateBtn && window.adminApp) {
+        posDeviceCreateBtn.addEventListener('click', () => window.adminApp.createPosDevice());
     }
     const storeInfoForm = document.getElementById('store-info-settings-form');
     if (storeInfoForm && window.adminApp) {

@@ -8,6 +8,22 @@
         return /^HMTRK/i.test(String(trackingNumber || '').trim());
     }
 
+    function inferCarrierFromTracking(trackingNumber) {
+        const t = String(trackingNumber || '').trim().toUpperCase();
+        if (!t || isPlaceholderTracking(t)) return '';
+        if (t.startsWith('1Z')) return 'ups';
+        if (/^(94|92|93|95|96)\d/.test(t)) return 'usps';
+        if (/^\d{12,22}$/.test(t)) return 'fedex';
+        if (t.startsWith('TBA')) return 'amazon';
+        return '';
+    }
+
+    function resolveCarrier(order) {
+        const carrier = String(order?.shipping_carrier || '').trim();
+        if (carrier) return carrier;
+        return inferCarrierFromTracking(order?.tracking_number);
+    }
+
     function buildCarrierTrackingUrl(carrier, trackingNumber) {
         const num = String(trackingNumber || '').trim();
         if (!num || isPlaceholderTracking(num)) return null;
@@ -27,7 +43,7 @@
         if (stored) return stored;
         const num = String(order?.tracking_number || '').trim();
         if (!num || isPlaceholderTracking(num)) return null;
-        return buildCarrierTrackingUrl(order?.shipping_carrier, num);
+        return buildCarrierTrackingUrl(resolveCarrier(order), num);
     }
 
     /**

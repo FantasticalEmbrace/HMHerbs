@@ -63,7 +63,8 @@ class TaxLedgerService {
                FROM orders
               WHERE DATE(created_at) = ?
                 AND COALESCE(tax_amount, 0) > 0
-                AND status NOT IN ('cancelled', 'refunded')`,
+                AND status NOT IN ('cancelled', 'refunded')
+                AND COALESCE(sales_channel, 'online') = 'online'`,
             [dateKey]
         );
 

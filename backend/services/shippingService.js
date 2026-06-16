@@ -1,8 +1,10 @@
 'use strict';
 
+const logger = require('../utils/logger');
 const shippo = require('./shippoClient');
 const { registerTrack, syncOrderTracking } = require('./shippoTracking');
-const { buildCarrierTrackingUrl, enrichOrderTracking } = require('../utils/trackingUrl');
+const { buildCarrierTrackingUrl, enrichOrderTracking, inferCarrierFromTracking } = require('../utils/trackingUrl');
+const { sendLabelCreatedNotificationEmail } = require('./shippedNotificationEmail');
 const {
     FREE_SHIPPING_THRESHOLD,
     FIRST_CLASS_SHIPPING,
@@ -426,16 +428,17 @@ async function purchaseLabel(pool, orderId, { rateId, boxId, packageWeightOz, it
     let resolvedRateId = rateId ? String(rateId).trim() : null;
     let resolvedBoxId = boxId ? Number(boxId) : null;
     let resolvedWeightOz = parseFloat(packageWeightOz);
+    let quoteRate = null;
 
     if (!resolvedRateId) {
         const quote = await getRatesForOrder(pool, orderId, { boxId, packageWeightOz });
-        const preferred = quote.rates[0];
-        if (!preferred?.shippo_rate_id) {
+        quoteRate = quote.rates[0] || null;
+        if (!quoteRate?.shippo_rate_id) {
             const err = new Error('NO_RATES_AVAILABLE');
             err.code = 'NO_RATES_AVAILABLE';
             throw err;
         }
-        resolvedRateId = preferred.shippo_rate_id;
+        resolvedRateId = quoteRate.shippo_rate_id;
         resolvedBoxId = quote.box?.id ?? resolvedBoxId;
         resolvedWeightOz = quote.packageWeightOz;
     } else if (!Number.isFinite(resolvedWeightOz) || resolvedWeightOz <= 0) {
@@ -467,7 +470,10 @@ async function purchaseLabel(pool, orderId, { rateId, boxId, packageWeightOz, it
     }
 
     const trackingNumber = String(txn.tracking_number || '').trim();
-    const carrier = String(txn.rate?.provider || txn.provider || '').toUpperCase();
+    let carrier = String(txn.rate?.provider || txn.provider || quoteRate?.carrier || '').toUpperCase();
+    if (!carrier && trackingNumber) {
+        carrier = inferCarrierFromTracking(trackingNumber).toUpperCase();
+    }
     const trackingUrl =
         String(txn.tracking_url_provider || '').trim() ||
         buildCarrierTrackingUrl(carrier, trackingNumber) ||
@@ -510,6 +516,10 @@ async function purchaseLabel(pool, orderId, { rateId, boxId, packageWeightOz, it
         void registerTrack(carrier, trackingNumber);
         void syncOrderTracking(pool, orderId);
     }
+
+    void sendLabelCreatedNotificationEmail(pool, orderId).catch((err) => {
+        logger.error(`Label tracking email failed for order ${orderId}:`, err);
+    });
 
     return {
         transaction_id: txn.object_id,

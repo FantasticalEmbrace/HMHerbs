@@ -273,6 +273,11 @@
     AdminApp.prototype.showCustomerProfile = async function (id) {
         const data = await this.apiRequest(`/admin/customers/${id}`);
         if (!data) return;
+        try {
+            data.all_customer_groups = await this.apiRequest('/admin/customer-groups') || [];
+        } catch {
+            data.all_customer_groups = [];
+        }
         const c = data.customer;
         const modal = openModal(`
             <div style="display:flex;justify-content:space-between;align-items:center;padding:1.5rem;border-bottom:1px solid var(--gray-200);">
@@ -345,6 +350,23 @@
                     </div>
                     <div class="form-group"><label for="cust-${c.id}-referral_source">Referral Source</label><input class="form-input" id="cust-${c.id}-referral_source" name="referral_source" value="${esc(c.referral_source||'')}"></div>
 
+                    <div class="form-group" style="grid-column:1/-1;"><h4 style="margin:1rem 0 0.5rem 0;">Customer Groups</h4></div>
+                    <div class="form-group" style="grid-column:1/-1;">
+                        ${(data.all_customer_groups || []).length ? `
+                            <div style="display:flex;flex-wrap:wrap;gap:0.75rem 1.25rem;">
+                                ${(data.all_customer_groups || []).map((g) => {
+                                    const checked = (data.customer_groups || []).some((cg) => Number(cg.id) === Number(g.id));
+                                    const inactive = g.is_active === 0 || g.is_active === false;
+                                    return `<label style="display:flex;align-items:center;gap:0.4rem;${inactive ? 'opacity:0.65;' : ''}">
+                                        <input type="checkbox" name="customer_group_ids" value="${g.id}" ${checked ? 'checked' : ''}>
+                                        <span>${esc(g.name)}${inactive ? ' (inactive)' : ''}</span>
+                                    </label>`;
+                                }).join('')}
+                            </div>
+                        ` : '<p style="margin:0;color:var(--gray-500);font-size:0.9rem;">No customer groups yet. Create groups under <strong>Customer Groups</strong> in the admin menu.</p>'}
+                        <small style="display:block;margin-top:0.35rem;color:var(--gray-500);font-size:0.85rem;">Groups can be used for promotions and targeted offers.</small>
+                    </div>
+
                     <div class="form-group" style="grid-column:1/-1;"><h4 style="margin:1rem 0 0.5rem 0;">Tax</h4></div>
                     <div class="form-group"><label><input type="checkbox" name="tax_exempt" id="cust-${c.id}-tax_exempt" ${c.tax_exempt?'checked':''}> Tax exempt</label></div>
                     <div class="form-group" style="grid-column:1/-1;">
@@ -381,12 +403,18 @@
                 </table></div>` : '<p style="color:var(--gray-500);">No addresses on file.</p>'}`;
         }
         if (tab === 'orders') {
+            const channelLabel = (ch) => {
+                const labels = { online: 'Online', in_store: 'In-store', mobile: 'Mobile', phone: 'Phone', other: 'Other' };
+                const key = String(ch || 'online').toLowerCase();
+                return labels[key] || key;
+            };
             return data.orders.length ? `
                 <div class="table-container"><table class="table">
-                    <thead><tr><th>Order #</th><th>Status</th><th>Payment</th><th>Total</th><th>Date</th><th></th></tr></thead>
+                    <thead><tr><th>Order #</th><th>Channel</th><th>Status</th><th>Payment</th><th>Total</th><th>Date</th><th></th></tr></thead>
                     <tbody>${data.orders.map(o => `
                         <tr>
                             <td><strong>${esc(o.order_number)}</strong></td>
+                            <td>${esc(channelLabel(o.sales_channel))}</td>
                             <td><span style="text-transform:capitalize;">${esc(o.status)}</span></td>
                             <td>${esc(o.payment_status||'-')}</td>
                             <td>${fmtMoney(o.total_amount)}</td>
@@ -546,8 +574,15 @@
                     payload.tax_exempt_id = '';
                 }
                 if (!payload.date_of_birth) delete payload.date_of_birth;
+                const groupIds = [...form.querySelectorAll('input[name="customer_group_ids"]:checked')]
+                    .map((cb) => Number(cb.value))
+                    .filter((n) => n > 0);
                 try {
                     await this.apiRequest(`/admin/customers/${cId}`, { method: 'PUT', body: JSON.stringify(payload) });
+                    await this.apiRequest(`/admin/customers/${cId}/groups`, {
+                        method: 'PUT',
+                        body: JSON.stringify({ group_ids: groupIds }),
+                    });
                     this.showToast('Customer updated', 'success');
                     closeAllModals();
                     this.loadCustomers();

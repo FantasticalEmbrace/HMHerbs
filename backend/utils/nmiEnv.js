@@ -18,6 +18,21 @@ const NMI_TOKEN_CREATE_URL_SECURE = 'https://secure.nmi.com/token/api/create';
 /** Sandbox tokenization keys validate here; probing only production falsely rejects sandbox keys. */
 const NMI_TOKEN_CREATE_URL_SANDBOX = 'https://sandbox.nmi.com/token/api/create';
 
+function getEpiPublicTokenizationKey() {
+    return String(
+        process.env.EPI_PUBLIC_TOKENIZATION_KEY || process.env.EPI_PUBLIC_KEY || ''
+    ).trim();
+}
+
+function getEpiPrivateApiKey() {
+    return String(
+        process.env.EPI_PRIVATE_API_KEY ||
+            process.env.EPI_API_KEY ||
+            process.env.EPI_SECURITY_KEY ||
+            ''
+    ).trim();
+}
+
 function getNmiPublicTokenizationKey() {
     return String(
         process.env.NMI_PUBLIC_TOKENIZATION_KEY || process.env.NMI_PUBLIC_KEY || ''
@@ -191,6 +206,8 @@ async function nmiTokenizationKeyPassesServerPreflight(tokenizationKey) {
 }
 
 module.exports = {
+    getEpiPublicTokenizationKey,
+    getEpiPrivateApiKey,
     getNmiPublicTokenizationKey,
     getNmiPrivateApiKey,
     getNmiTransactUrl,

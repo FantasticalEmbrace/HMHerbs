@@ -56,7 +56,7 @@ from_path,to_path
 /index.php/category/sleep-health,/products.html?category=sleep-health
 /index.php/category/vision-health-support,/products.html?category=vision-health-support
 /index.php/category/women,/products.html?category=women
-/index.php/cbd,/products.html?search=CBD
+/index.php/cbd,/products.html?category=cbd
 /index.php/company,/about.html
 /index.php/company/about,/about.html
 /index.php/company/contact,/index.html#contact

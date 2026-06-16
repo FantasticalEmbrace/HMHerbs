@@ -5,17 +5,20 @@ const jwt = require('jsonwebtoken');
 const logger = require('../utils/logger');
 const promoEngine = require('../services/webPromotionEngine');
 const { nmiSale } = require('../services/nmiGateway');
+const nmiVaultCards = require('../services/nmiVaultCards');
 const { finalizePaidOrder } = require('../services/finalizePaidOrder');
 const { cartLookupBinds, hasCartIdentity } = require('../utils/cartSession');
 const {
-    getNmiPublicTokenizationKey,
-    getNmiPrivateApiKey,
     getNmiCollectJsUrl,
     isNmiSandboxHint,
     isNmiWalletsDisabled,
     nmiResolveTokenizationCollectJs,
     shouldSkipNmiTokenizationPreflight
 } = require('../utils/nmiEnv');
+const {
+    loadStorePaymentProcessor,
+    resolveProcessorCredentials
+} = require('../services/storePaymentProcessor');
 
 const router = express.Router();
 
@@ -69,12 +72,17 @@ async function assertCanPayOrder(req, orderRow, body) {
 
 /** Public: Collect.js URL + tokenization key (never the private security key). */
 router.get('/nmi-client-config', async (req, res) => {
-    const tokenizationKey = getNmiPublicTokenizationKey();
+    const processor = await loadStorePaymentProcessor(req.pool);
+    const creds = resolveProcessorCredentials(processor);
+    const tokenizationKey = creds.publicKey;
+    const processorLabel = creds.label;
     if (!tokenizationKey) {
         return res.json({
             enabled: false,
+            processor,
+            processorLabel,
             tokenizationKey: '',
-            collectJsUrl: getNmiCollectJsUrl(),
+            collectJsUrl: creds.collectJsUrl || getNmiCollectJsUrl(),
             disableWallets: isNmiWalletsDisabled()
         });
     }
@@ -85,64 +93,118 @@ router.get('/nmi-client-config', async (req, res) => {
             if (shouldSkipNmiTokenizationPreflight()) {
                 return res.json({
                     enabled: true,
+                    processor,
+                    processorLabel,
                     tokenizationKey,
-                    collectJsUrl: getNmiCollectJsUrl(),
+                    collectJsUrl: creds.collectJsUrl || getNmiCollectJsUrl(),
                     variant: 'inline',
-                    sandbox: isNmiSandboxHint(),
+                    sandbox: Boolean(creds.sandbox),
                     disableWallets: isNmiWalletsDisabled(),
                     preflightSkipped: true
                 });
             }
             logger.warn(
-                'NMI tokenization key rejected by token preflight (401/403). Use the Collect.js public tokenization key from the Durango/NMI merchant portal (not the Direct Post security key), set NMI_COLLECT_JS_URL for sandbox, or set NMI_SKIP_TOKENIZATION_PREFLIGHT=1.'
+                `${processorLabel} tokenization key rejected by token preflight (401/403). Use the Collect.js public tokenization key from your merchant portal (not the Direct Post security key), set NMI_COLLECT_JS_URL for sandbox, or set NMI_SKIP_TOKENIZATION_PREFLIGHT=1.`
             );
             return res.json({
                 enabled: false,
+                processor,
+                processorLabel,
                 tokenizationKey: '',
-                collectJsUrl: resolved.collectJsUrl || getNmiCollectJsUrl(),
+                collectJsUrl: resolved.collectJsUrl || creds.collectJsUrl || getNmiCollectJsUrl(),
                 variant: 'inline',
-                sandbox: isNmiSandboxHint(),
+                sandbox: Boolean(creds.sandbox),
                 disableWallets: isNmiWalletsDisabled(),
                 preflightRejected: true
             });
         }
         return res.json({
             enabled: true,
+            processor,
+            processorLabel,
             tokenizationKey,
             collectJsUrl: resolved.collectJsUrl,
             variant: 'inline',
-            sandbox: isNmiSandboxHint(),
+            sandbox: Boolean(creds.sandbox),
             disableWallets: isNmiWalletsDisabled()
         });
     } catch (e) {
-        logger.warn('NMI tokenization preflight error; still offering Collect.js', { err: e && e.message });
+        logger.warn('Payment tokenization preflight error; still offering Collect.js', { err: e && e.message });
         return res.json({
             enabled: true,
+            processor,
+            processorLabel,
             tokenizationKey,
-            collectJsUrl: getNmiCollectJsUrl(),
+            collectJsUrl: creds.collectJsUrl || getNmiCollectJsUrl(),
             variant: 'inline',
-            sandbox: isNmiSandboxHint(),
+            sandbox: Boolean(creds.sandbox),
             disableWallets: isNmiWalletsDisabled()
         });
     }
 });
 
+/** List saved NMI vault cards for logged-in customer */
+router.get('/saved-cards', async (req, res) => {
+    const authUser = await getAuthenticatedUserFromRequest(req);
+    if (!authUser) return res.status(401).json({ error: 'Sign in to view saved cards' });
+    try {
+        const cards = await nmiVaultCards.listUserVaultCards(req.pool, authUser.id);
+        res.json({ cards });
+    } catch (e) {
+        logger.error('List saved cards error:', e);
+        res.status(500).json({ error: 'Failed to load saved cards' });
+    }
+});
+
+/** Save card to NMI Customer Vault (Collect.js payment_token only — never PAN) */
+router.post('/saved-cards', async (req, res) => {
+    const authUser = await getAuthenticatedUserFromRequest(req);
+    if (!authUser) return res.status(401).json({ error: 'Sign in to save a card' });
+    const payment_token = String(req.body?.payment_token || '').trim();
+    if (!payment_token) return res.status(400).json({ error: 'payment_token required' });
+    try {
+        const card = await nmiVaultCards.saveVaultCard(req.pool, authUser.id, {
+            paymentToken: payment_token,
+            setAsDefault: Boolean(req.body?.setAsDefault),
+            cardholderName: req.body?.cardholderName
+        });
+        res.status(201).json({ success: true, card });
+    } catch (e) {
+        res.status(e.code ? 400 : 500).json({ error: e.message, code: e.code });
+    }
+});
+
+router.delete('/saved-cards/:id', async (req, res) => {
+    const authUser = await getAuthenticatedUserFromRequest(req);
+    if (!authUser) return res.status(401).json({ error: 'Sign in required' });
+    try {
+        await nmiVaultCards.deleteVaultCard(req.pool, authUser.id, Number(req.params.id));
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: 'Failed to remove card' });
+    }
+});
+
 /**
  * POST { orderId, payment_token, customerEmail? }
+ * OR { orderId, savedCardId } for vault charge
  * Re-prices from order lines, charges NMI, finalizes order, clears server cart when session matches.
  */
 router.post('/process-payment', async (req, res) => {
     try {
-        const securityKey = getNmiPrivateApiKey();
+        const processor = await loadStorePaymentProcessor(req.pool);
+        const creds = resolveProcessorCredentials(processor);
+        const securityKey = creds.privateKey;
         if (!securityKey) {
             return res.status(503).json({ error: 'Payment processing is not configured.' });
         }
 
-        const { orderId, payment_token: paymentTokenRaw, customerEmail } = req.body || {};
+        const { orderId, payment_token: paymentTokenRaw, savedCardId, saveCard, customerEmail } = req.body || {};
         const oid = Number(orderId);
         const payment_token = String(paymentTokenRaw || '').trim();
-        if (!Number.isFinite(oid) || oid < 1 || !payment_token) {
-            return res.status(400).json({ error: 'orderId and payment_token are required' });
+        const vaultCardId = savedCardId != null ? Number(savedCardId) : null;
+        if (!Number.isFinite(oid) || oid < 1 || (!payment_token && !vaultCardId)) {
+            return res.status(400).json({ error: 'orderId and payment_token or savedCardId are required' });
         }
 
         const [orders] = await req.pool.execute('SELECT * FROM orders WHERE id = ? AND status = ?', [
@@ -214,11 +276,34 @@ router.post('/process-payment', async (req, res) => {
         }
 
         const amountStr = expected.toFixed(2);
-        const sale = await nmiSale({
-            securityKey,
-            amount: amountStr,
-            paymentToken: payment_token
-        });
+        const authUser = await getAuthenticatedUserFromRequest(req);
+
+        let sale;
+        if (vaultCardId) {
+            if (!authUser) return res.status(401).json({ error: 'Sign in to use a saved card' });
+            sale = await nmiVaultCards.chargeVaultCard(req.pool, authUser.id, vaultCardId, amountStr);
+            sale = {
+                ok: sale.ok,
+                responseText: sale.responseText,
+                transactionId: sale.transactionId,
+                fields: sale.fields,
+                responseCode: sale.responseCode
+            };
+        } else {
+            sale = await nmiSale({
+                securityKey,
+                amount: amountStr,
+                paymentToken: payment_token
+            });
+            if (sale.ok && saveCard && authUser) {
+                void nmiVaultCards
+                    .saveVaultCard(req.pool, authUser.id, {
+                        paymentToken: payment_token,
+                        setAsDefault: Boolean(req.body?.setAsDefault)
+                    })
+                    .catch((vaultErr) => logger.warn('Save card after checkout failed', { err: vaultErr.message }));
+            }
+        }
 
         if (!sale.ok) {
             return res.status(402).json({
@@ -245,7 +330,6 @@ router.post('/process-payment', async (req, res) => {
             throw e;
         }
 
-        const authUser = await getAuthenticatedUserFromRequest(req);
         const cartUserId = authUser?.id ?? null;
         const cartSessionId = req.headers['x-session-id'] || req.sessionID || null;
         if (hasCartIdentity(cartUserId, cartSessionId)) {

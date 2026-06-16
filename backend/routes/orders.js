@@ -269,8 +269,9 @@ router.post('/', async (req, res) => {
                     promo_code,
                     notes,
                     shipping_method,
-                    payment_method
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    payment_method,
+                    sales_channel
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `,
                 sqlBinds([
                     orderNumber,
@@ -303,7 +304,8 @@ router.post('/', async (req, res) => {
                     checkout.promotion ? String(checkout.promotion.code) : null,
                     orderNotes,
                     String(rawShippingMethod || '').trim() || null,
-                    storedPaymentMethod
+                    storedPaymentMethod,
+                    'online'
                 ])
             );
 

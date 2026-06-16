@@ -28,14 +28,24 @@ function parseNmiBody(raw) {
  * @returns {Promise<{ ok: boolean, fields: Record<string, string>, responseCode: string, responseText: string, transactionId: string | null }>}
  */
 async function nmiSale(opts) {
-    const { securityKey, amount, paymentToken } = opts;
+    const { securityKey, amount, paymentToken, customerVaultId, billingId, customerVaultAction } = opts;
     const url = getNmiTransactUrl();
 
     const body = new URLSearchParams();
     body.set('security_key', securityKey);
     body.set('type', 'sale');
     body.set('amount', amount);
-    body.set('payment_token', paymentToken);
+
+    if (paymentToken) {
+        body.set('payment_token', paymentToken);
+    }
+    if (customerVaultId && billingId) {
+        body.set('customer_vault_id', customerVaultId);
+        body.set('billing_id', billingId);
+    }
+    if (customerVaultAction) {
+        body.set('customer_vault', customerVaultAction);
+    }
 
     const res = await axios.post(url, body.toString(), {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -52,4 +62,41 @@ async function nmiSale(opts) {
     return { ok, fields, responseCode, responseText, transactionId };
 }
 
-module.exports = { nmiSale, parseNmiBody };
+/** Add payment method to NMI Customer Vault using Collect.js token. */
+async function nmiVaultAddCustomer(opts) {
+    const { securityKey, paymentToken } = opts;
+    const url = getNmiTransactUrl();
+    const body = new URLSearchParams();
+    body.set('security_key', securityKey);
+    body.set('customer_vault', 'add_customer');
+    body.set('payment_token', paymentToken);
+
+    const res = await axios.post(url, body.toString(), {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        timeout: 60000,
+        validateStatus: () => true
+    });
+
+    const fields = parseNmiBody(res.data);
+    const responseCode = String(fields.response ?? '');
+    const ok = responseCode === '1';
+    return {
+        ok,
+        fields,
+        responseCode,
+        responseText: String(fields.responsetext || ''),
+        customerVaultId: fields.customer_vault_id ? String(fields.customer_vault_id) : null,
+        billingId: fields.billing_id ? String(fields.billing_id) : null
+    };
+}
+
+async function nmiVaultSale(opts) {
+    return nmiSale({
+        securityKey: opts.securityKey,
+        amount: opts.amount,
+        customerVaultId: opts.customerVaultId,
+        billingId: opts.billingId
+    });
+}
+
+module.exports = { nmiSale, nmiVaultAddCustomer, nmiVaultSale, parseNmiBody };

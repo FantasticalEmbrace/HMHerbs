@@ -111,7 +111,7 @@ function mapOldPathnameToNew(pathnameWithSearch) {
         return '/products.html';
     }
     if (norm === '/index.php/cbd') {
-        return '/products.html?search=CBD';
+        return '/products.html?category=cbd';
     }
     if (norm === '/index.php/gift-cards') {
         return '/products.html?search=gift+card';

@@ -265,7 +265,11 @@ class ProductDetailPage {
         if (!url || typeof url !== 'string') return '#';
         const u = url.trim();
         if (/^https?:\/\//i.test(u)) return u;
-        return u.startsWith('/') ? u : `/${u}`;
+        const path = u.startsWith('/') ? u : `/${u}`;
+        return path
+            .split('/')
+            .map((segment, index) => (index === 0 || !segment ? segment : encodeURIComponent(segment)))
+            .join('/');
     }
 
     renderCoaSection() {

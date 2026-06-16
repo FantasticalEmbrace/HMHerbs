@@ -2,7 +2,7 @@
 /* Botanical theme with accessibility and responsive design */
 /* Brand greens: css/brand-tokens.css (--brand-primary #10b981) */
 
-@import url('brand-tokens.css');
+@import url('css/brand-tokens.css');
 
 /* CSS Custom Properties (Design Tokens) */
 :root {
@@ -2548,7 +2548,6 @@ select:focus {
 /* In-page nav targets (sticky header clearance) */
 #home,
 #products,
-#health-categories,
 #edsa-service,
 #edsa-heading,
 #edsa-nav-target,
@@ -3586,64 +3585,93 @@ html.hm-edsa-scroll-ready body {
   }
 }
 
-/* Cookie Banner */
-.cookie-banner {
+/* Cookie Consent Popup — top-centered like age gate (.hm-age-gate) */
+.cookie-popup {
   position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background-color: var(--white);
-  border-top: 1px solid var(--gray-200);
-  box-shadow: var(--shadow-lg);
-  z-index: var(--z-fixed);
-  transform: translateY(100%);
+  inset: 0;
+  z-index: 2147483635;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-left: clamp(1rem, 5vw, 2.5rem);
+  padding-right: clamp(1rem, 5vw, 2.5rem);
+  padding-bottom: clamp(1rem, 5vw, 2.5rem);
+  padding-top: max(1rem, env(safe-area-inset-top, 0px));
+  box-sizing: border-box;
+  overflow-y: auto;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity var(--transition-normal), visibility var(--transition-normal);
+}
+
+.cookie-popup.show {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.cookie-popup-overlay {
+  position: absolute;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+}
+
+.cookie-popup-content {
+  position: relative;
+  background: var(--white);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-2xl);
+  width: min(100%, 28rem);
+  max-width: 28rem;
+  margin-top: 0;
+  flex-shrink: 0;
+  z-index: 1;
+  transform: scale(0.92) translateY(-8px);
   transition: transform var(--transition-normal);
 }
 
-.cookie-banner.show {
-  transform: translateY(0);
+.cookie-popup.show .cookie-popup-content {
+  transform: scale(1) translateY(0);
 }
 
-.cookie-content {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-6);
-  padding: var(--space-4);
-  max-width: 1200px;
-  margin: 0 auto;
+.cookie-popup-body {
+  padding: var(--space-6);
+  text-align: center;
 }
 
-@media (max-width: 768px) {
-  .cookie-content {
-    flex-direction: column;
-    text-align: center;
-    gap: var(--space-4);
-  }
-}
-
-.cookie-text h3 {
-  font-size: var(--text-lg);
-  margin-bottom: var(--space-2);
+.cookie-popup-title {
+  font-size: var(--text-xl);
+  margin: 0 0 var(--space-3);
   color: var(--gray-900);
 }
 
-.cookie-text p {
+.cookie-popup-text {
   font-size: var(--text-sm);
   color: var(--gray-600);
-  margin-bottom: 0;
+  margin: 0 0 var(--space-5);
+  line-height: 1.6;
 }
 
-.cookie-actions {
+.cookie-popup-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-3);
-  flex-shrink: 0;
+  justify-content: center;
 }
-
 
 @media (max-width: 480px) {
-  .cookie-actions {
+  .cookie-popup-body {
+    padding: var(--space-5);
+  }
+
+  .cookie-popup-actions {
     flex-direction: column;
+    width: 100%;
+  }
+
+  .cookie-popup-actions .btn {
     width: 100%;
   }
 }
@@ -5477,6 +5505,7 @@ body.cart-open .cart-sidebar.open {
 
   .header,
   .footer,
+  .cookie-popup,
   .cookie-banner,
   .modal,
   .cart-sidebar,

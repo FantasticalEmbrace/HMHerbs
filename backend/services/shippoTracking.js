@@ -3,7 +3,7 @@
 const shippo = require('./shippoClient');
 const logger = require('../utils/logger');
 const { mapCarrierStatusToOrderStatus } = require('../utils/orderStatus');
-const { buildCarrierTrackingUrl } = require('../utils/trackingUrl');
+const { buildCarrierTrackingUrl, inferCarrierFromTracking } = require('../utils/trackingUrl');
 const { sendShippedNotificationEmail } = require('./shippedNotificationEmail');
 
 function normalizeCarrier(carrier) {
@@ -86,7 +86,7 @@ async function applyTrackingToOrder(pool, orderRow, trackData) {
     const trackingUrl =
         trackData.tracking_url_provider ||
         ts.tracking_url_provider ||
-        buildCarrierTrackingUrl(orderRow.shipping_carrier, orderRow.tracking_number);
+        buildCarrierTrackingUrl(orderRow.shipping_carrier || inferCarrierFromTracking(orderRow.tracking_number), orderRow.tracking_number);
     if (trackingUrl && !orderRow.tracking_url) {
         updates.push('tracking_url = ?');
         params.push(String(trackingUrl).slice(0, 500));
@@ -121,11 +121,15 @@ async function syncOrderTracking(pool, orderId) {
     );
     if (!rows.length) return { updated: false };
     const order = rows[0];
-    if (!order.tracking_number || !order.shipping_carrier) {
+    if (!order.tracking_number) {
         return { updated: false, reason: 'no_tracking' };
     }
+    const carrier = order.shipping_carrier || inferCarrierFromTracking(order.tracking_number);
+    if (!carrier) {
+        return { updated: false, reason: 'no_carrier' };
+    }
 
-    const trackData = await fetchTrack(order.shipping_carrier, order.tracking_number);
+    const trackData = await fetchTrack(carrier, order.tracking_number);
     if (!trackData) return { updated: false, reason: 'fetch_failed' };
 
     const updated = await applyTrackingToOrder(pool, order, trackData);

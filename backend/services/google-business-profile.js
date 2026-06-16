@@ -7,6 +7,17 @@ const SCOPE = 'https://www.googleapis.com/auth/business.manage';
 const BASE_URL = 'https://mybusinessbusinessinformation.googleapis.com/v1';
 const ACCOUNTS_URL = 'https://mybusinessaccountmanagement.googleapis.com/v1';
 
+function isOAuthTokenError(error) {
+    const msg = String(
+        error?.message || error?.response?.data?.error || error?.response?.data?.error_description || ''
+    ).toLowerCase();
+    return (
+        msg.includes('invalid_grant') ||
+        msg.includes('token has been expired') ||
+        msg.includes('token has been revoked')
+    );
+}
+
 const SETTINGS_KEYS = {
     refreshToken: 'gbp_refresh_token',
     connectedEmail: 'gbp_connected_email',
@@ -380,13 +391,25 @@ class GoogleBusinessProfileService {
     }
 
     async _accessToken(pool, req, { requireLocation = true } = {}) {
-        const { client } = requireLocation
-            ? await this._oauthClientWithCredentials(pool, req)
-            : await this._oauthClientConnected(pool, req);
-        const tokenResult = await client.getAccessToken();
-        const token = typeof tokenResult === 'string' ? tokenResult : tokenResult?.token;
-        if (!token) throw new Error('Unable to obtain Google OAuth access token');
-        return token;
+        try {
+            const { client } = requireLocation
+                ? await this._oauthClientWithCredentials(pool, req)
+                : await this._oauthClientConnected(pool, req);
+            const tokenResult = await client.getAccessToken();
+            const token = typeof tokenResult === 'string' ? tokenResult : tokenResult?.token;
+            if (!token) throw new Error('Unable to obtain Google OAuth access token');
+            return token;
+        } catch (error) {
+            if (isOAuthTokenError(error)) {
+                await this.disconnect(pool).catch(() => {});
+                const err = new Error(
+                    'Google Business Profile connection expired. Please connect again in Settings.'
+                );
+                err.code = 'GOOGLE_TOKEN_EXPIRED';
+                throw err;
+            }
+            throw error;
+        }
     }
 
     _toTimeParts(hoursText = '') {
@@ -570,6 +593,9 @@ class GoogleBusinessProfileService {
                 { retries: 1, delayMs: 5000 }
             );
         } catch (err) {
+            if (err?.code === 'GOOGLE_TOKEN_EXPIRED') {
+                throw err;
+            }
             if (this.isGbpAccessPendingError(err)) {
                 await this.setApiAccessPending(pool, true);
             }

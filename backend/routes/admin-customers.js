@@ -70,6 +70,21 @@ async function authenticateAdmin(req, res, next) {
 
 router.use(authenticateAdmin);
 
+async function syncUserCustomerGroups(pool, userId, groupIds) {
+    const ids = [...new Set((Array.isArray(groupIds) ? groupIds : [])
+        .map((x) => parseInt(x, 10))
+        .filter((n) => n > 0))];
+
+    await pool.execute('DELETE FROM user_customer_groups WHERE user_id = ?', [userId]);
+
+    for (const groupId of ids) {
+        await pool.execute(
+            'INSERT IGNORE INTO user_customer_groups (user_id, customer_group_id) VALUES (?, ?)',
+            [userId, groupId]
+        );
+    }
+}
+
 // Adjust a customer's loyalty point balance locally (website-only loyalty).
 async function adjustLoyaltyPoints(pool, userId, pointsChange, { description, adminUserId, source = 'manual', orderId = null, metadata = null } = {}) {
     const conn = await pool.getConnection();
@@ -389,7 +404,8 @@ router.get('/:id', async (req, res) => {
         );
 
         const [orders] = await req.pool.execute(
-            `SELECT id, order_number, status, payment_status, total_amount, created_at
+            `SELECT id, order_number, status, payment_status, total_amount, created_at,
+                    COALESCE(sales_channel, 'online') AS sales_channel
                FROM orders
               WHERE user_id = ?
               ORDER BY created_at DESC
@@ -433,6 +449,21 @@ router.get('/:id', async (req, res) => {
             [id]
         );
 
+        let customer_groups = [];
+        try {
+            const [groups] = await req.pool.execute(
+                `SELECT cg.id, cg.name, cg.slug
+                   FROM user_customer_groups ucg
+                   JOIN customer_groups cg ON cg.id = ucg.customer_group_id
+                  WHERE ucg.user_id = ?
+                  ORDER BY cg.name ASC`,
+                [id]
+            );
+            customer_groups = groups;
+        } catch (groupErr) {
+            logger.warn('Customer groups lookup skipped', { error: groupErr.message });
+        }
+
         res.json({
             customer,
             addresses,
@@ -441,6 +472,7 @@ router.get('/:id', async (req, res) => {
             loyalty_transactions: loyaltyTx,
             notes,
             communications,
+            customer_groups,
         });
     } catch (err) {
         logger.error('Get customer profile error', { error: err.message });
@@ -558,6 +590,35 @@ router.post('/', async (req, res) => {
         res.status(500).json({ error: 'Failed to create customer' });
     } finally {
         conn.release();
+    }
+});
+
+// ---------------------------------------------------------------------------
+// UPDATE customer group memberships
+// ---------------------------------------------------------------------------
+router.put('/:id/groups', async (req, res) => {
+    try {
+        const id = parseInt(req.params.id, 10);
+        if (!id) return res.status(400).json({ error: 'Invalid customer id' });
+
+        const [rows] = await req.pool.execute('SELECT id FROM users WHERE id = ?', [id]);
+        if (!rows.length) return res.status(404).json({ error: 'Customer not found' });
+
+        const { group_ids } = req.body || {};
+        await syncUserCustomerGroups(req.pool, id, group_ids);
+
+        const [groups] = await req.pool.execute(
+            `SELECT cg.id, cg.name, cg.slug
+               FROM user_customer_groups ucg
+               JOIN customer_groups cg ON cg.id = ucg.customer_group_id
+              WHERE ucg.user_id = ?
+              ORDER BY cg.name ASC`,
+            [id]
+        );
+        res.json({ success: true, customer_groups: groups });
+    } catch (err) {
+        logger.error('Update customer groups error', { error: err.message });
+        res.status(500).json({ error: 'Failed to update customer groups' });
     }
 });
 

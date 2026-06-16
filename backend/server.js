@@ -25,10 +25,15 @@ const { createSeoRedirectMiddleware } = require('./middleware/seoRedirects');
 const { ensureProductSchema } = require('./utils/ensureProductSchema');
 const { ensureProductVariantSchema } = require('./utils/ensureProductVariantSchema');
 const { ensureShippingSchema } = require('./utils/ensureShippingSchema');
+const { ensurePosSchema } = require('./utils/ensurePosSchema');
+const { ensurePersonnelSchema } = require('./utils/ensurePersonnelSchema');
 const { ensureGiftCardPurchaseSchema } = require('./utils/ensureGiftCardPurchaseSchema');
 const { ensureGiftCardCatalog } = require('./utils/ensureGiftCardCatalog');
+const { ensureCbdCategory } = require('./utils/ensureCbdCategory');
+const { ensureCustomerGroupSchema } = require('./utils/ensureCustomerGroupSchema');
 const { ensureUserPasswordResetSchema } = require('./utils/ensureUserPasswordResetSchema');
 const { ensureEdsaBookingSchema } = require('./utils/ensureEdsaBookingSchema');
+const { ensureEdsaBlockedDatesTable } = require('./services/edsaBlockedDates');
 const {
     findCustomerByEmailAnyStatus,
     reactivateCustomerForLocalSignup,
@@ -198,7 +203,9 @@ app.use(helmet({
     },
     noSniff: true,
     xssFilter: true,
-    referrerPolicy: { policy: "strict-origin-when-cross-origin" }
+    referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+    // POS PWA (e.g. localhost:8080) embeds product photos from this server.
+    crossOriginResourcePolicy: { policy: 'cross-origin' }
 }));
 // Compression middleware - but exclude SSE endpoints
 app.use(compression({
@@ -242,6 +249,16 @@ if (process.env.FRONTEND_URL && !allowedOrigins.includes(process.env.FRONTEND_UR
 if (process.env.PRODUCTION_DOMAIN) {
     allowedOrigins.push(`https://${process.env.PRODUCTION_DOMAIN}`);
     allowedOrigins.push(`http://${process.env.PRODUCTION_DOMAIN}`);
+}
+
+// Business One POS PWA origins (comma-separated), e.g. http://localhost:8080,https://pos.hmherbs.com
+if (process.env.POS_ALLOWED_ORIGINS) {
+    process.env.POS_ALLOWED_ORIGINS.split(',')
+        .map((o) => o.trim())
+        .filter(Boolean)
+        .forEach((origin) => {
+            if (!allowedOrigins.includes(origin)) allowedOrigins.push(origin);
+        });
 }
 
 app.use(cors({
@@ -402,6 +419,12 @@ if (process.env.STAGING_BLOCK_INDEXING === 'true') {
 // Permanent SEO redirects from repo-root redirects-301.csv (see file header).
 app.use(createSeoRedirectMiddleware({ rootPath, logger }));
 
+// Business One POS (sibling repo) — same origin as store so /images/... loads correctly
+const posAppPath = path.join(rootPath, '..', 'business-one-pos');
+if (fsSync.existsSync(posAppPath)) {
+    app.use('/pos', express.static(posAppPath));
+}
+
 // Serve admin panel and frontend files
 app.use(express.static(rootPath)); // Serve files from project root
 
@@ -538,6 +561,18 @@ app.get('/api/promo-banner', async (req, res) => {
         if (!res.headersSent) {
             res.status(200).json(disabledPayload());
         }
+    }
+});
+
+const { loadStoreHours, publicStoreInfoPayload, DEFAULT_FOOTER_HOURS } = require('./utils/storePublicInfo');
+
+app.get('/api/store-info', async (req, res) => {
+    try {
+        const hours = await loadStoreHours(pool);
+        res.json(publicStoreInfoPayload(hours));
+    } catch (error) {
+        logger.error('Store info route error:', error);
+        res.status(200).json(publicStoreInfoPayload(DEFAULT_FOOTER_HOURS));
     }
 });
 
@@ -985,9 +1020,11 @@ app.get('/api/user/orders', authenticateToken, async (req, res) => {
     try {
         const userId = req.user.id;
         const [orders] = await pool.execute(
-            `SELECT /* hmherbs-user-orders-v5 */
+            `SELECT /* hmherbs-user-orders-v7 */
                     o.id, o.order_number, o.total_amount AS total, o.status, o.created_at,
                     o.tracking_number, o.tracking_url, o.shipping_carrier, o.shipped_at, o.fulfillment_status,
+                    o.tracking_status_detail,
+                    COALESCE(o.sales_channel, 'online') AS sales_channel,
                     (SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = o.id) AS item_count
              FROM orders o
              WHERE o.user_id = ?
@@ -1484,7 +1521,7 @@ app.get('/api/products/:slug', async (req, res) => {
 app.get('/api/health-categories', async (req, res) => {
     try {
         const [categories] = await pool.execute(
-            'SELECT id, name, slug, description, image_url FROM health_categories WHERE is_active = 1 ORDER BY sort_order'
+            'SELECT id, name, slug, description, image_url FROM health_categories WHERE is_active = 1 ORDER BY name ASC'
         );
 
         res.json(categories);
@@ -1512,7 +1549,7 @@ app.get('/api/brands', async (req, res) => {
 app.get('/api/categories', async (req, res) => {
     try {
         const [categories] = await pool.execute(
-            'SELECT id, name, slug, description, image_url, parent_id FROM product_categories WHERE is_active = 1 ORDER BY sort_order'
+            'SELECT id, name, slug, description, image_url, parent_id FROM product_categories WHERE is_active = 1 ORDER BY name ASC'
         );
 
         res.json(categories);
@@ -1536,7 +1573,7 @@ const { requirePermission: requireAdminPermissionLevel } = require('./middleware
 
 // Marketing hub (Mailchimp signup URL / headline) — registered on the main app so `/api/admin/marketing-settings`
 // is never missed by the catch-all 404 (some deployments had only this path fail from the admin router).
-app.get('/api/admin/marketing-settings', authenticateAdmin, requireAdminPermissionLevel('marketing'), (req, res) => {
+app.get('/api/admin/marketing-settings', authenticateAdmin, requireAdminPermissionLevel('manager'), (req, res) => {
     try {
         const stored = marketingSettingsSvc.readConfig();
         const effective = marketingSettingsSvc.mergedPublicConfig();
@@ -1547,7 +1584,7 @@ app.get('/api/admin/marketing-settings', authenticateAdmin, requireAdminPermissi
     }
 });
 
-app.put('/api/admin/marketing-settings', authenticateAdmin, requireAdminPermissionLevel('marketing'), (req, res) => {
+app.put('/api/admin/marketing-settings', authenticateAdmin, requireAdminPermissionLevel('manager'), (req, res) => {
     try {
         const { signupLandingUrl, headline } = req.body || {};
         const saved = marketingSettingsSvc.saveConfig({ signupLandingUrl, headline });
@@ -1586,10 +1623,14 @@ app.use('/api/shipping', require('./routes/shipping'));
 app.use('/api/edsa', edsaRoutes);
 app.use('/api/menu', require('./routes/menu'));
 app.use('/api/admin/customers', require('./routes/admin-customers'));
+app.use('/api/admin/customer-groups', require('./routes/admin-customer-groups'));
 app.use('/api/admin/gift-cards', require('./routes/admin-gift-cards'));
 app.use('/api/admin/dev-tools', require('./routes/admin-dev-tools'));
+app.use('/api/admin/personnel', require('./routes/admin-personnel'));
+app.use('/api/admin/pos', require('./routes/admin-pos'));
 app.use('/api/admin', adminRoutes);
 app.use('/api/payment-cards', paymentCardsRoutes);
+app.use('/api/pos/v1', require('./routes/pos-v1'));
 // Customer-facing account API (addresses CRUD, password change, order detail,
 // wishlist collections + items). Mounted AFTER the inline /api/user/* handlers
 // (profile, orders list, addresses GET, loyalty, gift-cards) defined above so
@@ -1635,6 +1676,8 @@ app.use('/api/*', (req, res) => {
 
     try {
         await ensureShippingSchema(pool);
+        await ensurePosSchema(pool);
+        await ensurePersonnelSchema(pool);
     } catch (e) {
         logger.error(`ensureShippingSchema failed: ${logger.formatMysqlError(e)}`);
     }
@@ -1644,6 +1687,18 @@ app.use('/api/*', (req, res) => {
         await ensureGiftCardCatalog(pool);
     } catch (e) {
         logger.error(`ensureGiftCardPurchaseSchema failed: ${logger.formatMysqlError(e)}`);
+    }
+
+    try {
+        await ensureCbdCategory(pool);
+    } catch (e) {
+        logger.error(`ensureCbdCategory failed: ${logger.formatMysqlError(e)}`);
+    }
+
+    try {
+        await ensureCustomerGroupSchema(pool);
+    } catch (e) {
+        logger.error(`ensureCustomerGroupSchema failed: ${logger.formatMysqlError(e)}`);
     }
 
     try {
@@ -1665,6 +1720,12 @@ app.use('/api/*', (req, res) => {
     }
 
     try {
+        await ensureEdsaBlockedDatesTable(pool);
+    } catch (e) {
+        logger.error(`ensureEdsaBlockedDatesTable failed: ${logger.formatMysqlError(e)}`);
+    }
+
+    try {
         await fs.mkdir(uploadsDir, { recursive: true });
     } catch (e) {
         logger.warn(`Could not create uploads directory: ${logger.formatMysqlError(e)}`);
@@ -1682,6 +1743,9 @@ app.use('/api/*', (req, res) => {
     const server = app.listen(PORT, () => {
         const { isSmtpConfigured } = require('./utils/smtpConfig');
         console.log(`H&M Herbs API Server running on port ${PORT}`);
+        if (fsSync.existsSync(posAppPath)) {
+            console.log(`Business One POS: http://127.0.0.1:${PORT}/pos/`);
+        }
         console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
         console.log(`Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:8000'}`);
         if (isSmtpConfigured()) {

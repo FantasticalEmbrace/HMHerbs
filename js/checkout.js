@@ -65,6 +65,8 @@ class CheckoutManager {
         this.nmiPreflightRejected = false;
         /** When true, card-only Collect.js (no Apple Pay / Google Pay until configured in Durango portal). */
         this.nmiDisableWallets = true;
+        this.savedCards = [];
+        this.selectedSavedCardId = null;
         /** @type {null | (() => void)} */
         this._nmiConsoleNoiseFilterRestore = null;
         this.init();
@@ -72,6 +74,24 @@ class CheckoutManager {
 
     getApiOrigin() {
         return hmHerbsApiOrigin();
+    }
+
+    applyPaymentProcessorLabels(cfg = {}) {
+        const processor = String(cfg.processor || 'epi').toLowerCase();
+        const label = String(cfg.processorLabel || (processor === 'nmi_durango' ? 'Durango' : 'EPI'));
+        this.activePaymentProcessor = processor;
+        this.activePaymentProcessorLabel = label;
+        const suffix = ` (via ${label})`;
+        const labels = {
+            credit_card: `Credit Card${suffix}`,
+            debit_card: `Debit Card${suffix}`,
+            bank_account: `Bank Account${suffix}`
+        };
+        const select = document.getElementById('payment-method');
+        if (!select) return;
+        for (const opt of select.options) {
+            if (labels[opt.value]) opt.textContent = labels[opt.value];
+        }
     }
 
     /** Redirect to thank-you page after checkout. */
@@ -91,6 +111,7 @@ class CheckoutManager {
         this.setupFormValidation();
         this.loadTaxExemptStatus();
         void this.initNmiIfConfigured();
+        void this.loadSavedCards();
         this.schedulePrefillLoggedInCustomer();
     }
 
@@ -500,6 +521,61 @@ class CheckoutManager {
         return opts;
     }
 
+    async loadSavedCards() {
+        const token = localStorage.getItem('hmherbs_customer_token');
+        const block = document.getElementById('saved-cards-block');
+        const select = document.getElementById('saved-card-select');
+        if (!token || !block || !select) return;
+        try {
+            const apiOrigin = this.getApiOrigin();
+            const res = await fetch(`${apiOrigin}/api/payments/saved-cards`, {
+                headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }
+            });
+            if (!res.ok) return;
+            const data = await res.json();
+            this.savedCards = Array.isArray(data.cards) ? data.cards : [];
+            if (!this.savedCards.length) {
+                block.style.display = 'none';
+                return;
+            }
+            block.style.display = 'block';
+            select.innerHTML =
+                '<option value="">Use a new card</option>' +
+                this.savedCards
+                    .map(
+                        (c) =>
+                            `<option value="${c.id}">${(c.brand || 'Card').toUpperCase()} •••• ${c.last4}</option>`
+                    )
+                    .join('');
+            select.addEventListener('change', () => {
+                this.selectedSavedCardId = select.value ? Number(select.value) : null;
+                const collect = document.getElementById('nmi-collect-fields');
+                if (collect) collect.style.opacity = this.selectedSavedCardId ? '0.35' : '1';
+            });
+        } catch (e) {
+            console.warn('Saved cards unavailable', e);
+        }
+    }
+
+    async payOrderWithSavedCard(orderId, email) {
+        const customerToken = localStorage.getItem('hmherbs_customer_token');
+        const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
+        if (customerToken) headers.Authorization = `Bearer ${customerToken}`;
+        const apiOrigin = this.getApiOrigin();
+        const payRes = await fetch(`${apiOrigin}/api/payments/process-payment`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+                orderId,
+                savedCardId: this.selectedSavedCardId,
+                customerEmail: email
+            })
+        });
+        const payJson = await payRes.json().catch(() => ({}));
+        if (!payRes.ok) throw new Error(payJson.error || payJson.message || 'Payment failed');
+        return payJson;
+    }
+
     async initNmiIfConfigured() {
         const apiOrigin = this.getApiOrigin();
         let cfg = {
@@ -515,6 +591,7 @@ class CheckoutManager {
         } catch (e) {
             console.warn('NMI client config unavailable', e);
         }
+        this.applyPaymentProcessorLabels(cfg);
         const overrideKey = String(window.HMHERBS_NMI_PUBLIC_TOKENIZATION_KEY || '').trim();
         const serverPreflightRejected = Boolean(cfg.preflightRejected);
         this.nmiPreflightRejected = serverPreflightRejected && !overrideKey;
@@ -775,7 +852,9 @@ class CheckoutManager {
                 body: JSON.stringify({
                     orderId,
                     payment_token: response.token,
-                    customerEmail: email
+                    customerEmail: email,
+                    saveCard: document.getElementById('save-card-checkbox')?.checked !== false,
+                    setAsDefault: true
                 })
             });
             let payJson = {};
@@ -1845,6 +1924,44 @@ class CheckoutManager {
 
         const paymentMethod = document.getElementById('payment-method')?.value || '';
         if (paymentMethod === 'credit_card' || paymentMethod === 'debit_card') {
+            const savedId = document.getElementById('saved-card-select')?.value;
+            if (savedId) {
+                this.selectedSavedCardId = Number(savedId);
+                const loadingOverlay = document.getElementById('loading-overlay');
+                if (loadingOverlay) loadingOverlay.classList.add('active');
+                try {
+                    const formData = this.collectFormData();
+                    formData.awaitingNmiPayment = true;
+                    const customerToken = localStorage.getItem('hmherbs_customer_token');
+                    const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
+                    if (customerToken) headers.Authorization = `Bearer ${customerToken}`;
+                    const apiOrigin = this.getApiOrigin();
+                    const orderRes = await fetch(`${apiOrigin}/api/orders`, {
+                        method: 'POST',
+                        headers,
+                        body: JSON.stringify(formData)
+                    });
+                    const orderJson = await orderRes.json().catch(() => ({}));
+                    if (!orderRes.ok) throw new Error(orderJson.error || 'Order failed');
+                    const email =
+                        formData.customerInfo?.email || document.getElementById('email')?.value?.trim() || '';
+                    const payJson = await this.payOrderWithSavedCard(orderJson.orderId, email);
+                    sessionStorage.removeItem('checkout_cart');
+                    localStorage.removeItem('hmherbs_cart');
+                    this.redirectToOrderConfirmation({
+                        orderId: orderJson.orderId,
+                        orderNumber: payJson.orderNumber || orderJson.orderNumber,
+                        email,
+                        paymentStatus: 'paid',
+                        trackingNumber: payJson.trackingNumber || null
+                    });
+                } catch (e) {
+                    this.showNotification(e.message || 'Payment failed', 'error');
+                } finally {
+                    if (loadingOverlay) loadingOverlay.classList.remove('active');
+                }
+                return;
+            }
             if (!this.nmiEnabled || !this.nmiScriptReady || typeof window.CollectJS === 'undefined') {
                 this.showNotification(
                     'Card payments must go through NMI secure fields, but they are not ready. Please wait a moment and try again.',
@@ -2230,8 +2347,9 @@ class CheckoutManager {
         // Collect EPI payment data if credit/debit card is selected
         let paymentData = null;
         if (paymentMethod === 'credit_card' || paymentMethod === 'debit_card') {
+            const processor = this.activePaymentProcessor || 'epi';
             if (this.nmiEnabled) {
-                paymentData = { processor: 'nmi' };
+                paymentData = { processor };
             } else {
                 const cardNumber = document.getElementById('card-number')?.value.replace(/\s/g, '') || '';
                 const cardExpiry = document.getElementById('card-expiry')?.value || '';
@@ -2245,7 +2363,7 @@ class CheckoutManager {
                     exp_year: expYear ? '20' + expYear : '', // Convert YY to YYYY
                     cvv: cardCvv,
                     cardholder_name: cardholderName,
-                    processor: 'epi'
+                    processor: this.activePaymentProcessor || 'epi'
                 };
             }
         } else if (paymentMethod === 'bank_account') {
@@ -2261,7 +2379,7 @@ class CheckoutManager {
                 routing_number: routingNumber,
                 account_number: accountNumber,
                 confirm_account_number: confirmAccountNumber,
-                processor: 'epi'
+                processor: this.activePaymentProcessor || 'epi'
             };
         }
 

@@ -64,6 +64,30 @@ const sections = [
         file: path.join(root, 'migrations', '20260509_web_promotions_marketing.sql')
     },
     {
+        title: 'CBD category and product assignments',
+        file: path.join(root, 'migrations', '20260612_cbd_category.sql')
+    },
+    {
+        title: 'CBD COA URLs (Hemp Bombs, Hippie Jack Yummy Hemp)',
+        file: path.join(root, 'migrations', '20260612_cbd_coa_urls.sql')
+    },
+    {
+        title: 'Remove Vista Life CBD products from catalog',
+        file: path.join(root, 'migrations', '20260604_remove_vista_life_cbd_products.sql')
+    },
+    {
+        title: 'Regal Labs COA URLs (Cannabis Care + Organic CBD Oils)',
+        file: path.join(root, 'migrations', '20260604_regal_labs_coa_urls.sql')
+    },
+    {
+        title: 'Regal Labs CBD Gummies COA',
+        file: path.join(root, 'migrations', '20260603_regal_labs_cbd_gummies_coa.sql')
+    },
+    {
+        title: 'Customer groups',
+        file: path.join(root, 'migrations', '20260612_customer_groups.sql')
+    },
+    {
         title: 'Customer password reset (hosting-safe)',
         file: path.join(root, 'staging', '14-users-password-reset-safe.sql')
     },
