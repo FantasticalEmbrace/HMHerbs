@@ -5,12 +5,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Business One - Integrated Business Solutions Menu">
+    <meta name="theme-color" content="#ff9b1f">
     <title>Business One - Service Menu</title>
     <link rel="stylesheet" href="business-one-menu.css">
     <link rel="stylesheet" href="css/hm-close-controls.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
 
 <body>
@@ -18,7 +17,10 @@
     <header class="app-header">
         <div class="header-content">
             <div class="logo-section">
-                <h1 class="logo">Business One</h1>
+                <div class="logo-container">
+                    <img src="images/business-one/logo-big.png" alt="Business One Logo" class="logo-image">
+                    <h1 class="logo">Business One</h1>
+                </div>
                 <p class="tagline">Integrated Business Solutions</p>
             </div>
             <button class="settings-btn" id="settingsBtn" aria-label="Settings">
@@ -35,26 +37,133 @@
     <!-- Main Content -->
     <main class="main-content">
         <!-- Hero Section -->
-        <section class="hero-section">
+        <section id="home" class="hero-section">
             <div class="hero-content">
                 <h2 class="hero-title">Business Solutions</h2>
                 <p class="hero-subtitle">Streamline your operations with our integrated business services</p>
+                <div class="hero-buttons">
+                    <a href="#services" class="btn btn-light">Our Services</a>
+                    <a href="#contact" class="btn btn-secondary">Get in Touch</a>
+                </div>
             </div>
         </section>
 
         <!-- Service Categories -->
-        <section class="services-section" id="servicesSection">
+        <section class="services-section" id="services">
+            <div class="section-header">
+                <h2 class="section-title">Our Services</h2>
+                <p class="section-subtitle">Solutions for your business needs</p>
+            </div>
             <div class="services-grid" id="servicesGrid">
                 <!-- Services will be dynamically loaded here -->
+            </div>
+        </section>
+
+        <!-- About Section -->
+        <section id="about" class="about-section">
+            <div class="about-content">
+                <div class="about-image">
+                    <div class="image-container">
+                        <img src="images/business-one/business-solutions.png" alt="Business One integrated services diagram" class="about-img">
+                    </div>
+                </div>
+                <div class="about-text">
+                    <h2 class="section-title about-title">About Business One</h2>
+                    <p class="about-description">
+                        Business One provides integrated business solutions to help companies of all sizes streamline their operations and increase efficiency with an all-in-one solution to starting and maintaining their business.
+                    </p>
+                    <p class="about-description">
+                        Established with the objective of streamlining the process of business formation, we offer a complete suite of services including POS systems, payment processing, phone services, and website development.
+                    </p>
+                    <p class="about-description">
+                        With a team of experts behind each service, Business One is dedicated to providing personalized solutions and exceptional support to help your business thrive in today's competitive market.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Contact Section -->
+        <section id="contact" class="contact-section">
+            <div class="section-header">
+                <h2 class="section-title">Get in Touch</h2>
+                <p class="section-subtitle">Let's discuss how we can help your business</p>
+            </div>
+            <div class="contact-content">
+                <div class="contact-form-container">
+                    <form id="contactForm" class="contact-form">
+                        <div class="form-group">
+                            <label for="name">Full Name</label>
+                            <input type="text" id="name" name="name" placeholder="Your Name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="email">Email Address</label>
+                            <input type="email" id="email" name="email" placeholder="Business Email" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="phone">Phone Number</label>
+                            <input type="tel" id="phone" name="phone" placeholder="Business Number">
+                        </div>
+                        <div class="form-group">
+                            <label for="subject">Business Name</label>
+                            <input type="text" id="subject" name="subject" placeholder="Business Name">
+                        </div>
+                        <div class="form-group">
+                            <label>I'm interested in:</label>
+                            <div class="checkbox-group">
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="interest-pos" name="interest" value="pos">
+                                    <label for="interest-pos">POS</label>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="interest-payment" name="interest" value="payment">
+                                    <label for="interest-payment">Payment Processing</label>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="interest-phone" name="interest" value="phone">
+                                    <label for="interest-phone">Phone Service</label>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="interest-website" name="interest" value="website">
+                                    <label for="interest-website">Website</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="message">Message</label>
+                            <textarea id="message" name="message" placeholder="How can we help you?" rows="4" required></textarea>
+                        </div>
+                        <div class="button-center">
+                            <button type="submit" class="btn btn-primary submit-button">
+                                <i class="fas fa-paper-plane" aria-hidden="true"></i> Send Message
+                            </button>
+                        </div>
+                    </form>
+                    <div id="formSuccess" class="form-success">
+                        <i class="fas fa-check-circle" aria-hidden="true"></i>
+                        <p>Thank you for reaching out! We'll be in touch soon.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- CTA Section -->
+        <section class="cta-section">
+            <div class="cta-content">
+                <h2 class="cta-title">Ready to Transform Your Business?</h2>
+                <p class="cta-text">Contact us today for a free consultation and discover how our solutions can help your business grow.</p>
+                <a href="#contact" class="btn btn-light">Get Started</a>
             </div>
         </section>
 
         <!-- Service Details Modal -->
         <div class="modal-overlay" id="serviceModal">
             <div class="modal-content">
-                <button type="button" class="modal-close" id="closeModal" aria-label="Close">
-                    <svg class="cart-close-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M18.3 5.71a1 1 0 0 0-1.41 0L12 10.59 7.11 5.7A1 1 0 0 0 5.7 7.11L10.59 12 5.7 16.89a1 1 0 1 0 1.41 1.41L12 13.41l4.89 4.89a1 1 0 0 0 1.41-1.41L13.41 12l4.89-4.89a1 1 0 0 0 0-1.4z"/></svg>
-                </button>
+                <div class="modal-header">
+                    <h2 id="serviceModalTitle">Service Details</h2>
+                    <button type="button" class="modal-close" id="closeModal" aria-label="Close">
+                        <svg class="cart-close-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M18.3 5.71a1 1 0 0 0-1.41 0L12 10.59 7.11 5.7A1 1 0 0 0 5.7 7.11L10.59 12 5.7 16.89a1 1 0 1 0 1.41 1.41L12 13.41l4.89 4.89a1 1 0 0 0 1.41-1.41L13.41 12l4.89-4.89a1 1 0 0 0 0-1.4z"/></svg>
+                    </button>
+                </div>
                 <div class="modal-body" id="modalBody">
                     <!-- Service details will be loaded here -->
                 </div>
@@ -110,16 +219,54 @@
         </div>
     </main>
 
+    <div class="footer-separator" aria-hidden="true"></div>
+
     <!-- Footer -->
     <footer class="app-footer">
-        <div class="footer-content">
-            <p>&copy; 2025 Business One. All rights reserved.</p>
-            <div class="footer-links">
-                <a href="https://businessonecomprehensive.com/" target="_blank">Visit Website</a>
-                <a href="#" id="contactLink">Contact Us</a>
+        <div class="footer-inner">
+            <div class="footer-content">
+                <div class="footer-columns">
+                    <div class="footer-column">
+                        <h3 class="footer-title">Quick Links</h3>
+                        <ul class="footer-menu">
+                            <li><a href="#home">Home</a></li>
+                            <li><a href="#services">Services</a></li>
+                            <li><a href="#about">About Us</a></li>
+                            <li><a href="#contact" id="contactLink">Contact</a></li>
+                        </ul>
+                    </div>
+                    <div class="footer-column">
+                        <h3 class="footer-title">Services</h3>
+                        <ul class="footer-menu">
+                            <li><a href="#services">POS Systems</a></li>
+                            <li><a href="#services">Payment Processing</a></li>
+                            <li><a href="#services">Phone Service</a></li>
+                            <li><a href="#services">Website Development</a></li>
+                        </ul>
+                    </div>
+                    <div class="footer-column">
+                        <h3 class="footer-title">Contact Us</h3>
+                        <ul class="footer-contact">
+                            <li><i class="fas fa-phone" aria-hidden="true"></i> <a href="tel:8502902084">(850) 290-2084</a></li>
+                            <li><i class="fas fa-envelope" aria-hidden="true"></i> <a href="mailto:info@businessonecomprehensive.com">info@businessonecomprehensive.com</a></li>
+                            <li><i class="fas fa-clock" aria-hidden="true"></i> Business Hours:<br>Mon - Thurs: 9am - 5pm<br>Fri: 9am - 3:30pm</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p class="copyright">&copy; 2025 Business One. All rights reserved.</p>
+                <div class="footer-legal">
+                    <a href="business-one-privacy-policy.html">Privacy Policy</a>
+                    <a href="#">Terms of Service</a>
+                </div>
             </div>
         </div>
     </footer>
+
+    <a href="#" class="back-to-top" id="backToTop" aria-label="Back to top">
+        <i class="fas fa-arrow-up" aria-hidden="true"></i>
+    </a>
 
     <script src="business-one-menu.js"></script>
 </body>

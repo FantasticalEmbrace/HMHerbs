@@ -5,7 +5,7 @@ const services = [
     {
         id: 'pos',
         title: 'Point of Sale (POS)',
-        icon: '💳',
+        iconClass: 'fas fa-cash-register',
         description: 'Modern, efficient POS systems to streamline your sales process and inventory management.',
         features: [
             'Real-time inventory tracking',
@@ -20,7 +20,7 @@ const services = [
     {
         id: 'payment',
         title: 'Payment Processing',
-        icon: '💵',
+        iconClass: 'fas fa-credit-card',
         description: 'Secure, reliable payment processing solutions with competitive rates and excellent support.',
         features: [
             'Competitive processing rates',
@@ -35,7 +35,7 @@ const services = [
     {
         id: 'phone',
         title: 'Phone Service',
-        icon: '📞',
+        iconClass: 'fas fa-phone-alt',
         description: 'Business phone systems with advanced features, including hold queues that ensure your customers never hear continuous ringing or a busy signal.',
         features: [
             'Professional hold queues',
@@ -50,7 +50,7 @@ const services = [
     {
         id: 'website',
         title: 'Website Development',
-        icon: '🌐',
+        iconClass: 'fas fa-globe',
         description: 'Professional website design and development to establish your online presence and attract customers.',
         features: [
             'Responsive design',
@@ -109,12 +109,10 @@ function createServiceCard(service) {
     card.setAttribute('data-service-id', service.id);
     
     card.innerHTML = `
-        <div class="service-icon">${service.icon}</div>
-        <h3>${service.title}</h3>
-        ${appState.showDescriptions ? `<p>${service.description}</p>` : ''}
-        <ul class="service-features">
-            ${service.features.slice(0, 3).map(feature => `<li>${feature}</li>`).join('')}
-        </ul>
+        <div class="service-icon"><i class="${service.iconClass}" aria-hidden="true"></i></div>
+        <h3 class="service-title">${service.title}</h3>
+        ${appState.showDescriptions ? `<p class="service-description">${service.description}</p>` : ''}
+        <span class="service-link">Learn More <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
     `;
 
     card.addEventListener('click', () => openServiceModal(service));
@@ -129,9 +127,12 @@ function openServiceModal(service) {
     
     if (!modal || !modalBody) return;
 
+    const titleEl = document.getElementById('serviceModalTitle');
+    if (titleEl) titleEl.textContent = service.title;
+
     modalBody.innerHTML = `
         <div class="service-detail-header">
-            <div class="service-icon" style="display: inline-flex; margin-bottom: 1rem;">${service.icon}</div>
+            <div class="service-icon service-icon--detail"><i class="${service.iconClass}" aria-hidden="true"></i></div>
             <h2>${service.title}</h2>
             <p>${service.description}</p>
         </div>
@@ -274,16 +275,50 @@ function setupEventListeners() {
         });
     });
 
-    // Contact link
-    const contactLink = document.getElementById('contactLink');
-    if (contactLink) {
-        contactLink.addEventListener('click', (e) => {
+    // Back to top
+    const backToTopBtn = document.getElementById('backToTop');
+    if (backToTopBtn) {
+        const toggleBackToTop = () => {
+            backToTopBtn.classList.toggle('active', window.pageYOffset > 300);
+        };
+        window.addEventListener('scroll', toggleBackToTop);
+        toggleBackToTop();
+        backToTopBtn.addEventListener('click', (e) => {
             e.preventDefault();
-            closeSettingsModal();
-            openSettingsModal();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         });
     }
 
+    // Contact form
+    const contactForm = document.getElementById('contactForm');
+    const formSuccess = document.getElementById('formSuccess');
+    if (contactForm && formSuccess) {
+        contactForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            contactForm.style.display = 'none';
+            formSuccess.style.display = 'block';
+            contactForm.reset();
+        });
+    }
+
+    // Smooth scroll for in-page links
+    document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
+        anchor.addEventListener('click', (e) => {
+            const targetId = anchor.getAttribute('href');
+            if (!targetId || targetId === '#') return;
+            const target = document.querySelector(targetId);
+            if (!target) return;
+            e.preventDefault();
+            const header = document.querySelector('.app-header');
+            const offset = header ? header.offsetHeight : 0;
+            window.scrollTo({
+                top: target.offsetTop - offset,
+                behavior: 'smooth'
+            });
+        });
+    });
+
+    // Contact link in footer — scroll handled above
     // Keyboard navigation
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
@@ -302,16 +337,30 @@ function setupEventListeners() {
 
 // Contact Us Function
 function contactUs(serviceName = '') {
-    const subject = serviceName ? `Inquiry about ${serviceName}` : 'Business Inquiry';
-    const body = serviceName 
-        ? `Hello,\n\nI'm interested in learning more about your ${serviceName} service.\n\nPlease contact me at your earliest convenience.\n\nThank you!`
-        : `Hello,\n\nI'm interested in learning more about your business solutions.\n\nPlease contact me at your earliest convenience.\n\nThank you!`;
-    
-    const emailLink = `mailto:info@businessonecomprehensive.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    window.location.href = emailLink;
-    
-    // Also close modal
     closeServiceModal();
+
+    const interestMap = {
+        'Point of Sale (POS)': 'interest-pos',
+        'Payment Processing': 'interest-payment',
+        'Phone Service': 'interest-phone',
+        'Website Development': 'interest-website'
+    };
+    const checkboxId = interestMap[serviceName];
+    if (checkboxId) {
+        const box = document.getElementById(checkboxId);
+        if (box) box.checked = true;
+    }
+
+    const contact = document.getElementById('contact');
+    if (contact) {
+        const header = document.querySelector('.app-header');
+        const offset = header ? header.offsetHeight : 0;
+        window.scrollTo({
+            top: contact.offsetTop - offset,
+            behavior: 'smooth'
+        });
+        document.getElementById('message')?.focus();
+    }
 }
 
 // Export for global access
