@@ -3979,72 +3979,19 @@
                                 </div>
                             </div>
 
-                            <h4 style="margin:1.5rem 0 0.35rem 0;">In-store POS</h4>
+                            <h4 style="margin:1.5rem 0 0.35rem 0;">In-store card payments</h4>
                             <p style="margin:0 0 1rem 0;color:var(--gray-600);font-size:0.88rem;">
-                                Most stores use an <strong>external countertop terminal</strong> (lowest PCI scope).
-                                For integrated Durango in-store, set <strong>POS processor</strong> to Durango and add
-                                <code>POS_NMI_PUBLIC_TOKENIZATION_KEY</code> / <code>POS_NMI_PRIVATE_API_KEY</code> in backend <code>.env</code>
-                                (separate from website <code>NMI_*</code> keys).
+                                Business One POS uses <strong>semi-integrated Durango on the A3700</strong> only — the register sends the total to the terminal and completes the sale when the terminal approves. Card data is never entered on the register or customer display.
+                                Add <code>POS_NMI_PUBLIC_TOKENIZATION_KEY</code> and <code>POS_NMI_PRIVATE_API_KEY</code> in backend <code>.env</code> (separate from website <code>NMI_*</code> keys).
                             </p>
-                            <div class="form-group">
-                                <label for="pos-card-payment-processor">In-store card processor</label>
-                                <select class="form-input" id="pos-card-payment-processor" name="pos_card_payment_processor" style="max-width:20rem;">
-                                    <option value="inherit">Same as website</option>
-                                    <option value="epi">EPI (in-store)</option>
-                                    <option value="nmi_durango">Durango / NMI (in-store)</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <span class="form-label" style="display:block;margin-bottom:0.5rem;font-weight:600;">POS card handling</span>
-                                <div class="payment-processor-radios" role="radiogroup" aria-label="POS card handling">
-                                    <label class="payment-processor-option">
-                                        <input type="radio" name="pos_card_payment_adapter" value="integrated" checked>
-                                        <span class="payment-processor-card">
-                                            <span class="payment-processor-title">Integrated — Durango terminal (recommended)</span>
-                                            <span class="payment-processor-desc">Semi-integrated: the total is sent to the A3700 and the register completes the sale when the terminal approves — no last-four entry or manual approval tap.</span>
-                                        </span>
-                                    </label>
-                                    <label class="payment-processor-option">
-                                        <input type="radio" name="pos_card_payment_adapter" value="external_terminal">
-                                        <span class="payment-processor-card">
-                                            <span class="payment-processor-title">External terminal</span>
-                                            <span class="payment-processor-desc">Standalone reader with no processor link. Cashier confirms approval manually on the register.</span>
-                                        </span>
-                                    </label>
-                                    <label class="payment-processor-option">
-                                        <input type="radio" name="pos_card_payment_adapter" value="custom">
-                                        <span class="payment-processor-card">
-                                            <span class="payment-processor-title">Custom driver</span>
-                                            <span class="payment-processor-desc">Developer: load a custom payment driver script URL.</span>
-                                        </span>
-                                    </label>
-                                </div>
-                            </div>
-                            <div class="form-group" id="pos-custom-driver-url-group">
-                                <label for="pos-custom-payment-driver-url">Custom driver script URL</label>
-                                <input class="form-input" id="pos-custom-payment-driver-url" name="pos_custom_payment_driver_url" type="url" maxlength="500" placeholder="/pos/js/payment-drivers/my-gateway.js">
-                            </div>
-                            <h4 style="margin:1.5rem 0 0.35rem 0;">Customer display &amp; A3700</h4>
-                            <p style="margin:0 0 1rem 0;color:var(--gray-600);font-size:0.88rem;">
-                                When using <strong>Integrated</strong> with Durango, choose whether the A3700 runs Durango&apos;s native payment UI or the Pay Point screen collects the card.
-                            </p>
-                            <div class="form-group">
-                                <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
-                                    <input type="checkbox" name="pos_display_card_checkout" value="true" checked>
-                                    Enable customer display / terminal card checkout
-                                </label>
-                            </div>
-                            <div class="form-group">
-                                <label for="pos-card-display-mode">Card checkout screen</label>
-                                <select class="form-input" id="pos-card-display-mode" name="pos_card_display_mode" style="max-width:20rem;">
-                                    <option value="durango_terminal">Durango on A3700 (recommended)</option>
-                                    <option value="pos_display">Pay Point customer display (Collect.js fallback)</option>
-                                </select>
-                            </div>
+                            <input type="hidden" name="pos_card_payment_processor" value="nmi_durango">
+                            <input type="hidden" name="pos_card_payment_adapter" value="integrated">
+                            <input type="hidden" name="pos_display_card_checkout" value="true">
+                            <input type="hidden" name="pos_card_display_mode" value="durango_terminal">
                             <div class="form-group">
                                 <label for="pos-poi-device-id">Durango POI device ID (A3700)</label>
                                 <input class="form-input" id="pos-poi-device-id" name="pos_poi_device_id" type="text" maxlength="120" placeholder="From NMI/Durango portal">
-                                <p class="form-help" style="margin-top:0.35rem;">Required for Durango-on-terminal mode. Find this in your NMI device list for the A3700.</p>
+                                <p class="form-help" style="margin-top:0.35rem;">From your NMI device list for the countertop A3700. Required before card sales can run.</p>
                             </div>
                             <div class="form-group">
                                 <label for="pos-hardware-printer">Receipt printer driver</label>

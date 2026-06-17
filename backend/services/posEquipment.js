@@ -6,7 +6,6 @@ const EQUIPMENT_TYPES = Object.freeze({
         label: 'Card terminal',
         description: 'Countertop or integrated card reader for customer payments.',
         configFields: [
-            { key: 'paymentAdapter', label: 'Payment adapter', type: 'select', options: ['inherit', 'external_terminal', 'integrated', 'custom'] },
             { key: 'connection', label: 'Connection', type: 'select', options: ['standalone', 'integrated', 'bluetooth', 'usb'] },
             { key: 'terminalId', label: 'Terminal ID (optional)', type: 'text' }
         ]

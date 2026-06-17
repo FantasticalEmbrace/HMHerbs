@@ -57,7 +57,7 @@ const POS_SETTING_META = Object.freeze({
     pos_store_logo_url: { description: 'Store logo URL for POS customer display', type: 'string' },
     store_card_payment_processor: { description: 'Website card processor: epi or nmi_durango', type: 'string' },
     pos_card_payment_processor: { description: 'In-store POS processor: inherit, epi, or nmi_durango', type: 'string' },
-    pos_card_payment_adapter: { description: 'POS card payment mode: external_terminal, integrated, or custom', type: 'string' },
+    pos_card_payment_adapter: { description: 'POS card payment mode (semi-integrated Durango)', type: 'string' },
     pos_custom_payment_driver_url: { description: 'Custom POS payment driver script URL', type: 'string' },
     pos_receipt_header_text: { description: 'POS receipt header line', type: 'string' },
     pos_receipt_footer_text: { description: 'POS receipt footer message', type: 'string' },
@@ -96,9 +96,9 @@ const POS_SETTING_META = Object.freeze({
     pos_receipt_return_policy: { description: 'Return policy on POS receipts', type: 'string' },
     pos_show_cost_in_cart: { description: 'Show product cost in POS cart', type: 'boolean' },
     pos_hardware_printer: { description: 'POS receipt printer: auto, elo_star, or browser', type: 'string' },
-    pos_display_card_checkout: { description: 'Enable card checkout on customer display or Durango terminal', type: 'boolean' },
-    pos_poi_device_id: { description: 'NMI/Durango POI device ID for A3700 terminal', type: 'string' },
-    pos_card_display_mode: { description: 'Card checkout UI: durango_terminal or pos_display', type: 'string' }
+    pos_display_card_checkout: { description: 'Durango terminal card checkout enabled', type: 'boolean' },
+    pos_poi_device_id: { description: 'NMI/Durango POI device ID for A3700', type: 'string' },
+    pos_card_display_mode: { description: 'Card checkout mode (durango_terminal)', type: 'string' }
 });
 
 async function loadPosSettings(pool) {

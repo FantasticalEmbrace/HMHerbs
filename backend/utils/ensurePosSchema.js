@@ -278,12 +278,12 @@ async function ensurePosSchema(pool) {
             ('pos_show_cost_in_cart', 'false', 'Show product cost in POS cart', 'boolean'),
             ('store_card_payment_processor', 'epi', 'Website card processor: epi or nmi_durango', 'string'),
             ('pos_card_payment_processor', 'nmi_durango', 'In-store POS processor: inherit (match website), epi, or nmi_durango', 'string'),
-            ('pos_card_payment_adapter', 'integrated', 'POS card payment mode: external_terminal, integrated, or custom', 'string'),
+            ('pos_card_payment_adapter', 'integrated', 'POS card payment: semi-integrated Durango terminal only', 'string'),
             ('pos_custom_payment_driver_url', '', 'Optional URL to custom POS payment driver script when adapter is custom', 'string'),
             ('pos_hardware_printer', 'auto', 'POS receipt printer: auto, elo_star, or browser', 'string'),
-            ('pos_display_card_checkout', 'true', 'Enable card checkout on customer display or Durango terminal', 'boolean'),
+            ('pos_display_card_checkout', 'true', 'Durango terminal card checkout (semi-integrated)', 'boolean'),
             ('pos_poi_device_id', '', 'NMI/Durango POI device ID for A3700 terminal (Customer Present Cloud)', 'string'),
-            ('pos_card_display_mode', 'durango_terminal', 'Card checkout UI: durango_terminal (A3700 native) or pos_display (Collect.js on customer display)', 'string')
+            ('pos_card_display_mode', 'durango_terminal', 'Card checkout: durango_terminal (A3700 semi-integrated only)', 'string')
         `);
     } catch (e) {
         logger.warn(`Database: pos cash discount settings — ${logger.formatMysqlError(e)}`);
@@ -335,6 +335,22 @@ async function ensurePosSchema(pool) {
         }
     } catch (e) {
         logger.warn(`Database: Durango integrated migration — ${logger.formatMysqlError(e)}`);
+    }
+    try {
+        await pool.query(
+            `UPDATE settings SET value = 'integrated' WHERE key_name = 'pos_card_payment_adapter'`
+        );
+        await pool.query(
+            `UPDATE settings SET value = 'nmi_durango' WHERE key_name = 'pos_card_payment_processor'`
+        );
+        await pool.query(
+            `UPDATE settings SET value = 'durango_terminal' WHERE key_name = 'pos_card_display_mode'`
+        );
+        await pool.query(
+            `UPDATE settings SET value = 'true' WHERE key_name = 'pos_display_card_checkout'`
+        );
+    } catch (e) {
+        logger.warn(`Database: semi-integrated Durango lock — ${logger.formatMysqlError(e)}`);
     }
     try {
         await pool.query(`

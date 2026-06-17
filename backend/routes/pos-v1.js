@@ -21,7 +21,7 @@ const { loadPosSecuritySettings } = require('../services/posSecuritySettings');
 const { loadPosOperationsSettings } = require('../services/posOperationsSettings');
 const { loadPosRegisterExperienceSettings } = require('../services/posRegisterExperienceSettings');
 const { loadStoreHours, storeHourFooterLines } = require('../utils/storePublicInfo');
-const { loadPosPaymentConfig, resolveEffectivePaymentAdapter } = require('../services/posPaymentConfig');
+const { loadPosPaymentConfig } = require('../services/posPaymentConfig');
 const { loadPosCardCheckoutSettings } = require('../services/posCardCheckoutSettings');
 const { listDisplayAds } = require('../services/posDisplayAds');
 const { loadMerchantLicense } = require('../services/posMerchantLicense');
@@ -31,7 +31,6 @@ const {
     createCheckoutIntent,
     getCheckoutIntent,
     cancelCheckoutIntent,
-    completeCheckoutIntent,
     chargeTerminalCheckoutIntent
 } = require('../services/posCheckoutIntent');
 const { createHandoffCode } = require('../services/posAdminHandoff');
@@ -84,22 +83,6 @@ router.get('/config', async (req, res) => {
         const equipment = req.posDeviceRecordId
             ? await listEquipmentForRegister(req.pool, req.posDeviceRecordId)
             : [];
-        const cardTerminal = equipment.find((e) => e.equipmentType === 'card_terminal');
-        const terminalAdapter = cardTerminal?.config?.paymentAdapter;
-        if (terminalAdapter && terminalAdapter !== 'inherit') {
-            const resolved = await resolveEffectivePaymentAdapter(req.pool, terminalAdapter);
-            payment.cardAdapter = resolved.cardAdapter;
-            payment.cardAdapterLabel = resolved.cardAdapterLabel;
-            payment.integrated = resolved.integrated;
-            payment.serverCharge = resolved.serverCharge;
-            payment.configured = resolved.configured;
-            payment.driverScript = resolved.driverScript;
-            payment.configurationNote = resolved.configurationNote;
-            payment.equipmentOverride = {
-                equipmentId: cardTerminal.id,
-                label: cardTerminal.label
-            };
-        }
         res.json({
             storeName: store.storeName,
             storeLogoUrl: store.storeLogoUrl,
@@ -915,101 +898,24 @@ router.post('/checkout-intents/:id/cancel', authenticatePosEmployee, async (req,
     }
 });
 
-router.post('/checkout-intents/:id/pay', requireActivePosLicense, async (req, res) => {
-    try {
-        const intent = await completeCheckoutIntent(req.pool, req.params.id, {
-            paymentToken: req.body?.paymentToken || req.body?.payment_token,
-            deviceId: req.posDeviceId
-        });
-        res.json({ success: true, intent });
-    } catch (e) {
-        const status =
-            e.code === 'NOT_FOUND'
-                ? 404
-                : e.code === 'INVALID_STATE' || e.code === 'EXPIRED' || e.code === 'TERMINAL_MODE'
-                  ? 400
-                  : e.code === 'CARD_DECLINED'
-                    ? 402
-                    : e.code === 'TOKEN_REQUIRED' ||
-                        e.code === 'PROCESSOR_NOT_CONFIGURED' ||
-                        e.code === 'CHECKOUT_DISABLED'
-                      ? 400
-                      : 500;
-        res.status(status).json({
-            error: e.message,
-            code: e.code,
-            intent: e.data?.intent || null
-        });
-    }
+router.post('/checkout-intents/:id/pay', requireActivePosLicense, async (_req, res) => {
+    res.status(400).json({
+        error: 'Card entry on the POS is disabled. Customer pays on the Durango A3700 terminal only.',
+        code: 'TERMINAL_ONLY'
+    });
 });
 
-/** Public Collect.js config for customer display — uses in-store POS Durango account. */
-router.get('/payments/nmi-client-config', async (req, res) => {
-    try {
-        const { loadPosPaymentProcessor, resolvePosProcessorCredentials } = require('../services/storePaymentProcessor');
-        const {
-            isPosNmiWalletsDisabled,
-            nmiResolveTokenizationCollectJs,
-            shouldSkipPosNmiTokenizationPreflight
-        } = require('../utils/nmiEnv');
-        const posProcessor = await loadPosPaymentProcessor(req.pool);
-        const creds = resolvePosProcessorCredentials(posProcessor);
-        const tokenizationKey = creds.publicKey;
-        if (!tokenizationKey) {
-            return res.json({
-                enabled: false,
-                processor: posProcessor,
-                processorLabel: creds.label,
-                tokenizationKey: '',
-                collectJsUrl: creds.collectJsUrl,
-                disableWallets: isPosNmiWalletsDisabled(),
-                accountScope: 'pos'
-            });
-        }
-        if (shouldSkipPosNmiTokenizationPreflight()) {
-            return res.json({
-                enabled: true,
-                processor: posProcessor,
-                processorLabel: creds.label,
-                tokenizationKey,
-                collectJsUrl: creds.collectJsUrl,
-                variant: 'inline',
-                sandbox: Boolean(creds.sandbox),
-                disableWallets: isPosNmiWalletsDisabled(),
-                preflightSkipped: true,
-                accountScope: 'pos'
-            });
-        }
-        const resolved = await nmiResolveTokenizationCollectJs(tokenizationKey, {
-            collectJsUrl: creds.collectJsUrl,
-            sandbox: creds.sandbox
-        });
-        if (!resolved.ok) {
-            return res.json({
-                enabled: false,
-                processor: posProcessor,
-                processorLabel: creds.label,
-                tokenizationKey: '',
-                collectJsUrl: resolved.collectJsUrl || creds.collectJsUrl,
-                disableWallets: isPosNmiWalletsDisabled(),
-                preflightRejected: true,
-                accountScope: 'pos'
-            });
-        }
-        res.json({
-            enabled: true,
-            processor: posProcessor,
-            processorLabel: creds.label,
-            tokenizationKey,
-            collectJsUrl: resolved.collectJsUrl || creds.collectJsUrl,
-            variant: 'inline',
-            sandbox: Boolean(creds.sandbox),
-            disableWallets: isPosNmiWalletsDisabled(),
-            accountScope: 'pos'
-        });
-    } catch (e) {
-        res.status(500).json({ error: 'Failed to load payment config' });
-    }
+router.get('/payments/nmi-client-config', async (_req, res) => {
+    res.json({
+        enabled: false,
+        processor: 'nmi_durango',
+        processorLabel: 'Durango / NMI',
+        tokenizationKey: '',
+        collectJsUrl: '',
+        disableWallets: true,
+        accountScope: 'pos',
+        terminalOnly: true
+    });
 });
 
 const registerSupport = require('../services/posRegisterSupport');

@@ -1499,7 +1499,7 @@ class AdminApp {
             pos_store_logo_url: 'Optional store logo URL for POS customer display',
             store_card_payment_processor: 'Website card processor for checkout: epi or nmi_durango',
             pos_card_payment_processor: 'In-store POS processor: inherit, epi, or nmi_durango',
-            pos_card_payment_adapter: 'POS card payment mode: external_terminal, integrated, or custom',
+            pos_card_payment_adapter: 'POS card payment mode (semi-integrated Durango terminal only)',
             pos_custom_payment_driver_url: 'Optional URL to custom POS payment driver script when adapter is custom',
             pos_receipt_header_text: 'Optional extra line printed under store name on POS receipts',
             pos_receipt_footer_text: 'Closing message on POS receipts',
@@ -1538,9 +1538,9 @@ class AdminApp {
             pos_show_cost_in_cart: 'Show product cost in POS cart for manual discounts',
             pos_personnel_mode: 'Personnel mode: time_clock_only or time_clock_and_pos',
             pos_hardware_printer: 'POS receipt printer: auto, elo_star, or browser',
-            pos_display_card_checkout: 'Enable card checkout on customer display or Durango terminal',
+            pos_display_card_checkout: 'Durango terminal card checkout enabled',
             pos_poi_device_id: 'NMI/Durango POI device ID for A3700 terminal',
-            pos_card_display_mode: 'Card checkout UI: durango_terminal or pos_display',
+            pos_card_display_mode: 'Card checkout: durango_terminal only',
         };
     }
 
@@ -2301,26 +2301,8 @@ class AdminApp {
         const storeProcessor = String(map.get('store_card_payment_processor') || 'epi').toLowerCase();
         const storeProcessorEl = form.querySelector(`[name="store_card_payment_processor"][value="${['epi', 'nmi_durango'].includes(storeProcessor) ? storeProcessor : 'epi'}"]`);
         if (storeProcessorEl) storeProcessorEl.checked = true;
-        const posProcessorRaw = String(map.get('pos_card_payment_processor') || 'inherit').toLowerCase();
-        const posProcessorEl = form.querySelector('[name="pos_card_payment_processor"]');
-        if (posProcessorEl) {
-            posProcessorEl.value = ['inherit', 'epi', 'nmi_durango'].includes(posProcessorRaw)
-                ? posProcessorRaw
-                : 'inherit';
-        }
-        const rawAdapter = String(map.get('pos_card_payment_adapter') || 'integrated').toLowerCase();
-        let posMode = rawAdapter;
-        if (rawAdapter === 'epi' || rawAdapter === 'nmi_durango') {
-            posMode = 'integrated';
-            const legacyProcessorEl = form.querySelector(`[name="store_card_payment_processor"][value="${rawAdapter}"]`);
-            if (legacyProcessorEl) legacyProcessorEl.checked = true;
-        }
-        if (!['external_terminal', 'integrated', 'custom'].includes(posMode)) posMode = 'integrated';
-        const adapterEl = form.querySelector(`[name="pos_card_payment_adapter"][value="${posMode}"]`);
-        if (adapterEl) adapterEl.checked = true;
-        const customDriverEl = form.querySelector('[name="pos_custom_payment_driver_url"]');
-        if (customDriverEl) customDriverEl.value = String(map.get('pos_custom_payment_driver_url') || '');
-        this._syncPosCustomDriverUrlVisibility();
+        const poiDeviceEl = form.querySelector('[name="pos_poi_device_id"]');
+        if (poiDeviceEl) poiDeviceEl.value = String(map.get('pos_poi_device_id') || '');
         const headerEl = form.querySelector('[name="pos_receipt_header_text"]');
         if (headerEl) headerEl.value = String(map.get('pos_receipt_header_text') || '');
         const footerEl = form.querySelector('[name="pos_receipt_footer_text"]');
@@ -2420,18 +2402,6 @@ class AdminApp {
             const raw = String(map.get('pos_show_cost_in_cart') ?? 'false').toLowerCase();
             showCostEl.checked = raw === 'true' || raw === '1';
         }
-        const displayCardCheckoutEl = form.querySelector('[name="pos_display_card_checkout"]');
-        if (displayCardCheckoutEl) {
-            const raw = String(map.get('pos_display_card_checkout') ?? 'true').toLowerCase();
-            displayCardCheckoutEl.checked = raw === 'true' || raw === '1' || raw === '';
-        }
-        const displayModeEl = form.querySelector('[name="pos_card_display_mode"]');
-        if (displayModeEl) {
-            const mode = String(map.get('pos_card_display_mode') || 'durango_terminal').toLowerCase();
-            displayModeEl.value = mode === 'pos_display' ? 'pos_display' : 'durango_terminal';
-        }
-        const poiDeviceEl = form.querySelector('[name="pos_poi_device_id"]');
-        if (poiDeviceEl) poiDeviceEl.value = String(map.get('pos_poi_device_id') || '');
         const printerEl = form.querySelector('[name="pos_hardware_printer"]');
         if (printerEl) {
             const printer = String(map.get('pos_hardware_printer') || 'auto').toLowerCase();
@@ -2512,15 +2482,9 @@ class AdminApp {
             form.querySelector('[name="store_card_payment_processor"]:checked')?.value || 'epi'
         ).toLowerCase();
         if (!['epi', 'nmi_durango'].includes(storeProcessor)) storeProcessor = 'epi';
-        let posProcessor = String(form.querySelector('[name="pos_card_payment_processor"]')?.value || 'inherit')
-            .trim()
-            .toLowerCase();
-        if (!['inherit', 'epi', 'nmi_durango'].includes(posProcessor)) posProcessor = 'inherit';
-        let adapter = String(
-            form.querySelector('[name="pos_card_payment_adapter"]:checked')?.value || 'integrated'
-        ).toLowerCase();
-        if (!['external_terminal', 'integrated', 'custom'].includes(adapter)) adapter = 'integrated';
-        const customDriverUrl = String(form.querySelector('[name="pos_custom_payment_driver_url"]')?.value || '').trim();
+        let posProcessor = 'nmi_durango';
+        const adapter = 'integrated';
+        const customDriverUrl = '';
         const headerText = String(form.querySelector('[name="pos_receipt_header_text"]')?.value || '').trim().slice(0, 200);
         const footerText = String(form.querySelector('[name="pos_receipt_footer_text"]')?.value || '').trim().slice(0, 500);
         return Object.keys(meta).map((key) => {
@@ -2708,8 +2672,7 @@ class AdminApp {
                 key === 'pos_large_touch_mode' ||
                 key === 'pos_scan_beep_enabled' ||
                 key === 'pos_display_store_hours_idle' ||
-                key === 'pos_show_cost_in_cart' ||
-                key === 'pos_display_card_checkout'
+                key === 'pos_show_cost_in_cart'
             ) {
                 const el = form.querySelector(`[name="${key}"]`);
                 return {
@@ -2775,11 +2738,10 @@ class AdminApp {
                 };
             }
             if (key === 'pos_card_display_mode') {
-                let mode = String(form.querySelector('[name="pos_card_display_mode"]')?.value || 'durango_terminal')
-                    .trim()
-                    .toLowerCase();
-                if (!['durango_terminal', 'pos_display'].includes(mode)) mode = 'durango_terminal';
-                return { key_name: key, value: mode, description: meta[key], type: 'string' };
+                return { key_name: key, value: 'durango_terminal', description: meta[key], type: 'string' };
+            }
+            if (key === 'pos_display_card_checkout') {
+                return { key_name: key, value: 'true', description: meta[key], type: 'boolean' };
             }
             if (key === 'pos_hardware_printer') {
                 let printer = String(form.querySelector('[name="pos_hardware_printer"]')?.value || 'auto')
@@ -12687,9 +12649,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const posSettingsForm = document.getElementById('pos-settings-form');
     if (posSettingsForm && window.adminApp) {
         posSettingsForm.addEventListener('submit', (ev) => window.adminApp.savePosSettings(ev));
-        posSettingsForm.querySelectorAll('[name="pos_card_payment_adapter"]').forEach((el) => {
-            el.addEventListener('change', () => window.adminApp._syncPosCustomDriverUrlVisibility());
-        });
     }
     const posSettingsReloadBtn = document.getElementById('pos-settings-reload-btn');
     if (posSettingsReloadBtn && window.adminApp) {

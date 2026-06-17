@@ -2,7 +2,7 @@
 
 const crypto = require('crypto');
 const { resolvePosProcessorCredentials } = require('./storePaymentProcessor');
-const { nmiSale, nmiPoiSale } = require('./nmiGateway');
+const { nmiPoiSale } = require('./nmiGateway');
 const { loadPosCardCheckoutSettings } = require('./posCardCheckoutSettings');
 
 const INTENT_TTL_MS = 15 * 60 * 1000;
@@ -295,78 +295,9 @@ async function chargeTerminalCheckoutIntent(pool, intentId, deviceId) {
 }
 
 async function completeCheckoutIntent(pool, intentId, { paymentToken, deviceId }) {
-    const checkoutSettings = await loadPosCardCheckoutSettings(pool);
-    if (!checkoutSettings.displayCardCheckout) {
-        const err = new Error('Customer display card checkout is disabled');
-        err.code = 'CHECKOUT_DISABLED';
-        throw err;
-    }
-
-    const existing = await getCheckoutIntent(pool, intentId);
-    if (!existing) {
-        const err = new Error('Checkout not found');
-        err.code = 'NOT_FOUND';
-        throw err;
-    }
-    if (deviceId && existing.deviceId !== deviceId) {
-        const err = new Error('Checkout not found');
-        err.code = 'NOT_FOUND';
-        throw err;
-    }
-    if (existing.status === 'approved') return existing;
-    if (existing.checkoutMode === 'durango_terminal') {
-        const err = new Error('This checkout is handled on the card terminal');
-        err.code = 'TERMINAL_MODE';
-        throw err;
-    }
-    if (existing.status === 'processing') {
-        return existing;
-    }
-    if (existing.status !== 'awaiting') {
-        const err = new Error('Checkout is no longer active');
-        err.code = 'INVALID_STATE';
-        throw err;
-    }
-    if (existing.expiresAt && new Date(existing.expiresAt) < new Date()) {
-        await pool.execute(
-            `UPDATE pos_checkout_intents SET status = 'expired', error_message = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-            ['Checkout expired', intentId]
-        );
-        const err = new Error('Checkout expired');
-        err.code = 'EXPIRED';
-        throw err;
-    }
-    const token = String(paymentToken || '').trim();
-    if (!token) {
-        const err = new Error('Payment token required');
-        err.code = 'TOKEN_REQUIRED';
-        throw err;
-    }
-
-    const claimed = await claimIntentForProcessing(pool, intentId);
-    await upsertDisplayCheckout(pool, existing.deviceId, claimed, existing.checkoutMode);
-
-    const creds = resolveCredentialsForMode(existing.checkoutMode);
-    if (!creds.privateKey) {
-        await revertIntentToAwaiting(pool, intentId, 'In-store Durango/NMI is not configured (POS_NMI_* keys)');
-        const err = new Error('In-store card processor is not configured on the server');
-        err.code = 'PROCESSOR_NOT_CONFIGURED';
-        throw err;
-    }
-
-    try {
-        const sale = await nmiSale({
-            securityKey: creds.privateKey,
-            amount: existing.amount.toFixed(2),
-            paymentToken: token,
-            transactUrl: creds.transactUrl
-        });
-        return await applySaleResult(pool, intentId, existing.deviceId, sale);
-    } catch (e) {
-        if (e.code === 'CARD_DECLINED') throw e;
-        await revertIntentToAwaiting(pool, intentId, e.message || 'Card payment failed');
-        throw e;
-    }
+    const err = new Error('In-POS card entry is disabled. Customer pays on the Durango A3700 terminal only.');
+    err.code = 'TERMINAL_ONLY';
+    throw err;
 }
 
 module.exports = {
