@@ -176,6 +176,13 @@ async function ensurePersonnelSchema(pool) {
                   COMMENT 'When 1, Manager role may edit store hours and holidays'`,
         },
     ]);
+    await applyColumnPatches(pool, 'pos_employees', [
+        {
+            column: 'can_authorize',
+            sql: `ALTER TABLE pos_employees ADD COLUMN can_authorize TINYINT(1) NOT NULL DEFAULT 0
+                  COMMENT 'May approve POS discounts, voids, and refunds with their PIN'`,
+        },
+    ]);
     try {
         if (await tableExists(pool, 'payment_cards')) {
             await pool.query(

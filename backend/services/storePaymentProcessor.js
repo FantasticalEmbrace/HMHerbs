@@ -5,12 +5,19 @@ const {
     getEpiPrivateApiKey,
     getNmiPublicTokenizationKey,
     getNmiPrivateApiKey,
+    getPosNmiPublicTokenizationKey,
+    getPosNmiPrivateApiKey,
     getNmiCollectJsUrl,
-    isNmiSandboxHint
+    getPosNmiCollectJsUrl,
+    getNmiTransactUrl,
+    getPosNmiTransactUrl,
+    isNmiSandboxHint,
+    isPosNmiSandboxHint
 } = require('../utils/nmiEnv');
 
 const DEFAULT_PROCESSOR = 'epi';
 const SETTING_KEY = 'store_card_payment_processor';
+const POS_SETTING_KEY = 'pos_card_payment_processor';
 
 const STORE_PROCESSORS = Object.freeze({
     epi: {
@@ -49,9 +56,34 @@ async function loadStorePaymentProcessor(pool) {
     return DEFAULT_PROCESSOR;
 }
 
+/** Processor for in-store POS card charges (may differ from website). */
+async function loadPosPaymentProcessor(pool) {
+    if (pool) {
+        try {
+            const posRaw = await readSetting(pool, POS_SETTING_KEY);
+            const posId = String(posRaw || 'inherit').trim().toLowerCase();
+            if (posId && posId !== 'inherit') {
+                return normalizeStoreProcessor(posId);
+            }
+        } catch {
+            /* fall through */
+        }
+    }
+    return loadStorePaymentProcessor(pool);
+}
+
 function processorConfigured(processorId) {
     const creds = resolveProcessorCredentials(processorId);
     return Boolean(creds.publicKey && creds.privateKey);
+}
+
+function posProcessorConfigured(processorId) {
+    const id = normalizeStoreProcessor(processorId);
+    if (id === 'nmi_durango') {
+        const creds = resolvePosProcessorCredentials('nmi_durango');
+        return Boolean(creds.publicKey && creds.privateKey);
+    }
+    return processorConfigured(id);
 }
 
 /**
@@ -69,7 +101,9 @@ function resolveProcessorCredentials(processorId) {
             publicKey: getNmiPublicTokenizationKey(),
             privateKey: getNmiPrivateApiKey(),
             collectJsUrl: getNmiCollectJsUrl(),
-            sandbox: isNmiSandboxHint()
+            transactUrl: getNmiTransactUrl(),
+            sandbox: isNmiSandboxHint(),
+            accountScope: 'website'
         };
     }
 
@@ -84,7 +118,45 @@ function resolveProcessorCredentials(processorId) {
         publicKey,
         privateKey,
         collectJsUrl: getNmiCollectJsUrl(),
-        sandbox: isNmiSandboxHint()
+        transactUrl: getNmiTransactUrl(),
+        sandbox: isNmiSandboxHint(),
+        accountScope: 'website'
+    };
+}
+
+/**
+ * Durango/NMI credentials for in-store POS (terminal + customer display).
+ * Uses POS_NMI_* env vars — separate merchant account from website NMI_* keys.
+ */
+function resolvePosProcessorCredentials(processorId) {
+    const processor = normalizeStoreProcessor(processorId);
+
+    if (processor === 'nmi_durango') {
+        return {
+            processor,
+            label: 'Durango / NMI (in-store)',
+            publicKey: getPosNmiPublicTokenizationKey(),
+            privateKey: getPosNmiPrivateApiKey(),
+            collectJsUrl: getPosNmiCollectJsUrl(),
+            transactUrl: getPosNmiTransactUrl(),
+            sandbox: isPosNmiSandboxHint(),
+            accountScope: 'pos'
+        };
+    }
+
+    const epiPublic = getEpiPublicTokenizationKey();
+    const epiPrivate = getEpiPrivateApiKey();
+    const meta = STORE_PROCESSORS[processor];
+
+    return {
+        processor,
+        label: meta?.label || processor,
+        publicKey: epiPublic || getNmiPublicTokenizationKey(),
+        privateKey: epiPrivate || getNmiPrivateApiKey(),
+        collectJsUrl: getNmiCollectJsUrl(),
+        transactUrl: getNmiTransactUrl(),
+        sandbox: isNmiSandboxHint(),
+        accountScope: 'pos'
     };
 }
 
@@ -100,10 +172,14 @@ function listStoreProcessors() {
 module.exports = {
     DEFAULT_PROCESSOR,
     SETTING_KEY,
+    POS_SETTING_KEY,
     STORE_PROCESSORS,
     normalizeStoreProcessor,
     loadStorePaymentProcessor,
+    loadPosPaymentProcessor,
     resolveProcessorCredentials,
+    resolvePosProcessorCredentials,
     processorConfigured,
+    posProcessorConfigured,
     listStoreProcessors
 };

@@ -49,20 +49,39 @@ function getNmiPrivateApiKey() {
     ).trim();
 }
 
-/**
- * Resolves Direct Post URL. Accepts full transact URL or bare origin (e.g. https://nmi.com).
- * If the gateway returns errors, try https://secure.nmi.com/api/transact.php via NMI_API_URL.
- */
-function getNmiTransactUrl() {
-    let u = String(process.env.NMI_API_URL || '').trim();
+/** In-store POS Durango/NMI — separate merchant account from website checkout. */
+function getPosNmiPublicTokenizationKey() {
+    return String(
+        process.env.POS_NMI_PUBLIC_TOKENIZATION_KEY || process.env.POS_NMI_PUBLIC_KEY || ''
+    ).trim();
+}
+
+function getPosNmiPrivateApiKey() {
+    return String(
+        process.env.POS_NMI_PRIVATE_API_KEY ||
+            process.env.POS_NMI_PRIVATE_KEY ||
+            process.env.POS_DURANGO_API_KEY ||
+            process.env.POS_NMI_API_KEY ||
+            ''
+    ).trim();
+}
+
+function isPosNmiSandboxHint() {
+    const raw = process.env.POS_NMI_SANDBOX;
+    if (raw !== undefined && String(raw).trim() !== '') {
+        const s = String(raw).toLowerCase();
+        return s === '1' || s === 'true' || s === 'yes';
+    }
+    return isNmiSandboxHint();
+}
+
+function resolveNmiTransactUrl(apiUrlEnv, sandboxHint) {
+    let u = String(apiUrlEnv || '').trim();
     if (!u) {
-        return isNmiSandboxHint()
-            ? 'https://sandbox.nmi.com/api/transact.php'
-            : DEFAULT_TRANSACT_URL;
+        return sandboxHint ? 'https://sandbox.nmi.com/api/transact.php' : DEFAULT_TRANSACT_URL;
     }
     u = u.replace(/\/+$/, '');
     const lower = u.toLowerCase();
-    // Marketing domain does not serve the Payment API path (returns HTML 404).
     if (
         lower === 'https://nmi.com' ||
         lower === 'http://nmi.com' ||
@@ -80,6 +99,37 @@ function getNmiTransactUrl() {
         return `${u.replace(/\/+$/, '')}/api/transact.php`;
     }
     return u;
+}
+
+function getPosNmiTransactUrl() {
+    return resolveNmiTransactUrl(process.env.POS_NMI_API_URL, isPosNmiSandboxHint());
+}
+
+function getPosNmiCollectJsUrl() {
+    const u = String(process.env.POS_NMI_COLLECT_JS_URL || '').trim();
+    if (u) return u;
+    return isPosNmiSandboxHint() ? SANDBOX_COLLECT_JS : DEFAULT_COLLECT_JS;
+}
+
+function isPosNmiWalletsDisabled() {
+    const s = String(process.env.POS_NMI_DISABLE_WALLETS || '').trim().toLowerCase();
+    if (s === '0' || s === 'false' || s === 'no') return false;
+    if (s === '1' || s === 'true' || s === 'yes') return true;
+    return isPosNmiSandboxHint();
+}
+
+function shouldSkipPosNmiTokenizationPreflight() {
+    const s = String(process.env.POS_NMI_SKIP_TOKENIZATION_PREFLIGHT || '').trim().toLowerCase();
+    if (s === '1' || s === 'true' || s === 'yes') return true;
+    return shouldSkipNmiTokenizationPreflight();
+}
+
+/**
+ * Resolves Direct Post URL. Accepts full transact URL or bare origin (e.g. https://nmi.com).
+ * If the gateway returns errors, try https://secure.nmi.com/api/transact.php via NMI_API_URL.
+ */
+function getNmiTransactUrl() {
+    return resolveNmiTransactUrl(process.env.NMI_API_URL, isNmiSandboxHint());
 }
 
 function getNmiCollectJsUrl() {
@@ -145,10 +195,11 @@ async function nmiTokenCreatePreflightOnce(createUrl, tokenizationKey) {
  * @param {string} tokenizationKey
  * @returns {Promise<{ ok: boolean, collectJsUrl: string }>}
  */
-async function nmiResolveTokenizationCollectJs(tokenizationKey) {
+async function nmiResolveTokenizationCollectJs(tokenizationKey, opts = {}) {
     const key = String(tokenizationKey || '').trim();
-    const userCollect = String(process.env.NMI_COLLECT_JS_URL || '').trim();
-    const fallbackCollect = userCollect || DEFAULT_COLLECT_JS;
+    const userCollect = String(opts.collectJsUrl || process.env.NMI_COLLECT_JS_URL || '').trim();
+    const sandboxHint = opts.sandbox != null ? Boolean(opts.sandbox) : isNmiSandboxHint();
+    const fallbackCollect = userCollect || (sandboxHint ? SANDBOX_COLLECT_JS : DEFAULT_COLLECT_JS);
 
     if (!key) {
         return { ok: false, collectJsUrl: fallbackCollect };
@@ -171,7 +222,7 @@ async function nmiResolveTokenizationCollectJs(tokenizationKey) {
             }
             return { ok: false, collectJsUrl: userCollect };
         }
-        const tryOrder = isNmiSandboxHint()
+        const tryOrder = sandboxHint
             ? [NMI_TOKEN_CREATE_URL_SANDBOX, NMI_TOKEN_CREATE_URL_SECURE]
             : [NMI_TOKEN_CREATE_URL_SECURE, NMI_TOKEN_CREATE_URL_SANDBOX];
         for (const createUrl of tryOrder) {
@@ -186,7 +237,7 @@ async function nmiResolveTokenizationCollectJs(tokenizationKey) {
         [NMI_TOKEN_CREATE_URL_SECURE, DEFAULT_COLLECT_JS],
         [NMI_TOKEN_CREATE_URL_SANDBOX, SANDBOX_COLLECT_JS]
     ];
-    const order = isNmiSandboxHint() ? [defaultPairs[1], defaultPairs[0]] : defaultPairs;
+    const order = sandboxHint ? [defaultPairs[1], defaultPairs[0]] : defaultPairs;
     for (const [createUrl, collectOut] of order) {
         if (await nmiTokenCreatePreflightOnce(createUrl, key)) {
             return { ok: true, collectJsUrl: collectOut };
@@ -210,14 +261,21 @@ module.exports = {
     getEpiPrivateApiKey,
     getNmiPublicTokenizationKey,
     getNmiPrivateApiKey,
+    getPosNmiPublicTokenizationKey,
+    getPosNmiPrivateApiKey,
     getNmiTransactUrl,
+    getPosNmiTransactUrl,
     getNmiCollectJsUrl,
+    getPosNmiCollectJsUrl,
     isNmiSandboxHint,
+    isPosNmiSandboxHint,
     isNmiWalletsDisabled,
+    isPosNmiWalletsDisabled,
     nmiTokenCreatePreflightOnce,
     nmiResolveTokenizationCollectJs,
     nmiTokenizationKeyPassesServerPreflight,
     shouldSkipNmiTokenizationPreflight,
+    shouldSkipPosNmiTokenizationPreflight,
     DEFAULT_COLLECT_JS,
     SANDBOX_COLLECT_JS,
     DEFAULT_TRANSACT_URL,

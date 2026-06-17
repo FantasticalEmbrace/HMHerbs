@@ -163,6 +163,18 @@ const uploadPromoBannerIcon = multer({
     }
 });
 
+const uploadProductCsv = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 15 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        const ext = path.extname(file.originalname).toLowerCase();
+        if (ext === '.csv' || file.mimetype === 'text/csv' || file.mimetype === 'application/vnd.ms-excel') {
+            return cb(null, true);
+        }
+        cb(new Error('Only CSV files are allowed for product import'));
+    }
+});
+
 const {
     adminLoginValidation,
     productValidation,
@@ -835,7 +847,7 @@ router.get('/products', ...adminAuth, async (req, res) => {
         // Build the base query - use string concatenation to avoid template literal issues
         let query = 'SELECT ' +
             'p.id, p.sku, p.name, p.slug, p.price, p.cost_price, p.inventory_quantity, ' +
-            'p.low_stock_threshold, p.is_active, p.is_featured, p.created_at, ' +
+            'p.low_stock_threshold, p.is_active, p.is_featured, p.show_on_web, p.created_at, ' +
             'p.brand_id, p.category_id, ' +
             'b.name as brand_name, pc.name as category_name ' +
             'FROM products p ' +
@@ -979,7 +991,7 @@ router.post('/products', ...adminAuth, requirePermission('manager'), productVali
         const {
             sku, name, short_description, long_description, brand_id, category_id,
             price, compare_price, cost_price, weight, inventory_quantity, low_stock_threshold,
-            is_active, is_featured, is_cannabis, coa_url, coa_updated_at,
+            is_active, is_featured, show_on_web, is_cannabis, coa_url, coa_updated_at,
             health_categories, images, variants, variant_option_groups
         } = req.body;
 
@@ -1031,15 +1043,21 @@ router.post('/products', ...adminAuth, requirePermission('manager'), productVali
                 coaDateValue = Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
             }
             const isCannabis = Boolean(is_cannabis === true || is_cannabis === 'true' || is_cannabis === 1 || is_cannabis === '1');
+            const showOnWeb = !(
+                show_on_web === false ||
+                show_on_web === 'false' ||
+                show_on_web === 0 ||
+                show_on_web === '0'
+            );
 
             // Insert product
             const [result] = await connection.execute(`
                 INSERT INTO products (
                     sku, name, slug, short_description, long_description,
                     brand_id, category_id, price, compare_price, cost_price, weight,
-                    inventory_quantity, low_stock_threshold, is_active, is_featured,
+                    inventory_quantity, low_stock_threshold, is_active, is_featured, show_on_web,
                     is_cannabis, coa_url, coa_updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `, [
                 sku,
                 name,
@@ -1056,6 +1074,7 @@ router.post('/products', ...adminAuth, requirePermission('manager'), productVali
                 sanitizeInteger(low_stock_threshold, 10),
                 is_active !== false,
                 is_featured === true,
+                showOnWeb,
                 isCannabis,
                 coaUrlValue,
                 coaDateValue
@@ -1320,6 +1339,23 @@ router.post('/products/upload-coa', ...adminAuth, requirePermission('manager'), 
     }
 });
 
+// Export full product catalog as CSV (merchant backup / new hardware restore)
+const { buildProductCatalogExportCsv } = require('../services/productCatalogExport');
+
+router.get('/products/export', ...adminAuth, requirePermission('manager'), async (req, res) => {
+    try {
+        const { csv, count } = await buildProductCatalogExportCsv(req.pool);
+        const stamp = new Date().toISOString().slice(0, 10);
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="product-catalog-backup-${stamp}.csv"`);
+        res.setHeader('X-Product-Count', String(count));
+        res.send(csv);
+    } catch (error) {
+        logger.error('Product catalog export error:', error);
+        res.status(500).json({ error: 'Failed to export product catalog' });
+    }
+});
+
 // Get Single Product by ID
 router.get('/products/:id', ...adminAuth, async (req, res) => {
     try {
@@ -1330,7 +1366,7 @@ router.get('/products/:id', ...adminAuth, async (req, res) => {
                 p.id, p.sku, p.name, p.slug, p.short_description, p.long_description,
                 p.price, p.compare_price, p.cost_price, p.cost_synced_at,
                 p.weight, p.inventory_quantity, p.low_stock_threshold,
-                p.is_active, p.is_featured, p.is_cannabis, p.coa_url, p.coa_updated_at,
+                p.is_active, p.is_featured, p.show_on_web, p.is_cannabis, p.coa_url, p.coa_updated_at,
                 p.variant_option_groups,
                 p.created_at, p.updated_at,
                 p.brand_id, p.category_id,
@@ -1439,7 +1475,7 @@ router.put('/products/:id', ...adminAuth, requirePermission('manager'), async (r
             const allowedFields = [
                 'name', 'short_description', 'long_description', 'brand_id', 'category_id',
                 'price', 'compare_price', 'cost_price', 'weight', 'inventory_quantity', 'low_stock_threshold',
-                'is_active', 'is_featured', 'is_cannabis', 'coa_url', 'coa_updated_at'
+                'is_active', 'is_featured', 'show_on_web', 'is_cannabis', 'coa_url', 'coa_updated_at'
             ];
 
             // Fields that should be numeric (decimal or integer)
@@ -1447,7 +1483,7 @@ router.put('/products/:id', ...adminAuth, requirePermission('manager'), async (r
             // Fields that should be integers
             const integerFields = ['brand_id', 'category_id', 'inventory_quantity', 'low_stock_threshold'];
             // Fields that should be booleans
-            const booleanFields = ['is_active', 'is_featured', 'is_cannabis'];
+            const booleanFields = ['is_active', 'is_featured', 'show_on_web', 'is_cannabis'];
 
             for (const field of allowedFields) {
                 if (updateData[field] !== undefined) {
@@ -3109,20 +3145,42 @@ router.post('/scrape-products', ...adminAuth, requirePermission('manager'), asyn
     }
 });
 
-// Import Products from CSV
-router.post('/import-products', ...adminAuth, requirePermission('manager'), async (req, res) => {
-    try {
-        // Handle file upload (you'd need multer middleware for this)
-        // For now, we'll assume the file is already uploaded
+const { buildProductImportTemplateCsv } = require('../utils/productImportTemplate');
 
-        const importer = new ProductImporter();
-        await importer.importFromCSV('./data/uploaded-products.csv');
+// Download CSV template for POS / catalog migration imports
+router.get('/import-products/template', ...adminAuth, requirePermission('manager'), (req, res) => {
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="product-import-template.csv"');
+    res.send(buildProductImportTemplateCsv());
+});
+
+// Import products from uploaded CSV (POS migration, bulk catalog load)
+router.post('/import-products', ...adminAuth, requirePermission('manager'), (req, res, next) => {
+    uploadProductCsv.single('csvFile')(req, res, (err) => {
+        if (err) {
+            return res.status(400).json({ error: err.message || 'Invalid CSV upload' });
+        }
+        next();
+    });
+}, async (req, res) => {
+    try {
+        if (!req.file?.buffer?.length) {
+            return res.status(400).json({ error: 'CSV file is required' });
+        }
+
+        const importer = new ProductImporter(req.pool);
+        const stats = await importer.importFromBuffer(req.file.buffer);
 
         res.json({
-            message: 'Products imported successfully',
-            imported: importer.importStats.success
+            message: 'Product import completed',
+            imported: stats.success,
+            created: stats.created,
+            updated: stats.updated,
+            total: stats.total,
+            errors: stats.errors,
+            skipped: stats.skipped,
+            errorDetails: stats.errorDetails
         });
-
     } catch (error) {
         logger.error('Import error:', error);
         res.status(500).json({ error: 'Failed to import products: ' + error.message });

@@ -12,6 +12,8 @@ const {
     clearPinAttempts
 } = require('./posPinSecurity');
 
+const MANAGER_ADMIN_ROLES = new Set(['admin', 'developer', 'manager', 'assistant_manager', 'super_admin']);
+
 function normalizePin(pin) {
     return String(pin || '').replace(/\D/g, '').slice(0, 4);
 }
@@ -61,7 +63,7 @@ function verifyEmployeeToken(token) {
 
 async function findEmployeeByPin(pool, pin) {
     const [rows] = await pool.execute(
-        `SELECT id, employee_code, first_name, last_name, email, pin_hash, is_active
+        `SELECT id, employee_code, first_name, last_name, email, pin_hash, is_active, admin_user_id, can_authorize
          FROM pos_employees WHERE is_active = 1`
     );
     for (const row of rows) {
@@ -70,9 +72,66 @@ async function findEmployeeByPin(pool, pin) {
     return null;
 }
 
+async function employeeCanAuthorize(pool, employee) {
+    if (!employee || !employee.is_active) return false;
+    if (employee.can_authorize) return true;
+    if (!employee.admin_user_id) return false;
+    const [rows] = await pool.execute(
+        `SELECT role FROM admin_users WHERE id = ? AND is_active = 1 LIMIT 1`,
+        [employee.admin_user_id]
+    );
+    const role = String(rows[0]?.role || '').toLowerCase();
+    return MANAGER_ADMIN_ROLES.has(role);
+}
+
+function mapAuthorizer(employee) {
+    return {
+        id: employee.id,
+        employeeCode: employee.employee_code,
+        name: `${employee.first_name} ${employee.last_name}`.trim()
+    };
+}
+
+async function verifyManagerPin(pool, pin, context = {}) {
+    const settings = await loadPosSecuritySettings(pool);
+    const scope = context.scope || 'manager';
+    const attemptKey = buildAttemptKey(`${scope}:${context.deviceId || 'device'}`, context.ip);
+    await assertPinNotLocked(pool, attemptKey);
+
+    if (!validatePinFormat(pin)) {
+        await recordFailedPinAttempt(pool, attemptKey, settings).catch(() => {});
+        const err = new Error('PIN must be exactly 4 digits');
+        err.code = 'INVALID_PIN';
+        throw err;
+    }
+
+    const employee = await findEmployeeByPin(pool, pin);
+    if (!employee) {
+        try {
+            await recordFailedPinAttempt(pool, attemptKey, settings);
+        } catch (lockErr) {
+            throw lockErr;
+        }
+        const err = new Error('Invalid manager PIN');
+        err.code = 'INVALID_MANAGER_PIN';
+        throw err;
+    }
+
+    const canAuthorize = await employeeCanAuthorize(pool, employee);
+    if (!canAuthorize) {
+        await recordFailedPinAttempt(pool, attemptKey, settings).catch(() => {});
+        const err = new Error('This PIN is not authorized for manager approval');
+        err.code = 'NOT_AUTHORIZED_MANAGER';
+        throw err;
+    }
+
+    await clearPinAttempts(pool, attemptKey);
+    return mapAuthorizer(employee);
+}
+
 async function getEmployeeById(pool, id) {
     const [rows] = await pool.execute(
-        `SELECT id, employee_code, first_name, last_name, email, is_active, hourly_rate, admin_user_id, created_at, updated_at
+        `SELECT id, employee_code, first_name, last_name, email, is_active, hourly_rate, admin_user_id, can_authorize, created_at, updated_at
          FROM pos_employees WHERE id = ? LIMIT 1`,
         [id]
     );
@@ -153,9 +212,10 @@ async function createEmployee(pool, data, adminId) {
         throw err;
     }
     const pinHash = await hashPin(pin);
+    const canAuthorize = data.canAuthorize || data.can_authorize ? 1 : 0;
     const [result] = await pool.execute(
-        `INSERT INTO pos_employees (employee_code, first_name, last_name, email, pin_hash, hourly_rate, admin_user_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO pos_employees (employee_code, first_name, last_name, email, pin_hash, hourly_rate, admin_user_id, can_authorize)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [
             code,
             String(data.firstName || data.first_name || '').trim(),
@@ -163,7 +223,8 @@ async function createEmployee(pool, data, adminId) {
             data.email ? String(data.email).trim() : null,
             pinHash,
             data.hourlyRate != null ? Number(data.hourlyRate) : null,
-            data.adminUserId || adminId || null
+            data.adminUserId || adminId || null,
+            canAuthorize
         ]
     );
     return getEmployeeById(pool, result.insertId);
@@ -211,6 +272,10 @@ async function updateEmployee(pool, id, data) {
         updates.push('pin_hash = ?');
         params.push(await hashPin(data.pin));
     }
+    if (data.canAuthorize != null || data.can_authorize != null) {
+        updates.push('can_authorize = ?');
+        params.push(data.canAuthorize || data.can_authorize ? 1 : 0);
+    }
     if (!updates.length) return getEmployeeById(pool, id);
     params.push(id);
     await pool.execute(`UPDATE pos_employees SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, params);
@@ -219,7 +284,7 @@ async function updateEmployee(pool, id, data) {
 
 async function listEmployees(pool) {
     const [rows] = await pool.execute(
-        `SELECT id, employee_code, first_name, last_name, email, is_active, hourly_rate, admin_user_id, created_at, updated_at
+        `SELECT id, employee_code, first_name, last_name, email, is_active, hourly_rate, admin_user_id, can_authorize, created_at, updated_at
          FROM pos_employees ORDER BY last_name, first_name`
     );
     return rows;
@@ -417,6 +482,17 @@ async function clockOut(pool, employeeId) {
     return open[0].id;
 }
 
+async function getOpenTimeEntry(pool, employeeId) {
+    const [rows] = await pool.execute(
+        `SELECT id, employee_id, shift_session_id, clock_in, clock_out, source
+         FROM pos_time_entries
+         WHERE employee_id = ? AND clock_out IS NULL
+         ORDER BY clock_in DESC LIMIT 1`,
+        [employeeId]
+    );
+    return rows[0] || null;
+}
+
 async function createScheduledShift(pool, data, adminId) {
     const [result] = await pool.execute(
         `INSERT INTO pos_scheduled_shifts (employee_id, starts_at, ends_at, notes, created_by)
@@ -501,6 +577,8 @@ module.exports = {
     normalizePin,
     validatePinFormat,
     loginWithPin,
+    verifyManagerPin,
+    employeeCanAuthorize,
     verifyEmployeeToken,
     createEmployee,
     updateEmployee,
@@ -516,6 +594,7 @@ module.exports = {
     computeExpectedCash,
     clockIn,
     clockOut,
+    getOpenTimeEntry,
     createScheduledShift,
     listScheduledShifts,
     listTimeEntries,

@@ -1,6 +1,8 @@
 // Inventory Management Service
 // Centralized inventory operations with audit trail and concurrency protection
 
+const { loadInventorySettings } = require('../utils/inventorySettings');
+
 class InventoryService {
     constructor(pool) {
         this.pool = pool;
@@ -186,19 +188,24 @@ class InventoryService {
                 return { productId, variantId, skipped: true, reason: 'Inventory tracking disabled' };
             }
             
-            // Check if we have enough inventory (unless backorders allowed)
-            if (!product.allow_backorder && currentInventory < quantity) {
+            const inventorySettings = await loadInventorySettings(connection);
+            const allowOversell =
+                Boolean(product.allow_backorder) || Boolean(inventorySettings.allowOversell);
+
+            // Check if we have enough inventory (unless oversell allowed)
+            if (!allowOversell && currentInventory < quantity) {
                 throw new Error(`Insufficient inventory for product ${productId}. Available: ${currentInventory}, Requested: ${quantity}`);
             }
         }
         
         const newInventory = currentInventory - quantity;
         
-        // Update inventory
-        await connection.execute(
-            `UPDATE ${tableName} SET inventory_quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE ${idField} = ?`,
-            [newInventory, variantId || productId]
-        );
+        // Update inventory (product_variants has no updated_at column on all deployments)
+        const updateSql =
+            tableName === 'products'
+                ? `UPDATE ${tableName} SET inventory_quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE ${idField} = ?`
+                : `UPDATE ${tableName} SET inventory_quantity = ? WHERE ${idField} = ?`;
+        await connection.execute(updateSql, [newInventory, variantId || productId]);
         
         // Log transaction
         await connection.execute(
@@ -262,11 +269,11 @@ class InventoryService {
         
         const newInventory = currentInventory + quantity;
         
-        // Update inventory
-        await connection.execute(
-            `UPDATE ${tableName} SET inventory_quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE ${idField} = ?`,
-            [newInventory, variantId || productId]
-        );
+        const updateSql =
+            tableName === 'products'
+                ? `UPDATE ${tableName} SET inventory_quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE ${idField} = ?`
+                : `UPDATE ${tableName} SET inventory_quantity = ? WHERE ${idField} = ?`;
+        await connection.execute(updateSql, [newInventory, variantId || productId]);
         
         // Log transaction
         await connection.execute(
@@ -324,6 +331,9 @@ class InventoryService {
      */
     async getLowStockProducts(limit = 20) {
         try {
+            const inventorySettings = await loadInventorySettings(this.pool);
+            const globalThreshold = inventorySettings.globalLowStockThreshold;
+
             // Do not bind LIMIT with prepared statements — some MySQL/MariaDB builds return
             // ER_WRONG_ARGUMENTS (1210) for LIMIT ? in mysqld_stmt_execute.
             const raw = parseInt(limit, 10);
@@ -340,7 +350,7 @@ class InventoryService {
                     p.sku,
                     p.name,
                     p.inventory_quantity,
-                    p.low_stock_threshold,
+                    COALESCE(NULLIF(p.low_stock_threshold, 0), ${Number(globalThreshold) || 5}) AS low_stock_threshold,
                     b.name as brand_name,
                     pc.name as category_name
                 FROM products p
@@ -348,7 +358,8 @@ class InventoryService {
                 LEFT JOIN product_categories pc ON p.category_id = pc.id
                 WHERE p.track_inventory = 1 
                   AND p.is_active = 1
-                  AND p.inventory_quantity <= p.low_stock_threshold
+                  AND p.inventory_quantity > 0
+                  AND p.inventory_quantity <= COALESCE(NULLIF(p.low_stock_threshold, 0), ${Number(globalThreshold) || 5})
                 ORDER BY p.inventory_quantity ASC
                 LIMIT ${safeLimit}
                 `

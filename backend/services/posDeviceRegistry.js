@@ -75,6 +75,11 @@ async function revokeDevice(pool, deviceId) {
     return result.affectedRows > 0;
 }
 
+async function revokeAllDevices(pool) {
+    const [result] = await pool.execute(`UPDATE pos_devices SET is_active = 0 WHERE is_active = 1`);
+    return result.affectedRows || 0;
+}
+
 async function regenerateDeviceKey(pool, deviceId) {
     const id = Number(deviceId);
     if (!Number.isInteger(id) || id <= 0) {
@@ -162,5 +167,6 @@ module.exports = {
     createDevice,
     regenerateDeviceKey,
     revokeDevice,
+    revokeAllDevices,
     authenticateDevice
 };

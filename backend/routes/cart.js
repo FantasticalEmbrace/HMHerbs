@@ -5,6 +5,8 @@ const logger = require('../utils/logger');
 const { addToCartValidation, updateCartValidation } = require('../middleware/validation');
 const { storefrontPrimaryImageFromFields } = require('../utils/catalogOverrides');
 const { cartLookupBinds } = require('../utils/cartSession');
+const { loadInventorySettings, canFulfillQuantity } = require('../utils/inventorySettings');
+const { STOREFRONT_VISIBLE_WHERE } = require('../utils/storefrontProductVisibility');
 
 // Get or create cart for user/session
 const getOrCreateCart = async (pool, userId, sessionId) => {
@@ -54,7 +56,7 @@ router.get('/', async (req, res) => {
             LEFT JOIN product_variants pv ON ci.variant_id = pv.id
             LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_primary = 1
             LEFT JOIN brands b ON p.brand_id = b.id
-            WHERE ci.cart_id = ?
+            WHERE ci.cart_id = ? AND ${STOREFRONT_VISIBLE_WHERE}
             ORDER BY ci.created_at DESC
         `, [cartId]);
 
@@ -68,7 +70,8 @@ router.get('/', async (req, res) => {
         });
 
         const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-        const tax = Math.round(subtotal * 0.08 * 100) / 100;
+        const taxRate = await loadStoreTaxRate(req.pool);
+        const tax = Math.round(subtotal * taxRate * 100) / 100;
         const shipping = subtotal >= 50 ? 0 : 9.99;
         const total = subtotal + tax + shipping;
 
@@ -101,7 +104,8 @@ router.post('/add', addToCartValidation, async (req, res) => {
 
         // Get product details
         const [products] = await req.pool.execute(
-            'SELECT id, name, price, inventory_quantity, track_inventory FROM products WHERE id = ? AND is_active = 1',
+            `SELECT id, name, price, inventory_quantity, track_inventory, allow_backorder
+             FROM products WHERE id = ? AND is_active = 1 AND COALESCE(show_on_web, 1) = 1`,
             [productId]
         );
 
@@ -128,8 +132,13 @@ router.post('/add', addToCartValidation, async (req, res) => {
             availableQuantity = variants[0].inventory_quantity;
         }
 
+        const inventorySettings = await loadInventorySettings(req.pool);
+
         // Check inventory
-        if (product.track_inventory && availableQuantity < quantity) {
+        if (
+            product.track_inventory &&
+            !canFulfillQuantity(product, inventorySettings, availableQuantity, quantity)
+        ) {
             return res.status(400).json({ error: 'Insufficient inventory' });
         }
 
@@ -145,7 +154,10 @@ router.post('/add', addToCartValidation, async (req, res) => {
             // Update existing item
             const newQuantity = existingItems[0].quantity + quantity;
             
-            if (product.track_inventory && availableQuantity < newQuantity) {
+            if (
+                product.track_inventory &&
+                !canFulfillQuantity(product, inventorySettings, availableQuantity, newQuantity)
+            ) {
                 return res.status(400).json({ error: 'Insufficient inventory for requested quantity' });
             }
 
@@ -188,7 +200,7 @@ router.put('/items/:itemId', updateCartValidation, async (req, res) => {
 
         // Verify item belongs to user's cart
         const [items] = await req.pool.execute(`
-            SELECT ci.id, ci.product_id, ci.variant_id, p.track_inventory, p.inventory_quantity, pv.inventory_quantity as variant_inventory
+            SELECT ci.id, ci.product_id, ci.variant_id, p.track_inventory, p.allow_backorder, p.inventory_quantity, pv.inventory_quantity as variant_inventory
             FROM cart_items ci
             JOIN shopping_carts sc ON ci.cart_id = sc.id
             JOIN products p ON ci.product_id = p.id
@@ -201,6 +213,7 @@ router.put('/items/:itemId', updateCartValidation, async (req, res) => {
         }
 
         const item = items[0];
+        const inventorySettings = await loadInventorySettings(req.pool);
 
         if (quantity === 0) {
             // Remove item from cart
@@ -208,8 +221,11 @@ router.put('/items/:itemId', updateCartValidation, async (req, res) => {
         } else {
             // Check inventory
             const availableQuantity = item.variant_id ? item.variant_inventory : item.inventory_quantity;
-            
-            if (item.track_inventory && availableQuantity < quantity) {
+
+            if (
+                item.track_inventory &&
+                !canFulfillQuantity(item, inventorySettings, availableQuantity, quantity)
+            ) {
                 return res.status(400).json({ error: 'Insufficient inventory' });
             }
 

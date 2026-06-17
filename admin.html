@@ -2550,6 +2550,11 @@
                 <div class="content-header">
                     <h1 class="page-title">Products</h1>
                     <div class="button-group products-header-actions">
+                        <button type="button" class="btn btn-secondary" onclick="downloadProductCatalogBackup()"
+                            title="Download all products as a spreadsheet you can re-import on new hardware">
+                            <i class="fas fa-file-csv"></i>
+                            Download catalog backup
+                        </button>
                         <button type="button" class="btn btn-secondary" onclick="scrapeProducts()">
                             <i class="fas fa-download"></i>
                             Scrape HM Herbs
@@ -2643,29 +2648,85 @@
             <section id="import" class="content-section">
                 <div class="content-header">
                     <h1 class="page-title">Import Products</h1>
+                    <div class="button-group">
+                        <button type="button" class="btn btn-primary" onclick="downloadProductCatalogBackup()">
+                            <i class="fas fa-file-csv"></i>
+                            Download catalog backup
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="downloadProductImportTemplate()">
+                            <i class="fas fa-download"></i>
+                            Download CSV template
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-bottom: 1.25rem;">
+                    <div class="card-header">
+                        <h2 class="card-title">Download catalog backup</h2>
+                    </div>
+                    <div class="card-content">
+                        <p style="margin:0 0 1rem;color:var(--gray-600);font-size:0.92rem;line-height:1.55;">
+                            Save a spreadsheet of <strong>every product</strong> — SKU, prices, cost, stock, descriptions,
+                            and image links. Keep a copy somewhere safe (USB drive, cloud folder, email to yourself).
+                            If a register or computer is replaced, upload this same file below to restore your inventory.
+                        </p>
+                        <button type="button" class="btn btn-primary" onclick="downloadProductCatalogBackup()">
+                            <i class="fas fa-download"></i>
+                            Download product catalog (CSV)
+                        </button>
+                    </div>
                 </div>
 
                 <div class="card">
                     <div class="card-header">
-                        <h2 class="card-title">Bulk Product Import</h2>
+                        <h2 class="card-title">Bulk inventory import (CSV)</h2>
                     </div>
                     <div class="card-content">
+                        <p style="margin:0 0 1rem;color:var(--gray-600);font-size:0.92rem;line-height:1.55;">
+                            Upload a spreadsheet export from your previous POS or catalog system. Products are matched by
+                            <strong>SKU</strong> (or product name) and created or updated. Use this when switching to
+                            Business One POS or loading a new vendor catalog.
+                        </p>
+
+                        <details style="margin:0 0 1.25rem;border:1px solid var(--gray-200);border-radius:8px;padding:0.75rem 1rem;background:var(--gray-50);">
+                            <summary style="cursor:pointer;font-weight:600;color:var(--gray-800);">Supported columns</summary>
+                            <div style="margin-top:0.75rem;font-size:0.88rem;color:var(--gray-700);line-height:1.6;">
+                                <p style="margin:0 0 0.5rem;"><strong>Required:</strong> <code>name</code></p>
+                                <p style="margin:0 0 0.5rem;"><strong>Recommended:</strong>
+                                    <code>sku</code>, <code>barcode</code> (used as SKU if blank), <code>price</code>,
+                                    <code>cost</code>, <code>quantity</code>, <code>category</code>, <code>brand</code>
+                                </p>
+                                <p style="margin:0 0 0.5rem;"><strong>Optional:</strong>
+                                    <code>short_description</code>, <code>description</code>, <code>compare_price</code>,
+                                    <code>weight</code>, <code>image_url</code> (multiple URLs separated by <code>|</code>),
+                                    <code>track_inventory</code>, <code>is_taxable</code>, <code>is_active</code>,
+                                    <code>is_featured</code>, <code>show_on_web</code> (or <code>pos_only</code> = in-store only),
+                                    <code>low_stock_threshold</code>, <code>health_categories</code>
+                                </p>
+                                <p style="margin:0;color:var(--gray-500);">
+                                    Column headers are flexible — common POS exports like <em>Product Name</em>,
+                                    <em>Retail Price</em>, <em>On Hand</em>, and <em>UPC</em> are recognized automatically.
+                                </p>
+                            </div>
+                        </details>
+
                         <div class="form-group">
-                            <label class="form-label" for="csvFile">Select CSV File</label>
-                            <input type="file" id="csvFile" class="form-input" accept=".csv">
+                            <label class="form-label" for="csvFile">Select CSV file</label>
+                            <input type="file" id="csvFile" class="form-input" accept=".csv,text/csv">
                         </div>
 
-                        <button type="button" class="btn btn-primary" onclick="importProducts()">
+                        <button type="button" class="btn btn-primary" onclick="importProducts('csvFile','importProgress','importResults')">
                             <i class="fas fa-upload"></i>
-                            Import Products
+                            Import products
                         </button>
 
                         <div id="importProgress" style="margin-top: 1rem; display: none;">
                             <div class="loading">
                                 <div class="spinner"></div>
-                                Importing products...
+                                Importing products…
                             </div>
                         </div>
+                        <div id="importResults" style="margin-top: 1rem; display: none;"></div>
                     </div>
                 </div>
             </section>
@@ -3104,7 +3165,7 @@
                 <div class="content-header">
                     <h1 class="page-title">Marketing</h1>
                     <p class="page-subtitle" style="color: var(--gray-600); font-size: 0.95rem;">
-                        Newsletter signups go to your Mailchimp page. Checkout discounts are calculated on the server so shoppers cannot change prices in the cart.
+                        Newsletter signups, in-store display promos, and checkout discounts — managed here for your marketing team.
                     </p>
                 </div>
 
@@ -3125,6 +3186,53 @@
                                 <input class="form-input" id="marketing-newsletter-headline" name="headline" type="text" maxlength="200" placeholder="Sign up for Exclusive Discounts">
                             </div>
                             <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save marketing settings</button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-content">
+                        <h3 style="margin:0 0 0.35rem 0;">In-store customer display ads</h3>
+                        <p style="margin:0 0 1rem 0;color:var(--gray-600);font-size:0.88rem;">
+                            Rotating promos on the <strong>Pay Point customer-facing screen</strong> when no sale is active.
+                            Reuse banner images from your Mailchimp emails — upload the same creative here or paste an image URL.
+                            Ads hide automatically when the cashier rings up items.
+                        </p>
+                        <div id="pos-display-ads-list" style="margin-bottom:1rem;"></div>
+                        <form id="pos-display-ad-form">
+                            <div style="display:grid;gap:0.75rem;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));">
+                                <div class="form-group" style="margin:0;">
+                                    <label for="pos-display-ad-title">Headline (optional)</label>
+                                    <input class="form-input" id="pos-display-ad-title" name="title" type="text" maxlength="120" placeholder="e.g. 20% off vitamins this week">
+                                </div>
+                                <div class="form-group" style="margin:0;">
+                                    <label for="pos-display-ad-subtitle">Subtext (optional)</label>
+                                    <input class="form-input" id="pos-display-ad-subtitle" name="subtitle" type="text" maxlength="240" placeholder="Short line under the image">
+                                </div>
+                                <div class="form-group" style="margin:0;">
+                                    <label for="pos-display-ad-source">Campaign note (internal)</label>
+                                    <input class="form-input" id="pos-display-ad-source" name="sourceLabel" type="text" maxlength="120" placeholder="e.g. March email blast">
+                                </div>
+                                <div class="form-group" style="margin:0;">
+                                    <label for="pos-display-ad-sort">Sort order</label>
+                                    <input class="form-input" id="pos-display-ad-sort" name="sortOrder" type="number" step="1" value="0" style="max-width:8rem;">
+                                </div>
+                            </div>
+                            <div class="form-group" style="margin-top:0.75rem;">
+                                <label for="pos-display-ad-image-url">Image URL</label>
+                                <input class="form-input" id="pos-display-ad-image-url" name="imageUrl" type="url" maxlength="500" placeholder="https://… or upload below">
+                            </div>
+                            <div style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:center;margin-top:0.5rem;">
+                                <label class="btn btn-secondary btn-sm" style="cursor:pointer;margin:0;">
+                                    Upload image
+                                    <input type="file" id="pos-display-ad-file" accept="image/jpeg,image/png,image/webp,image/gif" style="display:none;">
+                                </label>
+                                <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;margin:0;">
+                                    <input type="checkbox" id="pos-display-ad-active" name="isActive" value="true" checked> Active
+                                </label>
+                                <button type="submit" class="btn btn-primary btn-sm">Add display ad</button>
+                            </div>
+                            <p id="pos-display-ad-msg" style="min-height:1.25rem;font-size:0.9rem;margin:0.5rem 0 0;"></p>
                         </form>
                     </div>
                 </div>
@@ -3535,6 +3643,7 @@
                                 <div class="form-group"><label>Email (optional)</label><input class="form-input" name="email" type="email"></div>
                                 <div class="form-group"><label>4-digit register PIN</label>
                                     <input class="form-input" name="pin" type="password" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" required placeholder="••••"></div>
+                                <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;"><input type="checkbox" name="canAuthorize" value="true"> Can approve discounts, voids, and refunds (manager PIN)</label>
                                 <button type="submit" class="btn btn-secondary"><i class="fas fa-cash-register"></i> Add register-only employee</button>
                             </form>
                         </div>
@@ -3589,6 +3698,15 @@
                         </div>
                         <div id="pos-shift-sessions-list"></div>
                     </div></div>
+                    <div class="card"><div class="card-content">
+                        <h3 style="margin:0 0 0.75rem;">Day summary &amp; daily email</h3>
+                        <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;margin-bottom:1rem;">
+                            <input type="date" id="pos-day-summary-date" class="form-input">
+                            <button type="button" class="btn btn-secondary btn-sm" id="pos-day-summary-btn">View day summary</button>
+                            <button type="button" class="btn btn-secondary btn-sm" id="pos-send-daily-sales-btn">Send test daily email</button>
+                        </div>
+                        <div id="pos-day-summary-output"></div>
+                    </div></div>
                 </div>
 
                 <div data-personnel-panel="timesheets" class="admin-section-stack" style="display:none;">
@@ -3616,6 +3734,8 @@
                     <button type="button" class="btn btn-secondary btn-sm" data-pos-tab="registers">Registers</button>
                     <button type="button" class="btn btn-secondary btn-sm" data-pos-tab="payments">Payments</button>
                     <button type="button" class="btn btn-secondary btn-sm" data-pos-tab="equipment">Equipment</button>
+                    <button type="button" class="btn btn-secondary btn-sm" data-pos-tab="license">License</button>
+                    <button type="button" class="btn btn-secondary btn-sm" data-pos-tab="support">Remote support</button>
                 </div>
 
                 <form id="pos-settings-form">
@@ -3658,6 +3778,20 @@
                                 <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;"><input type="checkbox" name="pos_receipt_show_phone" value="true"> Show phone</label>
                                 <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;"><input type="checkbox" name="pos_receipt_show_sku" value="true"> Show SKU</label>
                                 <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;"><input type="checkbox" name="pos_receipt_show_platform_line" value="true"> Business One line</label>
+                                <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;"><input type="checkbox" name="pos_receipt_show_cashier" value="true"> Cashier name</label>
+                                <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;"><input type="checkbox" name="pos_receipt_show_cash_savings" value="true"> Cash savings line</label>
+                                <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;"><input type="checkbox" name="pos_receipt_show_order_barcode" value="true"> Order barcode</label>
+                                <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;"><input type="checkbox" name="pos_receipt_auto_print" value="true"> Auto-print after sale</label>
+                            </div>
+                            <div class="form-group" style="margin-top:0.75rem;">
+                                <label for="pos-receipt-copy-count">Receipt copies</label>
+                                <input class="form-input" id="pos-receipt-copy-count" name="pos_receipt_copy_count" type="number" min="1" max="3" step="1" placeholder="2" style="max-width:8rem;">
+                                <p class="form-help" style="margin-top:0.35rem;">1 = customer only · 2 = customer + store · 3 adds an extra copy. No card numbers are printed (PCI-safe).</p>
+                            </div>
+                            <div class="form-group" style="margin-top:0.75rem;">
+                                <label for="pos-receipt-return-policy">Return policy line</label>
+                                <input class="form-input" id="pos-receipt-return-policy" name="pos_receipt_return_policy" type="text" maxlength="300" placeholder="e.g. Returns with receipt within 30 days on unopened items.">
+                                <p class="form-help" style="margin-top:0.35rem;">Printed on receipts as plain text only — not legal advice.</p>
                             </div>
                         </div>
                     </div>
@@ -3677,6 +3811,106 @@
                                     <label for="pos-pin-lockout">Lockout (minutes)</label>
                                     <input class="form-input" id="pos-pin-lockout" name="pos_pin_lockout_minutes" type="number" min="5" max="120" step="1" placeholder="15" style="max-width:8rem;">
                                 </div>
+                            </div>
+                            <div style="display:grid;gap:0.65rem;margin-top:0.85rem;">
+                                <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;"><input type="checkbox" name="pos_sign_out_after_sale" value="true"> Auto sign-out after each sale (shared registers)</label>
+                                <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;"><input type="checkbox" name="pos_require_manager_pin_discounts" value="true" checked> Manager PIN for line discounts above limit</label>
+                                <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;"><input type="checkbox" name="pos_require_manager_pin_void_refund" value="true" checked> Manager PIN for voids and refunds</label>
+                            </div>
+                            <div class="form-group" style="margin-top:0.75rem;">
+                                <label for="pos-max-line-discount">Max line discount without manager (%)</label>
+                                <input class="form-input" id="pos-max-line-discount" name="pos_max_line_discount_percent" type="number" min="0" max="100" step="1" placeholder="10" style="max-width:8rem;">
+                                <p class="form-help" style="margin-top:0.35rem;">Cashiers can apply up to this percent per line without a manager PIN. Use <strong>0</strong> to require manager approval for any discount.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-content">
+                            <h3 style="margin:0 0 0.35rem 0;">Operations &amp; reporting</h3>
+                            <p style="margin:0 0 1rem;color:var(--gray-600);font-size:0.88rem;"><strong>Current shift summary</strong> shows sales so far without closing the register. <strong>End-of-shift summary</strong> prints when a cashier closes their shift. Daily sales email uses your existing SMTP settings.</p>
+                            <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;margin-bottom:0.75rem;">
+                                <input type="checkbox" name="pos_daily_sales_email_enabled" value="true"> Email daily sales summary to owner
+                            </label>
+                            <div class="form-group">
+                                <label for="pos-daily-sales-email-to">Daily sales email recipient</label>
+                                <input class="form-input" id="pos-daily-sales-email-to" name="pos_daily_sales_email_to" type="email" maxlength="255" placeholder="Defaults to store email">
+                            </div>
+                            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:0.75rem;">
+                                <div class="form-group">
+                                    <label for="pos-daily-sales-email-hour">Send at hour (0–23)</label>
+                                    <input class="form-input" id="pos-daily-sales-email-hour" name="pos_daily_sales_email_hour" type="number" min="0" max="23" step="1" placeholder="21" style="max-width:8rem;">
+                                </div>
+                                <div class="form-group">
+                                    <label for="pos-daily-sales-email-minute">Minute</label>
+                                    <input class="form-input" id="pos-daily-sales-email-minute" name="pos_daily_sales_email_minute" type="number" min="0" max="59" step="1" placeholder="0" style="max-width:8rem;">
+                                </div>
+                            </div>
+                            <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;margin:0.75rem 0;">
+                                <input type="checkbox" name="pos_eod_reminder_enabled" value="true" checked> End-of-day reminder if shift still open
+                            </label>
+                            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:0.75rem;">
+                                <div class="form-group">
+                                    <label for="pos-eod-reminder-hour">Reminder hour (0–23)</label>
+                                    <input class="form-input" id="pos-eod-reminder-hour" name="pos_eod_reminder_hour" type="number" min="0" max="23" step="1" placeholder="20" style="max-width:8rem;">
+                                </div>
+                                <div class="form-group">
+                                    <label for="pos-eod-reminder-minute">Minute</label>
+                                    <input class="form-input" id="pos-eod-reminder-minute" name="pos_eod_reminder_minute" type="number" min="0" max="59" step="1" placeholder="0" style="max-width:8rem;">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-content">
+                            <h3 style="margin:0 0 0.35rem 0;">Register experience</h3>
+                            <p style="margin:0 0 1rem;color:var(--gray-600);font-size:0.88rem;">Touch-friendly layout, scan feedback, quick keys, and personnel mode for tablets at the register.</p>
+                            <div style="display:grid;gap:0.65rem;margin-bottom:0.85rem;">
+                                <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;"><input type="checkbox" name="pos_large_touch_mode" value="true"> Large touch mode (bigger category buttons)</label>
+                                <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;"><input type="checkbox" name="pos_scan_beep_enabled" value="true" checked> Beep when barcode scan finds a product</label>
+                                <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;"><input type="checkbox" name="pos_display_store_hours_idle" value="true" checked> Store hours on idle customer display</label>
+                                <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;"><input type="checkbox" name="pos_show_cost_in_cart" value="true"> Show product cost in cart</label>
+                            </div>
+                            <div class="form-group">
+                                <span class="form-label" style="display:block;margin-bottom:0.5rem;font-weight:600;">Personnel on this register</span>
+                                <div style="display:grid;gap:0.5rem;">
+                                    <label style="display:flex;align-items:flex-start;gap:0.5rem;cursor:pointer;">
+                                        <input type="radio" name="pos_personnel_mode" value="time_clock_and_pos" checked style="margin-top:0.2rem;">
+                                        <span><strong>Time clock + POS</strong> — clock in/out and ring sales (default)</span>
+                                    </label>
+                                    <label style="display:flex;align-items:flex-start;gap:0.5rem;cursor:pointer;">
+                                        <input type="radio" name="pos_personnel_mode" value="time_clock_only" style="margin-top:0.2rem;">
+                                        <span><strong>Time clock only</strong> — employees clock in/out; no sales screen</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="form-group" style="margin-top:0.85rem;">
+                                <label for="pos-quick-keys">Quick keys / favorites</label>
+                                <textarea class="form-input" id="pos-quick-keys" name="pos_quick_keys" rows="5" maxlength="4000" placeholder="sku:DEMO-VIT-C|Vitamin C&#10;category:vitamins|Vitamins"></textarea>
+                                <p class="form-help" style="margin-top:0.35rem;">One per line: <code>sku:SKU|Label</code> or <code>category:slug-or-id|Label</code>. Shown as pinned buttons on the register.</p>
+                                <p class="form-help" style="margin-top:0.35rem;">When <strong>Show product cost in cart</strong> is on, cost from each product’s admin record appears on the register for manual discount decisions. Cost is not printed on customer receipts.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-content">
+                            <h3 style="margin:0 0 0.35rem 0;">Register help</h3>
+                            <p style="margin:0 0 1rem;color:var(--gray-600);font-size:0.88rem;">Shown on the POS troubleshooting screen. Remote support notice is good practice — not legal advice.</p>
+                            <div class="form-group">
+                                <label for="pos-support-phone">Support phone</label>
+                                <input class="form-input" id="pos-support-phone" name="pos_support_phone" type="tel" maxlength="32" placeholder="e.g. (555) 123-4567">
+                            </div>
+                            <div class="form-group">
+                                <label for="pos-help-url">Help URL</label>
+                                <input class="form-input" id="pos-help-url" name="pos_help_url" type="url" maxlength="500" placeholder="https://yourstore.com/help">
+                            </div>
+                            <div class="form-group">
+                                <label for="pos-catalog-refresh-minutes">Catalog auto-refresh (minutes)</label>
+                                <input class="form-input" id="pos-catalog-refresh-minutes" name="pos_catalog_refresh_minutes" type="number" min="15" max="1440" step="1" placeholder="60" style="max-width:8rem;">
+                                <p class="form-help" style="margin-top:0.35rem;">How often registers refresh prices and stock when online (15–1440).</p>
+                            </div>
+                            <div class="form-group">
+                                <label for="pos-remote-support-notice">Remote support notice</label>
+                                <textarea class="form-input" id="pos-remote-support-notice" name="pos_remote_support_notice" rows="3" maxlength="500" placeholder="Authorized IT may connect with your permission…"></textarea>
                             </div>
                             <p data-pos-settings-save-msg style="min-height:1.25rem;font-size:0.9rem;margin:1rem 0 0;"></p>
                             <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
@@ -3713,8 +3947,8 @@
                         <div class="card-content">
                             <h3 style="margin:0 0 0.35rem 0;">Card payment processor</h3>
                             <p style="margin:0 0 1rem 0;color:var(--gray-600);font-size:0.88rem;">
-                                Controls <strong>website checkout</strong> and <strong>integrated in-store</strong> card payments.
-                                <strong>EPI</strong> is the default; use Durango only for high-risk products.
+                                Controls <strong>website checkout</strong> only. In-store POS can use a <strong>separate Durango account</strong>
+                                via <code>POS_NMI_*</code> keys in backend <code>.env</code>.
                             </p>
                             <div class="form-group">
                                 <span class="form-label" style="display:block;margin-bottom:0.5rem;font-weight:600;">Store processor</span>
@@ -3741,8 +3975,18 @@
                             <h4 style="margin:1.5rem 0 0.35rem 0;">In-store POS</h4>
                             <p style="margin:0 0 1rem 0;color:var(--gray-600);font-size:0.88rem;">
                                 Most stores use an <strong>external countertop terminal</strong> (lowest PCI scope).
-                                Assign a specific terminal under <strong>Equipment</strong> when you have more than one.
+                                For integrated Durango in-store, set <strong>POS processor</strong> to Durango and add
+                                <code>POS_NMI_PUBLIC_TOKENIZATION_KEY</code> / <code>POS_NMI_PRIVATE_API_KEY</code> in backend <code>.env</code>
+                                (separate from website <code>NMI_*</code> keys).
                             </p>
+                            <div class="form-group">
+                                <label for="pos-card-payment-processor">In-store card processor</label>
+                                <select class="form-input" id="pos-card-payment-processor" name="pos_card_payment_processor" style="max-width:20rem;">
+                                    <option value="inherit">Same as website</option>
+                                    <option value="epi">EPI (in-store)</option>
+                                    <option value="nmi_durango">Durango / NMI (in-store)</option>
+                                </select>
+                            </div>
                             <div class="form-group">
                                 <span class="form-label" style="display:block;margin-bottom:0.5rem;font-weight:600;">POS card handling</span>
                                 <div class="payment-processor-radios" role="radiogroup" aria-label="POS card handling">
@@ -3772,6 +4016,36 @@
                             <div class="form-group" id="pos-custom-driver-url-group">
                                 <label for="pos-custom-payment-driver-url">Custom driver script URL</label>
                                 <input class="form-input" id="pos-custom-payment-driver-url" name="pos_custom_payment_driver_url" type="url" maxlength="500" placeholder="/pos/js/payment-drivers/my-gateway.js">
+                            </div>
+                            <h4 style="margin:1.5rem 0 0.35rem 0;">Customer display &amp; A3700</h4>
+                            <p style="margin:0 0 1rem 0;color:var(--gray-600);font-size:0.88rem;">
+                                When using <strong>Integrated</strong> with Durango, choose whether the A3700 runs Durango&apos;s native payment UI or the Pay Point screen collects the card.
+                            </p>
+                            <div class="form-group">
+                                <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
+                                    <input type="checkbox" name="pos_display_card_checkout" value="true" checked>
+                                    Enable customer display / terminal card checkout
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label for="pos-card-display-mode">Card checkout screen</label>
+                                <select class="form-input" id="pos-card-display-mode" name="pos_card_display_mode" style="max-width:20rem;">
+                                    <option value="durango_terminal">Durango on A3700 (recommended)</option>
+                                    <option value="pos_display">Pay Point customer display (Collect.js fallback)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="pos-poi-device-id">Durango POI device ID (A3700)</label>
+                                <input class="form-input" id="pos-poi-device-id" name="pos_poi_device_id" type="text" maxlength="120" placeholder="From NMI/Durango portal">
+                                <p class="form-help" style="margin-top:0.35rem;">Required for Durango-on-terminal mode. Find this in your NMI device list for the A3700.</p>
+                            </div>
+                            <div class="form-group">
+                                <label for="pos-hardware-printer">Receipt printer driver</label>
+                                <select class="form-input" id="pos-hardware-printer" name="pos_hardware_printer" style="max-width:20rem;">
+                                    <option value="auto">Auto-detect (Elo Pay Point or browser print)</option>
+                                    <option value="elo_star">Elo Star printer (Pay Point)</option>
+                                    <option value="browser">Browser print dialog only</option>
+                                </select>
                             </div>
                             <p style="margin:0.75rem 0 0;color:var(--gray-600);font-size:0.85rem;">Save from the <strong>General</strong> tab after changing payment options.</p>
                         </div>
@@ -3835,7 +4109,130 @@
                         </div>
                     </div>
                 </div>
+
+                <div data-pos-panel="license" class="admin-section-stack" style="display:none;">
+                    <div class="card">
+                        <div class="card-content">
+                            <h3 style="margin:0 0 0.35rem 0;">Business One POS license</h3>
+                            <p style="margin:0 0 1rem 0;color:var(--gray-600);font-size:0.88rem;">
+                                $100/mo base (1 station) · +$50/mo stations 2–5 · +$25/mo station 6+.
+                                Billing via EPI when platform keys are configured. Enforcement is <strong>off</strong> until you set <code>POS_LICENSE_ENFORCE=true</code> on the server.
+                            </p>
+                            <div id="pos-license-summary" style="margin-bottom:1rem;padding:0.85rem 1rem;background:var(--gray-50);border-radius:8px;font-size:0.9rem;"></div>
+                            <form id="pos-license-form" style="display:grid;gap:0.75rem;max-width:32rem;">
+                                <div class="form-group">
+                                    <label for="pos-license-status">Status</label>
+                                    <select class="form-input" id="pos-license-status" name="status">
+                                        <option value="trial">Trial</option>
+                                        <option value="active">Active</option>
+                                        <option value="past_due">Past due</option>
+                                        <option value="canceled">Canceled</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="pos-license-stations">Licensed stations</label>
+                                    <input class="form-input" id="pos-license-stations" name="licensedStationCount" type="number" min="1" max="99" step="1" value="1" style="max-width:8rem;">
+                                    <p id="pos-license-pricing-hint" style="margin:0.35rem 0 0;color:var(--gray-600);font-size:0.85rem;"></p>
+                                </div>
+                                <div class="form-group">
+                                    <label for="pos-license-comped">Service comped until</label>
+                                    <input class="form-input" id="pos-license-comped" name="serviceCompedUntil" type="date" style="max-width:12rem;">
+                                    <p style="margin:0.35rem 0 0;color:var(--gray-600);font-size:0.85rem;">Free access through this date — no monthly charge while active.</p>
+                                </div>
+                                <div class="form-group">
+                                    <label for="pos-license-grace">Grace days override</label>
+                                    <input class="form-input" id="pos-license-grace" name="graceDaysOverride" type="number" min="0" max="30" step="1" placeholder="Default from server" style="max-width:8rem;">
+                                    <p style="margin:0.35rem 0 0;color:var(--gray-600);font-size:0.85rem;">Days after a failed payment before registers stop syncing. Leave blank for server default.</p>
+                                </div>
+                                <div class="form-group">
+                                    <label for="pos-license-business">Business name</label>
+                                    <input class="form-input" id="pos-license-business" name="businessName" maxlength="200">
+                                </div>
+                                <div class="form-group">
+                                    <label for="pos-license-email">Billing email</label>
+                                    <input class="form-input" id="pos-license-email" name="billingEmail" type="email" maxlength="255">
+                                </div>
+                                <div class="form-group">
+                                    <label for="pos-license-notes">Notes</label>
+                                    <textarea class="form-input" id="pos-license-notes" name="notes" rows="2" maxlength="2000"></textarea>
+                                </div>
+                                <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
+                                    <button type="submit" class="btn btn-primary">Save license</button>
+                                    <button type="button" class="btn btn-secondary" id="pos-license-reload-btn">Reload</button>
+                                    <button type="button" class="btn btn-ghost" id="pos-license-billing-run-btn">Test billing run</button>
+                                    <a class="btn btn-secondary" id="pos-license-billing-page-link" href="/pos-billing.html" target="_blank" rel="noopener">Billing signup page</a>
+                                </div>
+                                <p id="pos-license-form-msg" style="min-height:1.25rem;font-size:0.9rem;margin:0;"></p>
+                            </form>
+                            <div id="pos-license-waive-card" class="card" style="margin-top:1.25rem;max-width:32rem;display:none;">
+                                <div class="card-content">
+                                    <h4 style="margin:0 0 0.5rem 0;">Clear past due</h4>
+                                    <p style="margin:0 0 0.75rem 0;color:var(--gray-600);font-size:0.88rem;">Waive the missed payment and restore service. This only applies to the current past-due balance — nothing carries forward to future months.</p>
+                                    <p id="pos-license-past-due-owed" style="margin:0 0 0.75rem 0;font-size:0.95rem;"></p>
+                                    <form id="pos-license-waive-form" style="display:grid;gap:0.65rem;">
+                                        <div class="form-group" style="margin:0;">
+                                            <label for="pos-license-waive-note">Reason (optional)</label>
+                                            <input class="form-input" id="pos-license-waive-note" name="note" maxlength="200" placeholder="e.g. hardship, onboarding help">
+                                        </div>
+                                        <label style="display:flex;align-items:center;gap:0.4rem;font-size:0.88rem;">
+                                            <input type="checkbox" id="pos-license-waive-notify" name="notify" checked>
+                                            Email merchant that past due was cleared
+                                        </label>
+                                        <button type="submit" class="btn btn-secondary">Waive past due &amp; restore</button>
+                                        <p id="pos-license-waive-msg" style="min-height:1.25rem;font-size:0.9rem;margin:0;"></p>
+                                    </form>
+                                </div>
+                            </div>
+                            <p id="pos-license-leg-up-hint" style="margin-top:1rem;max-width:32rem;color:var(--gray-600);font-size:0.88rem;">For free access without a missed payment, use <em>Service comped until</em> above.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div data-pos-panel="support" class="admin-section-stack" style="display:none;">
+                    <div class="card">
+                        <div class="card-content">
+                            <h3 style="margin:0 0 0.35rem 0;">Remote support</h3>
+                            <p style="margin:0 0 1rem 0;color:var(--gray-600);font-size:0.88rem;">
+                                <strong>Connect screen</strong> — built into the POS on Windows and Android (cashier must allow).
+                                <strong>Full desktop</strong> — optional Windows RustDesk agent for printer/OS work.
+                            </p>
+                            <div id="pos-support-config-msg" style="margin-bottom:0.75rem;font-size:0.9rem;"></div>
+                            <div id="pos-support-agents-list" style="margin-bottom:1rem;"></div>
+                            <button type="button" class="btn btn-secondary btn-sm" id="pos-support-reload-btn">Reload</button>
+                        </div>
+                    </div>
+                </div>
             </section>
+
+            <div id="pos-support-connect-modal" class="modal-backdrop hidden" style="position:fixed;inset:0;background:rgba(15,23,42,0.45);z-index:9999;display:none;align-items:center;justify-content:center;padding:1rem;">
+                <div class="card" style="max-width:28rem;width:100%;margin:0;">
+                    <div class="card-content">
+                        <h3 style="margin:0 0 0.75rem 0;">Connect remote desktop</h3>
+                        <p id="pos-support-connect-machine" style="margin:0 0 0.5rem 0;font-weight:600;"></p>
+                        <p style="margin:0 0 0.75rem 0;color:var(--gray-600);font-size:0.88rem;">Open RustDesk on your PC or use the browser link. The customer machine must stay on.</p>
+                        <div class="form-group">
+                            <label>Remote ID</label>
+                            <div style="display:flex;gap:0.5rem;">
+                                <input class="form-input" id="pos-support-rd-id" readonly>
+                                <button type="button" class="btn btn-secondary btn-sm" id="pos-support-copy-id">Copy</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Password</label>
+                            <div style="display:flex;gap:0.5rem;">
+                                <input class="form-input" id="pos-support-rd-password" readonly type="password">
+                                <button type="button" class="btn btn-secondary btn-sm" id="pos-support-copy-password">Copy</button>
+                                <button type="button" class="btn btn-ghost btn-sm" id="pos-support-toggle-password">Show</button>
+                            </div>
+                        </div>
+                        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.75rem;">
+                            <a class="btn btn-primary" id="pos-support-web-connect" href="#" target="_blank" rel="noopener" style="display:none;">Open in browser</a>
+                            <button type="button" class="btn btn-secondary" id="pos-support-open-rustdesk">Open RustDesk</button>
+                            <button type="button" class="btn btn-ghost" id="pos-support-connect-close">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             <!-- Settings Section -->
             <section id="settings" class="content-section">
@@ -3867,6 +4264,42 @@
                         <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-top:0.25rem;">
                             <button type="submit" class="btn btn-primary">Save employee discount</button>
                             <button type="button" class="btn btn-secondary" id="employee-discount-reload-btn">Reload</button>
+                        </div>
+                    </div>
+                </div>
+                </form>
+
+                <form id="inventory-settings-form">
+                <div class="card">
+                    <div class="card-content">
+                        <h3 style="margin: 0 0 0.25rem 0;">Inventory (website)</h3>
+                        <p style="margin: 0 0 1rem 0; color: var(--gray-600); font-size: 0.92rem;">
+                            Control low-stock warnings, overselling, and how out-of-stock items appear on the storefront.
+                            By default, out-of-stock products stay visible but cannot be added to cart.
+                        </p>
+                        <div class="form-group">
+                            <label for="inventory-global-low-stock">Global low-stock threshold</label>
+                            <input class="form-input" id="inventory-global-low-stock" name="inventory_global_low_stock_threshold" type="number" min="0" max="9999" step="1" placeholder="5" style="max-width:8rem;">
+                            <p class="form-help" style="margin-top:0.35rem;">Used when a product has no per-item threshold. Warns shoppers and flags items in Admin → Low stock.</p>
+                        </div>
+                        <div class="form-group">
+                            <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
+                                <input type="checkbox" id="inventory-allow-oversell" name="inventory_allow_oversell" value="true">
+                                Allow oversell (sell when quantity is zero)
+                            </label>
+                            <p class="form-help" style="margin-top:0.35rem;">When off, checkout blocks zero-quantity sales. Individual products can still allow backorders via <strong>Allow backorder</strong> on the product.</p>
+                        </div>
+                        <div class="form-group">
+                            <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
+                                <input type="checkbox" id="inventory-hide-out-of-stock" name="inventory_hide_out_of_stock" value="true">
+                                Hide out-of-stock from browse grids
+                            </label>
+                            <p class="form-help" style="margin-top:0.35rem;">When off (recommended), out-of-stock items remain visible with an <em>Out of Stock</em> label and a disabled Add to Cart button.</p>
+                        </div>
+                        <p data-inventory-settings-save-msg style="min-height:1.25rem;font-size:0.9rem;margin:0.5rem 0 0;"></p>
+                        <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-top:0.25rem;">
+                            <button type="submit" class="btn btn-primary">Save inventory settings</button>
+                            <button type="button" class="btn btn-secondary" id="inventory-settings-reload-btn">Reload</button>
                         </div>
                     </div>
                 </div>
@@ -3912,6 +4345,11 @@
                                 <div class="form-group">
                                     <label for="store-info-postal-code">Postal Code</label>
                                     <input class="form-input" id="store-info-postal-code" name="store_postal_code" type="text" maxlength="30" placeholder="30742">
+                                </div>
+                                <div class="form-group">
+                                    <label for="store-info-tax-rate">Sales tax rate (%)</label>
+                                    <input class="form-input" id="store-info-tax-rate" name="tax_rate" type="number" min="0" max="100" step="0.001" placeholder="8">
+                                    <p style="margin:0.35rem 0 0;color:var(--gray-500);font-size:0.84rem;">Used for website cart estimates, checkout, and Business One POS. Example: 8 for 8%.</p>
                                 </div>
                             </div>
                             <div class="form-group">
@@ -4184,6 +4622,34 @@
 
                     <div class="card">
                         <div class="card-content">
+                            <h3 style="margin:0 0 0.25rem 0;">Import inventory from CSV</h3>
+                            <p style="margin:0 0 1rem 0;color:var(--gray-600);font-size:0.92rem;line-height:1.55;">
+                                Migrate products from another POS or vendor file. Same importer as
+                                <strong>Import Products</strong> in the sidebar — useful when onboarding a new store.
+                                Download the template, fill in SKU, name, price, cost, quantity, descriptions, and image URLs, then upload.
+                            </p>
+                            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem;">
+                                <button type="button" class="btn btn-secondary btn-sm" onclick="downloadProductImportTemplate()">
+                                    <i class="fas fa-download" aria-hidden="true"></i> Download CSV template
+                                </button>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="devCsvFile">Select CSV file</label>
+                                <input type="file" id="devCsvFile" class="form-input" accept=".csv,text/csv">
+                            </div>
+                            <button type="button" class="btn btn-primary" id="dev-import-products-btn"
+                                onclick="importProducts('devCsvFile','devImportProgress','devImportResults')">
+                                <i class="fas fa-upload" aria-hidden="true"></i> Import products
+                            </button>
+                            <div id="devImportProgress" style="margin-top:1rem;display:none;">
+                                <div class="loading"><div class="spinner"></div>Importing products…</div>
+                            </div>
+                            <div id="devImportResults" style="margin-top:1rem;display:none;"></div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-content">
                             <h3 style="margin:0 0 0.25rem 0;">Database backup</h3>
                             <p style="margin:0 0 1rem 0;color:var(--gray-600);font-size:0.92rem;">
                                 Download a full SQL backup of the live database (customers, orders, tax data, products, and settings).
@@ -4231,7 +4697,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="admin-personnel-pos.js"></script>
     <script src="admin-pos-hub.js"></script>
-    <script src="admin-app.js?v=20260616l"></script>
+    <script src="admin-app.js?v=20260617g"></script>
     <script src="admin-edsa-calendar.js"></script>
     <script src="admin-customers.js"></script>
     <script src="admin-customer-groups.js"></script>

@@ -1,98 +1,130 @@
-// Product Import Script for HM Herbs
-// Handles bulk import of products from CSV/Excel files
+'use strict';
 
 const fs = require('fs').promises;
+const fsSync = require('fs');
+const { Readable } = require('stream');
 const csv = require('csv-parser');
 const path = require('path');
 const { loadBackendEnv, createPool } = require('../utils/dbConfig');
 
 loadBackendEnv();
 
-class ProductImporter {
-    constructor() {
-        this.pool = createPool({ connectionLimit: 10, queueLimit: 0 });
+function pickField(row, keys) {
+    for (const key of keys) {
+        const value = row[key];
+        if (value != null && String(value).trim() !== '') {
+            return String(value).trim();
+        }
+    }
+    return '';
+}
 
+function parseMoney(value, fallback = 0) {
+    if (value == null || value === '') return fallback;
+    const cleaned = String(value).replace(/[$,\s]/g, '');
+    const n = parseFloat(cleaned);
+    return Number.isFinite(n) ? n : fallback;
+}
+
+function parseIntQty(value, fallback = 0) {
+    if (value == null || value === '') return fallback;
+    const n = parseInt(String(value).replace(/,/g, ''), 10);
+    return Number.isFinite(n) ? n : fallback;
+}
+
+function parseBool(value, defaultValue = true) {
+    if (value == null || value === '') return defaultValue;
+    const normalized = String(value).trim().toLowerCase();
+    if (['true', 'yes', 'y', '1'].includes(normalized)) return true;
+    if (['false', 'no', 'n', '0'].includes(normalized)) return false;
+    return defaultValue;
+}
+
+class ProductImporter {
+    /**
+     * @param {import('mysql2/promise').Pool} [pool]
+     */
+    constructor(pool = null) {
+        this.pool = pool || createPool({ connectionLimit: 10, queueLimit: 0 });
+        this.ownsPool = !pool;
+        this.resetStats();
+    }
+
+    resetStats() {
         this.importStats = {
             total: 0,
             success: 0,
+            created: 0,
+            updated: 0,
             errors: 0,
-            skipped: 0
+            skipped: 0,
+            errorDetails: []
         };
     }
 
-    // Main import function
+    getStats() {
+        return { ...this.importStats };
+    }
+
     async importFromCSV(filePath) {
         console.log(`Starting import from: ${filePath}`);
-
-        try {
-            const products = await this.parseCSV(filePath);
-            console.log(`Found ${products.length} products to import`);
-
-            this.importStats.total = products.length;
-
-            for (const product of products) {
-                try {
-                    await this.importSingleProduct(product);
-                    this.importStats.success++;
-
-                    if (this.importStats.success % 100 === 0) {
-                        console.log(`Imported ${this.importStats.success} products...`);
-                    }
-                } catch (error) {
-                    console.error(`Error importing product ${product.name}:`, error.message);
-                    this.importStats.errors++;
-                }
-            }
-
-            this.printImportSummary();
-
-        } catch (error) {
-            console.error('Import failed:', error);
-        }
+        const products = await this.parseCSVFile(filePath);
+        return this.importProductList(products);
     }
 
-    // Import from JSON file (for scraped products)
+    async importFromBuffer(buffer) {
+        const products = await this.parseCSVBuffer(buffer);
+        return this.importProductList(products);
+    }
+
+    async importProductList(products) {
+        this.resetStats();
+        this.importStats.total = products.length;
+        console.log(`Found ${products.length} products to import`);
+
+        for (let index = 0; index < products.length; index++) {
+            const product = products[index];
+            if (!product) {
+                this.importStats.skipped++;
+                continue;
+            }
+            try {
+                const result = await this.importSingleProduct(product);
+                this.importStats.success++;
+                if (result === 'created') this.importStats.created++;
+                else this.importStats.updated++;
+
+                if (this.importStats.success % 100 === 0) {
+                    console.log(`Imported ${this.importStats.success} products...`);
+                }
+            } catch (error) {
+                console.error(`Error importing product ${product.name}:`, error.message);
+                this.importStats.errors++;
+                if (this.importStats.errorDetails.length < 25) {
+                    this.importStats.errorDetails.push({
+                        row: index + 2,
+                        sku: product.sku || '',
+                        name: product.name || '',
+                        message: error.message
+                    });
+                }
+            }
+        }
+
+        this.printImportSummary();
+        return this.getStats();
+    }
+
     async importFromJSON(filePath) {
         console.log(`Starting import from JSON: ${filePath}`);
-
-        try {
-            const fileContent = await fs.readFile(filePath, 'utf8');
-            const jsonData = JSON.parse(fileContent);
-            const products = jsonData.products || [];
-
-            console.log(`Found ${products.length} products to import`);
-
-            this.importStats.total = products.length;
-
-            for (const product of products) {
-                try {
-                    // Map JSON product to import format
-                    const mappedProduct = this.mapJSONToProduct(product);
-                    if (mappedProduct) {
-                        await this.importSingleProduct(mappedProduct);
-                        this.importStats.success++;
-
-                        if (this.importStats.success % 100 === 0) {
-                            console.log(`Imported ${this.importStats.success} products...`);
-                        }
-                    } else {
-                        this.importStats.skipped++;
-                    }
-                } catch (error) {
-                    console.error(`Error importing product ${product.name || 'Unknown'}:`, error.message);
-                    this.importStats.errors++;
-                }
-            }
-
-            this.printImportSummary();
-
-        } catch (error) {
-            console.error('Import failed:', error);
-            throw error;
-        }
+        const fileContent = await fs.readFile(filePath, 'utf8');
+        const jsonData = JSON.parse(fileContent);
+        const products = (jsonData.products || [])
+            .map((product) => this.mapJSONToProduct(product))
+            .filter(Boolean);
+        return this.importProductList(products);
     }
 
-    // Map JSON product to import format
     mapJSONToProduct(jsonProduct) {
         try {
             return {
@@ -109,18 +141,23 @@ class ProductImporter {
                 })(),
                 brand: jsonProduct.brand || 'Unknown',
                 category: jsonProduct.category || 'General',
-                price: parseFloat(jsonProduct.price || 0),
-                compare_price: parseFloat(jsonProduct.comparePrice || 0) || null,
-                weight: parseFloat(jsonProduct.weight || 0) || null,
-                inventory_quantity: parseInt(jsonProduct.inventory || jsonProduct.inStock ? 10 : 0),
+                price: parseMoney(jsonProduct.price, 0),
+                cost_price: parseMoney(jsonProduct.cost ?? jsonProduct.costPrice, null) || null,
+                compare_price: parseMoney(jsonProduct.comparePrice, null) || null,
+                weight: parseMoney(jsonProduct.weight, null) || null,
+                inventory_quantity: parseIntQty(jsonProduct.inventory ?? (jsonProduct.inStock ? 10 : 0), 0),
+                track_inventory: jsonProduct.trackInventory !== false,
+                is_taxable: jsonProduct.isTaxable !== false,
+                low_stock_threshold: parseIntQty(jsonProduct.lowStockThreshold, 10),
                 is_active: jsonProduct.inStock !== false,
-                is_featured: false,
+                is_featured: Boolean(jsonProduct.isFeatured),
+                show_on_web: jsonProduct.showOnWeb !== false && jsonProduct.show_on_web !== false,
                 health_categories: jsonProduct.healthCategories || [],
-                images: (jsonProduct.images || []).map(img => ({
+                images: (jsonProduct.images || []).map((img) => ({
                     url: typeof img === 'string' ? img : (img.url || ''),
                     alt: typeof img === 'string' ? '' : (img.alt || '')
                 })),
-                variants: []
+                variants: jsonProduct.variants || []
             };
         } catch (error) {
             console.error('Error mapping JSON product:', error);
@@ -128,50 +165,104 @@ class ProductImporter {
         }
     }
 
-    // Parse CSV file
-    async parseCSV(filePath) {
+    async parseCSVFile(filePath) {
         return new Promise((resolve, reject) => {
             const products = [];
-            const stream = require('fs').createReadStream(filePath);
-
-            stream
+            fsSync.createReadStream(filePath)
                 .pipe(csv())
                 .on('data', (row) => {
-                    // Map CSV columns to product structure
                     const product = this.mapCSVToProduct(row);
-                    if (product) {
-                        products.push(product);
-                    }
+                    if (product) products.push(product);
                 })
-                .on('end', () => {
-                    resolve(products);
-                })
-                .on('error', (error) => {
-                    reject(error);
-                });
+                .on('end', () => resolve(products))
+                .on('error', reject);
         });
     }
 
-    // Map CSV row to product object
+    async parseCSVBuffer(buffer) {
+        return new Promise((resolve, reject) => {
+            const products = [];
+            Readable.from(buffer)
+                .pipe(csv())
+                .on('data', (row) => {
+                    const product = this.mapCSVToProduct(row);
+                    if (product) products.push(product);
+                })
+                .on('end', () => resolve(products))
+                .on('error', reject);
+        });
+    }
+
     mapCSVToProduct(row) {
         try {
+            const name = pickField(row, [
+                'name', 'Name', 'Product Name', 'product_name', 'title', 'Item Name', 'item_name'
+            ]);
+            if (!name) return null;
+
+            const sku =
+                pickField(row, ['sku', 'SKU', 'Product Code', 'product_code', 'Item Number', 'item_number']) ||
+                pickField(row, ['barcode', 'Barcode', 'UPC', 'upc', 'EAN', 'ean']) ||
+                this.generateSKU();
+
+            const shortDesc = pickField(row, [
+                'short_description', 'Short Description', 'short_desc', 'summary'
+            ]);
+            const longDesc = pickField(row, [
+                'description', 'Description', 'Long Description', 'long_description', 'details'
+            ]);
+
             return {
-                sku: row.sku || row.SKU || row['Product Code'] || this.generateSKU(),
-                name: row.name || row.Name || row['Product Name'] || row.title,
-                slug: this.generateSlug(row.name || row.Name || row['Product Name']),
-                short_description: row.short_description || row['Short Description'] || '',
-                long_description: row.description || row.Description || row['Long Description'] || '',
-                brand: row.brand || row.Brand || row.manufacturer || 'Unknown',
-                category: row.category || row.Category || 'General',
-                price: parseFloat(row.price || row.Price || row.cost || 0),
-                compare_price: parseFloat(row.compare_price || row['Compare Price'] || row.msrp || 0) || null,
-                weight: parseFloat(row.weight || row.Weight || 0) || null,
-                inventory_quantity: parseInt(row.inventory || row.Inventory || row.stock || 0),
-                is_active: (row.active || row.Active || 'true').toLowerCase() === 'true',
-                is_featured: (row.featured || row.Featured || 'false').toLowerCase() === 'true',
-                health_categories: this.parseHealthCategories(row.health_categories || row['Health Categories'] || ''),
-                images: this.parseImages(row.images || row.Images || row.image_url || ''),
-                variants: this.parseVariants(row.variants || row.Variants || '')
+                sku,
+                name,
+                slug: this.generateSlug(name),
+                short_description: shortDesc,
+                long_description: longDesc || shortDesc,
+                brand: pickField(row, ['brand', 'Brand', 'manufacturer', 'Manufacturer', 'vendor', 'Vendor']) || 'Unknown',
+                category: pickField(row, ['category', 'Category', 'department', 'Department']) || 'General',
+                price: parseMoney(pickField(row, ['price', 'Price', 'retail_price', 'Retail Price', 'sell_price', 'Sell Price']), 0),
+                cost_price: (() => {
+                    const raw = pickField(row, ['cost', 'Cost', 'cost_price', 'wholesale', 'Wholesale']);
+                    return raw ? parseMoney(raw, null) : null;
+                })(),
+                compare_price: (() => {
+                    const raw = pickField(row, ['compare_price', 'Compare Price', 'msrp', 'MSRP']);
+                    return raw ? parseMoney(raw, null) : null;
+                })(),
+                weight: (() => {
+                    const raw = pickField(row, ['weight', 'Weight']);
+                    return raw ? parseMoney(raw, null) : null;
+                })(),
+                inventory_quantity: parseIntQty(
+                    pickField(row, [
+                        'quantity', 'qty', 'Qty', 'inventory', 'Inventory', 'stock', 'Stock',
+                        'on_hand', 'On Hand', 'quantity_on_hand'
+                    ]),
+                    0
+                ),
+                track_inventory: parseBool(pickField(row, ['track_inventory', 'Track Inventory', 'track_stock']), true),
+                is_taxable: parseBool(pickField(row, ['is_taxable', 'taxable', 'Taxable']), true),
+                low_stock_threshold: parseIntQty(
+                    pickField(row, ['low_stock_threshold', 'Low Stock', 'low_stock', 'reorder_level']),
+                    10
+                ),
+                is_active: parseBool(pickField(row, ['is_active', 'active', 'Active']), true),
+                is_featured: parseBool(pickField(row, ['is_featured', 'featured', 'Featured']), false),
+                show_on_web: (() => {
+                    const posOnly = pickField(row, ['pos_only', 'POS Only', 'in_store_only', 'In Store Only']);
+                    if (posOnly) return !parseBool(posOnly, false);
+                    return parseBool(
+                        pickField(row, ['show_on_web', 'Show On Web', 'web_visible', 'Web Visible']),
+                        true
+                    );
+                })(),
+                health_categories: this.parseHealthCategories(
+                    pickField(row, ['health_categories', 'Health Categories'])
+                ),
+                images: this.parseImages(
+                    pickField(row, ['image_url', 'images', 'Images', 'Image URL', 'image', 'Image', 'photo', 'Photo'])
+                ),
+                variants: this.parseVariants(pickField(row, ['variants', 'Variants']))
             };
         } catch (error) {
             console.error('Error mapping CSV row:', error);
@@ -179,49 +270,37 @@ class ProductImporter {
         }
     }
 
-    // Import single product
     async importSingleProduct(productData) {
         const connection = await this.pool.getConnection();
 
         try {
             await connection.beginTransaction();
 
-            // Get or create brand
             const brandId = await this.getOrCreateBrand(connection, productData.brand);
-
-            // Get or create category
             const categoryId = await this.getOrCreateCategory(connection, productData.category);
 
-            // Check if product already exists by SKU first
-            let [existing] = await connection.execute(
-                'SELECT id FROM products WHERE sku = ?',
-                [productData.sku]
-            );
+            let [existing] = await connection.execute('SELECT id, sku FROM products WHERE sku = ?', [productData.sku]);
 
-            // Fallback: Check by Name if SKU not found or if it's a generated SKU
             if (existing.length === 0 || productData.sku.startsWith('HM-')) {
                 const [existingByName] = await connection.execute(
                     'SELECT id, sku FROM products WHERE name = ?',
                     [productData.name]
                 );
                 if (existingByName.length > 0) {
-                    // Use the existing one
                     existing = existingByName;
                 }
             }
 
             let productId;
+            let action = 'created';
 
             if (existing.length > 0) {
-                // Update existing product
+                action = 'updated';
                 productId = existing[0].id;
 
-                // If the existing one has a real SKU and we have a generated one, don't overwrite SKU
-                const skuToUse = (existing[0].sku && !existing[0].sku.startsWith('HM-'))
-                    ? existing[0].sku
-                    : productData.sku;
+                const skuToUse =
+                    existing[0].sku && !existing[0].sku.startsWith('HM-') ? existing[0].sku : productData.sku;
 
-                // SMART BRAND/CATEGORY UPDATE: Don't overwrite real names with "Unknown"/"General"
                 const [currentValues] = await connection.execute(
                     'SELECT brand_id, category_id FROM products WHERE id = ?',
                     [productId]
@@ -231,69 +310,104 @@ class ProductImporter {
                 let categoryIdToUse = categoryId;
 
                 if (productData.brand === 'Unknown' || productData.brand === '') {
-                    // Check if current brand is better than "Unknown"
-                    const [currentBrand] = await connection.execute('SELECT name FROM brands WHERE id = ?', [currentValues[0].brand_id]);
+                    const [currentBrand] = await connection.execute('SELECT name FROM brands WHERE id = ?', [
+                        currentValues[0].brand_id
+                    ]);
                     if (currentBrand.length > 0 && currentBrand[0].name !== 'Unknown') {
                         brandIdToUse = currentValues[0].brand_id;
                     }
                 }
 
                 if (productData.category === 'General' || productData.category === '') {
-                    // Check if current category is better than "General"
-                    const [currentCategory] = await connection.execute('SELECT name FROM product_categories WHERE id = ?', [currentValues[0].category_id]);
-                    if (currentCategory.length > 0 && currentCategory[0].name !== 'General' && currentCategory[0].name !== 'Unknown') {
+                    const [currentCategory] = await connection.execute(
+                        'SELECT name FROM product_categories WHERE id = ?',
+                        [currentValues[0].category_id]
+                    );
+                    if (
+                        currentCategory.length > 0 &&
+                        currentCategory[0].name !== 'General' &&
+                        currentCategory[0].name !== 'Unknown'
+                    ) {
                         categoryIdToUse = currentValues[0].category_id;
                     }
                 }
 
-                await connection.execute(`
-                    UPDATE products SET 
+                await connection.execute(
+                    `UPDATE products SET
                         sku = ?, name = ?, slug = ?, short_description = ?, long_description = ?,
-                        brand_id = ?, category_id = ?, price = ?, compare_price = ?,
-                        weight = ?, inventory_quantity = ?, is_active = ?, is_featured = ?,
+                        brand_id = ?, category_id = ?, price = ?, compare_price = ?, cost_price = ?,
+                        weight = ?, inventory_quantity = ?, track_inventory = ?, is_taxable = ?,
+                        low_stock_threshold = ?, is_active = ?, is_featured = ?, show_on_web = ?,
                         updated_at = CURRENT_TIMESTAMP
-                    WHERE id = ?
-                `, [
-                    skuToUse, productData.name, productData.slug, productData.short_description,
-                    productData.long_description, brandIdToUse, categoryIdToUse, productData.price,
-                    productData.compare_price, productData.weight, productData.inventory_quantity,
-                    productData.is_active, productData.is_featured, productId
-                ]);
+                     WHERE id = ?`,
+                    [
+                        skuToUse,
+                        productData.name,
+                        productData.slug,
+                        productData.short_description,
+                        productData.long_description,
+                        brandIdToUse,
+                        categoryIdToUse,
+                        productData.price,
+                        productData.compare_price,
+                        productData.cost_price,
+                        productData.weight,
+                        productData.inventory_quantity,
+                        productData.track_inventory ? 1 : 0,
+                        productData.is_taxable ? 1 : 0,
+                        productData.low_stock_threshold,
+                        productData.is_active ? 1 : 0,
+                        productData.is_featured ? 1 : 0,
+                        productData.show_on_web !== false ? 1 : 0,
+                        productId
+                    ]
+                );
             } else {
-                // Insert new product
-                const [result] = await connection.execute(`
-                    INSERT INTO products (
+                const [result] = await connection.execute(
+                    `INSERT INTO products (
                         sku, name, slug, short_description, long_description,
-                        brand_id, category_id, price, compare_price, weight,
-                        inventory_quantity, is_active, is_featured
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                `, [
-                    productData.sku, productData.name, productData.slug,
-                    productData.short_description, productData.long_description,
-                    brandId, categoryId, productData.price, productData.compare_price,
-                    productData.weight, productData.inventory_quantity,
-                    productData.is_active, productData.is_featured
-                ]);
+                        brand_id, category_id, price, compare_price, cost_price, weight,
+                        inventory_quantity, track_inventory, is_taxable, low_stock_threshold,
+                        is_active, is_featured, show_on_web
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [
+                        productData.sku,
+                        productData.name,
+                        productData.slug,
+                        productData.short_description,
+                        productData.long_description,
+                        brandId,
+                        categoryId,
+                        productData.price,
+                        productData.compare_price,
+                        productData.cost_price,
+                        productData.weight,
+                        productData.inventory_quantity,
+                        productData.track_inventory ? 1 : 0,
+                        productData.is_taxable ? 1 : 0,
+                        productData.low_stock_threshold,
+                        productData.is_active ? 1 : 0,
+                        productData.is_featured ? 1 : 0,
+                        productData.show_on_web !== false ? 1 : 0
+                    ]
+                );
                 productId = result.insertId;
             }
 
-            // Handle health categories
             if (productData.health_categories.length > 0) {
                 await this.assignHealthCategories(connection, productId, productData.health_categories);
             }
 
-            // Handle images
             if (productData.images.length > 0) {
                 await this.addProductImages(connection, productId, productData.images);
             }
 
-            // Handle variants
             if (productData.variants.length > 0) {
                 await this.addProductVariants(connection, productId, productData.variants);
             }
 
             await connection.commit();
-
+            return action;
         } catch (error) {
             await connection.rollback();
             throw error;
@@ -302,51 +416,32 @@ class ProductImporter {
         }
     }
 
-    // Get or create brand
     async getOrCreateBrand(connection, brandName) {
-        const [existing] = await connection.execute(
-            'SELECT id FROM brands WHERE name = ?',
-            [brandName]
-        );
+        const [existing] = await connection.execute('SELECT id FROM brands WHERE name = ?', [brandName]);
+        if (existing.length > 0) return existing[0].id;
 
-        if (existing.length > 0) {
-            return existing[0].id;
-        }
-
-        const [result] = await connection.execute(
-            'INSERT INTO brands (name, slug) VALUES (?, ?)',
-            [brandName, this.generateSlug(brandName)]
-        );
-
+        const [result] = await connection.execute('INSERT INTO brands (name, slug) VALUES (?, ?)', [
+            brandName,
+            this.generateSlug(brandName)
+        ]);
         return result.insertId;
     }
 
-    // Get or create category
     async getOrCreateCategory(connection, categoryName) {
-        const [existing] = await connection.execute(
-            'SELECT id FROM product_categories WHERE name = ?',
-            [categoryName]
-        );
+        const [existing] = await connection.execute('SELECT id FROM product_categories WHERE name = ?', [
+            categoryName
+        ]);
+        if (existing.length > 0) return existing[0].id;
 
-        if (existing.length > 0) {
-            return existing[0].id;
-        }
-
-        const [result] = await connection.execute(
-            'INSERT INTO product_categories (name, slug) VALUES (?, ?)',
-            [categoryName, this.generateSlug(categoryName)]
-        );
-
+        const [result] = await connection.execute('INSERT INTO product_categories (name, slug) VALUES (?, ?)', [
+            categoryName,
+            this.generateSlug(categoryName)
+        ]);
         return result.insertId;
     }
 
-    // Assign health categories
     async assignHealthCategories(connection, productId, healthCategories) {
-        // Clear existing assignments
-        await connection.execute(
-            'DELETE FROM product_health_categories WHERE product_id = ?',
-            [productId]
-        );
+        await connection.execute('DELETE FROM product_health_categories WHERE product_id = ?', [productId]);
 
         for (const categoryName of healthCategories) {
             const [category] = await connection.execute(
@@ -363,13 +458,8 @@ class ProductImporter {
         }
     }
 
-    // Add product images
     async addProductImages(connection, productId, images) {
-        // Clear existing images
-        await connection.execute(
-            'DELETE FROM product_images WHERE product_id = ?',
-            [productId]
-        );
+        await connection.execute('DELETE FROM product_images WHERE product_id = ?', [productId]);
 
         for (let i = 0; i < images.length; i++) {
             const image = images[i];
@@ -380,24 +470,25 @@ class ProductImporter {
         }
     }
 
-    // Add product variants
     async addProductVariants(connection, productId, variants) {
-        // Clear existing variants
-        await connection.execute(
-            'DELETE FROM product_variants WHERE product_id = ?',
-            [productId]
-        );
+        await connection.execute('DELETE FROM product_variants WHERE product_id = ?', [productId]);
 
         for (let i = 0; i < variants.length; i++) {
             const variant = variants[i];
             await connection.execute(
                 'INSERT INTO product_variants (product_id, sku, name, price, inventory_quantity, sort_order) VALUES (?, ?, ?, ?, ?, ?)',
-                [productId, variant.sku, variant.name, variant.price, variant.inventory || 0, i]
+                [
+                    productId,
+                    variant.sku,
+                    variant.name,
+                    variant.price,
+                    variant.inventory ?? variant.inventory_quantity ?? 0,
+                    i
+                ]
             );
         }
     }
 
-    // Utility functions
     generateSlug(text) {
         return text
             .toLowerCase()
@@ -406,24 +497,27 @@ class ProductImporter {
     }
 
     generateSKU() {
-        return 'HM-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+        return `HM-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     }
 
     parseHealthCategories(categoriesString) {
         if (!categoriesString) return [];
-        return categoriesString.split(',').map(cat => cat.trim()).filter(cat => cat);
+        return categoriesString.split(',').map((cat) => cat.trim()).filter(Boolean);
     }
 
     parseImages(imagesString) {
         if (!imagesString) return [];
-        const urls = imagesString.split(',').map(url => url.trim()).filter(url => url);
-        return urls.map(url => ({ url, alt: '' }));
+        const urls = imagesString.split('|').length > 1
+            ? imagesString.split('|')
+            : imagesString.split(',');
+        return urls.map((url) => url.trim()).filter(Boolean).map((url) => ({ url, alt: '' }));
     }
 
     parseVariants(variantsString) {
         if (!variantsString) return [];
         try {
-            return JSON.parse(variantsString);
+            const parsed = JSON.parse(variantsString);
+            return Array.isArray(parsed) ? parsed : [];
         } catch {
             return [];
         }
@@ -433,21 +527,26 @@ class ProductImporter {
         console.log('\n=== IMPORT SUMMARY ===');
         console.log(`Total products processed: ${this.importStats.total}`);
         console.log(`Successfully imported: ${this.importStats.success}`);
+        console.log(`  Created: ${this.importStats.created}`);
+        console.log(`  Updated: ${this.importStats.updated}`);
         console.log(`Errors: ${this.importStats.errors}`);
         console.log(`Skipped: ${this.importStats.skipped}`);
         console.log('======================\n');
     }
+
+    async close() {
+        if (this.ownsPool) {
+            await this.pool.end();
+        }
+    }
 }
 
-// CLI usage
 if (require.main === module) {
     const filePath = process.argv[2];
-    const fileType = process.argv[3] || 'auto'; // 'csv', 'json', or 'auto'
+    const fileType = process.argv[3] || 'auto';
 
     if (!filePath) {
         console.log('Usage: node import-products.js <file-path> [csv|json|auto]');
-        console.log('Example: node import-products.js ./data/products.csv');
-        console.log('Example: node import-products.js ./data/complete-scraped-products.json json');
         process.exit(1);
     }
 
@@ -455,18 +554,14 @@ if (require.main === module) {
     const ext = path.extname(filePath).toLowerCase();
     const importType = fileType === 'auto' ? (ext === '.json' ? 'json' : 'csv') : fileType;
 
-    const importPromise = importType === 'json'
-        ? importer.importFromJSON(filePath)
-        : importer.importFromCSV(filePath);
+    const importPromise =
+        importType === 'json' ? importer.importFromJSON(filePath) : importer.importFromCSV(filePath);
 
     importPromise
-        .then(() => {
-            console.log('Import completed!');
-            process.exit(0);
-        })
+        .then(() => importer.close().then(() => process.exit(0)))
         .catch((error) => {
             console.error('Import failed:', error);
-            process.exit(1);
+            importer.close().finally(() => process.exit(1));
         });
 }
 

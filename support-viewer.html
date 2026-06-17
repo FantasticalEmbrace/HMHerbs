@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Business One — Remote viewer</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, sans-serif; background: #0f172a; color: #f8fafc; }
+    header { padding: 0.75rem 1rem; background: #1e293b; display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+    header h1 { margin: 0; font-size: 1rem; font-weight: 600; color: #93c5fd; }
+    #status { font-size: 0.88rem; color: #cbd5e1; }
+    main { padding: 0.75rem; height: calc(100vh - 52px); }
+    #remote-video { width: 100%; height: 100%; background: #000; border-radius: 8px; object-fit: contain; }
+    .toolbar button { margin-left: 0.35rem; padding: 0.35rem 0.75rem; border-radius: 6px; border: 0; cursor: pointer; }
+    .btn-end { background: #dc2626; color: #fff; }
+    .btn-ghost { background: #334155; color: #f8fafc; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Business One remote viewer</h1>
+    <div id="status">Connecting…</div>
+    <div class="toolbar">
+      <button type="button" class="btn-ghost" id="reload-btn">Retry</button>
+      <button type="button" class="btn-end" id="end-btn">End session</button>
+    </div>
+  </header>
+  <main>
+    <video id="remote-video" autoplay playsinline></video>
+  </main>
+  <script src="support-viewer.js?v=20260617b"></script>
+</body>
+</html>

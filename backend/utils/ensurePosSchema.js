@@ -79,6 +79,61 @@ async function ensurePosSchema(pool) {
     }
     try {
         await pool.query(`
+            CREATE TABLE IF NOT EXISTS pos_checkout_intents (
+                id CHAR(36) NOT NULL PRIMARY KEY,
+                device_id VARCHAR(64) NOT NULL,
+                employee_id INT NULL,
+                status VARCHAR(24) NOT NULL DEFAULT 'awaiting',
+                amount DECIMAL(10,2) NOT NULL,
+                cart_json JSON NULL,
+                checkout_mode VARCHAR(24) NULL,
+                auth_code VARCHAR(64) NULL,
+                last_four CHAR(4) NULL,
+                card_brand VARCHAR(32) NULL,
+                nmi_transaction_id VARCHAR(64) NULL,
+                error_message VARCHAR(500) NULL,
+                expires_at TIMESTAMP NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_pos_checkout_device (device_id),
+                INDEX idx_pos_checkout_status (status)
+            )`);
+    } catch (e) {
+        logger.warn(`Database: pos_checkout_intents — ${logger.formatMysqlError(e)}`);
+    }
+    try {
+        await pool.query(`
+            ALTER TABLE pos_checkout_intents
+            ADD COLUMN checkout_mode VARCHAR(24) NULL AFTER cart_json
+        `);
+    } catch (e) {
+        if (!String(e.message || '').includes('Duplicate column')) {
+            logger.warn(`Database: pos_checkout_intents checkout_mode — ${logger.formatMysqlError(e)}`);
+        }
+    }
+    try {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS pos_display_ads (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                title VARCHAR(120) NULL,
+                subtitle VARCHAR(240) NULL,
+                image_url VARCHAR(500) NOT NULL,
+                link_url VARCHAR(500) NULL,
+                source_label VARCHAR(120) NULL,
+                sort_order INT NOT NULL DEFAULT 0,
+                is_active TINYINT(1) NOT NULL DEFAULT 1,
+                starts_at TIMESTAMP NULL,
+                ends_at TIMESTAMP NULL,
+                created_by INT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_pos_display_ads_active (is_active, sort_order)
+            )`);
+    } catch (e) {
+        logger.warn(`Database: pos_display_ads — ${logger.formatMysqlError(e)}`);
+    }
+    try {
+        await pool.query(`
             CREATE TABLE IF NOT EXISTS pos_pin_attempts (
                 attempt_key VARCHAR(128) NOT NULL PRIMARY KEY,
                 fail_count INT NOT NULL DEFAULT 0,
@@ -141,6 +196,45 @@ async function ensurePosSchema(pool) {
     }
     try {
         await pool.query(`
+            CREATE TABLE IF NOT EXISTS pos_support_agents (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                agent_key_hash VARCHAR(64) NOT NULL,
+                agent_key_prefix VARCHAR(16) NOT NULL,
+                machine_label VARCHAR(128) NOT NULL,
+                hostname VARCHAR(128) NULL,
+                platform VARCHAR(32) NULL,
+                os_version VARCHAR(128) NULL,
+                rustdesk_id VARCHAR(32) NULL,
+                rustdesk_password_enc TEXT NULL,
+                register_label VARCHAR(64) NULL,
+                notes TEXT NULL,
+                is_active TINYINT(1) NOT NULL DEFAULT 1,
+                last_seen_at TIMESTAMP NULL,
+                last_remote_at TIMESTAMP NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_pos_support_agent_key (agent_key_hash),
+                INDEX idx_pos_support_last_seen (last_seen_at)
+            )`);
+    } catch (e) {
+        logger.warn(`Database: pos_support_agents — ${logger.formatMysqlError(e)}`);
+    }
+    try {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS pos_support_sessions (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                agent_id INT NOT NULL,
+                admin_user_id INT NOT NULL,
+                started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                ended_at TIMESTAMP NULL,
+                INDEX idx_pos_support_session_agent (agent_id),
+                INDEX idx_pos_support_session_admin (admin_user_id)
+            )`);
+    } catch (e) {
+        logger.warn(`Database: pos_support_sessions — ${logger.formatMysqlError(e)}`);
+    }
+    try {
+        await pool.query(`
             INSERT IGNORE INTO settings (key_name, value, description, type) VALUES
             ('pos_cash_discount_enabled', 'true', 'Enable in-store cash discount (card price vs lower cash price)', 'boolean'),
             ('pos_cash_discount_percent', '3.5', 'Cash discount percent off merchandise (max 15)', 'number'),
@@ -152,12 +246,44 @@ async function ensurePosSchema(pool) {
             ('pos_receipt_show_logo', 'true', 'Show logo on POS receipts', 'boolean'),
             ('pos_receipt_show_sku', 'true', 'Show SKU on each line item on POS receipts', 'boolean'),
             ('pos_receipt_show_platform_line', 'true', 'Show Business One POS line on receipts', 'boolean'),
+            ('pos_receipt_show_cashier', 'true', 'Show cashier name on POS receipts', 'boolean'),
+            ('pos_receipt_show_cash_savings', 'true', 'Show cash savings line on POS receipts', 'boolean'),
+            ('pos_receipt_auto_print', 'true', 'Auto-open print dialog after each sale', 'boolean'),
+            ('pos_receipt_copy_count', '2', 'Number of receipt copies to print (1–3)', 'number'),
+            ('pos_receipt_show_order_barcode', 'true', 'Show order number as barcode on receipts', 'boolean'),
             ('pos_session_timeout_minutes', '30', 'Minutes before POS employee must re-enter PIN', 'number'),
             ('pos_pin_max_attempts', '10', 'Failed PIN attempts before lockout', 'number'),
             ('pos_pin_lockout_minutes', '15', 'Minutes to lock PIN entry after too many failures', 'number'),
-            ('store_card_payment_processor', 'epi', 'Store card processor for website and integrated POS: epi or nmi_durango', 'string'),
+            ('pos_sign_out_after_sale', 'false', 'Sign cashier out after each completed sale (shared registers)', 'boolean'),
+            ('pos_require_manager_pin_discounts', 'true', 'Require manager PIN for line discounts above threshold', 'boolean'),
+            ('pos_require_manager_pin_void_refund', 'true', 'Require manager PIN to void sales or process refunds', 'boolean'),
+            ('pos_max_line_discount_percent', '10', 'Max line discount percent without manager PIN', 'number'),
+            ('pos_daily_sales_email_enabled', 'false', 'Email daily in-store sales summary to owner', 'boolean'),
+            ('pos_daily_sales_email_to', '', 'Recipient for daily POS sales email', 'string'),
+            ('pos_daily_sales_email_hour', '21', 'Hour to send daily sales email', 'number'),
+            ('pos_daily_sales_email_minute', '0', 'Minute to send daily sales email', 'number'),
+            ('pos_eod_reminder_enabled', 'true', 'Remind register if shift still open after end-of-day', 'boolean'),
+            ('pos_eod_reminder_hour', '20', 'End-of-day reminder hour', 'number'),
+            ('pos_eod_reminder_minute', '0', 'End-of-day reminder minute', 'number'),
+            ('pos_support_phone', '', 'Support phone on POS register help', 'string'),
+            ('pos_help_url', '', 'Help URL on POS register', 'string'),
+            ('pos_remote_support_notice', 'Authorized IT or Business One support may connect to this register remotely only with your permission. You will be asked to approve each session.', 'Remote support notice on register', 'string'),
+            ('pos_catalog_refresh_minutes', '60', 'Auto-refresh catalog interval in minutes', 'number'),
+            ('pos_large_touch_mode', 'false', 'Larger category buttons on POS register', 'boolean'),
+            ('pos_scan_beep_enabled', 'true', 'Beep when barcode scan finds a product', 'boolean'),
+            ('pos_quick_keys', '[]', 'Pinned quick keys JSON for POS register', 'string'),
+            ('pos_display_store_hours_idle', 'false', 'Show store hours on idle customer display', 'boolean'),
+            ('pos_personnel_mode', 'time_clock_and_pos', 'Personnel: time_clock_only or time_clock_and_pos', 'string'),
+            ('pos_receipt_return_policy', '', 'Return policy line on POS receipts', 'string'),
+            ('pos_show_cost_in_cart', 'false', 'Show product cost in POS cart', 'boolean'),
+            ('store_card_payment_processor', 'epi', 'Website card processor: epi or nmi_durango', 'string'),
+            ('pos_card_payment_processor', 'inherit', 'In-store POS processor: inherit (match website), epi, or nmi_durango', 'string'),
             ('pos_card_payment_adapter', 'external_terminal', 'POS card payment mode: external_terminal, integrated, or custom', 'string'),
-            ('pos_custom_payment_driver_url', '', 'Optional URL to custom POS payment driver script when adapter is custom', 'string')
+            ('pos_custom_payment_driver_url', '', 'Optional URL to custom POS payment driver script when adapter is custom', 'string'),
+            ('pos_hardware_printer', 'auto', 'POS receipt printer: auto, elo_star, or browser', 'string'),
+            ('pos_display_card_checkout', 'true', 'Enable card checkout on customer display or Durango terminal', 'boolean'),
+            ('pos_poi_device_id', '', 'NMI/Durango POI device ID for A3700 terminal (Customer Present Cloud)', 'string'),
+            ('pos_card_display_mode', 'durango_terminal', 'Card checkout UI: durango_terminal (A3700 native) or pos_display (Collect.js on customer display)', 'string')
         `);
     } catch (e) {
         logger.warn(`Database: pos cash discount settings — ${logger.formatMysqlError(e)}`);
@@ -195,6 +321,110 @@ async function ensurePosSchema(pool) {
         }
     } catch (e) {
         logger.warn(`Database: payment processor migration — ${logger.formatMysqlError(e)}`);
+    }
+    try {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS pos_merchant_license (
+                id INT NOT NULL PRIMARY KEY DEFAULT 1,
+                status VARCHAR(20) NOT NULL DEFAULT 'trial',
+                licensed_station_count INT NOT NULL DEFAULT 1,
+                business_name VARCHAR(200) NULL,
+                billing_email VARCHAR(255) NULL,
+                payment_method_type VARCHAR(16) NOT NULL DEFAULT 'none',
+                epi_customer_vault_id VARCHAR(64) NULL,
+                epi_billing_id VARCHAR(64) NULL,
+                billing_authorized_at TIMESTAMP NULL,
+                license_expires_at TIMESTAMP NULL,
+                next_bill_date DATE NULL,
+                last_bill_amount DECIMAL(10,2) NULL,
+                last_bill_status VARCHAR(32) NULL,
+                last_bill_at TIMESTAMP NULL,
+                notes TEXT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )`);
+    } catch (e) {
+        logger.warn(`Database: pos_merchant_license — ${logger.formatMysqlError(e)}`);
+    }
+
+    const LICENSE_PATCHES = [
+        {
+            column: 'billing_credit_balance',
+            sql: `ALTER TABLE pos_merchant_license ADD COLUMN billing_credit_balance DECIMAL(10,2) NOT NULL DEFAULT 0`
+        },
+        {
+            column: 'service_comped_until',
+            sql: `ALTER TABLE pos_merchant_license ADD COLUMN service_comped_until DATE NULL`
+        },
+        {
+            column: 'past_due_since',
+            sql: `ALTER TABLE pos_merchant_license ADD COLUMN past_due_since TIMESTAMP NULL`
+        },
+        {
+            column: 'billing_retry_count',
+            sql: `ALTER TABLE pos_merchant_license ADD COLUMN billing_retry_count INT NOT NULL DEFAULT 0`
+        },
+        {
+            column: 'next_billing_retry_at',
+            sql: `ALTER TABLE pos_merchant_license ADD COLUMN next_billing_retry_at DATE NULL`
+        },
+        {
+            column: 'grace_days_override',
+            sql: `ALTER TABLE pos_merchant_license ADD COLUMN grace_days_override INT NULL`
+        },
+        {
+            column: 'last_payment_failed_email_at',
+            sql: `ALTER TABLE pos_merchant_license ADD COLUMN last_payment_failed_email_at TIMESTAMP NULL`
+        },
+        {
+            column: 'grace_ended_email_at',
+            sql: `ALTER TABLE pos_merchant_license ADD COLUMN grace_ended_email_at TIMESTAMP NULL`
+        }
+    ];
+    await applyColumnPatches(pool, 'pos_merchant_license', LICENSE_PATCHES);
+
+    const DEVICE_PATCHES = [
+        {
+            column: 'platform',
+            sql: `ALTER TABLE pos_devices ADD COLUMN platform VARCHAR(16) NULL`
+        },
+        {
+            column: 'app_version',
+            sql: `ALTER TABLE pos_devices ADD COLUMN app_version VARCHAR(32) NULL`
+        },
+        {
+            column: 'support_rustdesk_id',
+            sql: `ALTER TABLE pos_devices ADD COLUMN support_rustdesk_id VARCHAR(32) NULL`
+        }
+    ];
+    await applyColumnPatches(pool, 'pos_devices', DEVICE_PATCHES);
+
+    try {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS pos_register_support_sessions (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                pos_device_id INT NOT NULL,
+                session_code VARCHAR(8) NOT NULL,
+                status VARCHAR(24) NOT NULL DEFAULT 'pending',
+                admin_user_id INT NULL,
+                offer_sdp MEDIUMTEXT NULL,
+                answer_sdp MEDIUMTEXT NULL,
+                pos_ice_json MEDIUMTEXT NULL,
+                admin_ice_json MEDIUMTEXT NULL,
+                diagnostics_json MEDIUMTEXT NULL,
+                consent_at TIMESTAMP NULL,
+                started_at TIMESTAMP NULL,
+                ended_at TIMESTAMP NULL,
+                expires_at TIMESTAMP NOT NULL,
+                signal_version INT NOT NULL DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_pos_reg_support_device (pos_device_id),
+                INDEX idx_pos_reg_support_status (status),
+                INDEX idx_pos_reg_support_expires (expires_at)
+            )`);
+    } catch (e) {
+        logger.warn(`Database: pos_register_support_sessions — ${logger.formatMysqlError(e)}`);
     }
 }
 

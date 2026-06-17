@@ -45,6 +45,7 @@ function mapPosEmployeeRow(e) {
         isActive: Boolean(e.is_active),
         hourlyRate: e.hourly_rate != null ? Number(e.hourly_rate) : null,
         adminUserId: e.admin_user_id != null ? Number(e.admin_user_id) : null,
+        canAuthorize: Boolean(e.can_authorize),
         createdAt: e.created_at,
         updatedAt: e.updated_at,
     };
@@ -283,6 +284,32 @@ router.get('/reports/sales-summary', async (req, res) => {
         res.json({ from, to, rows });
     } catch (e) {
         res.status(500).json({ error: 'Failed to generate sales summary' });
+    }
+});
+
+router.get('/reports/day', async (req, res) => {
+    try {
+        const posSalesReports = require('../services/posSalesReports');
+        const date = String(req.query.date || '').slice(0, 10) || posSalesReports.localDateKey();
+        const report = await posSalesReports.getDaySalesSummary(req.pool, date);
+        res.json({ success: true, report });
+    } catch (e) {
+        res.status(500).json({ error: 'Failed to generate day summary' });
+    }
+});
+
+router.post('/reports/send-daily-sales', requireManager, async (req, res) => {
+    try {
+        const { sendDailySalesEmail } = require('../services/posDailySalesEmail');
+        const date = String(req.body?.date || '').slice(0, 10) || undefined;
+        const result = await sendDailySalesEmail(req.pool, { date, force: true });
+        if (!result.sent) {
+            return res.status(400).json({ error: result.reason || 'Email not sent', ...result });
+        }
+        res.json(result);
+    } catch (e) {
+        logger.error('Send daily sales email error:', e);
+        res.status(500).json({ error: e.message || 'Failed to send daily sales email' });
     }
 });
 

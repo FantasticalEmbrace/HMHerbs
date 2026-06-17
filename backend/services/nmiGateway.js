@@ -28,8 +28,9 @@ function parseNmiBody(raw) {
  * @returns {Promise<{ ok: boolean, fields: Record<string, string>, responseCode: string, responseText: string, transactionId: string | null }>}
  */
 async function nmiSale(opts) {
-    const { securityKey, amount, paymentToken, customerVaultId, billingId, customerVaultAction } = opts;
-    const url = getNmiTransactUrl();
+    const { securityKey, amount, paymentToken, customerVaultId, billingId, customerVaultAction, transactUrl } =
+        opts;
+    const url = transactUrl || getNmiTransactUrl();
 
     const body = new URLSearchParams();
     body.set('security_key', securityKey);
@@ -99,4 +100,34 @@ async function nmiVaultSale(opts) {
     });
 }
 
-module.exports = { nmiSale, nmiVaultAddCustomer, nmiVaultSale, parseNmiBody };
+/**
+ * Customer-Present Cloud sale on a registered POI device (e.g. PAX A3700 via Durango/NMI).
+ * Durango/NMI controls the payment UI on the terminal — not the POS web app.
+ */
+async function nmiPoiSale(opts) {
+    const { securityKey, amount, poiDeviceId, responseMethod = 'synchronous', transactUrl } = opts;
+    const url = transactUrl || getNmiTransactUrl();
+    const body = new URLSearchParams();
+    body.set('security_key', securityKey);
+    body.set('type', 'sale');
+    body.set('amount', amount);
+    body.set('poi_device_id', String(poiDeviceId || '').trim());
+    body.set('response_method', responseMethod);
+
+    const res = await axios.post(url, body.toString(), {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        timeout: 120000,
+        validateStatus: () => true
+    });
+
+    const fields = parseNmiBody(res.data);
+    const responseCode = String(fields.response ?? '');
+    const ok = responseCode === '1';
+    const responseText = String(fields.responsetext || 'Unknown gateway response');
+    const transactionId = fields.transactionid ? String(fields.transactionid) : null;
+    const asyncStatusGuid = fields.async_status_guid ? String(fields.async_status_guid) : null;
+
+    return { ok, fields, responseCode, responseText, transactionId, asyncStatusGuid };
+}
+
+module.exports = { nmiSale, nmiPoiSale, nmiVaultAddCustomer, nmiVaultSale, parseNmiBody };

@@ -100,7 +100,7 @@ function snapshotForDisplay(cartSnapshot, settings) {
         isTaxable: l.isTaxable !== false
     }));
     const enriched = lines.map((l) => ({ ...l, lineTotal: l.lineTotal }));
-    const taxRate = cartSnapshot.taxRate ?? 0.08;
+    const taxRate = cartSnapshot.taxExempt ? 0 : (cartSnapshot.taxRate ?? 0.08);
     const pricing = computeDualPricing(
         enriched,
         taxRate,

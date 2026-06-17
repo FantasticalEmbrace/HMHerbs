@@ -27,7 +27,7 @@ PROVIDER_EMAIL = "info@businessonecomprehensive.com"
 PROVIDER_PHONE = "(850) 290-2084"
 PROVIDER_WEBSITE = "https://businessonecomprehensive.com/"
 
-LOGO_PATH = Path(__file__).resolve().parents[2] / "business-one-pos" / "assets" / "logo.png"
+LOGO_PATH = Path(__file__).resolve().parent / "assets" / "business-one-logo.png"
 OUTPUT_PATH = Path.home() / "Downloads" / "Website-Hosting-Maintenance-Agreement.pdf"
 
 
@@ -225,22 +225,16 @@ def page1(c, form):
 
     draw_label(c, right_x, right_y, "Initial Contract Term:")
     right_y -= 14
-    term_opts = [
-        ("term_month_to_month", "Month-to-Month"),
-        ("term_12_months", "12 Months"),
-    ]
-    tx = right_x
-    for fname, label in term_opts:
-        add_checkbox(form, fname, tx, right_y - 2)
-        c.setFillColor(GRAY)
-        c.setFont("Helvetica", 7.5)
-        c.drawString(tx + 14, right_y, label)
-        tx += 95
+    add_checkbox(form, "term_month_to_month", right_x, right_y - 2)
+    c.setFillColor(GRAY)
+    c.setFont("Helvetica", 7.5)
+    c.drawString(right_x + 14, right_y, "Month-to-Month")
 
-    add_checkbox(form, "term_other", tx, right_y - 2)
-    c.drawString(tx + 14, right_y, "Other:")
-    draw_field_bg(c, tx + 42, right_y - 4, col_w - (tx - right_x) - 42, h=12)
-    add_text_field(form, "term_other_text", tx + 43, right_y - 3, col_w - (tx - right_x) - 44, h=11)
+    other_x = right_x + 110
+    add_checkbox(form, "term_other", other_x, right_y - 2)
+    c.drawString(other_x + 14, right_y, "Other:")
+    draw_field_bg(c, other_x + 42, right_y - 4, col_w - (other_x - right_x) - 42, h=12)
+    add_text_field(form, "term_other_text", other_x + 43, right_y - 3, col_w - (other_x - right_x) - 44, h=11)
 
     y = min(field_y, right_y) - 10
     y = draw_section_header(c, y, "3. Service Summary & Inclusions", color=ORANGE)
@@ -255,29 +249,31 @@ def page1(c, form):
     y -= 22
 
     services = [
-        ("svc_hosting", "Website Hosting"),
-        ("svc_backups", "Daily/Weekly Backups"),
-        ("svc_uptime", "Uptime Monitoring"),
-        ("svc_domain", "Domain Management (if applicable)"),
-        ("svc_security", "Security Monitoring"),
-        ("svc_support", "Technical Support"),
-        ("svc_ssl", "SSL Certificate"),
-        ("svc_maintenance", "Website Maintenance (Updates & Upkeep)"),
-        ("svc_other", "Other Services as Agreed"),
+        "Website Hosting",
+        "Daily/Weekly Backups",
+        "Uptime Monitoring",
+        "Domain Management (if applicable)",
+        "Security Monitoring",
+        "Technical Support",
+        "SSL Certificate",
+        "Website Maintenance (Updates & Upkeep)",
+        "Other Services as Agreed",
     ]
     cols = 3
     col_width = CONTENT_W / cols
     row_h = 20
     start_y = y
-    for i, (fname, label) in enumerate(services):
+    for i, label in enumerate(services):
         col = i % cols
         row = i // cols
         sx = MARGIN + col * col_width
         sy = start_y - row * row_h
-        add_checkbox(form, fname, sx, sy - 2)
+        c.setFillColor(ORANGE)
+        c.setFont("Helvetica-Bold", 8)
+        c.drawString(sx, sy, "\u2022")
         c.setFillColor(GRAY)
         c.setFont("Helvetica", 7.2)
-        c.drawString(sx + 14, sy, label)
+        c.drawString(sx + 10, sy, label)
 
     y = start_y - 3 * row_h - 6
     draw_label(c, MARGIN, y, "Special Terms / Notes:")

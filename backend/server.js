@@ -23,12 +23,23 @@ const logger = require('./utils/logger');
 const { handlePromoBannerGet, disabledPayload } = require('./utils/promoBanner');
 const { createSeoRedirectMiddleware } = require('./middleware/seoRedirects');
 const { ensureProductSchema } = require('./utils/ensureProductSchema');
+const { ensureInventorySettings } = require('./utils/ensureInventorySettings');
+const {
+    loadInventorySettings,
+    enrichProductRow,
+    toPublicSettings,
+    canFulfillQuantity,
+    isTracked,
+    allowsOversell
+} = require('./utils/inventorySettings');
 const { ensureProductVariantSchema } = require('./utils/ensureProductVariantSchema');
 const { ensureShippingSchema } = require('./utils/ensureShippingSchema');
 const { ensurePosSchema } = require('./utils/ensurePosSchema');
+const { ensurePlatformSupportSchema } = require('./utils/ensurePlatformSupportSchema');
 const { ensurePersonnelSchema } = require('./utils/ensurePersonnelSchema');
 const { ensureGiftCardPurchaseSchema } = require('./utils/ensureGiftCardPurchaseSchema');
 const { ensureGiftCardCatalog } = require('./utils/ensureGiftCardCatalog');
+const { ensureProductStorefrontSchema } = require('./utils/ensureProductStorefrontSchema');
 const { ensureCbdCategory } = require('./utils/ensureCbdCategory');
 const { ensureCustomerGroupSchema } = require('./utils/ensureCustomerGroupSchema');
 const { ensureUserPasswordResetSchema } = require('./utils/ensureUserPasswordResetSchema');
@@ -43,7 +54,9 @@ const { provisionWebCustomerProfile } = require('./utils/provisionCustomerProfil
 const { saveRegistrationMailingAddress, normalizeRegistrationMailingAddress } = require('./utils/saveRegistrationMailingAddress');
 const { isUsPhoneDisplayOrEmpty } = require('./utils/usPhoneDisplay');
 const { startTaxReserveScheduler } = require('./services/taxReserveScheduler');
+const { startPosBillingScheduler } = require('./services/posBillingScheduler');
 const { startTaxAccountantScheduler } = require('./services/taxAccountantScheduler');
+const { startPosDailySalesScheduler } = require('./services/posDailySalesScheduler');
 const { ensureSocialOAuthSchema } = require('./utils/ensureSocialOAuthSchema');
 const { createCustomerGoogleRoutes, createAdminGoogleRoutes } = require('./routes/socialAuth');
 const secureLogger = require('./utils/secure-logger');
@@ -58,6 +71,7 @@ const {
     applyCatalogPriceFix,
     sanitizeLegacyProductImageUrl
 } = require('./utils/catalogOverrides');
+const { STOREFRONT_VISIBLE_WHERE } = require('./utils/storefrontProductVisibility');
 
 const { jsonSafeDeep } = require('./utils/jsonSafeMysql');
 const { buildDbConfig } = require('./utils/dbConfig');
@@ -425,6 +439,13 @@ if (fsSync.existsSync(posAppPath)) {
     app.use('/pos', express.static(posAppPath));
 }
 
+const supportAgentPath = fsSync.existsSync(path.join(rootPath, 'business-one-support-agent'))
+    ? path.join(rootPath, 'business-one-support-agent')
+    : path.join(rootPath, '..', 'business-one-support-agent');
+if (fsSync.existsSync(supportAgentPath)) {
+    app.use('/support-agent', express.static(supportAgentPath));
+}
+
 // Serve admin panel and frontend files
 app.use(express.static(rootPath)); // Serve files from project root
 
@@ -565,14 +586,18 @@ app.get('/api/promo-banner', async (req, res) => {
 });
 
 const { loadStoreHours, publicStoreInfoPayload, DEFAULT_FOOTER_HOURS } = require('./utils/storePublicInfo');
+const { loadStoreTaxRate } = require('./utils/storeTaxRate');
 
 app.get('/api/store-info', async (req, res) => {
     try {
-        const hours = await loadStoreHours(pool);
-        res.json(publicStoreInfoPayload(hours));
+        const [hours, taxRate] = await Promise.all([
+            loadStoreHours(pool),
+            loadStoreTaxRate(pool)
+        ]);
+        res.json({ ...publicStoreInfoPayload(hours), taxRate });
     } catch (error) {
         logger.error('Store info route error:', error);
-        res.status(200).json(publicStoreInfoPayload(DEFAULT_FOOTER_HOURS));
+        res.status(200).json({ ...publicStoreInfoPayload(DEFAULT_FOOTER_HOURS), taxRate: 0.08 });
     }
 });
 
@@ -1187,7 +1212,7 @@ app.get('/api/products', async (req, res) => {
         } = req.query;
 
         const offset = (page - 1) * limit;
-        let whereConditions = ['p.is_active = 1'];
+        let whereConditions = ['p.is_active = 1', STOREFRONT_VISIBLE_WHERE];
         let queryParams = [];
 
         const catRaw = category != null && category !== '' ? (Array.isArray(category) ? category[0] : category) : '';
@@ -1291,6 +1316,13 @@ app.get('/api/products', async (req, res) => {
             whereConditions.push('(p.gift_card_type IS NULL)');
         }
 
+        const inventorySettings = await loadInventorySettings(pool);
+        if (inventorySettings.hideOutOfStock) {
+            whereConditions.push(
+                '(p.track_inventory = 0 OR p.track_inventory IS NULL OR p.inventory_quantity > 0)'
+            );
+        }
+
         // Build ORDER BY clause
         const allowedSortFields = ['name', 'price', 'created_at'];
         const sortField = allowedSortFields.includes(sortBy) ? sortBy : 'name';
@@ -1313,6 +1345,9 @@ app.get('/api/products', async (req, res) => {
                 p.price,
                 p.compare_price,
                 p.inventory_quantity,
+                p.track_inventory,
+                p.allow_backorder,
+                p.low_stock_threshold,
                 p.is_featured,
                 p.is_cannabis,
                 p.coa_url,
@@ -1345,6 +1380,7 @@ app.get('/api/products', async (req, res) => {
             } else if (p.image_url) {
                 p.image_url = sanitizeLegacyProductImageUrl(p.image_url, p.slug, p.sku);
             }
+            enrichProductRow(p, inventorySettings);
         });
 
         // Log featured products query for debugging
@@ -1438,7 +1474,7 @@ app.get('/api/products/:slug', async (req, res) => {
             FROM products p
             LEFT JOIN brands b ON p.brand_id = b.id
             LEFT JOIN product_categories pc ON p.category_id = pc.id
-            WHERE p.is_active = 1 AND (p.slug = ? OR p.id = ?)
+            WHERE p.is_active = 1 AND ${STOREFRONT_VISIBLE_WHERE} AND (p.slug = ? OR p.id = ?)
         `, [raw, idParam]);
 
         if (products.length === 0) {
@@ -1506,6 +1542,24 @@ app.get('/api/products/:slug', async (req, res) => {
         });
         product.health_categories = healthCategories;
 
+        const inventorySettings = await loadInventorySettings(pool);
+        enrichProductRow(product, inventorySettings);
+        product.variants = product.variants.map((variant) => {
+            const row = { ...variant };
+            row.in_stock = !isTracked(product) || (parseInt(row.inventory_quantity, 10) || 0) > 0;
+            row.can_purchase = canFulfillQuantity(
+                product,
+                inventorySettings,
+                row.inventory_quantity,
+                1
+            );
+            row.is_low_stock =
+                isTracked(product) &&
+                row.in_stock &&
+                (parseInt(row.inventory_quantity, 10) || 0) <= product.low_stock_threshold;
+            return row;
+        });
+
         // Map database field names to frontend-expected names
         product.description = product.long_description || product.description || '';
         // Ensure short_description is available (it's already in the SELECT p.*)
@@ -1513,6 +1567,17 @@ app.get('/api/products/:slug', async (req, res) => {
         res.json(product);
     } catch (error) {
         logger.error('Product fetch error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Public inventory policy (low-stock threshold, oversell, hide OOS)
+app.get('/api/inventory-settings', async (req, res) => {
+    try {
+        const settings = await loadInventorySettings(pool);
+        res.json(toPublicSettings(settings));
+    } catch (error) {
+        logger.error('Inventory settings fetch error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 });
@@ -1630,6 +1695,10 @@ app.use('/api/admin/personnel', require('./routes/admin-personnel'));
 app.use('/api/admin/pos', require('./routes/admin-pos'));
 app.use('/api/admin', adminRoutes);
 app.use('/api/payment-cards', paymentCardsRoutes);
+app.use('/api/pos-billing', require('./routes/pos-billing'));
+app.use('/api/platform/support/hub', require('./routes/platform-support-hub'));
+app.use('/api/platform/support/store', require('./routes/platform-support-store'));
+app.use('/api/pos-support/v1', require('./routes/pos-support-v1'));
 app.use('/api/pos/v1', require('./routes/pos-v1'));
 // Customer-facing account API (addresses CRUD, password change, order detail,
 // wishlist collections + items). Mounted AFTER the inline /api/user/* handlers
@@ -1669,6 +1738,12 @@ app.use('/api/*', (req, res) => {
     }
 
     try {
+        await ensureInventorySettings(pool);
+    } catch (e) {
+        logger.error(`ensureInventorySettings failed: ${logger.formatMysqlError(e)}`);
+    }
+
+    try {
         await ensureProductVariantSchema(pool);
     } catch (e) {
         logger.error(`ensureProductVariantSchema failed: ${logger.formatMysqlError(e)}`);
@@ -1677,6 +1752,7 @@ app.use('/api/*', (req, res) => {
     try {
         await ensureShippingSchema(pool);
         await ensurePosSchema(pool);
+        await ensurePlatformSupportSchema(pool);
         await ensurePersonnelSchema(pool);
     } catch (e) {
         logger.error(`ensureShippingSchema failed: ${logger.formatMysqlError(e)}`);
@@ -1685,6 +1761,7 @@ app.use('/api/*', (req, res) => {
     try {
         await ensureGiftCardPurchaseSchema(pool);
         await ensureGiftCardCatalog(pool);
+        await ensureProductStorefrontSchema(pool);
     } catch (e) {
         logger.error(`ensureGiftCardPurchaseSchema failed: ${logger.formatMysqlError(e)}`);
     }
@@ -1739,6 +1816,8 @@ app.use('/api/*', (req, res) => {
 
     const stopTaxReserveScheduler = startTaxReserveScheduler(pool);
     const stopTaxAccountantScheduler = startTaxAccountantScheduler(pool);
+    const stopPosDailySalesScheduler = startPosDailySalesScheduler(pool);
+    const stopPosBillingScheduler = startPosBillingScheduler(pool);
 
     const server = app.listen(PORT, () => {
         const { isSmtpConfigured } = require('./utils/smtpConfig');
@@ -1776,6 +1855,14 @@ app.use('/api/*', (req, res) => {
         if (typeof stopTaxAccountantScheduler === 'function') {
             process.on('SIGTERM', () => stopTaxAccountantScheduler());
             process.on('SIGINT', () => stopTaxAccountantScheduler());
+        }
+        if (typeof stopPosDailySalesScheduler === 'function') {
+            process.on('SIGTERM', () => stopPosDailySalesScheduler());
+            process.on('SIGINT', () => stopPosDailySalesScheduler());
+        }
+        if (typeof stopPosBillingScheduler === 'function') {
+            process.on('SIGTERM', () => stopPosBillingScheduler());
+            process.on('SIGINT', () => stopPosBillingScheduler());
         }
     }).on('error', (error) => {
         logger.error('Server startup error:', error);

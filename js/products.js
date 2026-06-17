@@ -170,10 +170,14 @@ class ProductsPage {
                         brand: product.brand_slug || product.brand_name || '',
                         brandName: product.brand_name || '',
                         description: product.short_description || product.long_description || '',
-                        inventory: product.inventory_quantity || 0,
+                        inventory: product.track_inventory === false || product.track_inventory === 0
+                            ? undefined
+                            : (product.inventory_quantity ?? 0),
                         featured: product.is_featured || false,
-                        inStock: (product.inventory_quantity || 0) > 0 || product.inventory_quantity === null,
-                        lowStockThreshold: 5,
+                        inStock: product.in_stock !== false,
+                        canPurchase: product.can_purchase !== false,
+                        isLowStock: Boolean(product.is_low_stock),
+                        lowStockThreshold: Number(product.low_stock_threshold) || 5,
                         slug: product.slug || ''
                     }));
                     console.log(`Successfully loaded ${this.products.length} products`);
@@ -630,8 +634,8 @@ class ProductsPage {
         addToCartBtn.appendChild(cartIcon);
         addToCartBtn.appendChild(buttonText);
 
-        // Disable button if out of stock
-        if (product.inventory === 0 || !product.inStock) {
+        // Disable button if not purchasable (out of stock still visible on grid)
+        if (product.canPurchase === false || product.inventory === 0 || product.inStock === false) {
             addToCartBtn.disabled = true;
             addToCartBtn.textContent = 'Out of Stock';
             addToCartBtn.className = 'btn btn-secondary add-to-cart-btn';
@@ -680,7 +684,7 @@ class ProductsPage {
                 statusDiv.classList.add('out-of-stock');
                 icon.className = 'fas fa-times-circle';
                 text.textContent = ' Out of Stock';
-            } else if (inventoryCount <= (product.lowStockThreshold || 5)) {
+            } else if (inventoryCount <= (product.lowStockThreshold || 5) || product.isLowStock) {
                 statusDiv.classList.add('low-stock');
                 icon.className = 'fas fa-exclamation-triangle';
                 text.textContent = ` Only ${inventoryCount} left`;
@@ -901,9 +905,10 @@ class ProductsPage {
         }
 
         // Check inventory availability
-        const isOutOfStock = (typeof product.inventory !== 'undefined')
-            ? product.inventory === 0
-            : !product.inStock;
+        const isOutOfStock = product.canPurchase === false
+            || ((typeof product.inventory !== 'undefined')
+                ? product.inventory === 0
+                : !product.inStock);
 
         if (isOutOfStock) {
             this.showNotification('Product is out of stock', 'error');

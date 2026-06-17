@@ -117,6 +117,7 @@ CREATE TABLE products (
     allow_backorder BOOLEAN DEFAULT FALSE,
     is_active BOOLEAN DEFAULT TRUE,
     is_featured BOOLEAN DEFAULT FALSE,
+    show_on_web BOOLEAN DEFAULT TRUE,
     is_cannabis BOOLEAN DEFAULT FALSE,
     coa_url VARCHAR(500) NULL,
     coa_updated_at DATE NULL,

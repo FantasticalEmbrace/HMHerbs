@@ -1,22 +1,32 @@
-/* Business One Menu Admin - Styles */
+/* Business One Menu Admin — styled to match Business One POS */
 
 :root {
-    --primary-color: #1a4d7a;
-    --primary-dark: #0f3a5a;
-    --primary-light: #2d6ba3;
-    --accent-color: #ff6b35;
-    --success-color: #28a745;
-    --danger-color: #dc3545;
-    --warning-color: #ffc107;
-    --text-primary: #1a1a1a;
-    --text-secondary: #666666;
-    --bg-primary: #ffffff;
-    --bg-secondary: #f5f7fa;
-    --bg-tertiary: #e8ecf1;
-    --border-color: #e0e0e0;
-    --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.1);
-    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.15);
-    --radius: 8px;
+    --blue: #1f82ff;
+    --orange: #ff9b1f;
+    --white: #ffffff;
+    --gray-50: #f8fafc;
+    --gray-100: #f1f5f9;
+    --gray-200: #e2e8f0;
+    --gray-500: #64748b;
+    --gray-700: #334155;
+    --gray-900: #0f172a;
+    --primary-color: var(--blue);
+    --primary-dark: #1565d8;
+    --primary-light: #4d9aff;
+    --accent-color: var(--orange);
+    --success-color: #16a34a;
+    --danger-color: #dc2626;
+    --warning-color: #d97706;
+    --text-primary: var(--gray-900);
+    --text-secondary: var(--gray-500);
+    --bg-primary: var(--white);
+    --bg-secondary: var(--gray-50);
+    --bg-tertiary: var(--gray-100);
+    --border-color: var(--gray-200);
+    --shadow-sm: 0 2px 10px rgba(15, 23, 42, 0.06);
+    --shadow-md: 0 4px 20px rgba(15, 23, 42, 0.08);
+    --radius: 12px;
+    --font: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
 }
 
 * {
@@ -26,7 +36,7 @@
 }
 
 body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: var(--font);
     background-color: var(--bg-secondary);
     color: var(--text-primary);
     line-height: 1.6;
@@ -38,23 +48,26 @@ body {
     flex-direction: column;
 }
 
-/* Header */
+/* Header — matches POS top-bar */
 .admin-header {
-    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
-    color: white;
-    padding: 2rem;
+    background: var(--white);
+    color: var(--gray-900);
+    padding: 1.25rem 2rem;
+    border-bottom: 3px solid var(--orange);
     box-shadow: var(--shadow-md);
 }
 
 .header-content h1 {
-    font-size: 2rem;
+    font-size: 1.5rem;
     font-weight: 700;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.35rem;
+    color: var(--blue);
 }
 
 .header-content p {
-    opacity: 0.9;
-    font-size: 1rem;
+    color: var(--gray-500);
+    font-size: 0.9375rem;
+    font-weight: 500;
 }
 
 /* Main Content */
@@ -93,7 +106,7 @@ body {
 
 .tab-btn.active {
     color: var(--primary-color);
-    border-bottom-color: var(--primary-color);
+    border-bottom-color: var(--orange);
 }
 
 .tab-content {
@@ -113,8 +126,9 @@ body {
 }
 
 .section-header h2 {
-    font-size: 1.5rem;
-    font-weight: 600;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--blue);
 }
 
 /* Buttons */
@@ -137,8 +151,10 @@ body {
 
 .btn-primary:hover {
     background: var(--primary-dark);
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-sm);
+}
+
+.btn-primary:active {
+    transform: scale(0.98);
 }
 
 .btn-secondary {
@@ -187,7 +203,8 @@ body {
 }
 
 .data-table thead {
-    background: var(--bg-secondary);
+    background: var(--gray-50);
+    border-bottom: 2px solid var(--orange);
 }
 
 .data-table th {
@@ -279,43 +296,45 @@ body {
 }
 
 .modal-header {
-    padding: 1.5rem;
-    border-bottom: 1px solid var(--border-color);
+    padding: 1rem 1.25rem;
+    background: var(--orange);
+    color: var(--white);
+    border-bottom: none;
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 0.75rem;
 }
 
 .modal-header h2 {
-    font-size: 1.5rem;
-    font-weight: 600;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--white);
+    margin: 0;
 }
 
 .modal-close {
     box-sizing: border-box;
-    background: #e75b4f;
-    border: none;
+    background: rgba(255, 255, 255, 0.2);
+    border: 2px solid rgba(255, 255, 255, 0.35);
     color: #fff;
-    font-size: 1.35rem;
-    line-height: 1;
-    width: 2.75rem;
-    height: 2.75rem;
-    min-width: 2.75rem;
-    min-height: 2.75rem;
+    width: 2.5rem;
+    height: 2.5rem;
+    min-width: 2.5rem;
+    min-height: 2.5rem;
     padding: 0;
-    border-radius: 0.65rem;
+    border-radius: 8px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 2px 8px rgba(231, 91, 79, 0.35);
-    transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+    transition: background 0.15s ease, transform 0.1s ease;
+    flex-shrink: 0;
 }
 
 .modal-close:hover {
-    background: #f0786d;
-    transform: scale(1.06);
-    box-shadow: 0 4px 14px rgba(231, 91, 79, 0.45);
+    background: rgba(255, 255, 255, 0.35);
+    transform: scale(1.04);
 }
 
 .modal-close:active {
@@ -368,7 +387,7 @@ body {
 .form-group textarea:focus {
     outline: none;
     border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px rgba(26, 77, 122, 0.1);
+    box-shadow: 0 0 0 3px rgba(31, 130, 255, 0.15);
 }
 
 .form-group small {

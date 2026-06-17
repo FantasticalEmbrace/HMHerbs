@@ -255,13 +255,14 @@ class HMHerbsApp {
                                 product.inventory_quantity != null
                                     ? Number(product.inventory_quantity)
                                     : null,
-                            lowStockThreshold: 10, // Default threshold
+                            lowStockThreshold: Number(product.low_stock_threshold) || 5,
                             description: product.short_description || product.long_description || '',
                             slug: product.slug || '',
                             featured: product.is_featured === true || product.is_featured === 1 || product.is_featured === '1',
-                            inStock:
-                                product.inventory_quantity == null ||
-                                Number(product.inventory_quantity) > 0,
+                            trackInventory: product.track_inventory === true || product.track_inventory === 1,
+                            inStock: product.in_stock !== false,
+                            canPurchase: product.can_purchase !== false,
+                            isLowStock: Boolean(product.is_low_stock),
                             // Add URL for product link if slug exists
                             url: product.slug ? `product.html?slug=${encodeURIComponent(product.slug)}` : null,
                             // Keep original fields for reference
@@ -566,6 +567,8 @@ class HMHerbsApp {
 
     isProductPurchasable(product) {
         if (!product) return false;
+        if (product.canPurchase === false || product.can_purchase === false) return false;
+        if (product.canPurchase === true || product.can_purchase === true) return true;
         if (product.inventory == null) {
             return product.inStock !== false;
         }
@@ -594,11 +597,14 @@ class HMHerbsApp {
 
         // Defensive programming: handle missing inventory data
         if (product.inventory == null) {
-            // Untracked inventory — rely on inStock flag
             if (product.inStock === false) {
                 statusDiv.classList.add('out-of-stock');
                 icon.className = 'fas fa-times-circle';
                 text.textContent = ' Out of Stock';
+            } else if (product.isLowStock || product.is_low_stock) {
+                statusDiv.classList.add('low-stock');
+                icon.className = 'fas fa-exclamation-triangle';
+                text.textContent = ' Low stock';
             } else {
                 statusDiv.classList.add('in-stock');
                 icon.className = 'fas fa-check-circle';
@@ -611,7 +617,10 @@ class HMHerbsApp {
                 statusDiv.classList.add('out-of-stock');
                 icon.className = 'fas fa-times-circle';
                 text.textContent = ' Out of Stock';
-            } else if (product.lowStockThreshold && inventoryCount <= product.lowStockThreshold) {
+            } else if (
+                (product.isLowStock || product.is_low_stock) ||
+                (product.lowStockThreshold && inventoryCount <= product.lowStockThreshold)
+            ) {
                 statusDiv.classList.add('low-stock');
                 icon.className = 'fas fa-exclamation-triangle';
                 text.textContent = ` Only ${inventoryCount} left!`;
@@ -979,9 +988,9 @@ class HMHerbsApp {
             ? productData.inventory_quantity
             : (productData.inventory !== undefined ? productData.inventory : undefined);
 
-        const isOutOfStock = inventory != null
-            ? Number(inventory) === 0
-            : (productData.inStock === false);
+        const isOutOfStock = productData.can_purchase === false
+            || productData.canPurchase === false
+            || (inventory != null ? Number(inventory) === 0 && productData.trackInventory !== false : productData.inStock === false);
 
         if (isOutOfStock) {
             this.showNotification('Product is out of stock', 'error');

@@ -7,7 +7,13 @@ const RECEIPT_KEYS = {
     showPhone: 'pos_receipt_show_phone',
     showLogo: 'pos_receipt_show_logo',
     showSku: 'pos_receipt_show_sku',
-    showPlatformLine: 'pos_receipt_show_platform_line'
+    showPlatformLine: 'pos_receipt_show_platform_line',
+    showCashier: 'pos_receipt_show_cashier',
+    showCashSavings: 'pos_receipt_show_cash_savings',
+    autoPrint: 'pos_receipt_auto_print',
+    copyCount: 'pos_receipt_copy_count',
+    showOrderBarcode: 'pos_receipt_show_order_barcode',
+    returnPolicy: 'pos_receipt_return_policy'
 };
 
 const STORE_INFO_KEYS = [
@@ -26,7 +32,13 @@ const DEFAULTS = {
     showPhone: true,
     showLogo: true,
     showSku: true,
-    showPlatformLine: true
+    showPlatformLine: true,
+    showCashier: true,
+    showCashSavings: true,
+    autoPrint: true,
+    copyCount: 2,
+    showOrderBarcode: true,
+    returnPolicy: ''
 };
 
 function parseBool(value, fallback) {
@@ -47,6 +59,11 @@ function formatStoreAddress(map) {
     const cityLine = [city, state].filter(Boolean).join(', ') + (zip ? ` ${zip}` : '');
     if (cityLine.trim()) parts.push(cityLine.trim());
     return parts.length ? parts.join('\n') : null;
+}
+
+function parseIntSetting(value, fallback) {
+    const n = parseInt(value, 10);
+    return Number.isFinite(n) ? n : fallback;
 }
 
 async function loadPosReceiptSettings(pool, storeLogoUrl = null) {
@@ -76,6 +93,12 @@ async function loadPosReceiptSettings(pool, storeLogoUrl = null) {
         showLogo: parseBool(map.get(RECEIPT_KEYS.showLogo), DEFAULTS.showLogo),
         showSku: parseBool(map.get(RECEIPT_KEYS.showSku), DEFAULTS.showSku),
         showPlatformLine: parseBool(map.get(RECEIPT_KEYS.showPlatformLine), DEFAULTS.showPlatformLine),
+        showCashier: parseBool(map.get(RECEIPT_KEYS.showCashier), DEFAULTS.showCashier),
+        showCashSavings: parseBool(map.get(RECEIPT_KEYS.showCashSavings), DEFAULTS.showCashSavings),
+        autoPrint: parseBool(map.get(RECEIPT_KEYS.autoPrint), DEFAULTS.autoPrint),
+        copyCount: Math.min(3, Math.max(1, parseIntSetting(map.get(RECEIPT_KEYS.copyCount), DEFAULTS.copyCount))),
+        showOrderBarcode: parseBool(map.get(RECEIPT_KEYS.showOrderBarcode), DEFAULTS.showOrderBarcode),
+        returnPolicy: String(map.get(RECEIPT_KEYS.returnPolicy) || DEFAULTS.returnPolicy).trim(),
         storeAddress: formatStoreAddress(map),
         storePhone: String(map.get('store_phone') || '').trim() || null,
         storeLogoUrl: storeLogoUrl || null

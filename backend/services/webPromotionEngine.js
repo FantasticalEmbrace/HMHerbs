@@ -1,6 +1,7 @@
 'use strict';
 
 const employeeDiscount = require('./employeeDiscount');
+const { loadStoreTaxRate } = require('../utils/storeTaxRate');
 
 const {
     FREE_SHIPPING_THRESHOLD,
@@ -439,7 +440,10 @@ function evaluateTotals(rulesParsed, enrichedRows, opts) {
     const shippingAfter = roundMoney(Math.max(0, shippingBefore - shippingDiscount));
 
     const taxBase = roundMoney(Math.max(0, merchandiseSub - merchandiseDiscount));
-    const taxAmount = applyTaxExemption ? 0 : roundMoney(taxBase * TAX_RATE);
+    const taxRate = Number.isFinite(Number(opts.taxRate)) && Number(opts.taxRate) >= 0
+        ? Number(opts.taxRate)
+        : TAX_RATE;
+    const taxAmount = applyTaxExemption ? 0 : roundMoney(taxBase * taxRate);
     const totalAmount = roundMoney(taxBase + shippingAfter + taxAmount);
     const totalDiscountAmount = roundMoney(merchandiseDiscount + shippingDiscount);
 
@@ -462,13 +466,17 @@ async function enrichCartLines(pool, normalizedItems) {
     let rows;
     try {
         [rows] = await pool.execute(
-            `SELECT id, name, sku, category_id, price, gift_card_type FROM products WHERE id IN (${ids.map(() => '?').join(',')})`,
+            `SELECT id, name, sku, category_id, price, gift_card_type FROM products
+              WHERE id IN (${ids.map(() => '?').join(',')})
+                AND is_active = 1 AND COALESCE(show_on_web, 1) = 1`,
             ids
         );
     } catch (e) {
         if (e.errno !== 1054 && e.code !== 'ER_BAD_FIELD_ERROR') throw e;
         [rows] = await pool.execute(
-            `SELECT id, name, sku, category_id, price FROM products WHERE id IN (${ids.map(() => '?').join(',')})`,
+            `SELECT id, name, sku, category_id, price FROM products
+              WHERE id IN (${ids.map(() => '?').join(',')})
+                AND is_active = 1`,
             ids
         );
     }
@@ -615,7 +623,13 @@ async function previewOrApplyTotals(pool, {
     }
 
     const taxExempt = Boolean(applyTaxExemption);
-    const shippingOpts = { applyTaxExemption: taxExempt, shippingMethod, shippingAmount };
+    const storeTaxRate = await loadStoreTaxRate(pool);
+    const shippingOpts = {
+        applyTaxExemption: taxExempt,
+        shippingMethod,
+        shippingAmount,
+        taxRate: storeTaxRate
+    };
     let totalsBase = evaluateTotals(rulesParsed, enriched, shippingOpts);
 
     const empSettings = await employeeDiscount.loadEmployeeDiscountSettings(pool);
@@ -623,7 +637,8 @@ async function previewOrApplyTotals(pool, {
         totalsBase,
         empSettings,
         customerType,
-        taxExempt
+        taxExempt,
+        storeTaxRate
     );
 
     let totalsNoPromo = null;
@@ -637,7 +652,8 @@ async function previewOrApplyTotals(pool, {
             totalsNoPromo,
             empSettings,
             customerType,
-            taxExempt
+            taxExempt,
+            storeTaxRate
         );
     }
 

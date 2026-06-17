@@ -55,13 +55,24 @@ async function ensureGiftCardRecipientAccount(db, { email, recipientName }) {
             [passwordHash, firstName, lastName, userId]
         );
     } else {
-        const [r] = await db.execute(
-            `INSERT INTO users (email, password_hash, auth_provider, first_name, last_name, email_verified)
-             VALUES (?, ?, 'local', ?, ?, 0)`,
-            [emailNorm, passwordHash, firstName, lastName]
-        );
-        userId = r.insertId;
-        isNew = true;
+        try {
+            const [r] = await db.execute(
+                `INSERT INTO users (email, password_hash, auth_provider, first_name, last_name, email_verified)
+                 VALUES (?, ?, 'local', ?, ?, 0)`,
+                [emailNorm, passwordHash, firstName, lastName]
+            );
+            userId = r.insertId;
+            isNew = true;
+        } catch (e) {
+            if (e.code !== 'ER_DUP_ENTRY') throw e;
+            const [dup] = await db.execute(
+                'SELECT id, is_active FROM users WHERE LOWER(TRIM(email)) = ? LIMIT 1',
+                [emailNorm]
+            );
+            if (!dup.length) throw e;
+            userId = dup[0].id;
+            isNew = false;
+        }
     }
 
     await provisionWebCustomerProfile(db, userId);

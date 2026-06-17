@@ -561,34 +561,77 @@ class ProductDetailPage {
         const stockEl = document.getElementById('product-stock');
         if (!stockEl) return;
 
-        const inventory = this.selectedVariant?.inventory_quantity ?? this.product.inventory_quantity ?? 0;
-        const inStock = inventory > 0;
+        const tracked = this.product.track_inventory !== false && this.product.track_inventory !== 0;
+        const variant = this.selectedVariant;
+        const inventory = variant?.inventory_quantity ?? this.product.inventory_quantity ?? 0;
+        const canPurchase = variant?.can_purchase ?? this.product.can_purchase;
+        const isLow = variant?.is_low_stock ?? this.product.is_low_stock;
+        const threshold = Number(this.product.low_stock_threshold) || 5;
+        const inStock = !tracked || inventory > 0;
+        const purchasable = canPurchase !== false && (tracked ? inventory > 0 || canPurchase === true : true);
 
-        if (inStock) {
+        const addToCartBtn = document.getElementById('add-to-cart-btn');
+        const wlBtn = document.getElementById('add-to-wishlist-btn');
+
+        if (!tracked) {
             stockEl.innerHTML = `
                 <span class="stock-status in-stock">
                     <i class="fas fa-check-circle" aria-hidden="true"></i>
-                    In Stock${inventory > 0 ? ` (${inventory} available)` : ''}
+                    In Stock
                 </span>
             `;
-        } else {
+            if (addToCartBtn) {
+                addToCartBtn.disabled = false;
+                addToCartBtn.classList.remove('disabled');
+            }
+            if (wlBtn) {
+                wlBtn.disabled = false;
+                wlBtn.classList.remove('disabled');
+            }
+            return;
+        }
+
+        if (!inStock || !purchasable) {
             stockEl.innerHTML = `
                 <span class="stock-status out-of-stock">
                     <i class="fas fa-times-circle" aria-hidden="true"></i>
                     Out of Stock
                 </span>
             `;
-            // Disable add to cart and wishlist
-            const addToCartBtn = document.getElementById('add-to-cart-btn');
             if (addToCartBtn) {
                 addToCartBtn.disabled = true;
                 addToCartBtn.classList.add('disabled');
             }
-            const wlBtn = document.getElementById('add-to-wishlist-btn');
             if (wlBtn) {
                 wlBtn.disabled = true;
                 wlBtn.classList.add('disabled');
             }
+            return;
+        }
+
+        if (isLow || inventory <= threshold) {
+            stockEl.innerHTML = `
+                <span class="stock-status low-stock">
+                    <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+                    Only ${inventory} left in stock
+                </span>
+            `;
+        } else {
+            stockEl.innerHTML = `
+                <span class="stock-status in-stock">
+                    <i class="fas fa-check-circle" aria-hidden="true"></i>
+                    In Stock (${inventory} available)
+                </span>
+            `;
+        }
+
+        if (addToCartBtn) {
+            addToCartBtn.disabled = false;
+            addToCartBtn.classList.remove('disabled');
+        }
+        if (wlBtn) {
+            wlBtn.disabled = false;
+            wlBtn.classList.remove('disabled');
         }
     }
 
@@ -674,6 +717,7 @@ class ProductDetailPage {
         console.log('Product detail: Adding to cart', { product: this.product, quantity: this.quantity });
         try {
             const inventory = this.selectedVariant?.inventory_quantity ?? this.product.inventory_quantity ?? undefined;
+            const canPurchase = this.selectedVariant?.can_purchase ?? this.product.can_purchase;
             const cartItem = {
                 id: this.product.id,
                 product_id: this.product.id,
@@ -684,7 +728,10 @@ class ProductDetailPage {
                 image: this.resolveProductImageUrl(this.product.images?.[0]?.image_url || ''),
                 inventory_quantity: inventory,
                 inventory: inventory,
-                inStock: inventory !== undefined ? inventory > 0 : undefined
+                trackInventory: this.product.track_inventory !== false && this.product.track_inventory !== 0,
+                inStock: inventory !== undefined ? inventory > 0 : this.product.in_stock !== false,
+                can_purchase: canPurchase,
+                canPurchase: canPurchase
             };
 
             // Wait a bit for window.hmHerbsApp to initialize (since script.js loads with defer)

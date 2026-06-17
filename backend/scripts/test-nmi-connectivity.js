@@ -29,9 +29,12 @@ async function main() {
     const url = getNmiTransactUrl();
     console.log('Transact URL:', url);
 
+    const cents = String(Date.now() % 100).padStart(2, '0');
+    const amount = `1.${cents}`;
+
     const r = await nmiSale({
         securityKey: key,
-        amount: '1.00',
+        amount,
         paymentToken: TEST_TOKEN
     });
 
@@ -41,6 +44,10 @@ async function main() {
 
     if (r.ok) {
         console.log('OK: sandbox sale succeeded.');
+        process.exit(0);
+    }
+    if (/duplicate transaction/i.test(String(r.responseText))) {
+        console.log('OK: sandbox gateway reachable (duplicate transaction on rapid retest).');
         process.exit(0);
     }
     if (String(r.responseText).includes('API key not found') || String(r.responseText).includes('Specified API key')) {

@@ -2,6 +2,9 @@
 
 const express = require('express');
 const jwt = require('jsonwebtoken');
+const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
 const router = express.Router();
 const logger = require('../utils/logger');
 const { POS_SETTING_KEYS, POS_SETTING_META, loadPosSettings } = require('../services/posSettings');
@@ -19,6 +22,46 @@ const {
     deleteEquipment,
     listEquipmentTypeCatalog
 } = require('../services/posEquipment');
+const {
+    loadMerchantLicense,
+    updateMerchantLicense,
+    waivePastDuePayment,
+    assertCanAddDevice,
+    runMonthlyBillingForMerchant,
+    countActiveDevices,
+    isLicenseEnforcementEnabled,
+    isBillingDryRun,
+    getDefaultGraceDays,
+    getMaxBillingRetries
+} = require('../services/posMerchantLicense');
+const { scheduleSupportSessionSync } = require('../services/posPlatformSupportSync');
+const { isPlatformHubEnabled } = require('../utils/platformSupportEnv');
+const {
+    listDisplayAds,
+    createDisplayAd,
+    updateDisplayAd,
+    deleteDisplayAd
+} = require('../services/posDisplayAds');
+
+const displayAdUploadDir = path.join(__dirname, '..', 'uploads', 'pos-display-ads');
+if (!fs.existsSync(displayAdUploadDir)) {
+    fs.mkdirSync(displayAdUploadDir, { recursive: true });
+}
+const uploadDisplayAdImage = multer({
+    storage: multer.diskStorage({
+        destination: (_req, _file, cb) => cb(null, displayAdUploadDir),
+        filename: (_req, file, cb) => {
+            const ext = path.extname(file.originalname || '').toLowerCase() || '.jpg';
+            const safe = ['.jpg', '.jpeg', '.png', '.webp', '.gif'].includes(ext) ? ext : '.jpg';
+            cb(null, `display-ad-${Date.now()}-${Math.random().toString(36).slice(2, 8)}${safe}`);
+        }
+    }),
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+        if (/^image\/(jpeg|png|webp|gif)$/i.test(file.mimetype)) cb(null, true);
+        else cb(new Error('Only JPEG, PNG, WebP, or GIF images are allowed'));
+    }
+});
 
 async function authenticateAdmin(req, res, next) {
     const authHeader = req.headers['authorization'];
@@ -126,6 +169,10 @@ router.get('/devices', async (req, res) => {
 
 router.post('/devices', async (req, res) => {
     try {
+        const gate = await assertCanAddDevice(req.pool);
+        if (!gate.ok) {
+            return res.status(402).json({ error: gate.message, code: gate.code, license: gate.license });
+        }
         const created = await createDevice(req.pool, req.body?.deviceLabel || req.body?.device_label);
         res.status(201).json({
             device: {
@@ -133,7 +180,8 @@ router.post('/devices', async (req, res) => {
                 deviceLabel: created.deviceLabel,
                 keyPrefix: created.keyPrefix
             },
-            apiKey: created.apiKey
+            apiKey: created.apiKey,
+            licenseWarning: gate.warning || null
         });
     } catch (e) {
         const status = e.code === 'DUPLICATE_DEVICE_LABEL' ? 409 : e.code ? 400 : 500;
@@ -213,6 +261,305 @@ router.delete('/equipment/:id', async (req, res) => {
         res.json({ success: true });
     } catch (e) {
         res.status(500).json({ error: 'Failed to delete equipment' });
+    }
+});
+
+router.get('/license', async (req, res) => {
+    try {
+        const license = await loadMerchantLicense(req.pool);
+        const activeDevices = await countActiveDevices(req.pool);
+        res.json({
+            license,
+            activeDevices,
+            pricingTiers: {
+                base: 100,
+                midRate: 50,
+                midThroughStation: 5,
+                volumeRate: 25
+            },
+            flags: {
+                enforcementEnabled: isLicenseEnforcementEnabled(),
+                billingDryRun: isBillingDryRun(),
+                billingSchedulerEnabled:
+                    String(process.env.POS_BILLING_SCHEDULER_ENABLED || '').toLowerCase() === 'true',
+                graceDaysDefault: getDefaultGraceDays(),
+                maxBillingRetries: getMaxBillingRetries(),
+                revokeDevicesOnCancel:
+                    String(process.env.POS_REVOKE_DEVICES_ON_CANCEL ?? 'true').toLowerCase() !== 'false'
+            }
+        });
+    } catch (e) {
+        logger.error('POS license fetch error:', e);
+        res.status(500).json({ error: 'Failed to load license' });
+    }
+});
+
+router.put('/license', async (req, res) => {
+    try {
+        const body = req.body || {};
+        const license = await updateMerchantLicense(req.pool, {
+            status: body.status,
+            licensedStationCount: body.licensedStationCount ?? body.licensed_station_count,
+            businessName: body.businessName ?? body.business_name,
+            billingEmail: body.billingEmail ?? body.billing_email,
+            notes: body.notes,
+            licenseExpiresAt: body.licenseExpiresAt ?? body.license_expires_at,
+            nextBillDate: body.nextBillDate ?? body.next_bill_date,
+            serviceCompedUntil: body.serviceCompedUntil ?? body.service_comped_until,
+            graceDaysOverride: body.graceDaysOverride ?? body.grace_days_override
+        });
+        res.json({ license });
+    } catch (e) {
+        const status = e.code ? 400 : 500;
+        res.status(status).json({ error: e.message, code: e.code });
+    }
+});
+
+router.post('/license/run-billing', async (req, res) => {
+    try {
+        const result = await runMonthlyBillingForMerchant(req.pool, { force: true });
+        res.json({ result });
+    } catch (e) {
+        logger.error('POS manual billing run error:', e);
+        res.status(500).json({ error: e.message || 'Billing run failed' });
+    }
+});
+
+router.post('/license/waive-past-due', async (req, res) => {
+    try {
+        const note = req.body?.note || req.body?.reason || '';
+        const notify = req.body?.notify !== false;
+        const license = await waivePastDuePayment(req.pool, { note, notify });
+        res.json({ license });
+    } catch (e) {
+        const status =
+            e.code === 'NOT_PAST_DUE' || e.code === 'NO_AMOUNT_OWED' ? 400 : 500;
+        res.status(status).json({ error: e.message, code: e.code });
+    }
+});
+
+/** @deprecated use POST /license/waive-past-due */
+router.post('/license/credit', async (req, res) => {
+    try {
+        const note = req.body?.note || req.body?.reason || '';
+        const notify = req.body?.notify !== false;
+        const license = await waivePastDuePayment(req.pool, { note, notify });
+        res.json({ license });
+    } catch (e) {
+        const status =
+            e.code === 'NOT_PAST_DUE' || e.code === 'NO_AMOUNT_OWED' ? 400 : 500;
+        res.status(status).json({ error: e.message, code: e.code });
+    }
+});
+
+router.get('/support/registers', async (req, res) => {
+    try {
+        const registerSupport = require('../services/posRegisterSupport');
+        const { listSupportAgents, isEnrollConfigured, rustDeskServerConfig } = require('../services/posSupportAgent');
+        const [registers, agents] = await Promise.all([
+            registerSupport.listRegistersForSupport(req.pool),
+            listSupportAgents(req.pool)
+        ]);
+        res.json({
+            registers,
+            windowsAgents: agents,
+            rustdesk: rustDeskServerConfig(),
+            windowsAgentDownloadUrl: '/support-agent/',
+            viewerPage: '/support-viewer.html',
+            enrollConfigured: isEnrollConfigured(),
+            platformHubEnabled: isPlatformHubEnabled(),
+            platformQueuePage: '/platform-support.html'
+        });
+    } catch (e) {
+        logger.error('POS support registers list error:', e);
+        res.status(500).json({ error: 'Failed to load support registers' });
+    }
+});
+
+/** @deprecated use GET /support/registers */
+router.get('/support/agents', async (req, res) => {
+    req.url = '/support/registers';
+    return router.handle(req, res);
+});
+
+router.post('/support/registers/:deviceId/session', async (req, res) => {
+    try {
+        const registerSupport = require('../services/posRegisterSupport');
+        const deviceId = Number(req.params.deviceId);
+        const [devices] = await req.pool.execute(
+            `SELECT id, platform FROM pos_devices WHERE id = ? AND is_active = 1 LIMIT 1`,
+            [deviceId]
+        );
+        if (!devices[0]) return res.status(404).json({ error: 'Register not found' });
+
+        let sessionRow = await registerSupport.getActiveSessionForDevice(req.pool, deviceId);
+        if (!sessionRow) {
+            const platform = devices[0].platform || 'windows';
+            await registerSupport.requestSupportSession(req.pool, deviceId, {
+                platform,
+                diagnostics: { initiatedBy: 'admin', adminId: req.admin.id }
+            });
+            sessionRow = await registerSupport.getActiveSessionForDevice(req.pool, deviceId);
+        }
+        if (!sessionRow) {
+            return res.status(500).json({ error: 'Could not create support session' });
+        }
+
+        const session = await registerSupport.adminJoinSession(req.pool, sessionRow.id, req.admin.id);
+        scheduleSupportSessionSync(req.pool, session.id, {
+            claimedBy: `${req.admin.first_name || ''} ${req.admin.last_name || ''}`.trim() || req.admin.email
+        });
+        const base = String(process.env.FRONTEND_URL || '').trim().replace(/\/+$/, '');
+        res.json({
+            session,
+            viewerUrl: `${base || ''}/support-viewer.html?session=${session.id}`
+        });
+    } catch (e) {
+        const status = e.code === 'SESSION_UNAVAILABLE' || e.code === 'SESSION_EXPIRED' ? 400 : 500;
+        res.status(status).json({ error: e.message, code: e.code });
+    }
+});
+
+router.post('/support/sessions/:id/join', async (req, res) => {
+    try {
+        const registerSupport = require('../services/posRegisterSupport');
+        const session = await registerSupport.adminJoinSession(req.pool, req.params.id, req.admin.id);
+        scheduleSupportSessionSync(req.pool, session.id, {
+            claimedBy: `${req.admin.first_name || ''} ${req.admin.last_name || ''}`.trim() || req.admin.email
+        });
+        res.json({ session });
+    } catch (e) {
+        const status = e.code === 'SESSION_UNAVAILABLE' || e.code === 'SESSION_EXPIRED' ? 400 : 500;
+        res.status(status).json({ error: e.message, code: e.code });
+    }
+});
+
+router.post('/support/sessions/:id/answer', async (req, res) => {
+    try {
+        const registerSupport = require('../services/posRegisterSupport');
+        const session = await registerSupport.setAnswerSdp(
+            req.pool,
+            req.params.id,
+            req.admin.id,
+            req.body?.sdp
+        );
+        scheduleSupportSessionSync(req.pool, session.id);
+        res.json({ session });
+    } catch (e) {
+        res.status(400).json({ error: e.message, code: e.code });
+    }
+});
+
+router.post('/support/sessions/:id/ice', async (req, res) => {
+    try {
+        const registerSupport = require('../services/posRegisterSupport');
+        await registerSupport.appendIceCandidate(req.pool, req.params.id, 'admin', req.body?.candidate);
+        res.json({ ok: true });
+    } catch (e) {
+        res.status(400).json({ error: e.message });
+    }
+});
+
+router.get('/support/sessions/:id/signal', async (req, res) => {
+    try {
+        const registerSupport = require('../services/posRegisterSupport');
+        const sinceVersion = Number(req.query.since) || 0;
+        const state = await registerSupport.getSignalState(req.pool, req.params.id, { sinceVersion });
+        res.json(state);
+    } catch (e) {
+        res.status(404).json({ error: e.message, code: e.code });
+    }
+});
+
+router.post('/support/sessions/:id/end', async (req, res) => {
+    try {
+        const registerSupport = require('../services/posRegisterSupport');
+        await registerSupport.endSession(req.pool, req.params.id, { byAdmin: true });
+        scheduleSupportSessionSync(req.pool, req.params.id);
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: 'Failed to end session' });
+    }
+});
+
+router.post('/support/agents/:id/connect', async (req, res) => {
+    try {
+        const { beginRemoteSession } = require('../services/posSupportAgent');
+        const session = await beginRemoteSession(req.pool, req.params.id, req.admin.id);
+        res.json(session);
+    } catch (e) {
+        const status = e.code === 'NOT_FOUND' || e.code === 'NO_RUSTDESK_ID' ? 404 : 500;
+        res.status(status).json({ error: e.message, code: e.code });
+    }
+});
+
+router.delete('/support/agents/:id', async (req, res) => {
+    try {
+        const { revokeSupportAgent } = require('../services/posSupportAgent');
+        const ok = await revokeSupportAgent(req.pool, req.params.id);
+        if (!ok) return res.status(404).json({ error: 'Agent not found' });
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: 'Failed to revoke agent' });
+    }
+});
+
+router.get('/display-ads', async (req, res) => {
+    try {
+        const ads = await listDisplayAds(req.pool);
+        res.json({ ads });
+    } catch (e) {
+        logger.error('List POS display ads error:', e);
+        res.status(500).json({ error: 'Failed to load display ads' });
+    }
+});
+
+router.post('/display-ads/upload-image', (req, res, next) => {
+    uploadDisplayAdImage.single('image')(req, res, (err) => {
+        if (err) return res.status(400).json({ error: err.message || 'Upload failed' });
+        next();
+    });
+}, async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+        res.json({
+            success: true,
+            url: `/uploads/pos-display-ads/${req.file.filename}`,
+            filename: req.file.filename
+        });
+    } catch (e) {
+        logger.error('POS display ad upload error:', e);
+        res.status(500).json({ error: 'Failed to upload image' });
+    }
+});
+
+router.post('/display-ads', async (req, res) => {
+    try {
+        const ad = await createDisplayAd(req.pool, req.body, req.admin.id);
+        res.status(201).json({ ad });
+    } catch (e) {
+        const status = e.code === 'IMAGE_REQUIRED' ? 400 : 500;
+        res.status(status).json({ error: e.message, code: e.code });
+    }
+});
+
+router.put('/display-ads/:id', async (req, res) => {
+    try {
+        const ad = await updateDisplayAd(req.pool, req.params.id, req.body);
+        res.json({ ad });
+    } catch (e) {
+        const status = e.code === 'NOT_FOUND' ? 404 : e.code === 'IMAGE_REQUIRED' ? 400 : 500;
+        res.status(status).json({ error: e.message, code: e.code });
+    }
+});
+
+router.delete('/display-ads/:id', async (req, res) => {
+    try {
+        const ok = await deleteDisplayAd(req.pool, req.params.id);
+        if (!ok) return res.status(404).json({ error: 'Ad not found' });
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: 'Failed to delete ad' });
     }
 });
 

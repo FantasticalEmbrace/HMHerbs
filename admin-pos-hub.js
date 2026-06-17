@@ -199,6 +199,12 @@
                 if (tab === 'registers' && window.adminApp?.loadPosDevices) {
                     window.adminApp.loadPosDevices();
                 }
+                if (tab === 'license' && window.adminApp?.loadPosLicense) {
+                    window.adminApp.loadPosLicense();
+                }
+                if (tab === 'support' && window.adminApp?.loadPosSupport) {
+                    window.adminApp.loadPosSupport();
+                }
             });
         });
 

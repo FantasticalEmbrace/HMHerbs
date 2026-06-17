@@ -2,8 +2,11 @@
 
 const {
     loadStorePaymentProcessor,
+    loadPosPaymentProcessor,
     resolveProcessorCredentials,
-    processorConfigured
+    resolvePosProcessorCredentials,
+    processorConfigured,
+    posProcessorConfigured
 } = require('./storePaymentProcessor');
 
 /** Built-in card payment adapters exposed to POS clients (no secrets). */
@@ -44,7 +47,7 @@ const POS_CARD_ADAPTERS = {
         id: 'nmi_durango',
         label: 'Durango / NMI (integrated)',
         description:
-            'High-risk gateway — use only when Durango is selected as the store processor in admin.',
+            'In-store Durango/NMI — uses the separate POS merchant account (POS_NMI_* keys in .env), not website checkout.',
         integrated: true,
         pciScope: 'SAQ-A when using hosted tokenization (Collect.js)',
         driverScript: 'js/payment-drivers/nmi-durango.js',
@@ -91,6 +94,7 @@ async function readSetting(pool, key) {
 function adapterConfigured(adapterId) {
     const meta = POS_CARD_ADAPTERS[adapterId];
     if (!meta) return false;
+    if (adapterId === 'nmi_durango') return posProcessorConfigured('nmi_durango');
     if (meta.storeProcessor) return processorConfigured(meta.storeProcessor);
     if (!meta.requiresEnv?.length) return true;
     return meta.requiresEnv.every((key) => String(process.env[key] || '').trim());
@@ -120,6 +124,7 @@ function listPublicAdapters() {
  */
 async function resolveEffectivePaymentAdapter(pool, adapterOverride) {
     const storeProcessor = pool ? await loadStorePaymentProcessor(pool) : 'epi';
+    const posProcessor = pool ? await loadPosPaymentProcessor(pool) : storeProcessor;
     const envAdapter = normalizePosMode(process.env.POS_CARD_PAYMENT_ADAPTER);
     let posMode = envAdapter;
     let customDriverUrl = String(process.env.POS_CUSTOM_PAYMENT_DRIVER_URL || '').trim();
@@ -139,7 +144,7 @@ async function resolveEffectivePaymentAdapter(pool, adapterOverride) {
 
     let effectiveDriverId = posMode;
     if (posMode === 'integrated') {
-        effectiveDriverId = storeProcessor;
+        effectiveDriverId = posProcessor;
     }
 
     const meta = POS_CARD_ADAPTERS[effectiveDriverId] || POS_CARD_ADAPTERS.external_terminal;
@@ -165,6 +170,7 @@ async function resolveEffectivePaymentAdapter(pool, adapterOverride) {
         cardAdapter: effectiveDriverId,
         cardAdapterLabel: meta.label,
         storeProcessor,
+        posProcessor,
         driverScript,
         customDriverUrl: effectiveDriverId === 'custom' ? customDriverUrl : '',
         integrated: Boolean(meta.integrated),
@@ -173,7 +179,9 @@ async function resolveEffectivePaymentAdapter(pool, adapterOverride) {
         configurationNote: configured
             ? null
             : posMode === 'integrated'
-              ? `Integrated ${storeProcessor === 'nmi_durango' ? 'Durango' : 'EPI'} needs server API keys in backend .env. Use External terminal until configured.`
+              ? effectiveDriverId === 'nmi_durango'
+                  ? 'Integrated in-store Durango needs POS_NMI_PUBLIC_TOKENIZATION_KEY and POS_NMI_PRIVATE_API_KEY in backend .env (separate from website NMI_* keys).'
+                  : `Integrated ${posProcessor === 'nmi_durango' ? 'Durango' : 'EPI'} needs server API keys in backend .env. Use External terminal until configured.`
               : `Adapter "${meta.label}" needs server keys. Falling back to external terminal behavior until configured.`,
         compliance: {
             cardDataInApp: Boolean(meta.integrated),

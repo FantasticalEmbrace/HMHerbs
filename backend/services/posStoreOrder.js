@@ -8,6 +8,13 @@ const {
     computeDualPricing,
     resolveTotalsForPayment
 } = require('./posCashDiscount');
+const { loadStoreTaxRate } = require('../utils/storeTaxRate');
+const {
+    loadPosSecuritySettings,
+    lineDiscountNeedsManagerPin
+} = require('./posSecuritySettings');
+const { verifyManagerPin } = require('./posPersonnel');
+const InventoryService = require('./inventory');
 
 const ALLOWED_PAYMENT_METHODS = new Set(['cash', 'check', 'card_terminal']);
 const FORBIDDEN_PAYMENT_KEYS = new Set([
@@ -40,9 +47,20 @@ function generatePosOrderNumber() {
     return `POS${y}${m}${day}-${seq}`;
 }
 
-function getDefaultTaxRate() {
-    const raw = Number(process.env.DEFAULT_TAX_RATE);
-    return Number.isFinite(raw) && raw >= 0 ? raw : 0.08;
+function parseTaxExemptSale(payload) {
+    const root = payload && typeof payload === 'object' ? payload : {};
+    const payment = root.payment && typeof root.payment === 'object' ? root.payment : {};
+    const exempt = Boolean(
+        root.taxExempt || root.tax_exempt || payment.taxExempt || payment.tax_exempt
+    );
+    const reason = String(
+        root.taxExemptReason
+        || root.tax_exempt_reason
+        || payment.taxExemptReason
+        || payment.tax_exempt_reason
+        || ''
+    ).trim().slice(0, 500);
+    return { exempt, reason };
 }
 
 function getInStoreEmail() {
@@ -108,8 +126,11 @@ function buildPaymentReference(method, paymentMeta = {}) {
     return `pos:terminal:${offline}:${lastFour}:${auth || 'na'}:${ref || 'na'}`.slice(0, 120);
 }
 
-function buildOrderNotes(method, paymentMeta = {}, cashDiscountAmount = 0) {
+function buildOrderNotes(method, paymentMeta = {}, cashDiscountAmount = 0, taxExemptInfo = null) {
     const parts = [`Payment method: ${method}`, 'Channel: in_store POS'];
+    if (taxExemptInfo?.exempt) {
+        parts.push(`Tax exempt: ${taxExemptInfo.reason || 'no reason recorded'}`);
+    }
     if (cashDiscountAmount > 0) {
         parts.push(`Cash discount: -$${cashDiscountAmount.toFixed(2)}`);
     }
@@ -199,9 +220,14 @@ async function loadCatalogLines(pool, lineItems) {
             throw err;
         }
 
-        const unitPrice = variantRow
+        const unitPriceCatalog = variantRow
             ? roundMoney(variantRow.price)
             : roundMoney(productRow.price);
+        const lineDiscountPercent = Math.min(
+            100,
+            Math.max(0, Number(raw.lineDiscountPercent || raw.line_discount_percent || 0))
+        );
+        const unitPrice = roundMoney(unitPriceCatalog * (1 - lineDiscountPercent / 100));
         const resolvedProductId = variantRow ? variantRow.product_id || variantRow.parent_product_id : productRow.id;
         const resolvedVariantId = variantRow ? variantRow.id : null;
         const lineSku = variantRow ? variantRow.sku : productRow.sku;
@@ -216,6 +242,8 @@ async function loadCatalogLines(pool, lineItems) {
             name: lineName,
             quantity,
             unitPrice,
+            catalogUnitPrice: unitPriceCatalog,
+            lineDiscountPercent,
             lineTotal: roundMoney(unitPrice * quantity),
             is_taxable: Boolean(productRow.is_taxable)
         });
@@ -241,6 +269,21 @@ async function findExistingByClientTx(pool, clientTransactionId) {
         [clientTransactionId]
     );
     return rows[0] || null;
+}
+
+async function validateSaleManagerAuth(pool, lineItems, managerPin, context = {}) {
+    const settings = await loadPosSecuritySettings(pool);
+    const needsPin = (lineItems || []).some((raw) =>
+        lineDiscountNeedsManagerPin(raw.lineDiscountPercent || raw.line_discount_percent, settings)
+    );
+    if (!needsPin) return null;
+    if (!managerPin) {
+        const err = new Error('MANAGER_PIN_REQUIRED');
+        err.code = 'MANAGER_PIN_REQUIRED';
+        err.message = 'Manager PIN required for line discounts above the allowed limit.';
+        throw err;
+    }
+    return verifyManagerPin(pool, managerPin, context);
 }
 
 /**
@@ -289,9 +332,23 @@ async function createInStorePosOrder(pool, payload, deviceId, verifiedEmployeeId
         throw err;
     }
 
+    const managerPin = String(payload.managerPin || payload.manager_pin || '').replace(/\D/g, '').slice(0, 4);
+    const authorizer = await validateSaleManagerAuth(pool, lineItems, managerPin || null, {
+        deviceId,
+        ip: payload.clientIp
+    });
+
     const paymentMethod = assertCompliantPaymentPayload(payload.payment || payload);
     const paymentMeta = payload.payment || payload;
-    const taxRate = getDefaultTaxRate();
+    const taxExemptInfo = parseTaxExemptSale(payload);
+    if (taxExemptInfo.exempt && taxExemptInfo.reason.length < 3) {
+        const err = new Error('TAX_EXEMPT_REASON_REQUIRED');
+        err.code = 'TAX_EXEMPT_REASON_REQUIRED';
+        err.message = 'A tax exemption reason note is required (at least 3 characters).';
+        throw err;
+    }
+    const storeTaxRate = await loadStoreTaxRate(pool);
+    const taxRate = taxExemptInfo.exempt ? 0 : storeTaxRate;
     const enriched = await loadCatalogLines(pool, lineItems);
     const cashSettings = await loadCashDiscountSettings(pool);
     const pricing = computeDualPricing(enriched, taxRate, cashSettings.enabled ? cashSettings.percent : 0);
@@ -300,7 +357,10 @@ async function createInStorePosOrder(pool, payload, deviceId, verifiedEmployeeId
     const orderEmail = getInStoreEmail();
     const salesChannel = normalizeSalesChannel('in_store');
     const paymentReference = buildPaymentReference(paymentMethod, paymentMeta);
-    const notes = buildOrderNotes(paymentMethod, paymentMeta, totals.discountAmount);
+    const notes = buildOrderNotes(paymentMethod, paymentMeta, totals.discountAmount, taxExemptInfo);
+    const notesWithAuth = authorizer
+        ? `${notes}\nManager approval: ${authorizer.name} (${authorizer.employeeCode})`
+        : notes;
 
     const connection = await pool.getConnection();
     await connection.beginTransaction();
@@ -326,7 +386,7 @@ async function createInStorePosOrder(pool, payload, deviceId, verifiedEmployeeId
                 'Customer',
                 'In-Store',
                 'Customer',
-                notes,
+                notesWithAuth,
                 paymentMethod,
                 paymentReference,
                 salesChannel,
@@ -427,10 +487,102 @@ async function syncPosOrderBatch(pool, sales, deviceId, verifiedEmployeeId = nul
     return results;
 }
 
+async function refundInStorePosOrder(pool, orderNumber, payload, employeeId, deviceId, context = {}) {
+    const settings = await loadPosSecuritySettings(pool);
+    const managerPin = String(payload.managerPin || payload.manager_pin || '').replace(/\D/g, '').slice(0, 4);
+    if (settings.requireManagerPinVoidRefund) {
+        if (!managerPin) {
+            const err = new Error('MANAGER_PIN_REQUIRED');
+            err.code = 'MANAGER_PIN_REQUIRED';
+            err.message = 'Manager PIN required to process refunds.';
+            throw err;
+        }
+        await verifyManagerPin(pool, managerPin, { deviceId, ip: context.ip, scope: 'refund' });
+    }
+
+    const reason = String(payload.reason || payload.refundReason || '').trim().slice(0, 500);
+    if (reason.length < 3) {
+        const err = new Error('REFUND_REASON_REQUIRED');
+        err.code = 'REFUND_REASON_REQUIRED';
+        err.message = 'A refund reason is required (at least 3 characters).';
+        throw err;
+    }
+
+    const orderNum = String(orderNumber || '').trim();
+    const [orders] = await pool.execute(
+        `SELECT id, order_number, payment_status, status, sales_channel, pos_employee_id
+         FROM orders WHERE order_number = ? LIMIT 1`,
+        [orderNum]
+    );
+    const order = orders[0];
+    if (!order) {
+        const err = new Error('ORDER_NOT_FOUND');
+        err.code = 'ORDER_NOT_FOUND';
+        throw err;
+    }
+    if (String(order.sales_channel || '').toLowerCase() !== 'in_store') {
+        const err = new Error('ORDER_NOT_POS');
+        err.code = 'ORDER_NOT_POS';
+        err.message = 'Only in-store POS orders can be refunded from the register.';
+        throw err;
+    }
+    if (order.payment_status === 'refunded') {
+        const err = new Error('ORDER_ALREADY_REFUNDED');
+        err.code = 'ORDER_ALREADY_REFUNDED';
+        throw err;
+    }
+    if (order.payment_status !== 'paid') {
+        const err = new Error('ORDER_NOT_REFUNDABLE');
+        err.code = 'ORDER_NOT_REFUNDABLE';
+        throw err;
+    }
+
+    const [orderItems] = await pool.execute(
+        `SELECT product_id, variant_id, quantity FROM order_items WHERE order_id = ?`,
+        [order.id]
+    );
+
+    const connection = await pool.getConnection();
+    await connection.beginTransaction();
+    try {
+        const refundNote = `POS refund by employee #${employeeId}: ${reason}`;
+        await connection.execute(
+            `UPDATE orders SET status = 'cancelled', payment_status = 'refunded',
+                notes = CONCAT(COALESCE(notes, ''), IF(COALESCE(notes, '') = '', '', '\n'), ?)
+             WHERE id = ?`,
+            [refundNote, order.id]
+        );
+
+        const inventoryService = new InventoryService(pool);
+        const inventoryItems = orderItems.map((item) => ({
+            productId: item.product_id,
+            variantId: item.variant_id,
+            quantity: item.quantity
+        }));
+        await inventoryService.restoreInventoryForOrder(
+            inventoryItems,
+            order.id,
+            `POS refund ${orderNum} — ${reason}`
+        );
+
+        await connection.commit();
+        return {
+            orderId: order.id,
+            orderNumber: order.order_number,
+            paymentStatus: 'refunded'
+        };
+    } catch (e) {
+        await connection.rollback();
+        throw e;
+    } finally {
+        connection.release();
+    }
+}
+
 module.exports = {
     createInStorePosOrder,
     syncPosOrderBatch,
+    refundInStorePosOrder,
     assertCompliantPaymentPayload,
-    getDefaultTaxRate,
     ALLOWED_PAYMENT_METHODS
 };

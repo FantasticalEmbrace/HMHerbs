@@ -46,6 +46,7 @@ class CheckoutManager {
             verified: false,
             taxExemptIdPresent: false
         };
+        this.storeTaxRate = 0.08;
         /** NMI Collect.js: when true, card PAN/expiry/CVV are tokenized; legacy inputs hidden */
         this.nmiEnabled = false;
         this.nmiScriptReady = false;
@@ -110,6 +111,7 @@ class CheckoutManager {
         this.setupEventListeners();
         this.setupFormValidation();
         this.loadTaxExemptStatus();
+        void this.loadStoreTaxRate();
         void this.initNmiIfConfigured();
         void this.loadSavedCards();
         this.schedulePrefillLoggedInCustomer();
@@ -1022,6 +1024,19 @@ class CheckoutManager {
         }
     }
 
+    async loadStoreTaxRate() {
+        try {
+            const origin = this.getApiOrigin();
+            const response = await fetch(`${origin}/api/store-info`);
+            if (!response.ok) return;
+            const data = await response.json();
+            const rate = Number(data.taxRate);
+            if (Number.isFinite(rate) && rate >= 0) this.storeTaxRate = rate;
+        } catch (error) {
+            console.warn('Unable to load store tax rate:', error);
+        }
+    }
+
     async loadTaxExemptStatus() {
         const token = localStorage.getItem('hmherbs_customer_token');
         if (!token) {
@@ -1390,7 +1405,9 @@ class CheckoutManager {
             }
 
             // Calculate tax — server verifies on submit
-            this.tax = this.taxStatus.verified ? 0 : Math.round(this.subtotal * 0.08 * 100) / 100;
+            const rate = Number(this.storeTaxRate);
+            const taxRate = Number.isFinite(rate) && rate >= 0 ? rate : 0.08;
+            this.tax = this.taxStatus.verified ? 0 : Math.round(this.subtotal * taxRate * 100) / 100;
 
             // Calculate total
             this.total =

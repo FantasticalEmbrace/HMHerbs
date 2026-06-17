@@ -178,7 +178,7 @@ async function main() {
 
         const [products] = await pool.query(
             `SELECT slug, updated_at FROM products
-              WHERE is_active = 1 AND TRIM(slug) <> "" ORDER BY slug`
+              WHERE is_active = 1 AND COALESCE(show_on_web, 1) = 1 AND TRIM(slug) <> "" ORDER BY slug`
         );
 
         const productEntries = products.map((row) =>

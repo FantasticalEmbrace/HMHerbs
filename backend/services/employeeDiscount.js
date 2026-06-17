@@ -35,7 +35,7 @@ async function loadEmployeeDiscountSettings(pool) {
 /**
  * Applies configured employee % off remaining merchandise (after promo discounts).
  */
-function applyEmployeeDiscountToTotals(totals, settings, customerType, applyTaxExemption) {
+function applyEmployeeDiscountToTotals(totals, settings, customerType, applyTaxExemption, taxRate = TAX_RATE) {
     if (!totals) return totals;
     const type = normalizeCustomerType(customerType);
     const base = { ...totals, employeeDiscount: 0, employeeDiscountApplied: false };
@@ -56,7 +56,7 @@ function applyEmployeeDiscountToTotals(totals, settings, customerType, applyTaxE
 
     const newMerchDiscount = roundMoney(existingMerchDisc + employeeMerchDisc);
     const taxBase = roundMoney(Math.max(0, merchandiseSub - newMerchDiscount));
-    const taxAmount = applyTaxExemption ? 0 : roundMoney(taxBase * TAX_RATE);
+    const taxAmount = applyTaxExemption ? 0 : roundMoney(taxBase * taxRate);
     const shippingAfter = Number(totals.shippingAfter) || 0;
     const totalAmount = roundMoney(taxBase + shippingAfter + taxAmount);
 
