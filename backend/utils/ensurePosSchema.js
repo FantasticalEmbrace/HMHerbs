@@ -277,8 +277,8 @@ async function ensurePosSchema(pool) {
             ('pos_receipt_return_policy', '', 'Return policy line on POS receipts', 'string'),
             ('pos_show_cost_in_cart', 'false', 'Show product cost in POS cart', 'boolean'),
             ('store_card_payment_processor', 'epi', 'Website card processor: epi or nmi_durango', 'string'),
-            ('pos_card_payment_processor', 'inherit', 'In-store POS processor: inherit (match website), epi, or nmi_durango', 'string'),
-            ('pos_card_payment_adapter', 'external_terminal', 'POS card payment mode: external_terminal, integrated, or custom', 'string'),
+            ('pos_card_payment_processor', 'nmi_durango', 'In-store POS processor: inherit (match website), epi, or nmi_durango', 'string'),
+            ('pos_card_payment_adapter', 'integrated', 'POS card payment mode: external_terminal, integrated, or custom', 'string'),
             ('pos_custom_payment_driver_url', '', 'Optional URL to custom POS payment driver script when adapter is custom', 'string'),
             ('pos_hardware_printer', 'auto', 'POS receipt printer: auto, elo_star, or browser', 'string'),
             ('pos_display_card_checkout', 'true', 'Enable card checkout on customer display or Durango terminal', 'boolean'),
@@ -321,6 +321,20 @@ async function ensurePosSchema(pool) {
         }
     } catch (e) {
         logger.warn(`Database: payment processor migration — ${logger.formatMysqlError(e)}`);
+    }
+    try {
+        if (String(process.env.POS_NMI_PRIVATE_API_KEY || '').trim()) {
+            await pool.query(
+                `UPDATE settings SET value = 'integrated'
+                 WHERE key_name = 'pos_card_payment_adapter' AND value = 'external_terminal'`
+            );
+            await pool.query(
+                `UPDATE settings SET value = 'nmi_durango'
+                 WHERE key_name = 'pos_card_payment_processor' AND value IN ('inherit', 'epi', '')`
+            );
+        }
+    } catch (e) {
+        logger.warn(`Database: Durango integrated migration — ${logger.formatMysqlError(e)}`);
     }
     try {
         await pool.query(`
@@ -425,6 +439,16 @@ async function ensurePosSchema(pool) {
             )`);
     } catch (e) {
         logger.warn(`Database: pos_register_support_sessions — ${logger.formatMysqlError(e)}`);
+    }
+
+    try {
+        const { pruneRevokedDevices } = require('../services/posDeviceRegistry');
+        const removed = await pruneRevokedDevices(pool);
+        if (removed > 0) {
+            logger.info(`POS: removed ${removed} legacy revoked register(s)`);
+        }
+    } catch (e) {
+        logger.warn(`Database: prune revoked pos_devices — ${logger.formatMysqlError(e)}`);
     }
 }
 

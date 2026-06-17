@@ -10,11 +10,7 @@ const SETTING_EOD_REMINDER_HOUR = 'pos_eod_reminder_hour';
 const SETTING_EOD_REMINDER_MINUTE = 'pos_eod_reminder_minute';
 const SETTING_SUPPORT_PHONE = 'pos_support_phone';
 const SETTING_HELP_URL = 'pos_help_url';
-const SETTING_REMOTE_SUPPORT_NOTICE = 'pos_remote_support_notice';
 const SETTING_CATALOG_REFRESH_MINUTES = 'pos_catalog_refresh_minutes';
-
-const DEFAULT_REMOTE_NOTICE =
-    'Authorized IT or Business One support may connect to this register remotely only with your permission. You will be asked to approve each session.';
 
 const DEFAULTS = {
     dailySalesEmailEnabled: false,
@@ -26,7 +22,6 @@ const DEFAULTS = {
     eodReminderMinute: 0,
     supportPhone: '',
     helpUrl: '',
-    remoteSupportNotice: DEFAULT_REMOTE_NOTICE,
     catalogRefreshMinutes: 60
 };
 
@@ -55,7 +50,6 @@ async function loadPosOperationsSettings(pool) {
         SETTING_EOD_REMINDER_MINUTE,
         SETTING_SUPPORT_PHONE,
         SETTING_HELP_URL,
-        SETTING_REMOTE_SUPPORT_NOTICE,
         SETTING_CATALOG_REFRESH_MINUTES
     ];
     const placeholders = keys.map(() => '?').join(', ');
@@ -93,8 +87,6 @@ async function loadPosOperationsSettings(pool) {
         eodReminderMinute: clampInt(map.get(SETTING_EOD_REMINDER_MINUTE), 0, 59, DEFAULTS.eodReminderMinute),
         supportPhone: String(map.get(SETTING_SUPPORT_PHONE) || '').trim(),
         helpUrl: String(map.get(SETTING_HELP_URL) || '').trim(),
-        remoteSupportNotice: String(map.get(SETTING_REMOTE_SUPPORT_NOTICE) || DEFAULT_REMOTE_NOTICE).trim()
-            || DEFAULT_REMOTE_NOTICE,
         catalogRefreshMinutes: clampInt(
             map.get(SETTING_CATALOG_REFRESH_MINUTES),
             15,
@@ -115,9 +107,7 @@ module.exports = {
     SETTING_EOD_REMINDER_MINUTE,
     SETTING_SUPPORT_PHONE,
     SETTING_HELP_URL,
-    SETTING_REMOTE_SUPPORT_NOTICE,
     SETTING_CATALOG_REFRESH_MINUTES,
-    DEFAULT_REMOTE_NOTICE,
     DEFAULTS,
     loadPosOperationsSettings
 };

@@ -1570,6 +1570,16 @@
             border-color: var(--gray-400);
         }
 
+        .form-textarea-code {
+            font-family: ui-monospace, 'Cascadia Code', 'Consolas', monospace;
+            font-size: 0.8125rem;
+            line-height: 1.55;
+            resize: vertical;
+            min-height: 5.5rem;
+            overflow-y: auto;
+            white-space: pre;
+        }
+
         .form-row {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -3869,6 +3879,7 @@
                                 <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;"><input type="checkbox" name="pos_scan_beep_enabled" value="true" checked> Beep when barcode scan finds a product</label>
                                 <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;"><input type="checkbox" name="pos_display_store_hours_idle" value="true" checked> Store hours on idle customer display</label>
                                 <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;"><input type="checkbox" name="pos_show_cost_in_cart" value="true"> Show product cost in cart</label>
+                                <p class="form-help" style="margin:0.15rem 0 0 1.65rem;">When enabled, cost from each product’s admin record appears on the register for manual discount decisions. Cost is not printed on customer receipts.</p>
                             </div>
                             <div class="form-group">
                                 <span class="form-label" style="display:block;margin-bottom:0.5rem;font-weight:600;">Personnel on this register</span>
@@ -3885,16 +3896,15 @@
                             </div>
                             <div class="form-group" style="margin-top:0.85rem;">
                                 <label for="pos-quick-keys">Quick keys / favorites</label>
-                                <textarea class="form-input" id="pos-quick-keys" name="pos_quick_keys" rows="5" maxlength="4000" placeholder="sku:DEMO-VIT-C|Vitamin C&#10;category:vitamins|Vitamins"></textarea>
+                                <textarea class="form-input form-textarea-code" id="pos-quick-keys" name="pos_quick_keys" rows="4" maxlength="4000" placeholder="sku:ABC-123|Vitamin C&#10;category:supplements|Supplements"></textarea>
                                 <p class="form-help" style="margin-top:0.35rem;">One per line: <code>sku:SKU|Label</code> or <code>category:slug-or-id|Label</code>. Shown as pinned buttons on the register.</p>
-                                <p class="form-help" style="margin-top:0.35rem;">When <strong>Show product cost in cart</strong> is on, cost from each product’s admin record appears on the register for manual discount decisions. Cost is not printed on customer receipts.</p>
                             </div>
                         </div>
                     </div>
                     <div class="card">
                         <div class="card-content">
                             <h3 style="margin:0 0 0.35rem 0;">Register help</h3>
-                            <p style="margin:0 0 1rem;color:var(--gray-600);font-size:0.88rem;">Shown on the POS troubleshooting screen. Remote support notice is good practice — not legal advice.</p>
+                            <p style="margin:0 0 1rem;color:var(--gray-600);font-size:0.88rem;">Support phone and help URL appear on the POS troubleshooting screen when staff open Help.</p>
                             <div class="form-group">
                                 <label for="pos-support-phone">Support phone</label>
                                 <input class="form-input" id="pos-support-phone" name="pos_support_phone" type="tel" maxlength="32" placeholder="e.g. (555) 123-4567">
@@ -3907,10 +3917,6 @@
                                 <label for="pos-catalog-refresh-minutes">Catalog auto-refresh (minutes)</label>
                                 <input class="form-input" id="pos-catalog-refresh-minutes" name="pos_catalog_refresh_minutes" type="number" min="15" max="1440" step="1" placeholder="60" style="max-width:8rem;">
                                 <p class="form-help" style="margin-top:0.35rem;">How often registers refresh prices and stock when online (15–1440).</p>
-                            </div>
-                            <div class="form-group">
-                                <label for="pos-remote-support-notice">Remote support notice</label>
-                                <textarea class="form-input" id="pos-remote-support-notice" name="pos_remote_support_notice" rows="3" maxlength="500" placeholder="Authorized IT may connect with your permission…"></textarea>
                             </div>
                             <p data-pos-settings-save-msg style="min-height:1.25rem;font-size:0.9rem;margin:1rem 0 0;"></p>
                             <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
@@ -3928,6 +3934,7 @@
                             <p style="margin:0 0 1rem 0;color:var(--gray-600);font-size:0.88rem;">
                                 One key per tablet. The <strong>register name</strong> must match POS setup exactly (e.g. <em>Front counter</em>).
                                 On the tablet, set <strong>Store website address</strong> to your server only (e.g. <code>http://127.0.0.1:3001</code>) — not this admin page.
+                                Use <strong>New key</strong> to rotate a key on an existing register. <strong>Revoke</strong> removes it so you can generate a fresh key for that hardware.
                             </p>
                             <div id="pos-devices-list" style="margin-bottom:0.75rem;"></div>
                             <div style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:flex-end;">
@@ -3991,17 +3998,17 @@
                                 <span class="form-label" style="display:block;margin-bottom:0.5rem;font-weight:600;">POS card handling</span>
                                 <div class="payment-processor-radios" role="radiogroup" aria-label="POS card handling">
                                     <label class="payment-processor-option">
-                                        <input type="radio" name="pos_card_payment_adapter" value="external_terminal" checked>
+                                        <input type="radio" name="pos_card_payment_adapter" value="integrated" checked>
                                         <span class="payment-processor-card">
-                                            <span class="payment-processor-title">External terminal</span>
-                                            <span class="payment-processor-desc">Customer pays on a countertop reader; the register records approval only (recommended).</span>
+                                            <span class="payment-processor-title">Integrated — Durango terminal (recommended)</span>
+                                            <span class="payment-processor-desc">Semi-integrated: the total is sent to the A3700 and the register completes the sale when the terminal approves — no last-four entry or manual approval tap.</span>
                                         </span>
                                     </label>
                                     <label class="payment-processor-option">
-                                        <input type="radio" name="pos_card_payment_adapter" value="integrated">
+                                        <input type="radio" name="pos_card_payment_adapter" value="external_terminal">
                                         <span class="payment-processor-card">
-                                            <span class="payment-processor-title">Integrated (in register)</span>
-                                            <span class="payment-processor-desc">Card fields in the POS app using the store processor selected above.</span>
+                                            <span class="payment-processor-title">External terminal</span>
+                                            <span class="payment-processor-desc">Standalone reader with no processor link. Cashier confirms approval manually on the register.</span>
                                         </span>
                                     </label>
                                     <label class="payment-processor-option">
@@ -4697,7 +4704,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="admin-personnel-pos.js"></script>
     <script src="admin-pos-hub.js"></script>
-    <script src="admin-app.js?v=20260617g"></script>
+    <script src="admin-app.js?v=20260617j"></script>
     <script src="admin-edsa-calendar.js"></script>
     <script src="admin-customers.js"></script>
     <script src="admin-customer-groups.js"></script>

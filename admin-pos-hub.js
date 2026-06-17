@@ -170,7 +170,14 @@
     }
 
     async function deleteEquipment(id) {
-        if (!window.confirm('Delete this equipment? This cannot be undone.')) return;
+        const ok = await window.adminApp?.showAdminConfirm?.({
+            title: 'Delete equipment?',
+            message: 'This cannot be undone.',
+            confirmLabel: 'Delete',
+            cancelLabel: 'Cancel',
+            danger: true,
+        });
+        if (!ok) return;
         try {
             await posApi('/equipment/' + id, { method: 'DELETE' });
             window.adminApp.showToast('Equipment deleted', 'success');

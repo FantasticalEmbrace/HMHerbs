@@ -164,8 +164,7 @@ router.get('/config', async (req, res) => {
                 heartbeatSeconds: Math.max(15, Number(process.env.POS_SUPPORT_HEARTBEAT_SECONDS) || 30),
                 iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
                 phone: operations.supportPhone,
-                helpUrl: operations.helpUrl,
-                remoteSupportNotice: operations.remoteSupportNotice
+                helpUrl: operations.helpUrl
             },
             operations: {
                 catalogRefreshMinutes: operations.catalogRefreshMinutes,
@@ -173,8 +172,7 @@ router.get('/config', async (req, res) => {
                 eodReminderHour: operations.eodReminderHour,
                 eodReminderMinute: operations.eodReminderMinute,
                 supportPhone: operations.supportPhone,
-                helpUrl: operations.helpUrl,
-                remoteSupportNotice: operations.remoteSupportNotice
+                helpUrl: operations.helpUrl
             },
             experience: {
                 largeTouchMode: experience.largeTouchMode,

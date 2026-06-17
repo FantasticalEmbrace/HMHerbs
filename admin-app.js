@@ -652,8 +652,14 @@ class AdminApp {
             btn.className = 'btn-google btn-google-oauth';
             btn.innerHTML = `${this._googleButtonSvg()} Continue with Google`;
             btn.addEventListener('click', () => this.startGoogleSignIn());
-            form.appendChild(divider);
-            form.appendChild(btn);
+            const anchor = form.querySelector('button[type="submit"]')?.nextElementSibling || null;
+            if (anchor) {
+                form.insertBefore(divider, anchor);
+                form.insertBefore(btn, anchor);
+            } else {
+                form.appendChild(divider);
+                form.appendChild(btn);
+            }
         } catch (_) {
             /* optional */
         }
@@ -1524,7 +1530,6 @@ class AdminApp {
             pos_eod_reminder_minute: 'End-of-day reminder minute',
             pos_support_phone: 'Support phone shown on POS register help',
             pos_help_url: 'Help URL shown on POS register',
-            pos_remote_support_notice: 'Remote support notice shown on POS register',
             pos_catalog_refresh_minutes: 'Auto-refresh product catalog interval in minutes',
             pos_large_touch_mode: 'Large touch mode with bigger category buttons on POS',
             pos_scan_beep_enabled: 'Play beep when barcode scan finds a product',
@@ -2303,14 +2308,14 @@ class AdminApp {
                 ? posProcessorRaw
                 : 'inherit';
         }
-        const rawAdapter = String(map.get('pos_card_payment_adapter') || 'external_terminal').toLowerCase();
+        const rawAdapter = String(map.get('pos_card_payment_adapter') || 'integrated').toLowerCase();
         let posMode = rawAdapter;
         if (rawAdapter === 'epi' || rawAdapter === 'nmi_durango') {
             posMode = 'integrated';
             const legacyProcessorEl = form.querySelector(`[name="store_card_payment_processor"][value="${rawAdapter}"]`);
             if (legacyProcessorEl) legacyProcessorEl.checked = true;
         }
-        if (!['external_terminal', 'integrated', 'custom'].includes(posMode)) posMode = 'external_terminal';
+        if (!['external_terminal', 'integrated', 'custom'].includes(posMode)) posMode = 'integrated';
         const adapterEl = form.querySelector(`[name="pos_card_payment_adapter"][value="${posMode}"]`);
         if (adapterEl) adapterEl.checked = true;
         const customDriverEl = form.querySelector('[name="pos_custom_payment_driver_url"]');
@@ -2393,13 +2398,6 @@ class AdminApp {
         if (supportPhoneEl) supportPhoneEl.value = String(map.get('pos_support_phone') || '');
         const helpUrlEl = form.querySelector('[name="pos_help_url"]');
         if (helpUrlEl) helpUrlEl.value = String(map.get('pos_help_url') || '');
-        const remoteNoticeEl = form.querySelector('[name="pos_remote_support_notice"]');
-        if (remoteNoticeEl) {
-            remoteNoticeEl.value = String(
-                map.get('pos_remote_support_notice') ||
-                    'Authorized IT or Business One support may connect to this register remotely only with your permission. You will be asked to approve each session.'
-            );
-        }
         const catalogRefreshEl = form.querySelector('[name="pos_catalog_refresh_minutes"]');
         if (catalogRefreshEl) catalogRefreshEl.value = String(map.get('pos_catalog_refresh_minutes') ?? '60');
         const largeTouchEl = form.querySelector('[name="pos_large_touch_mode"]');
@@ -2473,7 +2471,7 @@ class AdminApp {
         const form = document.getElementById('pos-settings-form');
         if (!form) return;
         const adapter = String(
-            form.querySelector('[name="pos_card_payment_adapter"]:checked')?.value || 'external_terminal'
+            form.querySelector('[name="pos_card_payment_adapter"]:checked')?.value || 'integrated'
         );
         const group = document.getElementById('pos-custom-driver-url-group');
         if (group) group.style.display = adapter === 'custom' ? '' : 'none';
@@ -2519,9 +2517,9 @@ class AdminApp {
             .toLowerCase();
         if (!['inherit', 'epi', 'nmi_durango'].includes(posProcessor)) posProcessor = 'inherit';
         let adapter = String(
-            form.querySelector('[name="pos_card_payment_adapter"]:checked')?.value || 'external_terminal'
+            form.querySelector('[name="pos_card_payment_adapter"]:checked')?.value || 'integrated'
         ).toLowerCase();
-        if (!['external_terminal', 'integrated', 'custom'].includes(adapter)) adapter = 'external_terminal';
+        if (!['external_terminal', 'integrated', 'custom'].includes(adapter)) adapter = 'integrated';
         const customDriverUrl = String(form.querySelector('[name="pos_custom_payment_driver_url"]')?.value || '').trim();
         const headerText = String(form.querySelector('[name="pos_receipt_header_text"]')?.value || '').trim().slice(0, 200);
         const footerText = String(form.querySelector('[name="pos_receipt_footer_text"]')?.value || '').trim().slice(0, 500);
@@ -2679,7 +2677,7 @@ class AdminApp {
                     type: 'boolean',
                 };
             }
-            if (key === 'pos_daily_sales_email_to' || key === 'pos_support_phone' || key === 'pos_help_url' || key === 'pos_remote_support_notice') {
+            if (key === 'pos_daily_sales_email_to' || key === 'pos_support_phone' || key === 'pos_help_url') {
                 const el = form.querySelector(`[name="${key}"]`);
                 return {
                     key_name: key,
@@ -3217,7 +3215,14 @@ class AdminApp {
     }
 
     async revokePosSupportAgent(agentId) {
-        if (!confirm('Revoke this support agent? The PC will need to be re-registered.')) return;
+        const ok = await this.showAdminConfirm({
+            title: 'Revoke support agent?',
+            message: 'The PC will need to be re-registered before it can connect again.',
+            confirmLabel: 'Revoke agent',
+            cancelLabel: 'Cancel',
+            danger: true,
+        });
+        if (!ok) return;
         try {
             await this.apiRequest(`/admin/pos/support/agents/${agentId}`, { method: 'DELETE' });
             this.showToast('Support agent revoked', 'success');
@@ -3235,24 +3240,23 @@ class AdminApp {
             const devices = Array.isArray(res?.devices) ? res.devices : [];
             if (!devices.length) {
                 list.innerHTML =
-                    '<p style="margin:0;color:var(--gray-500);font-size:0.9rem;">No register keys yet. Generate one for each tablet.</p>';
+                    '<p style="margin:0;color:var(--gray-500);font-size:0.9rem;">No registers yet. Generate a key for each tablet below.</p>';
                 return;
             }
-            list.innerHTML = devices
+            const sorted = [...devices].sort((a, b) =>
+                String(a.deviceLabel).localeCompare(String(b.deviceLabel))
+            );
+            list.innerHTML = sorted
                 .map((d) => {
-                    const status = d.isActive ? 'Active' : 'Revoked';
                     const seen = d.lastSeenAt ? this.formatAdminDateTime(d.lastSeenAt) : 'Never';
-                    const keyBtn = d.isActive
-                        ? `<button type="button" class="btn btn-secondary btn-sm" data-regenerate-pos-device="${d.id}">New key</button>`
-                        : `<button type="button" class="btn btn-secondary btn-sm" data-regenerate-pos-device="${d.id}">Reactivate &amp; new key</button>`;
                     return `<div style="display:flex;justify-content:space-between;gap:0.75rem;align-items:center;padding:0.55rem 0;border-bottom:1px solid var(--gray-200);">
                         <div>
                             <div style="font-weight:600;">${this.escapeHtml(d.deviceLabel)}</div>
-                            <div style="font-size:0.85rem;color:var(--gray-600);">${this.escapeHtml(d.keyPrefix)}… · ${status} · Last seen ${this.escapeHtml(seen)}</div>
+                            <div style="font-size:0.85rem;color:var(--gray-600);">${this.escapeHtml(d.keyPrefix)}… · Last seen ${this.escapeHtml(seen)}</div>
                         </div>
                         <div style="display:flex;gap:0.35rem;flex-wrap:wrap;justify-content:flex-end;">
-                            ${keyBtn}
-                            ${d.isActive ? `<button type="button" class="btn btn-ghost btn-sm" data-revoke-pos-device="${d.id}">Revoke</button>` : ''}
+                            <button type="button" class="btn btn-secondary btn-sm" data-regenerate-pos-device="${d.id}">New key</button>
+                            <button type="button" class="btn btn-ghost btn-sm" data-revoke-pos-device="${d.id}">Revoke</button>
                         </div>
                     </div>`;
                 })
@@ -3361,15 +3365,24 @@ class AdminApp {
     }
 
     async revokePosDevice(id) {
-        if (!id || !confirm('Revoke this register key? That tablet will need a new key.')) return;
+        if (!id) return;
+        const ok = await this.showAdminConfirm({
+            title: 'Revoke register?',
+            message:
+                'This register is removed from the list and the tablet stops connecting. Generate a new key with the same register name when you set up the hardware again.',
+            confirmLabel: 'Revoke register',
+            cancelLabel: 'Cancel',
+            danger: true,
+        });
+        if (!ok) return;
         try {
             await this.apiRequest(`/admin/pos/devices/${id}`, { method: 'DELETE' });
             await this.loadPosDevices();
-            this.showToast('Register key revoked', 'success');
+            this.showToast('Register removed', 'success');
         } catch (err) {
-            this.showToast(err.message || 'Could not revoke device', 'error');
+            this.showToast(err.message || 'Could not revoke register', 'error');
         }
-    },
+    }
 
     async loadPosDisplayAds() {
         const list = document.getElementById('pos-display-ads-list');
@@ -3418,7 +3431,7 @@ class AdminApp {
         } catch (err) {
             list.innerHTML = `<p style="margin:0;color:var(--error);font-size:0.9rem;">${this.escapeHtml(err.message || 'Could not load display ads')}</p>`;
         }
-    },
+    }
 
     async uploadPosDisplayAdImage(file) {
         if (!file || !this.authToken) return null;
@@ -3432,7 +3445,7 @@ class AdminApp {
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data.error || 'Upload failed');
         return data.url || null;
-    },
+    }
 
     async savePosDisplayAd(ev) {
         if (ev?.preventDefault) ev.preventDefault();
@@ -3487,7 +3500,7 @@ class AdminApp {
             }
             this.showToast(err.message || 'Could not save display ad', 'error');
         }
-    },
+    }
 
     async togglePosDisplayAd(id, isActive) {
         if (!id) return;
@@ -3500,10 +3513,18 @@ class AdminApp {
         } catch (err) {
             this.showToast(err.message || 'Could not update ad', 'error');
         }
-    },
+    }
 
     async deletePosDisplayAd(id) {
-        if (!id || !confirm('Delete this display ad?')) return;
+        if (!id) return;
+        const ok = await this.showAdminConfirm({
+            title: 'Delete display ad?',
+            message: 'This ad will be removed from customer displays.',
+            confirmLabel: 'Delete',
+            cancelLabel: 'Cancel',
+            danger: true,
+        });
+        if (!ok) return;
         try {
             await this.apiRequest(`/admin/pos/display-ads/${id}`, { method: 'DELETE' });
             await this.loadPosDisplayAds();
@@ -3511,7 +3532,7 @@ class AdminApp {
         } catch (err) {
             this.showToast(err.message || 'Could not delete ad', 'error');
         }
-    },
+    }
 
     async loadStoreInfoSettings() {
         const form = document.getElementById('store-info-settings-form');
@@ -8898,6 +8919,7 @@ class AdminApp {
         // Clear forms
         if (loginForm) loginForm.reset();
         if (loginError) loginError.style.display = 'none';
+        void this.setupGoogleSignIn();
     }
 
     // Add event listener with tracking for cleanup
@@ -9030,7 +9052,7 @@ class AdminApp {
 
             const cancelBtn = document.createElement('button');
             cancelBtn.type = 'button';
-            cancelBtn.className = 'btn btn-danger';
+            cancelBtn.className = 'btn btn-secondary';
             cancelBtn.textContent = cancelLabel;
 
             const okBtn = document.createElement('button');

@@ -19,6 +19,7 @@ async function listDevices(pool) {
     const [rows] = await pool.execute(
         `SELECT id, device_label, key_prefix, is_active, last_seen_at, created_at, updated_at
          FROM pos_devices
+         WHERE is_active = 1
          ORDER BY device_label ASC`
     );
     return rows || [];
@@ -28,7 +29,7 @@ async function findDeviceByLabel(pool, deviceLabel) {
     const label = String(deviceLabel || '').trim().slice(0, 64);
     if (!label) return null;
     const [rows] = await pool.execute(
-        `SELECT id, device_label, is_active FROM pos_devices WHERE device_label = ? LIMIT 1`,
+        `SELECT id, device_label, is_active FROM pos_devices WHERE LOWER(device_label) = LOWER(?) AND is_active = 1 LIMIT 1`,
         [label]
     );
     return rows[0] || null;
@@ -70,14 +71,43 @@ async function createDevice(pool, deviceLabel) {
     };
 }
 
-async function revokeDevice(pool, deviceId) {
-    const [result] = await pool.execute(`UPDATE pos_devices SET is_active = 0 WHERE id = ?`, [deviceId]);
+async function deleteDevice(pool, deviceId) {
+    const id = Number(deviceId);
+    if (!Number.isInteger(id) || id <= 0) return false;
+
+    const [rows] = await pool.execute(`SELECT id FROM pos_devices WHERE id = ? LIMIT 1`, [id]);
+    if (!rows.length) return false;
+
+    await pool
+        .execute(`DELETE FROM pos_register_support_sessions WHERE pos_device_id = ?`, [id])
+        .catch(() => {});
+    await pool.execute(`UPDATE pos_equipment SET pos_device_id = NULL WHERE pos_device_id = ?`, [id]).catch(() => {});
+    const [result] = await pool.execute(`DELETE FROM pos_devices WHERE id = ?`, [id]);
     return result.affectedRows > 0;
 }
 
+/** Revoke removes the register so the name can be used again with a fresh key. */
+async function revokeDevice(pool, deviceId) {
+    return deleteDevice(pool, deviceId);
+}
+
+/** Drop legacy soft-revoked rows from before revoke deleted registers. */
+async function pruneRevokedDevices(pool) {
+    const [rows] = await pool.execute(`SELECT id FROM pos_devices WHERE is_active = 0`);
+    let removed = 0;
+    for (const row of rows || []) {
+        if (await deleteDevice(pool, row.id)) removed += 1;
+    }
+    return removed;
+}
+
 async function revokeAllDevices(pool) {
-    const [result] = await pool.execute(`UPDATE pos_devices SET is_active = 0 WHERE is_active = 1`);
-    return result.affectedRows || 0;
+    const [rows] = await pool.execute(`SELECT id FROM pos_devices`);
+    let removed = 0;
+    for (const row of rows || []) {
+        if (await deleteDevice(pool, row.id)) removed += 1;
+    }
+    return removed;
 }
 
 async function regenerateDeviceKey(pool, deviceId) {
@@ -89,7 +119,7 @@ async function regenerateDeviceKey(pool, deviceId) {
     }
 
     const [rows] = await pool.execute(
-        `SELECT id, device_label FROM pos_devices WHERE id = ? LIMIT 1`,
+        `SELECT id, device_label FROM pos_devices WHERE id = ? AND is_active = 1 LIMIT 1`,
         [id]
     );
     if (!rows.length) {
@@ -130,7 +160,7 @@ async function authenticateDevice(pool, deviceLabel, providedKey) {
     }
 
     const [rows] = await pool.execute(
-        `SELECT id, device_label, api_key_hash, is_active FROM pos_devices WHERE device_label = ? LIMIT 1`,
+        `SELECT id, device_label, api_key_hash, is_active FROM pos_devices WHERE LOWER(device_label) = LOWER(?) LIMIT 1`,
         [label]
     );
     const registered = rows[0];
@@ -167,6 +197,8 @@ module.exports = {
     createDevice,
     regenerateDeviceKey,
     revokeDevice,
+    deleteDevice,
+    pruneRevokedDevices,
     revokeAllDevices,
     authenticateDevice
 };
