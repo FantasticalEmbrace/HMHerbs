@@ -87,6 +87,12 @@ function googleOAuthClient(redirectUri) {
 }
 
 function getGoogleRedirectUri(req, audience) {
+    if (audience === 'support') {
+        if (process.env.SUPPORT_DESK_GOOGLE_REDIRECT_URI) {
+            return String(process.env.SUPPORT_DESK_GOOGLE_REDIRECT_URI).trim();
+        }
+        return `${getStorefrontPublicBaseUrl()}/api/platform/support/hub/google/callback`;
+    }
     const envKey = audience === 'admin' ? 'ADMIN_GOOGLE_REDIRECT_URI' : 'CUSTOMER_GOOGLE_REDIRECT_URI';
     if (process.env[envKey]) return String(process.env[envKey]).trim();
 

@@ -32,6 +32,8 @@ class GiftCardsPage {
         this.loadCartFromStorage();
         this.setupTabs();
         this.setupCartUi();
+        this.setupPersonalizeToggle();
+        this.setupRecipientPreview();
         await this.loadCatalog();
         this.updateCartDisplay();
     }
@@ -71,6 +73,33 @@ class GiftCardsPage {
         });
     }
 
+    setupPersonalizeToggle() {
+        const checkbox = document.getElementById('include-personalized-email');
+        const fields = document.getElementById('personalized-email-fields');
+        if (!checkbox || !fields) return;
+        checkbox.addEventListener('change', () => {
+            fields.hidden = !checkbox.checked;
+        });
+    }
+
+    setupRecipientPreview() {
+        const nameInput = document.getElementById('recipient-name');
+        if (nameInput) {
+            nameInput.addEventListener('input', () => this.updateCardPreview());
+        }
+    }
+
+    updateCardPreview() {
+        const preview = document.getElementById('gift-card-preview');
+        if (!preview || !window.HmGiftCard?.markup) return;
+        const recipientName = document.getElementById('recipient-name')?.value.trim() || '';
+        preview.innerHTML = window.HmGiftCard.markup({
+            amount: this.selectedAmount,
+            cardType: this.activeType,
+            recipientName
+        });
+    }
+
     selectType(type) {
         this.activeType = type;
         this.selectedAmount = null;
@@ -85,28 +114,46 @@ class GiftCardsPage {
 
         const title = document.getElementById('gift-panel-title');
         const desc = document.getElementById('gift-panel-desc');
+        const intro = document.getElementById('recipient-info-intro');
         const emailLabel = document.getElementById('recipient-email-label');
         const emailHelp = document.getElementById('recipient-email-help');
-        const reqMark = document.querySelector('#recipient-email-label .required-mark');
+        const contactFields = document.getElementById('recipient-contact-fields');
+        const reqMarks = document.querySelectorAll('.recipient-req');
+        const nameInput = document.getElementById('recipient-name');
+        const emailInput = document.getElementById('recipient-email');
+        const phoneInput = document.getElementById('recipient-phone');
+        const isDigital = type === 'digital';
 
         if (title) title.textContent = this.activeProduct.name;
         if (desc) {
-            desc.textContent = type === 'digital'
-                ? 'Delivered instantly by email. Recipient gets an account to track their balance.'
-                : 'Mailed to your shipping address. Add a recipient email to create their account for balance tracking.';
+            desc.textContent = isDigital
+                ? 'Delivered instantly by email. We create an account for the recipient so they can track their balance.'
+                : 'Mailed to your shipping address at checkout. Add recipient details if you want them to track their balance online.';
         }
-        if (emailLabel) emailLabel.textContent = type === 'digital' ? 'Recipient email' : 'Recipient email (optional)';
-        if (reqMark) reqMark.style.display = type === 'digital' ? 'inline' : 'none';
+        if (intro) {
+            intro.textContent = isDigital
+                ? 'Digital gift cards are emailed to the recipient. We ask for their name, email, phone, and mailing address so we can set up their account and help them keep track of their gift card balance.'
+                : 'Recipient details are optional for physical cards. Add an email if you want the recipient to track their balance online after the card arrives.';
+        }
         if (emailHelp) {
-            emailHelp.textContent = type === 'digital'
-                ? 'Required — we email the gift card and create an account for the recipient.'
+            emailHelp.textContent = isDigital
+                ? 'The gift card code and delivery email will be sent here.'
                 : 'Optional — creates an account so the recipient can track their balance online.';
         }
-
-        const emailInput = document.getElementById('recipient-email');
-        if (emailInput) emailInput.required = type === 'digital';
+        if (contactFields) contactFields.style.display = isDigital ? 'block' : 'none';
+        reqMarks.forEach((el) => {
+            el.style.display = isDigital ? 'inline' : 'none';
+        });
+        if (nameInput) nameInput.required = isDigital;
+        if (emailInput) emailInput.required = isDigital;
+        if (phoneInput) phoneInput.required = isDigital;
+        ['recipient-address-1', 'recipient-city', 'recipient-state', 'recipient-zip'].forEach((id) => {
+            const el = document.getElementById(id);
+            if (el) el.required = isDigital;
+        });
 
         this.renderAmounts();
+        this.updateCardPreview();
     }
 
     renderAmounts() {
@@ -127,6 +174,7 @@ class GiftCardsPage {
                 this.selectedAmount = Number(v.price);
                 grid.querySelectorAll('.amount-btn').forEach((b) => b.classList.remove('selected'));
                 btn.classList.add('selected');
+                this.updateCardPreview();
             });
             grid.appendChild(btn);
         });
@@ -147,30 +195,83 @@ class GiftCardsPage {
         }
     }
 
+    isValidUsPhone(value) {
+        const t = String(value || '').trim();
+        const P = window.HMHERBS_PHONE_US;
+        return P ? P.isValidDisplay(t, false) : /^\(\d{3}\) \d{3}-\d{4}$/.test(t);
+    }
+
+    collectRecipientMeta() {
+        const includePersonalizedEmail = Boolean(document.getElementById('include-personalized-email')?.checked);
+        return {
+            cardType: this.activeType,
+            recipientName: document.getElementById('recipient-name')?.value.trim() || '',
+            recipientEmail: document.getElementById('recipient-email')?.value.trim().toLowerCase() || '',
+            recipientPhone: document.getElementById('recipient-phone')?.value.trim() || '',
+            recipientAddress: {
+                line1: document.getElementById('recipient-address-1')?.value.trim() || '',
+                line2: document.getElementById('recipient-address-2')?.value.trim() || '',
+                city: document.getElementById('recipient-city')?.value.trim() || '',
+                state: document.getElementById('recipient-state')?.value.trim() || '',
+                postalCode: document.getElementById('recipient-zip')?.value.trim() || '',
+                country: 'United States'
+            },
+            senderName: document.getElementById('sender-name')?.value.trim() || '',
+            greetingOccasion: document.getElementById('greeting-occasion')?.value || 'custom',
+            personalMessage: document.getElementById('personal-message')?.value.trim() || '',
+            includePersonalizedEmail
+        };
+    }
+
+    validateRecipientMeta(meta) {
+        if (this.activeType !== 'digital') {
+            if (meta.recipientEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(meta.recipientEmail)) {
+                this.notify('Please enter a valid recipient email', 'error');
+                return false;
+            }
+            return true;
+        }
+
+        if (!meta.recipientName) {
+            this.notify('Recipient name is required for digital gift cards', 'error');
+            return false;
+        }
+        if (!meta.recipientEmail) {
+            this.notify('Recipient email is required for digital gift cards', 'error');
+            return false;
+        }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(meta.recipientEmail)) {
+            this.notify('Please enter a valid recipient email', 'error');
+            return false;
+        }
+        if (!meta.recipientPhone) {
+            this.notify('Recipient phone is required so we can set up their account', 'error');
+            return false;
+        }
+        if (!this.isValidUsPhone(meta.recipientPhone)) {
+            this.notify('Recipient phone must be formatted as (555) 123-4567', 'error');
+            return false;
+        }
+        const addr = meta.recipientAddress || {};
+        if (!addr.line1 || !addr.city || !addr.state || !addr.postalCode) {
+            this.notify('Recipient mailing address is required so they can track their gift card balance', 'error');
+            return false;
+        }
+        if (!/^\d{5}(-\d{4})?$/.test(addr.postalCode)) {
+            this.notify('Please enter a valid recipient ZIP code', 'error');
+            return false;
+        }
+        return true;
+    }
+
     addToCart() {
         if (!this.activeProduct || !this.selectedVariant || !this.selectedAmount) {
             this.notify('Please select a gift card amount', 'error');
             return;
         }
 
-        const recipientEmail = document.getElementById('recipient-email')?.value.trim().toLowerCase() || '';
-        const recipientName = document.getElementById('recipient-name')?.value.trim() || '';
-        const senderName = document.getElementById('sender-name')?.value.trim() || '';
-        const personalMessage = document.getElementById('personal-message')?.value.trim() || '';
-
-        if (this.activeType === 'digital') {
-            if (!recipientEmail) {
-                this.notify('Recipient email is required for digital gift cards', 'error');
-                return;
-            }
-            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail)) {
-                this.notify('Please enter a valid recipient email', 'error');
-                return;
-            }
-        } else if (recipientEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail)) {
-            this.notify('Please enter a valid recipient email', 'error');
-            return;
-        }
+        const giftCard = this.collectRecipientMeta();
+        if (!this.validateRecipientMeta(giftCard)) return;
 
         const variant = (this.activeProduct.variants || []).find((v) => v.id === this.selectedVariant);
         const lineName = `${this.activeProduct.name} — $${this.selectedAmount.toFixed(0)}`;
@@ -184,13 +285,7 @@ class GiftCardsPage {
             quantity: 1,
             image: '',
             inStock: true,
-            giftCard: {
-                cardType: this.activeType,
-                recipientEmail,
-                recipientName,
-                senderName,
-                personalMessage
-            }
+            giftCard
         });
 
         this.saveCartToStorage();
@@ -198,9 +293,11 @@ class GiftCardsPage {
         this.notify(`${lineName} added to cart`, 'success');
 
         document.getElementById('gift-card-form')?.reset();
+        document.getElementById('personalized-email-fields')?.setAttribute('hidden', '');
         this.selectedAmount = null;
         this.selectedVariant = null;
         this.renderAmounts();
+        this.selectType(this.activeType);
     }
 
     loadCartFromStorage() {
@@ -241,17 +338,27 @@ class GiftCardsPage {
 
         if (emptyEl) emptyEl.style.display = 'none';
         itemsEl.innerHTML = this.cart
-            .map(
-                (item, idx) => `
-            <div class="cart-item">
+            .map((item, idx) => {
+                const thumb =
+                    item.giftCard && window.HmGiftCard?.markup
+                        ? `<div class="checkout-gift-card-thumb">${window.HmGiftCard.markup({
+                              amount: item.price,
+                              cardType: item.giftCard.cardType || 'digital',
+                              compact: true
+                          })}</div>`
+                        : '';
+                return `
+            <div class="cart-item${item.giftCard ? ' cart-item--gift-card' : ''}">
+                ${thumb}
                 <div class="cart-item-info">
                     <div class="cart-item-name">${this.escapeHtml(item.name)}</div>
                     ${item.giftCard?.recipientEmail ? `<div class="cart-item-meta">To: ${this.escapeHtml(item.giftCard.recipientEmail)}</div>` : ''}
+                    ${item.giftCard?.includePersonalizedEmail ? `<div class="cart-item-meta">Personalized email greeting</div>` : ''}
                     <div class="cart-item-price">$${((item.price || 0) * (item.quantity || 1)).toFixed(2)}</div>
                 </div>
                 <button type="button" class="cart-item-remove" data-idx="${idx}" aria-label="Remove">×</button>
-            </div>`
-            )
+            </div>`;
+            })
             .join('');
 
         itemsEl.querySelectorAll('.cart-item-remove').forEach((btn) => {

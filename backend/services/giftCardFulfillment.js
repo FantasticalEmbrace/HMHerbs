@@ -10,6 +10,7 @@ const {
     sendGiftCardRecipientEmail,
     sendGiftCardPurchaserConfirmation
 } = require('./giftCardDeliveryEmail');
+const { isUsPhoneDisplay } = require('../utils/usPhoneDisplay');
 
 async function recordGiftCardTransaction(connection, row) {
     await connection.execute(
@@ -109,7 +110,9 @@ async function fulfillGiftCardsForOrder(pool, orderId) {
                 if (giftMeta.recipientEmail) {
                     const acct = await ensureGiftCardRecipientAccount(connection, {
                         email: giftMeta.recipientEmail,
-                        recipientName: giftMeta.recipientName
+                        recipientName: giftMeta.recipientName,
+                        recipientPhone: giftMeta.recipientPhone,
+                        recipientAddress: giftMeta.recipientAddress
                     });
                     customerId = acct.userId;
                     resetToken = acct.resetToken;
@@ -142,6 +145,7 @@ async function fulfillGiftCardsForOrder(pool, orderId) {
                         line.purchaser_user_id,
                         giftMeta.recipientName || null,
                         giftMeta.recipientEmail || null,
+                        giftMeta.recipientPhone || null,
                         giftMeta.senderName || purchaserName || null,
                         giftMeta.personalMessage || null,
                         oid,
@@ -181,6 +185,8 @@ async function fulfillGiftCardsForOrder(pool, orderId) {
                         recipientName: giftMeta.recipientName,
                         senderName: giftMeta.senderName || purchaserName,
                         personalMessage: giftMeta.personalMessage,
+                        greetingOccasion: giftMeta.greetingOccasion,
+                        includePersonalizedEmail: giftMeta.includePersonalizedEmail,
                         cardType,
                         amount: balance,
                         code,
@@ -244,14 +250,75 @@ function resolveGiftMeta(meta, index) {
 }
 
 function normalizeGiftMeta(line, defaults) {
+    const address = line.recipientAddress || line.recipient_address || defaults.recipientAddress || {};
     return {
         recipientEmail: String(line.recipientEmail || line.recipient_email || defaults.recipientEmail || '')
             .trim()
             .toLowerCase(),
         recipientName: String(line.recipientName || line.recipient_name || defaults.recipientName || '').trim(),
+        recipientPhone: String(line.recipientPhone || line.recipient_phone || defaults.recipientPhone || '').trim(),
+        recipientAddress: {
+            line1: String(address.line1 ?? address.address_line_1 ?? '').trim(),
+            line2: String(address.line2 ?? address.address_line_2 ?? '').trim(),
+            city: String(address.city ?? '').trim(),
+            state: String(address.state ?? '').trim(),
+            postalCode: String(address.postalCode ?? address.postal_code ?? '').trim(),
+            country: String(address.country ?? 'United States').trim() || 'United States'
+        },
         senderName: String(line.senderName || line.sender_name || defaults.senderName || '').trim(),
-        personalMessage: String(line.personalMessage || line.personal_message || defaults.personalMessage || '').trim()
+        personalMessage: String(line.personalMessage || line.personal_message || defaults.personalMessage || '').trim(),
+        greetingOccasion: String(line.greetingOccasion || line.greeting_occasion || defaults.greetingOccasion || '')
+            .trim()
+            .toLowerCase(),
+        includePersonalizedEmail: Boolean(
+            line.includePersonalizedEmail ??
+                line.include_personalized_email ??
+                defaults.includePersonalizedEmail ??
+                defaults.include_personalized_email
+        )
     };
+}
+
+function validateDigitalRecipientMeta(meta) {
+    const name = String(meta.recipientName || meta.recipient_name || '').trim();
+    const email = String(meta.recipientEmail || meta.recipient_email || '').trim().toLowerCase();
+    const phone = String(meta.recipientPhone || meta.recipient_phone || '').trim();
+    const address = meta.recipientAddress || meta.recipient_address || {};
+    const line1 = String(address.line1 ?? address.address_line_1 ?? '').trim();
+    const city = String(address.city ?? '').trim();
+    const state = String(address.state ?? '').trim();
+    const postal = String(address.postalCode ?? address.postal_code ?? '').trim();
+
+    if (!name) {
+        const err = new Error('DIGITAL_GIFT_CARD_RECIPIENT_NAME_REQUIRED');
+        err.code = 'DIGITAL_GIFT_CARD_RECIPIENT_NAME_REQUIRED';
+        throw err;
+    }
+    if (!email) {
+        const err = new Error('DIGITAL_GIFT_CARD_EMAIL_REQUIRED');
+        err.code = 'DIGITAL_GIFT_CARD_EMAIL_REQUIRED';
+        throw err;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        const err = new Error('INVALID_GIFT_CARD_EMAIL');
+        err.code = 'INVALID_GIFT_CARD_EMAIL';
+        throw err;
+    }
+    if (!phone) {
+        const err = new Error('DIGITAL_GIFT_CARD_RECIPIENT_PHONE_REQUIRED');
+        err.code = 'DIGITAL_GIFT_CARD_RECIPIENT_PHONE_REQUIRED';
+        throw err;
+    }
+    if (!isUsPhoneDisplay(phone)) {
+        const err = new Error('INVALID_GIFT_CARD_RECIPIENT_PHONE');
+        err.code = 'INVALID_GIFT_CARD_RECIPIENT_PHONE';
+        throw err;
+    }
+    if (!line1 || !city || !state || !postal || !/^\d{5}(-\d{4})?$/.test(postal)) {
+        const err = new Error('DIGITAL_GIFT_CARD_RECIPIENT_ADDRESS_REQUIRED');
+        err.code = 'DIGITAL_GIFT_CARD_RECIPIENT_ADDRESS_REQUIRED';
+        throw err;
+    }
 }
 
 /**
@@ -280,17 +347,7 @@ async function validateGiftCardCartItems(pool, normalizedItems) {
         const email = String(meta.recipientEmail || meta.recipient_email || '').trim().toLowerCase();
 
         if (prod.gift_card_type === 'digital') {
-            if (!email) {
-                const err = new Error('DIGITAL_GIFT_CARD_EMAIL_REQUIRED');
-                err.code = 'DIGITAL_GIFT_CARD_EMAIL_REQUIRED';
-                err.productName = prod.name;
-                throw err;
-            }
-            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-                const err = new Error('INVALID_GIFT_CARD_EMAIL');
-                err.code = 'INVALID_GIFT_CARD_EMAIL';
-                throw err;
-            }
+            validateDigitalRecipientMeta(meta);
         } else if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
             const err = new Error('INVALID_GIFT_CARD_EMAIL');
             err.code = 'INVALID_GIFT_CARD_EMAIL';

@@ -251,7 +251,7 @@ function buildRouter({ pool, authenticateToken, logger }) {
         const [[raw]] = await pool.execute(
             `SELECT id, order_number, status, subtotal,
                     tax_amount, shipping_amount, discount_amount, total_amount,
-                    payment_status, notes, created_at, updated_at,
+                    payment_status, payment_method, sales_channel, notes, created_at, updated_at,
                     tracking_number, tracking_url, shipping_carrier, shipping_service,
                     label_url, shipped_at, delivered_at, label_created_at,
                     fulfillment_status, shipping_method,
@@ -295,6 +295,8 @@ function buildRouter({ pool, authenticateToken, logger }) {
             discount: raw.discount_amount,
             total: raw.total_amount,
             payment_status: raw.payment_status,
+            payment_method: raw.payment_method,
+            sales_channel: raw.sales_channel || 'online',
             notes: raw.notes,
             created_at: raw.created_at,
             updated_at: raw.updated_at,
@@ -327,11 +329,26 @@ function buildRouter({ pool, authenticateToken, logger }) {
         const shipping = addrFromOrder('shipping');
         const billing = addrFromOrder('billing');
 
+        let payment_tenders = [];
+        try {
+            const [tenderRows] = await pool.execute(
+                `SELECT tender_type, amount, loyalty_points, gift_card_id, cash_tendered, cash_change, check_number
+                   FROM order_payment_tenders
+                  WHERE order_id = ?
+                  ORDER BY id ASC`,
+                [id]
+            );
+            payment_tenders = tenderRows || [];
+        } catch (e) {
+            if (e.code !== 'ER_NO_SUCH_TABLE') throw e;
+        }
+
         res.json(jsonSafeDeep({
             order: enrichOrderTracking(order),
             items,
             shipping_address: shipping,
             billing_address: billing,
+            payment_tenders
         }));
     }));
 

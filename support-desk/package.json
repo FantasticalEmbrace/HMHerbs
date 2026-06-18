@@ -1,0 +1,78 @@
+{
+  "name": "business-one-support-desk",
+  "version": "1.0.2",
+  "description": "Windows desktop app for the Business One central support queue",
+  "author": {
+    "name": "Business One",
+    "email": "support@businessone.com"
+  },
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "make-icon": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/make-icon.ps1",
+    "build:installer": "npm run make-icon && electron-builder --win nsis",
+    "build:portable": "npm run make-icon && electron-builder --win portable"
+  },
+  "build": {
+    "appId": "com.businessone.supportdesk",
+    "productName": "Business One Support Desk",
+    "copyright": "Copyright © Business One",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "afterPack": "scripts/embed-win-icon.cjs",
+    "files": [
+      "main.js",
+      "preload.js",
+      "hub-config.js",
+      "assets/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "hub-url.example.txt",
+        "to": "hub-url.example.txt"
+      }
+    ],
+    "win": {
+      "signAndEditExecutable": false,
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico",
+      "publisherName": "Business One",
+      "legalTrademarks": "Business One"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Business One Support Desk",
+      "uninstallDisplayName": "Business One Support Desk",
+      "menuCategory": "Business One",
+      "include": "build/installer.nsh",
+      "artifactName": "Business One Support Desk.exe",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true
+    },
+    "portable": {
+      "artifactName": "Business One Support Desk.exe"
+    }
+  },
+  "devDependencies": {
+    "electron": "^35.0.0",
+    "electron-builder": "^25.1.8",
+    "rcedit": "^4.0.1"
+  }
+}

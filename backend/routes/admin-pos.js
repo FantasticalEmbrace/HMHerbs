@@ -20,8 +20,10 @@ const {
     createEquipment,
     updateEquipment,
     deleteEquipment,
-    listEquipmentTypeCatalog
+    listEquipmentTypeCatalog,
+    getHardwareCatalogForAdmin
 } = require('../services/posEquipment');
+const { buildRegisterHardwareProfile } = require('../services/posRegisterHardware');
 const {
     loadMerchantLicense,
     updateMerchantLicense,
@@ -34,6 +36,7 @@ const {
     getDefaultGraceDays,
     getMaxBillingRetries
 } = require('../services/posMerchantLicense');
+const { createSetupToken } = require('../utils/posBillingSetupToken');
 const { scheduleSupportSessionSync } = require('../services/posPlatformSupportSync');
 const { isPlatformHubEnabled } = require('../utils/platformSupportEnv');
 const {
@@ -42,6 +45,39 @@ const {
     updateDisplayAd,
     deleteDisplayAd
 } = require('../services/posDisplayAds');
+const {
+    listFrontDisplays,
+    getFrontDisplay,
+    setDisplayAdAssignments
+} = require('../services/posFrontDisplays');
+const {
+    loadStoreNetworkSettings,
+    saveStoreNetworkSettings,
+    matchDhcpEntriesToEquipment,
+    applyNetworkAssignment,
+    listRegisterNetworkReports,
+    getStandardStoreNetworkTemplate
+} = require('../services/posStoreNetwork');
+const {
+    buildNetworkSetupAssistant,
+    answerSetupQuestion
+} = require('../services/posNetworkSetupAssistant');
+const {
+    isNetworkSetupAiEnabled,
+    getNetworkSetupAiConfig,
+    briefNetworkSetup,
+    buildRulesBriefing,
+    coachNetworkSetupStep,
+    chatNetworkSetup
+} = require('../services/networkSetupAi');
+const { buildStoreTroubleshootReport } = require('../services/posStoreTroubleshoot');
+const {
+    isTroubleshootAiEnabled,
+    getTroubleshootAiConfig,
+    buildRulesBriefing: buildTroubleshootRulesBriefing,
+    briefTroubleshootStore,
+    chatTroubleshoot
+} = require('../services/posTroubleshootAi');
 
 const displayAdUploadDir = path.join(__dirname, '..', 'uploads', 'pos-display-ads');
 if (!fs.existsSync(displayAdUploadDir)) {
@@ -221,7 +257,24 @@ router.delete('/devices/:id', async (req, res) => {
 });
 
 router.get('/equipment/types', (req, res) => {
-    res.json({ types: listEquipmentTypeCatalog() });
+    res.json({
+        types: listEquipmentTypeCatalog(),
+        catalog: getHardwareCatalogForAdmin()
+    });
+});
+
+router.get('/equipment/catalog', (req, res) => {
+    res.json(getHardwareCatalogForAdmin());
+});
+
+router.get('/equipment/register-profile/:deviceId', async (req, res) => {
+    try {
+        const profile = await buildRegisterHardwareProfile(req.pool, req.params.deviceId);
+        res.json({ profile });
+    } catch (e) {
+        logger.error('Register hardware profile error:', e);
+        res.status(500).json({ error: 'Failed to build register hardware profile' });
+    }
 });
 
 router.get('/equipment', async (req, res) => {
@@ -261,6 +314,353 @@ router.delete('/equipment/:id', async (req, res) => {
         res.json({ success: true });
     } catch (e) {
         res.status(500).json({ error: 'Failed to delete equipment' });
+    }
+});
+
+router.get('/network', async (req, res) => {
+    try {
+        const [settings, registerReports] = await Promise.all([
+            loadStoreNetworkSettings(req.pool),
+            listRegisterNetworkReports(req.pool)
+        ]);
+        res.json({ settings, registerReports, standardTemplate: getStandardStoreNetworkTemplate() });
+    } catch (e) {
+        logger.error('Load POS network settings error:', e);
+        res.status(500).json({ error: 'Failed to load network settings' });
+    }
+});
+
+router.put('/network', async (req, res) => {
+    try {
+        const settings = await saveStoreNetworkSettings(req.pool, req.body);
+        res.json({ settings });
+    } catch (e) {
+        logger.error('Save POS network settings error:', e);
+        res.status(500).json({ error: 'Failed to save network settings' });
+    }
+});
+
+router.post('/network/parse-dhcp', async (req, res) => {
+    try {
+        const dhcpText = req.body?.dhcpText ?? req.body?.text ?? '';
+        const result = await matchDhcpEntriesToEquipment(req.pool, dhcpText);
+        res.json(result);
+    } catch (e) {
+        logger.error('Parse DHCP list error:', e);
+        res.status(500).json({ error: 'Failed to parse DHCP list' });
+    }
+});
+
+router.post('/network/apply', async (req, res) => {
+    try {
+        const equipmentId = req.body?.equipmentId ?? req.body?.equipment_id;
+        const ip = req.body?.ip;
+        const mac = req.body?.mac;
+        const equipment = await applyNetworkAssignment(req.pool, equipmentId, { ip, mac });
+        res.json({ equipment });
+    } catch (e) {
+        const status =
+            e.code === 'NOT_FOUND' ? 404 : e.code === 'INVALID_IP' || e.code === 'IP_REQUIRED' || e.code === 'INVALID_EQUIPMENT' ? 400 : 500;
+        res.status(status).json({ error: e.message, code: e.code });
+    }
+});
+
+router.post('/network/apply-all', async (req, res) => {
+    try {
+        const matches = Array.isArray(req.body?.matches) ? req.body.matches : [];
+        const applied = [];
+        const errors = [];
+        for (const row of matches) {
+            const equipmentId = row?.equipmentId ?? row?.equipment?.id;
+            const ip = row?.ip ?? row?.suggestedIp ?? row?.entry?.ip;
+            const mac = row?.mac ?? row?.entry?.mac;
+            if (!equipmentId || !ip) continue;
+            try {
+                const equipment = await applyNetworkAssignment(req.pool, equipmentId, { ip, mac });
+                applied.push({ equipmentId, equipment });
+            } catch (e) {
+                errors.push({ equipmentId, error: e.message, code: e.code });
+            }
+        }
+        res.json({ appliedCount: applied.length, applied, errors });
+    } catch (e) {
+        logger.error('Apply DHCP matches error:', e);
+        res.status(500).json({ error: 'Failed to apply network assignments' });
+    }
+});
+
+router.get('/network/setup-assistant', async (req, res) => {
+    try {
+        const clientState = {
+            skipped: req.query.skipped ? String(req.query.skipped).split(',').filter(Boolean) : [],
+            routerMarkedDone: req.query.routerMarkedDone === '1' || req.query.routerMarkedDone === 'true',
+            backupTestDone: req.query.backupTestDone === '1' || req.query.backupTestDone === 'true'
+        };
+        const assistant = await buildNetworkSetupAssistant(req.pool, clientState);
+        res.json({ assistant, ai: getNetworkSetupAiConfig() });
+    } catch (e) {
+        logger.error('Network setup assistant error:', e);
+        res.status(500).json({ error: 'Failed to load setup assistant' });
+    }
+});
+
+router.post('/network/setup-assistant/briefing', async (req, res) => {
+    try {
+        const clientState = req.body?.clientState || {};
+        const assistant = await buildNetworkSetupAssistant(req.pool, clientState);
+        const report = assistant.statusReport || {};
+
+        if (isNetworkSetupAiEnabled()) {
+            const result = await briefNetworkSetup(assistant);
+            return res.json({
+                reply: result.reply,
+                suggestedActions: result.suggestedActions,
+                autoAction: result.autoAction,
+                autoActionEquipmentId: result.autoActionEquipmentId,
+                highlight: result.highlight,
+                statusReport: report,
+                fingerprint: report.fingerprint,
+                currentStepId: assistant.currentStepId,
+                source: 'openai',
+                model: result.model
+            });
+        }
+
+        const rules = buildRulesBriefing(assistant);
+        res.json({
+            ...rules,
+            statusReport: report,
+            fingerprint: report.fingerprint,
+            currentStepId: assistant.currentStepId
+        });
+    } catch (e) {
+        if (e.code === 'AI_NOT_CONFIGURED' || e.code === 'AI_AUTH_FAILED') {
+            return res.status(503).json({ error: e.message, code: e.code });
+        }
+        logger.error('Network setup assistant briefing error:', e);
+        res.status(500).json({ error: 'Failed to load setup briefing' });
+    }
+});
+
+router.post('/network/setup-assistant/ask', async (req, res) => {
+    try {
+        const question = req.body?.question ?? '';
+        const clientState = req.body?.clientState || {};
+        const assistant = await buildNetworkSetupAssistant(req.pool, clientState);
+
+        if (isNetworkSetupAiEnabled()) {
+            const result = await chatNetworkSetup({
+                snapshot: assistant,
+                messages: req.body?.messages || [],
+                userMessage: question
+            });
+            return res.json({
+                answer: result.reply,
+                reply: result.reply,
+                suggestedActions: result.suggestedActions,
+                autoAction: result.autoAction,
+                autoActionEquipmentId: result.autoActionEquipmentId,
+                highlight: result.highlight,
+                statusReport: assistant.statusReport,
+                currentStepId: assistant.currentStepId,
+                source: 'openai',
+                model: result.model
+            });
+        }
+
+        const rules = buildRulesBriefing(assistant);
+        const answer = question.trim() ? answerSetupQuestion(question, assistant) : rules.reply;
+        res.json({
+            answer,
+            reply: answer,
+            suggestedActions: rules.suggestedActions,
+            statusReport: assistant.statusReport,
+            currentStepId: assistant.currentStepId,
+            source: 'rules',
+            ai: { enabled: false }
+        });
+    } catch (e) {
+        if (e.code === 'AI_NOT_CONFIGURED' || e.code === 'AI_AUTH_FAILED') {
+            return res.status(503).json({ error: e.message, code: e.code });
+        }
+        logger.error('Network setup assistant ask error:', e);
+        res.status(500).json({ error: 'Failed to answer question' });
+    }
+});
+
+router.post('/network/setup-assistant/coach', async (req, res) => {
+    try {
+        const clientState = req.body?.clientState || {};
+        const stepId = req.body?.stepId;
+        const assistant = await buildNetworkSetupAssistant(req.pool, clientState);
+        const targetStep = stepId || assistant.currentStepId;
+
+        if (!isNetworkSetupAiEnabled()) {
+            const step = (assistant.steps || []).find((s) => s.id === targetStep);
+            return res.json({
+                reply: step?.message || step?.summary || 'Follow the steps below.',
+                suggestedActions: step?.actions || [],
+                source: 'rules',
+                ai: { enabled: false }
+            });
+        }
+
+        const result = await coachNetworkSetupStep(assistant, targetStep);
+        res.json({
+            reply: result.reply,
+            suggestedActions: result.suggestedActions,
+            autoAction: result.autoAction,
+            autoActionEquipmentId: result.autoActionEquipmentId,
+            highlight: result.highlight,
+            stepId: targetStep,
+            source: 'openai',
+            model: result.model
+        });
+    } catch (e) {
+        if (e.code === 'AI_NOT_CONFIGURED' || e.code === 'AI_AUTH_FAILED') {
+            return res.status(503).json({ error: e.message, code: e.code });
+        }
+        logger.error('Network setup assistant coach error:', e);
+        res.status(500).json({ error: 'Failed to load AI coach' });
+    }
+});
+
+router.post('/network/setup-assistant/chat', async (req, res) => {
+    try {
+        const clientState = req.body?.clientState || {};
+        const userMessage = String(req.body?.message || '').trim();
+        if (!userMessage) {
+            return res.status(400).json({ error: 'Message is required' });
+        }
+
+        const assistant = await buildNetworkSetupAssistant(req.pool, clientState);
+
+        if (!isNetworkSetupAiEnabled()) {
+            return res.status(503).json({
+                error: 'AI setup assistant is not configured. Add OPENAI_API_KEY to the server .env file and restart the backend.',
+                code: 'AI_NOT_CONFIGURED'
+            });
+        }
+
+        const result = await chatNetworkSetup({
+            snapshot: assistant,
+            messages: req.body?.messages || [],
+            userMessage
+        });
+
+        res.json({
+            reply: result.reply,
+            suggestedActions: result.suggestedActions,
+            autoAction: result.autoAction,
+            autoActionEquipmentId: result.autoActionEquipmentId,
+            highlight: result.highlight,
+            currentStepId: assistant.currentStepId,
+            source: 'openai',
+            model: result.model
+        });
+    } catch (e) {
+        if (e.code === 'AI_NOT_CONFIGURED' || e.code === 'AI_AUTH_FAILED') {
+            return res.status(503).json({ error: e.message, code: e.code });
+        }
+        logger.error('Network setup assistant chat error:', e);
+        res.status(500).json({ error: 'AI chat failed' });
+    }
+});
+
+router.get('/troubleshoot-assistant', async (req, res) => {
+    try {
+        const clientState = {
+            skipped: req.query.skipped ? String(req.query.skipped).split(',').filter(Boolean) : [],
+            routerMarkedDone: req.query.routerMarkedDone === '1' || req.query.routerMarkedDone === 'true',
+            backupTestDone: req.query.backupTestDone === '1' || req.query.backupTestDone === 'true'
+        };
+        const report = await buildStoreTroubleshootReport(req.pool, clientState);
+        res.json({ report, ai: getTroubleshootAiConfig() });
+    } catch (e) {
+        logger.error('Troubleshoot assistant error:', e);
+        res.status(500).json({ error: 'Failed to load troubleshoot assistant' });
+    }
+});
+
+router.post('/troubleshoot-assistant/briefing', async (req, res) => {
+    try {
+        const clientState = req.body?.clientState || {};
+        const report = await buildStoreTroubleshootReport(req.pool, clientState);
+        const statusReport = report.statusReport || {};
+
+        if (isTroubleshootAiEnabled()) {
+            const result = await briefTroubleshootStore(report);
+            return res.json({
+                reply: result.reply,
+                suggestedActions: result.suggestedActions,
+                autoAction: result.autoAction,
+                autoActionEquipmentId: result.autoActionEquipmentId,
+                highlight: result.highlight,
+                statusReport,
+                fingerprint: statusReport.fingerprint,
+                source: 'openai',
+                model: result.model
+            });
+        }
+
+        const rules = buildTroubleshootRulesBriefing(report);
+        res.json({
+            ...rules,
+            statusReport,
+            fingerprint: statusReport.fingerprint
+        });
+    } catch (e) {
+        if (e.code === 'AI_NOT_CONFIGURED' || e.code === 'AI_AUTH_FAILED') {
+            return res.status(503).json({ error: e.message, code: e.code });
+        }
+        logger.error('Troubleshoot assistant briefing error:', e);
+        res.status(500).json({ error: 'Failed to load troubleshoot briefing' });
+    }
+});
+
+router.post('/troubleshoot-assistant/chat', async (req, res) => {
+    try {
+        const clientState = req.body?.clientState || {};
+        const userMessage = String(req.body?.message || '').trim();
+        if (!userMessage) {
+            return res.status(400).json({ error: 'Message is required' });
+        }
+
+        const report = await buildStoreTroubleshootReport(req.pool, clientState);
+
+        if (!isTroubleshootAiEnabled()) {
+            const rules = buildTroubleshootRulesBriefing(report);
+            return res.json({
+                reply: rules.reply,
+                suggestedActions: rules.suggestedActions,
+                statusReport: report.statusReport,
+                source: 'rules',
+                ai: { enabled: false }
+            });
+        }
+
+        const result = await chatTroubleshoot({
+            report,
+            messages: req.body?.messages || [],
+            userMessage
+        });
+
+        res.json({
+            reply: result.reply,
+            suggestedActions: result.suggestedActions,
+            autoAction: result.autoAction,
+            autoActionEquipmentId: result.autoActionEquipmentId,
+            highlight: result.highlight,
+            statusReport: report.statusReport,
+            source: 'openai',
+            model: result.model
+        });
+    } catch (e) {
+        if (e.code === 'AI_NOT_CONFIGURED' || e.code === 'AI_AUTH_FAILED') {
+            return res.status(503).json({ error: e.message, code: e.code });
+        }
+        logger.error('Troubleshoot assistant chat error:', e);
+        res.status(500).json({ error: 'Troubleshoot chat failed' });
     }
 });
 
@@ -338,6 +738,24 @@ router.post('/license/waive-past-due', async (req, res) => {
     }
 });
 
+router.post('/billing/setup-token', async (req, res) => {
+    try {
+        const token = createSetupToken({ adminId: req.admin.id });
+        const host = String(req.get('x-forwarded-host') || req.get('host') || '').trim();
+        const proto = String(req.get('x-forwarded-proto') || req.protocol || 'https').split(',')[0].trim();
+        const base = host ? `${proto}://${host}` : '';
+        const signupUrl = `${base}/pos-billing.html?token=${encodeURIComponent(token)}`;
+        res.json({
+            token,
+            signupUrl,
+            expiresIn: '7d'
+        });
+    } catch (e) {
+        logger.error('POS billing setup token error:', e);
+        res.status(500).json({ error: e.message || 'Failed to create billing signup link' });
+    }
+});
+
 /** @deprecated use POST /license/waive-past-due */
 router.post('/license/credit', async (req, res) => {
     try {
@@ -368,7 +786,7 @@ router.get('/support/registers', async (req, res) => {
             viewerPage: '/support-viewer.html',
             enrollConfigured: isEnrollConfigured(),
             platformHubEnabled: isPlatformHubEnabled(),
-            platformQueuePage: '/platform-support.html'
+            platformQueuePage: '/support-desk'
         });
     } catch (e) {
         logger.error('POS support registers list error:', e);
@@ -560,6 +978,43 @@ router.delete('/display-ads/:id', async (req, res) => {
         res.json({ success: true });
     } catch (e) {
         res.status(500).json({ error: 'Failed to delete ad' });
+    }
+});
+
+router.get('/front-displays', async (req, res) => {
+    try {
+        const displays = await listFrontDisplays(req.pool);
+        res.json({ displays });
+    } catch (e) {
+        logger.error('List front displays error:', e);
+        res.status(500).json({ error: 'Failed to load front-facing displays' });
+    }
+});
+
+router.get('/front-displays/:equipmentId', async (req, res) => {
+    try {
+        const display = await getFrontDisplay(req.pool, req.params.equipmentId);
+        if (!display) return res.status(404).json({ error: 'Display not found' });
+        res.json({ display });
+    } catch (e) {
+        logger.error('Get front display error:', e);
+        res.status(500).json({ error: 'Failed to load display' });
+    }
+});
+
+router.put('/front-displays/:equipmentId/ads', async (req, res) => {
+    try {
+        const adIds = Array.isArray(req.body?.adIds) ? req.body.adIds : req.body?.ad_ids || [];
+        const display = await setDisplayAdAssignments(req.pool, req.params.equipmentId, adIds);
+        res.json({ display });
+    } catch (e) {
+        const status =
+            e.code === 'NOT_FOUND' || e.code === 'AD_NOT_FOUND'
+                ? 404
+                : e.code === 'INVALID_EQUIPMENT'
+                  ? 400
+                  : 500;
+        res.status(status).json({ error: e.message, code: e.code });
     }
 });
 

@@ -13,6 +13,7 @@
     <link rel="stylesheet" href="css/emergency-fixes.css">
     <link rel="stylesheet" href="css/hm-notify.css">
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="css/hm-choice-toggles.css">
     <link rel="stylesheet" href="css/hm-accent-links.css">
     <link rel="stylesheet" href="css/customer-auth.css">
     <link rel="stylesheet" href="css/browser-compatibility.css">
@@ -20,6 +21,7 @@
     <link rel="stylesheet" href="css/hm-close-controls.css">
     <link rel="stylesheet" href="css/site-promo-banner.css">
     <link rel="stylesheet" href="css/age-gate.css">
+    <link rel="stylesheet" href="css/hm-gift-card.css">
     <link rel="stylesheet" href="css/address-autocomplete.css">
 
     <!-- Font Awesome -->
@@ -573,16 +575,16 @@
                         <h2 class="section-title">Rewards</h2>
                         <div class="loyalty-stats" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: var(--space-4); margin-bottom: var(--space-4);">
                             <div class="loyalty-stat-card" style="background: var(--gray-50); border-radius: var(--radius-md); padding: var(--space-4); border: 1px solid var(--gray-200);">
+                                <div style="font-size: var(--text-xs); color: var(--gray-600); text-transform: uppercase; letter-spacing: 0.04em;">Store credit</div>
+                                <div id="loyalty-cash-balance" style="font-size: var(--text-2xl); font-weight: 700; color: var(--primary-green);">—</div>
+                            </div>
+                            <div class="loyalty-stat-card" style="background: var(--gray-50); border-radius: var(--radius-md); padding: var(--space-4); border: 1px solid var(--gray-200);">
                                 <div style="font-size: var(--text-xs); color: var(--gray-600); text-transform: uppercase; letter-spacing: 0.04em;">Points</div>
                                 <div id="loyalty-points-balance" style="font-size: var(--text-2xl); font-weight: 700; color: var(--primary-green);">—</div>
                             </div>
                             <div class="loyalty-stat-card" style="background: var(--gray-50); border-radius: var(--radius-md); padding: var(--space-4); border: 1px solid var(--gray-200);">
-                                <div style="font-size: var(--text-xs); color: var(--gray-600); text-transform: uppercase; letter-spacing: 0.04em;">Tier</div>
-                                <div id="loyalty-tier" style="font-size: var(--text-xl); font-weight: 600;">—</div>
-                            </div>
-                            <div class="loyalty-stat-card" style="background: var(--gray-50); border-radius: var(--radius-md); padding: var(--space-4); border: 1px solid var(--gray-200);">
-                                <div style="font-size: var(--text-xs); color: var(--gray-600); text-transform: uppercase; letter-spacing: 0.04em;">Lifetime earned</div>
-                                <div id="loyalty-lifetime-earned" style="font-size: var(--text-xl); font-weight: 600;">—</div>
+                                <div style="font-size: var(--text-xs); color: var(--gray-600); text-transform: uppercase; letter-spacing: 0.04em;">Rewards type</div>
+                                <div id="loyalty-enrollment" style="font-size: var(--text-base); font-weight: 600;">—</div>
                             </div>
                             <div class="loyalty-stat-card" style="background: var(--gray-50); border-radius: var(--radius-md); padding: var(--space-4); border: 1px solid var(--gray-200);">
                                 <div style="font-size: var(--text-xs); color: var(--gray-600); text-transform: uppercase; letter-spacing: 0.04em;">Member since</div>
@@ -660,10 +662,12 @@
     <script src="js/customer-auth.js" defer></script>
     <script src="js/tracking-link.js" defer></script>
     <script src="js/order-progress.js" defer></script>
+    <script src="js/hm-gift-card.js"></script>
     <script src="js/account.js" defer></script>
     <script src="js/hm-notify.js"></script>
     <script src="script.js" defer></script>
-    <script src="gdpr-compliance.js?v=20260616b" defer></script>
+    <script src="js/hm-choice-toggles.js"></script>
+    <script src="gdpr-compliance.js?v=20260617a" defer></script>
 </body>
 </html>
 

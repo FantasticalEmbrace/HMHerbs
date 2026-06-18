@@ -43,7 +43,7 @@ function assertGiftCardUsable(card) {
     }
 }
 
-async function applyRedeemAmount(connection, card, value, orderId, customerId) {
+async function applyRedeemAmount(connection, card, value, orderId, customerId, source = 'web') {
     const balanceBefore = Number(card.current_balance);
     if (balanceBefore < value) {
         const err = new Error('INSUFFICIENT_GIFT_CARD_BALANCE');
@@ -71,10 +71,13 @@ async function applyRedeemAmount(connection, card, value, orderId, customerId) {
         amount: -value,
         balance_before: balanceBefore,
         balance_after: balanceAfter,
-        source: 'web',
+        source,
         order_id: orderId,
         customer_id: customerId || card.customer_id,
-        description: `Web checkout order #${orderId}`
+        description:
+            source === 'pos'
+                ? `POS sale order #${orderId}`
+                : `Web checkout order #${orderId}`
     });
 
     return { giftCardId: card.id, balanceAfter, code: card.code };
@@ -156,7 +159,7 @@ async function lockGiftCardForUser(connection, giftCardId, userId) {
  * Redeem gift card balance toward a web order (full order total required).
  * @param {import('mysql2/promise').PoolConnection} connection
  */
-async function redeemGiftCardForOrder(connection, { code, pin, amount, orderId, customerId }) {
+async function redeemGiftCardForOrder(connection, { code, pin, amount, orderId, customerId, source = 'web' }) {
     const value = Number(amount);
     if (!Number.isFinite(value) || value <= 0) {
         const err = new Error('INVALID_REDEEM_AMOUNT');
@@ -165,14 +168,14 @@ async function redeemGiftCardForOrder(connection, { code, pin, amount, orderId, 
     }
 
     const card = await lockGiftCardByCode(connection, code, pin);
-    return applyRedeemAmount(connection, card, value, orderId, customerId);
+    return applyRedeemAmount(connection, card, value, orderId, customerId, source);
 }
 
 /**
  * Redeem a gift card on the customer's account by id (authenticated checkout).
  * @param {import('mysql2/promise').PoolConnection} connection
  */
-async function redeemGiftCardForOrderById(connection, { giftCardId, userId, amount, orderId, customerId }) {
+async function redeemGiftCardForOrderById(connection, { giftCardId, userId, amount, orderId, customerId, source = 'web' }) {
     const value = Number(amount);
     if (!Number.isFinite(value) || value <= 0) {
         const err = new Error('INVALID_REDEEM_AMOUNT');
@@ -181,10 +184,11 @@ async function redeemGiftCardForOrderById(connection, { giftCardId, userId, amou
     }
 
     const card = await lockGiftCardForUser(connection, giftCardId, userId);
-    return applyRedeemAmount(connection, card, value, orderId, customerId);
+    return applyRedeemAmount(connection, card, value, orderId, customerId || userId, source);
 }
 
 module.exports = {
+    recordGiftCardTransaction,
     lockGiftCardByCode,
     lockGiftCardForUser,
     redeemGiftCardForOrder,

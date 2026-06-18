@@ -307,8 +307,18 @@ async function run() {
                             cardType: 'digital',
                             recipientEmail: RECIPIENT_EMAIL,
                             recipientName: 'Digital Recipient',
+                            recipientPhone: '(555) 555-0100',
+                            recipientAddress: {
+                                line1: '456 Recipient Ave',
+                                city: 'Durango',
+                                state: 'CO',
+                                postalCode: '81301',
+                                country: 'United States'
+                            },
                             senderName: 'Test Buyer',
-                            personalMessage: 'Enjoy!',
+                            personalMessage: 'Enjoy your gift!',
+                            includePersonalizedEmail: true,
+                            greetingOccasion: 'birthday'
                         },
                     })
                 ),

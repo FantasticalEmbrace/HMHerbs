@@ -337,9 +337,14 @@ async function setPlatformAnswerSdp(pool, sessionId, sdp) {
     return mapSessionRow(await getSessionById(pool, sessionId));
 }
 
-async function appendIceCandidate(pool, sessionId, side, candidate) {
+async function appendIceCandidate(pool, sessionId, side, candidate, deviceRecordId = null) {
     const row = await getSessionById(pool, sessionId);
     if (!row) return null;
+    if (side === 'pos' && deviceRecordId != null && Number(row.pos_device_id) !== Number(deviceRecordId)) {
+        const err = new Error('Session not found');
+        err.code = 'NOT_FOUND';
+        throw err;
+    }
     const col = side === 'admin' ? 'admin_ice_json' : 'pos_ice_json';
     const list = parseJsonArray(row[col]);
     list.push(candidate);
@@ -351,9 +356,14 @@ async function appendIceCandidate(pool, sessionId, side, candidate) {
     return trimmed.length;
 }
 
-async function getSignalState(pool, sessionId, { sinceVersion = 0 } = {}) {
+async function getSignalState(pool, sessionId, { sinceVersion = 0, deviceRecordId = null } = {}) {
     const row = await getSessionById(pool, sessionId);
     if (!row) {
+        const err = new Error('Session not found');
+        err.code = 'NOT_FOUND';
+        throw err;
+    }
+    if (deviceRecordId != null && Number(row.pos_device_id) !== Number(deviceRecordId)) {
         const err = new Error('Session not found');
         err.code = 'NOT_FOUND';
         throw err;
@@ -380,9 +390,14 @@ async function getSignalState(pool, sessionId, { sinceVersion = 0 } = {}) {
     };
 }
 
-async function endSession(pool, sessionId, { byAdmin = false } = {}) {
+async function endSession(pool, sessionId, { byAdmin = false, deviceRecordId = null } = {}) {
     const row = await getSessionById(pool, sessionId);
     if (!row) return false;
+    if (!byAdmin && deviceRecordId != null && Number(row.pos_device_id) !== Number(deviceRecordId)) {
+        const err = new Error('Session not found');
+        err.code = 'NOT_FOUND';
+        throw err;
+    }
     await pool.execute(
         `UPDATE pos_register_support_sessions SET status = 'ended', ended_at = CURRENT_TIMESTAMP, signal_version = signal_version + 1 WHERE id = ?`,
         [sessionId]

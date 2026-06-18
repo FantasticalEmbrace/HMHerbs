@@ -4,9 +4,10 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const logger = require('../utils/logger');
 const promoEngine = require('../services/webPromotionEngine');
-const { nmiSale } = require('../services/nmiGateway');
+const { nmiSale, nmiVoid } = require('../services/nmiGateway');
 const nmiVaultCards = require('../services/nmiVaultCards');
 const { finalizePaidOrder } = require('../services/finalizePaidOrder');
+const { getCardAmountDueForOrder, persistOrderTenders, applyPendingStoreTendersAtCapture, loadLoyaltyProgramSettings } = require('../services/webCheckoutPayments');
 const { cartLookupBinds, hasCartIdentity } = require('../utils/cartSession');
 const {
     getNmiCollectJsUrl,
@@ -207,14 +208,71 @@ router.post('/process-payment', async (req, res) => {
             return res.status(400).json({ error: 'orderId and payment_token or savedCardId are required' });
         }
 
-        const [orders] = await req.pool.execute('SELECT * FROM orders WHERE id = ? AND status = ?', [
-            oid,
-            'pending'
-        ]);
-        if (!orders.length) {
-            return res.status(404).json({ error: 'Order not found or already paid' });
+        const connection = await req.pool.getConnection();
+        const payLockName = `hmherbs_order_pay_${oid}`;
+        let orderRow;
+        let payLockHeld = false;
+        try {
+            const [[lockRow]] = await connection.execute('SELECT GET_LOCK(?, 0) AS got', [payLockName]);
+            if (!Number(lockRow?.got)) {
+                connection.release();
+                return res.status(409).json({ error: 'Payment is already in progress for this order.' });
+            }
+            payLockHeld = true;
+
+            await connection.beginTransaction();
+            const [orders] = await connection.execute(
+                'SELECT * FROM orders WHERE id = ? FOR UPDATE',
+                [oid]
+            );
+            if (!orders.length) {
+                await connection.rollback();
+                return res.status(404).json({ error: 'Order not found or already paid' });
+            }
+            orderRow = orders[0];
+
+            if (orderRow.status !== 'pending') {
+                await connection.commit();
+                if (orderRow.payment_reference) {
+                    return res.json({
+                        success: true,
+                        transactionId: String(orderRow.payment_reference),
+                        orderId: oid,
+                        orderNumber: orderRow.order_number,
+                        idempotent: true
+                    });
+                }
+                return res.status(404).json({ error: 'Order not found or already paid' });
+            }
+
+            if (orderRow.payment_reference) {
+                await connection.commit();
+                return res.json({
+                    success: true,
+                    transactionId: String(orderRow.payment_reference),
+                    orderId: oid,
+                    orderNumber: orderRow.order_number,
+                    idempotent: true
+                });
+            }
+
+            await connection.commit();
+        } catch (lockErr) {
+            await connection.rollback();
+            throw lockErr;
+        } finally {
+            if (payLockHeld) {
+                try {
+                    await connection.execute('SELECT RELEASE_LOCK(?)', [payLockName]);
+                } catch (releaseErr) {
+                    logger.warn('Failed to release order payment lock', {
+                        orderId: oid,
+                        err: releaseErr.message
+                    });
+                }
+            }
+            connection.release();
         }
-        const orderRow = orders[0];
 
         try {
             await assertCanPayOrder(req, orderRow, { ...req.body, customerEmail });
@@ -226,8 +284,13 @@ router.post('/process-payment', async (req, res) => {
         }
 
         const method = getOrderPaymentMethod(orderRow);
-        if (method !== 'credit_card' && method !== 'debit_card') {
+        if (method !== 'credit_card' && method !== 'debit_card' && method !== 'split') {
             return res.status(400).json({ error: 'This order does not use card payment.' });
+        }
+
+        const cardAmountDue = await getCardAmountDueForOrder(req.pool, oid);
+        if (cardAmountDue <= 0.005) {
+            return res.status(400).json({ error: 'This order has no card balance remaining.' });
         }
 
         const [items] = await req.pool.execute(
@@ -260,7 +323,10 @@ router.post('/process-payment', async (req, res) => {
                 promoCode: String(orderRow.promo_code || '').trim(),
                 email: orderRow.email,
                 applyTaxExemption,
-                customerType
+                customerType,
+                shippingMethod: String(orderRow.shipping_method || '').trim() || undefined,
+                shippingAmount:
+                    orderRow.shipping_amount != null ? Number(orderRow.shipping_amount) : undefined
             });
         } catch (e) {
             logger.error('NMI price recheck failed:', e);
@@ -275,7 +341,12 @@ router.post('/process-payment', async (req, res) => {
             });
         }
 
-        const amountStr = expected.toFixed(2);
+        const chargeTotal = promoEngine.roundMoney(cardAmountDue);
+        if (chargeTotal > stored + 0.02) {
+            return res.status(400).json({ error: 'Card charge exceeds order total.' });
+        }
+
+        const amountStr = chargeTotal.toFixed(2);
         const authUser = await getAuthenticatedUserFromRequest(req);
 
         let sale;
@@ -316,7 +387,91 @@ router.post('/process-payment', async (req, res) => {
 
         const payId = sale.transactionId || sale.fields?.authcode || `nmi-${oid}`;
 
+        const payConnection = await req.pool.getConnection();
         let finalizeResult;
+        try {
+            await payConnection.beginTransaction();
+
+            let loyaltyUser = authUser;
+            if (!loyaltyUser && orderRow.user_id) {
+                const [[u]] = await payConnection.execute(
+                    'SELECT id, email, tax_exempt, tax_exempt_id, customer_type FROM users WHERE id = ? LIMIT 1',
+                    [orderRow.user_id]
+                );
+                loyaltyUser = u || null;
+            }
+
+            const loyaltySettings = await loadLoyaltyProgramSettings(req.pool);
+            try {
+                await applyPendingStoreTendersAtCapture(payConnection, req.pool, {
+                    orderId: oid,
+                    user: loyaltyUser,
+                    loyaltySettings
+                });
+            } catch (tenderErr) {
+                if (tenderErr.code !== 'PENDING_TENDERS_UNSUPPORTED') throw tenderErr;
+            }
+
+            if (orderRow.web_promotion_id) {
+                const [[existingPromo]] = await payConnection.execute(
+                    'SELECT id FROM web_promotion_redemptions WHERE order_id = ? LIMIT 1',
+                    [oid]
+                );
+                if (!existingPromo) {
+                    await promoEngine.insertRedemptionRow(payConnection, {
+                        promotionId: orderRow.web_promotion_id,
+                        orderId: oid,
+                        email: orderRow.email,
+                        userId: orderRow.user_id,
+                        merchandiseDisc: recheck?.totals?.merchandiseDiscount ?? 0,
+                        shippingDisc: recheck?.totals?.shippingDiscount ?? 0
+                    });
+                }
+            }
+
+            try {
+                const [existing] = await payConnection.execute(
+                    `SELECT id FROM order_payment_tenders
+                      WHERE order_id = ? AND tender_type = 'card_terminal' LIMIT 1`,
+                    [oid]
+                );
+                if (!existing.length) {
+                    await persistOrderTenders(payConnection, oid, [
+                        {
+                            type: 'card_terminal',
+                            amount: chargeTotal,
+                            terminalAuthCode: String(payId),
+                            terminalReference: sale.transactionId || null
+                        }
+                    ]);
+                }
+            } catch (tenderErr) {
+                if (tenderErr.code !== 'ER_NO_SUCH_TABLE') {
+                    logger.warn('Could not persist card tender row after NMI payment', {
+                        orderId: oid,
+                        err: tenderErr.message
+                    });
+                }
+            }
+
+            await payConnection.commit();
+        } catch (preFinalizeErr) {
+            await payConnection.rollback();
+            if (sale.transactionId) {
+                try {
+                    await nmiVoid({ securityKey, transactionId: sale.transactionId });
+                } catch (voidErr) {
+                    logger.error('NMI void after tender apply failure', {
+                        orderId: oid,
+                        err: voidErr.message
+                    });
+                }
+            }
+            throw preFinalizeErr;
+        } finally {
+            payConnection.release();
+        }
+
         try {
             finalizeResult = await finalizePaidOrder(req.pool, {
                 orderId: oid,
@@ -325,7 +480,24 @@ router.post('/process-payment', async (req, res) => {
             });
         } catch (e) {
             if (e.code === 'ORDER_NOT_PENDING') {
+                if (sale.transactionId) {
+                    try {
+                        await nmiVoid({ securityKey, transactionId: sale.transactionId });
+                    } catch (voidErr) {
+                        logger.error('NMI void after duplicate finalize', {
+                            orderId: oid,
+                            err: voidErr.message
+                        });
+                    }
+                }
                 return res.status(409).json({ error: 'Order was already processed.' });
+            }
+            if (sale.transactionId) {
+                try {
+                    await nmiVoid({ securityKey, transactionId: sale.transactionId });
+                } catch (voidErr) {
+                    logger.error('NMI void after finalize failure', { orderId: oid, err: voidErr.message });
+                }
             }
             throw e;
         }

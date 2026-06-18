@@ -1,6 +1,6 @@
 -- =============================================================================
 -- HM Herbs — STAGING DEPLOY BUNDLE (auto-generated)
--- Generated: 2026-05-28T22:56:35.903Z
+-- Generated: 2026-06-17T20:58:33.086Z
 -- DO NOT EDIT BY HAND — run: npm run db:build-staging
 --
 -- Import (Linode Managed MySQL):
@@ -75,7 +75,7 @@ CREATE TABLE `admin_users` (
 
 LOCK TABLES `admin_users` WRITE;
 /*!40000 ALTER TABLE `admin_users` DISABLE KEYS */;
-INSERT INTO `admin_users` VALUES (1,'hmherbs1@gmail.com','$2b$12$lZ9mJ4uVuZs8IurqpXUz5OkjSv8V1H/Xo8ezzK8Flz/y9tK6PR2V.','Admin','User','admin',1,'2025-12-16 22:53:14','2025-12-11 06:20:46','2025-12-16 22:53:14');
+INSERT INTO `admin_users` VALUES (1,'hmherbs1@gmail.com','$2b$12$lZ9mJ4uVuZs8IurqpXUz5OkjSv8V1H/Xo8ezzK8Flz/y9tK6PR2V.','Admin','User','super_admin',1,'2025-12-16 22:53:14','2025-12-11 06:20:46','2025-12-16 22:53:14'),(2,'admin@hmherbs.com','$2b$12$REnZ3xtZdgoVyinFCveCJOhckIP0otbQLZq.P3WIDCyXAn/oeVriq','Admin','User','super_admin',1,NULL,'2025-12-11 22:25:05','2025-12-11 22:25:05');
 /*!40000 ALTER TABLE `admin_users` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -1501,6 +1501,9 @@ CREATE TABLE IF NOT EXISTS menu_items (
     price DECIMAL(10, 2) NULL,
     image_url VARCHAR(500) NULL,
     category VARCHAR(100) NULL,
+    icon_class VARCHAR(100) NULL COMMENT 'Font Awesome icon class',
+    overview TEXT NULL COMMENT 'Long-form service overview',
+    features_json JSON NULL COMMENT 'Array of feature bullet strings',
     display_order INT DEFAULT 0,
     is_active TINYINT(1) DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -2191,6 +2194,153 @@ CALL hmherbs_wp_add_column_if_missing('orders', 'promo_code', "VARCHAR(64) NULL"
 CALL hmherbs_wp_add_column_if_missing('orders', 'discount_amount', "DECIMAL(10,2) NOT NULL DEFAULT 0.00");
 
 DROP PROCEDURE IF EXISTS hmherbs_wp_add_column_if_missing;
+
+
+-- ########## CBD category and product assignments ##########
+-- Source: 20260612_cbd_category.sql
+
+-- CBD category: product + health taxonomy, assign existing hemp/CBD catalog items
+
+INSERT INTO product_categories (name, slug, description, sort_order, is_active)
+SELECT 'CBD', 'cbd', 'Hemp-derived CBD oils, gummies, topicals, and wellness products', 16, 1
+WHERE NOT EXISTS (SELECT 1 FROM product_categories WHERE slug = 'cbd');
+
+INSERT INTO health_categories (name, slug, description, sort_order, is_active)
+SELECT 'CBD', 'cbd', 'Premium hemp and CBD products for natural wellness support', 0, 1
+WHERE NOT EXISTS (SELECT 1 FROM health_categories WHERE slug = 'cbd');
+
+-- Categories display alphabetically by name; clear legacy sort_order on CBD if re-run
+UPDATE health_categories SET sort_order = 0 WHERE slug = 'cbd';
+
+UPDATE products p
+JOIN product_categories pc ON pc.slug = 'cbd'
+SET p.category_id = pc.id, p.is_cannabis = 1
+WHERE p.slug IN (
+    'hemp-bombs-cbd-gummies-w-mushroom',
+    'herbs-for-life-cbd-gummies-30mg',
+    'herbs-for-life-cbd-gummies-sleep',
+    'herbs-for-life-delta-9-gummies-10mg-ea',
+    'hippie-jack-s-cbd-extreme-1000mg-pain-cream',
+    'hippie-jack-s-yummy-hemp-gummie',
+    'regalabs-cannabis-care-cream-free-shipping',
+    'regalabs-cannabis-care-roll-on',
+    'regalabs-cannabis-oil-for-pets',
+    'regalabs-full-spectrum-cbd-gummies',
+    'regalabs-organic-cbd-oils'
+)
+OR p.is_cannabis = 1
+OR LOWER(p.name) LIKE '%cbd%'
+OR LOWER(p.name) LIKE '%cannabis%'
+OR LOWER(p.slug) LIKE '%cbd%'
+OR LOWER(p.slug) LIKE '%cannabis%'
+OR LOWER(p.slug) LIKE '%delta-9%'
+OR LOWER(p.slug) LIKE '%hemp-gumm%';
+
+INSERT IGNORE INTO product_health_categories (product_id, health_category_id)
+SELECT p.id, hc.id
+FROM products p
+JOIN health_categories hc ON hc.slug = 'cbd'
+WHERE p.category_id = (SELECT id FROM product_categories WHERE slug = 'cbd' LIMIT 1);
+
+
+-- ########## CBD COA URLs (Hemp Bombs, Hippie Jack Yummy Hemp) ##########
+-- Source: 20260612_cbd_coa_urls.sql
+
+-- COA files pulled from legacy hmherbs.com (see backend/scripts/fetch-coa-from-old-site.js).
+-- Only sets coa_url when not already populated.
+
+UPDATE products SET coa_url = '/images/coa/hippie-jacks-yummy-hemp-gummie-coa.pdf', coa_updated_at = '2026-06-12', is_cannabis = 1
+WHERE slug = 'hippie-jack-s-yummy-hemp-gummie' AND (coa_url IS NULL OR TRIM(coa_url) = '');
+
+UPDATE products SET coa_url = '/images/coa/hemp-bombs-cbd-gummies-w-mushroom-coas.html', coa_updated_at = '2026-06-12', is_cannabis = 1
+WHERE slug = 'hemp-bombs-cbd-gummies-w-mushroom' AND (coa_url IS NULL OR TRIM(coa_url) = '');
+
+
+-- ########## Remove Vista Life CBD products from catalog ##########
+-- Source: 20260604_remove_vista_life_cbd_products.sql
+
+-- Remove Vista Life CBD products from the public catalog (non-CBD Vista Life items remain).
+
+UPDATE products
+SET is_active = 0,
+    is_cannabis = 0,
+    is_featured = 0
+WHERE slug IN (
+    'vista-life-cbd-25mg-capsules',
+    'vista-life-cbd-25mg-gummies',
+    'vista-life-cbd-dead-sea-mud-mask',
+    'vista-life-cbd-oil-full-spectrum'
+);
+
+DELETE phc
+FROM product_health_categories phc
+INNER JOIN products p ON p.id = phc.product_id
+INNER JOIN health_categories hc ON hc.id = phc.health_category_id
+WHERE hc.slug = 'cbd'
+  AND p.slug IN (
+    'vista-life-cbd-25mg-capsules',
+    'vista-life-cbd-25mg-gummies',
+    'vista-life-cbd-dead-sea-mud-mask',
+    'vista-life-cbd-oil-full-spectrum'
+);
+
+
+-- ########## Regal Labs COA URLs (Cannabis Care + Organic CBD Oils) ##########
+-- Source: 20260604_regal_labs_coa_urls.sql
+
+-- Regal Labs COA assets are hosted under /images/coa/ (HTML index + PDF/JPG files).
+
+UPDATE products
+SET coa_url = '/images/coa/regalabs-cannabis-care-coa.html',
+    coa_updated_at = '2026-06-04',
+    is_cannabis = 1
+WHERE slug IN ('regalabs-cannabis-care-cream-free-shipping', 'regalabs-cannabis-care-roll-on');
+
+UPDATE products
+SET coa_url = '/images/coa/regalabs-organic-cbd-oils-coas.html',
+    coa_updated_at = '2026-06-04',
+    is_cannabis = 1
+WHERE slug = 'regalabs-organic-cbd-oils';
+
+
+-- ########## Regal Labs CBD Gummies COA ##########
+-- Source: 20260603_regal_labs_cbd_gummies_coa.sql
+
+-- Regal Labs Full Spectrum CBD Gummies COA (PDF in /images/coa/).
+
+UPDATE products
+SET coa_url = '/images/coa/Regal Labs - CBD Gummies COA.pdf',
+    coa_updated_at = '2026-06-03',
+    is_cannabis = 1
+WHERE slug = 'regalabs-full-spectrum-cbd-gummies';
+
+
+-- ########## Customer groups ##########
+-- Source: 20260612_customer_groups.sql
+
+-- Customer groups for promotions, pricing rules, and admin segmentation
+
+CREATE TABLE IF NOT EXISTS customer_groups (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(100) NOT NULL,
+    slug VARCHAR(100) NOT NULL UNIQUE,
+    description TEXT NULL,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_customer_groups_slug (slug),
+    INDEX idx_customer_groups_active (is_active)
+);
+
+CREATE TABLE IF NOT EXISTS user_customer_groups (
+    user_id INT NOT NULL,
+    customer_group_id INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, customer_group_id),
+    INDEX idx_ucg_group (customer_group_id),
+    CONSTRAINT fk_ucg_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_ucg_group FOREIGN KEY (customer_group_id) REFERENCES customer_groups(id) ON DELETE CASCADE
+);
 
 
 -- ########## Customer password reset (hosting-safe) ##########

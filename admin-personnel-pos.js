@@ -96,7 +96,7 @@
                         <td>${fmtDt(s.closed_at)}</td>
                         <td>${fmtMoney(s.cash_sales_total)}</td>
                         <td>${s.over_short_amount != null ? fmtMoney(s.over_short_amount) : '—'}</td>
-                        <td><button type="button" class="btn btn-sm btn-secondary" data-shift-z-report="${s.id}">End-of-shift summary</button></td>
+                        <td><button type="button" class="btn btn-sm btn-secondary" data-shift-z-report="${s.id}">Print end-of-shift summary</button></td>
                     </tr>`
                       )
                       .join('')}</tbody></table>`
@@ -113,13 +113,19 @@
         try {
             const report = await api('/reports/shift/' + id);
             const s = report.shift;
-            const isZ = s.status !== 'open';
-            const heading = isZ ? 'End-of-shift summary' : 'Current shift summary';
+            const isClosed = s.status !== 'open';
+            const heading = isClosed ? 'End-of-shift summary' : 'Current shift summary';
+            const statusLine = isClosed
+                ? 'Shift closed — final totals'
+                : 'Shift still open — totals may change';
             const w = window.open('', '_blank');
-            if (!w) return;
-            w.document.write(`<!DOCTYPE html><html><head><title>${heading} ${id}</title></head><body style="font-family:system-ui;padding:24px">
-                <h1>${heading} #${id}</h1>
-                ${isZ ? '<p><strong>Final — shift closed</strong></p>' : '<p>Interim — shift still open</p>'}
+            if (!w) {
+                window.adminApp?.showToast('Allow popups to print the sales summary.', 'error');
+                return;
+            }
+            w.document.write(`<!DOCTYPE html><html><head><title>${heading}</title></head><body style="font-family:system-ui;padding:24px">
+                <h1>${heading}</h1>
+                <p><strong>${statusLine}</strong></p>
                 <p><strong>${esc(s.first_name)} ${esc(s.last_name)}</strong> (${esc(s.employee_code)})</p>
                 <p>Opened: ${fmtDt(s.opened_at)}<br>Closed: ${fmtDt(s.closed_at)}</p>
                 <p>Opening cash: ${fmtMoney(s.opening_cash)}<br>Expected: ${fmtMoney(report.expectedCash)}<br>Closing: ${fmtMoney(s.closing_cash)}<br>Over/short: ${fmtMoney(s.over_short_amount)}</p>
@@ -143,7 +149,7 @@
             const r = res.report || {};
             const t = r.totals || {};
             mount.innerHTML = `<div style="font-size:0.92rem;line-height:1.6">
-                <p style="margin:0 0 0.5rem;"><strong>Day summary — ${esc(r.date || date)}</strong></p>
+                <p style="margin:0 0 0.5rem;"><strong>Daily sales summary — ${esc(r.date || date)}</strong></p>
                 <p style="margin:0;">Paid orders: ${t.orderCount || 0} · Total sales: ${fmtMoney(t.totalSales)}</p>
                 <p style="margin:0.35rem 0 0;color:var(--gray-600);">Cash ${fmtMoney(t.cashTotal)} · Card ${fmtMoney(t.cardTotal)} · Check ${fmtMoney(t.checkTotal)}</p>
                 ${r.openShiftCount > 0 ? `<p style="margin:0.5rem 0 0;color:#b45309;">${r.openShiftCount} shift(s) still open</p>` : ''}

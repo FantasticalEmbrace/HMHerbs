@@ -1,0 +1,3 @@
+# Example only — replace with YOUR deployed support server URL when you have one.
+# Local testing on this PC (backend running): http://127.0.0.1:3001
+http://127.0.0.1:3001

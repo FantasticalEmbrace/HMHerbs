@@ -6,6 +6,8 @@
     'use strict';
 
     const CART_ADDED_RE = /\badded to (?:your )?cart\b/i;
+    const CART_ADDED_MESSAGE = 'Added to cart';
+    let lastCartToastAt = 0;
 
     function getRegion() {
         let region = document.getElementById('hm-toast-region');
@@ -65,6 +67,13 @@
         if (!message) return;
 
         const isCartAdded = type === 'success' && CART_ADDED_RE.test(message);
+        if (isCartAdded) {
+            const now = Date.now();
+            if (now - lastCartToastAt < 600) return;
+            lastCartToastAt = now;
+            message = CART_ADDED_MESSAGE;
+        }
+
         const region = getRegion();
         region.classList.toggle('hm-toast-region--cart', isCartAdded);
 

@@ -29,6 +29,10 @@ PROVIDER_WEBSITE = "https://businessonecomprehensive.com/"
 SINGLE_STATION_RATE = "$100.00"
 ADDITIONAL_STATION_RATE = "$50.00"
 VOLUME_STATION_RATE = "$25.00"
+FAILOVER_BASE_RATE = "$25.00"
+FAILOVER_INCLUDED_DATA = "2 GB"
+FAILOVER_OVERAGE_RATE = "$10.00"
+FAILOVER_OVERAGE_BLOCK = "2 GB"
 
 DOC_TITLE = "POINT OF SALE (POS) SOFTWARE & SUPPORT AGREEMENT"
 
@@ -75,8 +79,8 @@ def draw_static_value(c, x, y, w, value):
 
 
 def draw_pricing_box(c, x, y, w):
-    draw_label(c, x, y, "Station Pricing:")
-    box_h = 44
+    draw_label(c, x, y, "Monthly Pricing:")
+    box_h = 68
     draw_field_bg(c, x, y - box_h, w, h=box_h)
     c.setFillColor(colors.black)
     c.setFont("Helvetica", 7.5)
@@ -84,11 +88,13 @@ def draw_pricing_box(c, x, y, w):
         f"First station: {SINGLE_STATION_RATE}/month",
         f"Stations 2\u20135: {ADDITIONAL_STATION_RATE}/month each",
         f"Station 6 and above: {VOLUME_STATION_RATE}/month each",
+        f"Failover internet: {FAILOVER_BASE_RATE}/month (up to {FAILOVER_INCLUDED_DATA})",
+        f"Failover overage: {FAILOVER_OVERAGE_RATE} per {FAILOVER_OVERAGE_BLOCK} over included",
     ]
     ly = y - 13
     for line in lines:
         c.drawString(x + 4, ly, line)
-        ly -= 12
+        ly -= 11
     return y - box_h - 6
 
 
@@ -178,8 +184,9 @@ def page1(c, form):
     intro = (
         f'This Point of Sale (POS) Software & Support Agreement ("Agreement") is entered into between '
         f'{PROVIDER_NAME} ("Provider") and the undersigned client ("Client"). '
-        "This Agreement outlines the terms under which Provider will deliver Business One POS software "
-        "access, setup support, and ongoing service to Client."
+        "This is a month-to-month service agreement, not a long-term lock-in contract. "
+        "Client agrees to pay the rates shown below for as long as Client continues to use Provider's services. "
+        "There is no minimum commitment period and no early termination fees."
     )
     y = draw_wrapped(c, MARGIN, y, CONTENT_W, intro, size=7.5, leading=10) - 6
 
@@ -246,18 +253,9 @@ def page1(c, form):
     add_text_field(form, "billing_cycle", right_x + 1, right_y - 15, col_w - 2)
     right_y -= 28
 
-    draw_label(c, right_x, right_y, "Initial Contract Term:")
-    right_y -= 14
-    add_checkbox(form, "term_month_to_month", right_x, right_y - 2)
-    c.setFillColor(GRAY)
-    c.setFont("Helvetica", 7.5)
-    c.drawString(right_x + 14, right_y, "Month-to-Month")
-
-    other_x = right_x + 110
-    add_checkbox(form, "term_other", other_x, right_y - 2)
-    c.drawString(other_x + 14, right_y, "Other:")
-    draw_field_bg(c, other_x + 42, right_y - 4, col_w - (other_x - right_x) - 42, h=12)
-    add_text_field(form, "term_other_text", other_x + 43, right_y - 3, col_w - (other_x - right_x) - 44, h=11)
+    draw_label(c, right_x, right_y, "Service Term:")
+    draw_static_value(c, right_x, right_y, col_w, "Month-to-Month (cancel anytime)")
+    right_y -= 28
 
     y = min(field_y, right_y) - 10
     y = draw_section_header(c, y, "3. Service Summary & Inclusions", color=ORANGE)
@@ -275,13 +273,13 @@ def page1(c, form):
         "Business One POS Register Software",
         "Customer Display Support",
         "Offline-Capable Sales Processing",
+        "Failover Internet (Backup Connectivity)",
         "Cash & Card Payment Interface",
         "Real-Time Inventory Sync",
         "Sales Reporting & Analytics",
         "Employee PIN Access & Shift Tools",
         "Technical Support",
         "Software Updates & Maintenance",
-        "Other Services as Agreed",
     ]
     cols = 3
     col_width = CONTENT_W / cols
@@ -301,8 +299,8 @@ def page1(c, form):
 
     y = start_y - 3 * row_h - 6
     draw_label(c, MARGIN, y, "Special Terms / Notes:")
-    draw_field_bg(c, MARGIN, y - 52, CONTENT_W, h=48)
-    add_text_field(form, "special_terms", MARGIN + 2, y - 50, CONTENT_W - 4, h=46, multiline=True)
+    draw_field_bg(c, MARGIN, y - 40, CONTENT_W, h=36)
+    add_text_field(form, "special_terms", MARGIN + 2, y - 38, CONTENT_W - 4, h=34, multiline=True)
 
     draw_footer(c)
     c.showPage()
@@ -339,6 +337,21 @@ def page2(c, form):
             "caused by incomplete or incorrect Client data.",
         ),
         (
+            "Failover Internet",
+            f"When included in Client's plan, failover internet provides backup connectivity if primary service is "
+            f"unavailable. The base fee is {FAILOVER_BASE_RATE} per month and includes up to {FAILOVER_INCLUDED_DATA} "
+            f"of data. Usage beyond {FAILOVER_INCLUDED_DATA} is billed at {FAILOVER_OVERAGE_RATE} for each additional "
+            f"{FAILOVER_OVERAGE_BLOCK} block (or portion thereof) used during the billing period. Overage charges are "
+            "added to Client's monthly invoice based on measured usage.",
+        ),
+        (
+            "Service Term",
+            "This Agreement runs month-to-month for as long as Client uses Provider's services. "
+            "It is not a long-term contract and does not impose a minimum service period, lock-in term, "
+            "or early termination fee. Client's obligation to pay applies only while services remain active "
+            "at the agreed rates shown in this Agreement.",
+        ),
+        (
             "Support",
             "Technical support is provided via email and phone during standard business hours. Response "
             "times may vary based on issue severity and current workload. On-site support may incur "
@@ -363,19 +376,25 @@ def page2(c, form):
         f"The first station is {SINGLE_STATION_RATE} per month. Stations 2 through 5 are {ADDITIONAL_STATION_RATE} per month each. "
         f"Each station beyond the fifth is {VOLUME_STATION_RATE} per month "
         "(e.g., 2 stations = $150.00/month; 5 stations = $300.00/month; 6 stations = $325.00/month).",
-        "Fees are billed in advance on the billing cycle selected in Section 2.",
+        f"Failover internet, when selected, is {FAILOVER_BASE_RATE} per month and includes up to {FAILOVER_INCLUDED_DATA}. "
+        f"Each {FAILOVER_OVERAGE_BLOCK} used beyond the included allowance is billed at {FAILOVER_OVERAGE_RATE} "
+        "(e.g., up to 2 GB = $25.00/month; 3\u20134 GB = $35.00/month; 5\u20136 GB = $45.00/month).",
+        "Fees are billed in advance on the billing cycle selected in Section 2. Failover overages are billed in arrears based on usage.",
+        "Monthly fees apply only while services remain active. Client is responsible for charges incurred through the date services end.",
         "Payment is due upon receipt of invoice. Late payments may incur a late fee of 1.5% per month on outstanding balances.",
         "Provider may suspend POS access for accounts more than 15 days past due after written notice to Client.",
-        "Fees paid are non-refundable except where required by law or expressly agreed in writing.",
+        "No early termination fees, cancellation penalties, or lock-in charges apply under this Agreement.",
     ]
     y = draw_bullet_block(c, MARGIN, y - 8, CONTENT_W, payment_items) - 2
 
     y = draw_section_header(c, y, "6. Termination")
     term_text = (
-        "Either party may terminate this Agreement with thirty (30) days written notice. Client remains "
-        "responsible for all fees incurred through the effective termination date. Upon termination, "
-        "Provider will cooperate in a reasonable transition including deactivation of POS access and export of Client sales "
-        "data where available, subject to outstanding account balances being paid in full."
+        "Either party may end this Agreement at any time. Client may cancel by notifying Provider in writing; "
+        "services continue through the end of the current billing period unless otherwise agreed. Client pays "
+        "only for services used through the cancellation date. Provider does not charge early termination fees, "
+        "cancellation penalties, or lock-in charges. Upon cancellation, Provider will deactivate POS access and "
+        "cooperate in a reasonable transition of Client data where available, subject to outstanding balances "
+        "for services already rendered being paid in full."
     )
     y = draw_wrapped(c, MARGIN, y - 8, CONTENT_W, term_text, size=7, leading=9) - 4
 

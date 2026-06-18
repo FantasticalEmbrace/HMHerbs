@@ -3636,6 +3636,32 @@ html.hm-edsa-scroll-ready body {
   transform: scale(1) translateY(0);
 }
 
+.cookie-popup-content--preferences {
+  width: min(100%, 28rem);
+  max-width: 28rem;
+  text-align: left;
+}
+
+.cookie-popup-content--preferences .gdpr-modal-header {
+  padding: var(--space-5) var(--space-5) var(--space-4);
+}
+
+.cookie-popup-content--preferences .gdpr-modal-body {
+  padding: var(--space-4) var(--space-5) var(--space-5);
+}
+
+.cookie-popup-content--preferences .gdpr-modal-footer {
+  padding: var(--space-4) var(--space-5) var(--space-5);
+  flex-wrap: wrap;
+}
+
+.cookie-preferences-lead {
+  margin: 0 0 var(--space-5);
+  font-size: var(--text-sm);
+  color: var(--gray-600);
+  line-height: 1.6;
+}
+
 .cookie-popup-body {
   padding: var(--space-6);
   text-align: center;
@@ -4230,7 +4256,8 @@ html.hm-edsa-scroll-ready body {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: var(--gray-300);
+  background: linear-gradient(180deg, #dc2626 0%, #b91c1c 100%);
+  border: 1px solid #991b1b;
   transition: var(--transition-fast);
   border-radius: var(--radius-full);
 }
@@ -4248,7 +4275,8 @@ html.hm-edsa-scroll-ready body {
 }
 
 input:checked+.toggle-slider {
-  background-color: var(--primary-green);
+  background: linear-gradient(180deg, var(--primary-green) 0%, var(--primary-green-dark, #059669) 100%);
+  border-color: var(--primary-green-dark, #059669);
 }
 
 input:checked+.toggle-slider:before {

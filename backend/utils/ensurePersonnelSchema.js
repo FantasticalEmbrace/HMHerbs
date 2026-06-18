@@ -180,7 +180,17 @@ async function ensurePersonnelSchema(pool) {
         {
             column: 'can_authorize',
             sql: `ALTER TABLE pos_employees ADD COLUMN can_authorize TINYINT(1) NOT NULL DEFAULT 0
-                  COMMENT 'May approve POS discounts, voids, and refunds with their PIN'`,
+                  COMMENT 'May approve POS discounts with their PIN'`,
+        },
+        {
+            column: 'can_process_refunds',
+            sql: `ALTER TABLE pos_employees ADD COLUMN can_process_refunds TINYINT(1) NOT NULL DEFAULT 0
+                  COMMENT 'May process in-store POS refunds with their register PIN'`,
+        },
+        {
+            column: 'can_open_drawer',
+            sql: `ALTER TABLE pos_employees ADD COLUMN can_open_drawer TINYINT(1) NOT NULL DEFAULT 0
+                  COMMENT 'May manually open cash drawer from register'`,
         },
     ]);
     try {

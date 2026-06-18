@@ -146,8 +146,9 @@ def page1(c, form):
     intro = (
         'This Website Hosting & Maintenance Agreement ("Agreement") is entered into between '
         f'{PROVIDER_NAME} ("Provider") and the undersigned client ("Client"). '
-        "This Agreement outlines the terms under which Provider will deliver website hosting "
-        "and maintenance services to Client."
+        "This is a month-to-month service agreement, not a long-term lock-in contract. "
+        "Client agrees to pay the rates shown below for as long as Client continues to use Provider's services. "
+        "There is no minimum commitment period and no early termination fees."
     )
     y = draw_wrapped(c, MARGIN, y, CONTENT_W, intro, size=7.5, leading=10) - 6
 

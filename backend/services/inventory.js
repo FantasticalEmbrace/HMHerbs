@@ -56,14 +56,15 @@ class InventoryService {
      * @param {number} orderId - Order ID for audit trail
      * @param {string} reason - Reason for restoration
      */
-    async restoreInventoryForOrder(orderItems, orderId, reason = 'Order cancellation') {
-        const connection = await this.pool.getConnection();
-        
+    async restoreInventoryForOrder(orderItems, orderId, reason = 'Order cancellation', existingConnection = null) {
+        const ownsConnection = !existingConnection;
+        const connection = existingConnection || await this.pool.getConnection();
+
         try {
-            await connection.beginTransaction();
-            
+            if (ownsConnection) await connection.beginTransaction();
+
             const results = [];
-            
+
             for (const item of orderItems) {
                 const result = await this._addInventory(
                     connection,
@@ -77,18 +78,17 @@ class InventoryService {
                 );
                 results.push(result);
             }
-            
-            await connection.commit();
-            
+
+            if (ownsConnection) await connection.commit();
+
             console.log(`✅ Inventory restored for order ${orderId}:`, results);
             return results;
-            
         } catch (error) {
-            await connection.rollback();
+            if (ownsConnection) await connection.rollback();
             console.error(`❌ Failed to restore inventory for order ${orderId}:`, error);
             throw error;
         } finally {
-            connection.release();
+            if (ownsConnection) connection.release();
         }
     }
 

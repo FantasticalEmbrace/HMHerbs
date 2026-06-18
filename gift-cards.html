@@ -19,6 +19,7 @@
     <link rel="stylesheet" href="css/hm-close-controls.css">
     <link rel="stylesheet" href="css/site-promo-banner.css">
     <link rel="stylesheet" href="css/age-gate.css">
+    <link rel="stylesheet" href="css/hm-gift-card.css">
     <link rel="stylesheet" href="css/gift-cards.css">
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -97,6 +98,7 @@
             <div class="gift-cards-intro">
                 <h1 class="page-title">Gift Cards</h1>
                 <p>Give the gift of wellness. Choose a digital card delivered by email or a physical card mailed to you or your recipient.</p>
+                <p class="gift-cards-profile-note">For <strong>digital</strong> gift cards we ask for the recipient’s name, email, phone, and mailing address so we can set up their account to track their gift card balance.</p>
             </div>
 
             <div class="gift-type-tabs" role="tablist" aria-label="Gift card type">
@@ -114,34 +116,97 @@
             <div id="gift-cards-error" class="gift-cards-error" hidden></div>
 
             <div id="gift-card-panel" class="gift-card-panel" hidden>
-                <div class="gift-card-visual">
-                    <div class="gift-card-visual-icon"><i class="fas fa-gift" aria-hidden="true"></i></div>
-                    <h2 id="gift-panel-title">Digital Gift Card</h2>
-                    <p id="gift-panel-desc"></p>
+                <div class="gift-card-preview-wrap">
+                    <div id="gift-card-preview" class="gift-card-preview" aria-live="polite"></div>
+                    <p class="gift-card-preview-caption">
+                        <strong id="gift-panel-title">Digital Gift Card</strong><br>
+                        <span id="gift-panel-desc"></span>
+                    </p>
                 </div>
 
                 <div class="amount-grid" id="amount-grid" role="group" aria-label="Select amount"></div>
 
                 <form id="gift-card-form" class="gift-form">
-                    <div class="form-group">
-                        <label for="recipient-name">Recipient name</label>
-                        <input type="text" id="recipient-name" class="form-input" maxlength="150" autocomplete="name"
-                            placeholder="Who is this gift for?">
-                    </div>
-                    <div class="form-group">
-                        <label for="recipient-email" id="recipient-email-label">Recipient email <span class="required-mark">*</span></label>
-                        <input type="email" id="recipient-email" class="form-input" maxlength="255" autocomplete="email"
-                            placeholder="recipient@example.com">
-                        <small id="recipient-email-help" class="form-help"></small>
-                    </div>
-                    <div class="form-group">
-                        <label for="sender-name">Your name (optional)</label>
-                        <input type="text" id="sender-name" class="form-input" maxlength="150" placeholder="From">
-                    </div>
-                    <div class="form-group">
-                        <label for="personal-message">Personal message (optional)</label>
-                        <textarea id="personal-message" maxlength="500" placeholder="Add a note for the recipient"></textarea>
-                    </div>
+                    <p id="recipient-info-intro" class="gift-recipient-intro form-help"></p>
+
+                    <fieldset class="gift-recipient-fieldset">
+                        <legend>Recipient information</legend>
+                        <div class="form-group">
+                            <label for="recipient-name">Recipient name <span class="required-mark recipient-req">*</span></label>
+                            <input type="text" id="recipient-name" class="form-input" maxlength="150" autocomplete="name"
+                                placeholder="Who is this gift for?">
+                        </div>
+                        <div class="form-group">
+                            <label for="recipient-email" id="recipient-email-label">Recipient email <span class="required-mark recipient-req">*</span></label>
+                            <input type="email" id="recipient-email" class="form-input" maxlength="255" autocomplete="email"
+                                placeholder="recipient@example.com">
+                            <small id="recipient-email-help" class="form-help"></small>
+                        </div>
+                        <div id="recipient-contact-fields">
+                            <div class="form-group">
+                                <label for="recipient-phone">Recipient phone <span class="required-mark recipient-req">*</span></label>
+                                <input type="tel" id="recipient-phone" class="form-input" maxlength="14" inputmode="numeric"
+                                    placeholder="(555) 555-0100" autocomplete="tel">
+                            </div>
+                            <div class="form-group">
+                                <label for="recipient-address-1">Recipient street address <span class="required-mark recipient-req">*</span></label>
+                                <input type="text" id="recipient-address-1" class="form-input" maxlength="200" autocomplete="street-address"
+                                    placeholder="123 Main St">
+                            </div>
+                            <div class="form-group">
+                                <label for="recipient-address-2">Address line 2</label>
+                                <input type="text" id="recipient-address-2" class="form-input" maxlength="200" autocomplete="address-line2">
+                            </div>
+                            <div class="form-row gift-address-row">
+                                <div class="form-group">
+                                    <label for="recipient-city">City <span class="required-mark recipient-req">*</span></label>
+                                    <input type="text" id="recipient-city" class="form-input" maxlength="100" autocomplete="address-level2">
+                                </div>
+                                <div class="form-group">
+                                    <label for="recipient-state">State <span class="required-mark recipient-req">*</span></label>
+                                    <input type="text" id="recipient-state" class="form-input" maxlength="50" autocomplete="address-level1">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="recipient-zip">ZIP code <span class="required-mark recipient-req">*</span></label>
+                                <input type="text" id="recipient-zip" class="form-input" maxlength="10" autocomplete="postal-code"
+                                    placeholder="12345">
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <fieldset class="gift-personalize-fieldset">
+                        <legend>Optional email greeting</legend>
+                        <div class="form-group">
+                            <label class="gift-checkbox-label">
+                                <input type="checkbox" id="include-personalized-email">
+                                Include a personalized greeting in the delivery email
+                            </label>
+                            <small class="form-help">Optional — add a styled message for birthdays, thank-yous, and more. The gift card is always delivered by email either way.</small>
+                        </div>
+                        <div id="personalized-email-fields" class="gift-personalized-fields" hidden>
+                            <div class="form-group">
+                                <label for="sender-name">Your name (shown as the sender)</label>
+                                <input type="text" id="sender-name" class="form-input" maxlength="150" placeholder="From">
+                            </div>
+                            <div class="form-group">
+                                <label for="greeting-occasion">Occasion</label>
+                                <select id="greeting-occasion" class="form-input">
+                                    <option value="custom">Custom message</option>
+                                    <option value="birthday">Happy Birthday</option>
+                                    <option value="thank_you">Thank You</option>
+                                    <option value="celebration">Congratulations</option>
+                                    <option value="thinking_of_you">Thinking of You</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="personal-message">Your message</label>
+                                <textarea id="personal-message" maxlength="500" rows="4"
+                                    placeholder="Write a note the recipient will see in their gift card email"></textarea>
+                            </div>
+                        </div>
+                    </fieldset>
+
                     <button type="submit" class="btn btn-primary gift-add-btn">
                         <i class="fas fa-cart-plus" aria-hidden="true"></i> Add to Cart
                     </button>
@@ -199,7 +264,9 @@
     <script src="js/hm-notify.js"></script>
     <script src="script.js" defer></script>
     <script src="js/customer-auth.js" defer></script>
-    <script src="js/gift-cards.js?v=20260604-2" defer></script>
+    <script src="js/hm-gift-card.js"></script>
+    <script src="js/phone-us-format.js"></script>
+    <script src="js/gift-cards.js?v=20260617-2" defer></script>
 </body>
 
 </html>

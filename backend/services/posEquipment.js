@@ -1,79 +1,17 @@
 'use strict';
 
-const EQUIPMENT_TYPES = Object.freeze({
-    card_terminal: {
-        id: 'card_terminal',
-        label: 'Card terminal',
-        description: 'Countertop or integrated card reader for customer payments.',
-        configFields: [
-            { key: 'connection', label: 'Connection', type: 'select', options: ['standalone', 'integrated', 'bluetooth', 'usb'] },
-            { key: 'terminalId', label: 'Terminal ID (optional)', type: 'text' }
-        ]
-    },
-    receipt_printer: {
-        id: 'receipt_printer',
-        label: 'Receipt printer',
-        description: 'Thermal printer for customer receipts.',
-        configFields: [
-            { key: 'connection', label: 'Connection', type: 'select', options: ['usb', 'network', 'bluetooth'] },
-            { key: 'address', label: 'IP or device name', type: 'text' },
-            { key: 'paperWidth', label: 'Paper width (mm)', type: 'select', options: ['58', '80'] }
-        ]
-    },
-    barcode_scanner: {
-        id: 'barcode_scanner',
-        label: 'Barcode scanner',
-        description: 'USB or Bluetooth scanner for SKU lookup.',
-        configFields: [
-            { key: 'connection', label: 'Connection', type: 'select', options: ['keyboard_wedge', 'usb', 'bluetooth'] }
-        ]
-    },
-    cash_drawer: {
-        id: 'cash_drawer',
-        label: 'Cash drawer',
-        description: 'Cash drawer kicked from printer or register.',
-        configFields: [
-            { key: 'kickVia', label: 'Opens via', type: 'select', options: ['receipt_printer', 'register'] }
-        ]
-    },
-    customer_display: {
-        id: 'customer_display',
-        label: 'Customer display',
-        description: 'Second screen or pole display for cart totals.',
-        configFields: [
-            { key: 'mode', label: 'Display mode', type: 'select', options: ['browser', 'hdmi', 'pole'] },
-            { key: 'url', label: 'Display URL (if browser)', type: 'text' }
-        ]
-    },
-    label_printer: {
-        id: 'label_printer',
-        label: 'Label printer',
-        description: 'Shelf or product label printer.',
-        configFields: [
-            { key: 'connection', label: 'Connection', type: 'select', options: ['usb', 'network', 'bluetooth'] },
-            { key: 'address', label: 'IP or device name', type: 'text' }
-        ]
-    },
-    scale: {
-        id: 'scale',
-        label: 'Scale',
-        description: 'Weighing scale for bulk items.',
-        configFields: [
-            { key: 'connection', label: 'Connection', type: 'select', options: ['usb', 'serial', 'network'] },
-            { key: 'unit', label: 'Unit', type: 'select', options: ['lb', 'oz', 'kg', 'g'] }
-        ]
-    },
-    other: {
-        id: 'other',
-        label: 'Other',
-        description: 'Any other POS peripheral.',
-        configFields: []
-    }
-});
+const {
+    EQUIPMENT_TYPE_META,
+    getHardwareCatalogForAdmin,
+    validateEquipmentConfig,
+    catalogLabelsForConfig,
+    findModel,
+    validateEquipmentBinding
+} = require('./posHardwareCatalog');
 
 function normalizeEquipmentType(raw) {
     const id = String(raw || '').trim().toLowerCase();
-    return EQUIPMENT_TYPES[id] ? id : 'other';
+    return EQUIPMENT_TYPE_META[id] ? id : 'other';
 }
 
 function parseConfig(raw) {
@@ -87,18 +25,34 @@ function parseConfig(raw) {
     }
 }
 
+function normalizeMacAddress(raw) {
+    const hex = String(raw || '').replace(/[^0-9a-fA-F]/g, '').toUpperCase();
+    if (!hex) return null;
+    if (hex.length !== 12) {
+        const err = new Error('MAC address must be 12 hex characters (e.g. AA:BB:CC:DD:EE:FF)');
+        err.code = 'INVALID_MAC';
+        throw err;
+    }
+    return hex.match(/.{2}/g).join(':');
+}
+
 function mapEquipmentRow(row) {
+    const config = parseConfig(row.config_json);
+    const modelDef = config.catalogModelId ? findModel(config.catalogModelId) : null;
     return {
         id: row.id,
         equipmentType: row.equipment_type,
-        equipmentTypeLabel: EQUIPMENT_TYPES[row.equipment_type]?.label || row.equipment_type,
+        equipmentTypeLabel: EQUIPMENT_TYPE_META[row.equipment_type]?.label || row.equipment_type,
         label: row.label,
-        manufacturer: row.manufacturer || '',
-        model: row.model || '',
+        manufacturer: row.manufacturer || modelDef?.brandLabel || '',
+        model: row.model || modelDef?.label || '',
+        catalogModelId: config.catalogModelId || '',
+        catalogBrandId: config.catalogBrandId || modelDef?.brandId || '',
         serialNumber: row.serial_number || '',
+        macAddress: row.mac_address || '',
         posDeviceId: row.pos_device_id != null ? Number(row.pos_device_id) : null,
         posDeviceLabel: row.pos_device_label || null,
-        config: parseConfig(row.config_json),
+        config,
         notes: row.notes || '',
         isActive: Boolean(row.is_active),
         createdAt: row.created_at,
@@ -145,7 +99,7 @@ async function getEquipmentById(pool, equipmentId) {
     return rows[0] ? mapEquipmentRow(rows[0]) : null;
 }
 
-async function createEquipment(pool, body) {
+function prepareEquipmentPayload(body) {
     const equipmentType = normalizeEquipmentType(body.equipmentType || body.equipment_type);
     const label = String(body.label || '').trim().slice(0, 128);
     if (label.length < 2) {
@@ -153,29 +107,92 @@ async function createEquipment(pool, body) {
         err.code = 'INVALID_LABEL';
         throw err;
     }
-    const posDeviceId = body.posDeviceId != null && body.posDeviceId !== ''
-        ? Number(body.posDeviceId)
-        : null;
+
+    let config = parseConfig(body.config || body.config_json);
+    const validation = validateEquipmentConfig(equipmentType, config);
+    if (!validation.ok) {
+        const err = new Error(validation.error);
+        err.code = 'INVALID_CONFIG';
+        throw err;
+    }
+    config = validation.config;
+
+    const catalogLabels = catalogLabelsForConfig(config);
+    if (catalogLabels.catalogBrandId) {
+        config.catalogBrandId = catalogLabels.catalogBrandId;
+    }
+
+    let manufacturer = String(body.manufacturer || '').trim().slice(0, 128) || null;
+    let model = String(body.model || '').trim().slice(0, 128) || null;
+    if (catalogLabels.manufacturer) manufacturer = catalogLabels.manufacturer;
+    if (catalogLabels.model) model = catalogLabels.model;
+
+    const posDeviceId =
+        body.posDeviceId != null && body.posDeviceId !== '' ? Number(body.posDeviceId) : null;
     if (posDeviceId != null && (!Number.isInteger(posDeviceId) || posDeviceId <= 0)) {
         const err = new Error('Invalid register assignment');
         err.code = 'INVALID_DEVICE';
         throw err;
     }
-    const config = parseConfig(body.config || body.config_json);
+
+    if (config.linkedPrinterEquipmentId) {
+        const linkedId = Number(config.linkedPrinterEquipmentId);
+        if (!Number.isInteger(linkedId) || linkedId <= 0) {
+            const err = new Error('Invalid linked printer');
+            err.code = 'INVALID_CONFIG';
+            throw err;
+        }
+        config.linkedPrinterEquipmentId = linkedId;
+    }
+
+    const serialNumber =
+        String(body.serialNumber || body.serial_number || '').trim().slice(0, 128) || null;
+
+    let macAddress = null;
+    if (body.macAddress !== undefined || body.mac_address !== undefined) {
+        const rawMac = body.macAddress !== undefined ? body.macAddress : body.mac_address;
+        const trimmed = String(rawMac || '').trim();
+        macAddress = trimmed ? normalizeMacAddress(trimmed) : null;
+    }
+
+    const binding = validateEquipmentBinding(equipmentType, config, { serialNumber, posDeviceId });
+    if (!binding.ok) {
+        const err = new Error(binding.error);
+        err.code = binding.code;
+        throw err;
+    }
+
+    return {
+        equipmentType,
+        label,
+        manufacturer,
+        model,
+        serialNumber,
+        macAddress,
+        posDeviceId,
+        config,
+        notes: String(body.notes || '').trim().slice(0, 2000) || null,
+        isActive: !(body.isActive === false || body.is_active === false)
+    };
+}
+
+async function createEquipment(pool, body) {
+    const payload = prepareEquipmentPayload(body);
     const [result] = await pool.execute(
         `INSERT INTO pos_equipment
-         (equipment_type, label, manufacturer, model, serial_number, pos_device_id, config_json, notes, is_active)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (equipment_type, label, manufacturer, model, serial_number, mac_address, pos_device_id, config_json, notes, is_active)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-            equipmentType,
-            label,
-            String(body.manufacturer || '').trim().slice(0, 128) || null,
-            String(body.model || '').trim().slice(0, 128) || null,
-            String(body.serialNumber || body.serial_number || '').trim().slice(0, 128) || null,
-            posDeviceId,
-            JSON.stringify(config),
-            String(body.notes || '').trim().slice(0, 2000) || null,
-            body.isActive === false || body.is_active === false ? 0 : 1
+            payload.equipmentType,
+            payload.label,
+            payload.manufacturer,
+            payload.model,
+            payload.serialNumber,
+            payload.macAddress,
+            payload.posDeviceId,
+            JSON.stringify(payload.config),
+            payload.notes,
+            payload.isActive ? 1 : 0
         ]
     );
     return getEquipmentById(pool, result.insertId);
@@ -188,26 +205,37 @@ async function updateEquipment(pool, equipmentId, body) {
         err.code = 'NOT_FOUND';
         throw err;
     }
-    const equipmentType = body.equipmentType != null
-        ? normalizeEquipmentType(body.equipmentType)
-        : existing.equipmentType;
-    const label = body.label != null ? String(body.label).trim().slice(0, 128) : existing.label;
-    if (label.length < 2) {
-        const err = new Error('Equipment name must be at least 2 characters');
-        err.code = 'INVALID_LABEL';
-        throw err;
-    }
-    let posDeviceId = existing.posDeviceId;
-    if (body.posDeviceId !== undefined || body.pos_device_id !== undefined) {
-        const raw = body.posDeviceId !== undefined ? body.posDeviceId : body.pos_device_id;
-        posDeviceId = raw === '' || raw == null ? null : Number(raw);
-        if (posDeviceId != null && (!Number.isInteger(posDeviceId) || posDeviceId <= 0)) {
-            const err = new Error('Invalid register assignment');
-            err.code = 'INVALID_DEVICE';
-            throw err;
-        }
-    }
-    const config = body.config !== undefined ? parseConfig(body.config) : existing.config;
+
+    const merged = {
+        equipmentType: body.equipmentType != null ? body.equipmentType : existing.equipmentType,
+        label: body.label != null ? body.label : existing.label,
+        manufacturer: body.manufacturer !== undefined ? body.manufacturer : existing.manufacturer,
+        model: body.model !== undefined ? body.model : existing.model,
+        serialNumber:
+            body.serialNumber !== undefined || body.serial_number !== undefined
+                ? body.serialNumber || body.serial_number
+                : existing.serialNumber,
+        macAddress:
+            body.macAddress !== undefined || body.mac_address !== undefined
+                ? body.macAddress !== undefined
+                    ? body.macAddress
+                    : body.mac_address
+                : existing.macAddress,
+        posDeviceId:
+            body.posDeviceId !== undefined || body.pos_device_id !== undefined
+                ? body.posDeviceId !== undefined
+                    ? body.posDeviceId
+                    : body.pos_device_id
+                : existing.posDeviceId,
+        config: body.config !== undefined ? body.config : existing.config,
+        notes: body.notes !== undefined ? body.notes : existing.notes,
+        isActive:
+            body.isActive !== undefined || body.is_active !== undefined
+                ? !(body.isActive === false || body.is_active === false)
+                : existing.isActive
+    };
+
+    const payload = prepareEquipmentPayload(merged);
     await pool.execute(
         `UPDATE pos_equipment SET
             equipment_type = ?,
@@ -215,6 +243,7 @@ async function updateEquipment(pool, equipmentId, body) {
             manufacturer = ?,
             model = ?,
             serial_number = ?,
+            mac_address = ?,
             pos_device_id = ?,
             config_json = ?,
             notes = ?,
@@ -222,21 +251,16 @@ async function updateEquipment(pool, equipmentId, body) {
             updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`,
         [
-            equipmentType,
-            label,
-            body.manufacturer !== undefined
-                ? String(body.manufacturer || '').trim().slice(0, 128) || null
-                : existing.manufacturer || null,
-            body.model !== undefined
-                ? String(body.model || '').trim().slice(0, 128) || null
-                : existing.model || null,
-            body.serialNumber !== undefined || body.serial_number !== undefined
-                ? String(body.serialNumber || body.serial_number || '').trim().slice(0, 128) || null
-                : existing.serialNumber || null,
-            posDeviceId,
-            JSON.stringify(config),
-            body.notes !== undefined ? String(body.notes || '').trim().slice(0, 2000) || null : existing.notes || null,
-            body.isActive === false || body.is_active === false ? 0 : 1,
+            payload.equipmentType,
+            payload.label,
+            payload.manufacturer,
+            payload.model,
+            payload.serialNumber,
+            payload.macAddress,
+            payload.posDeviceId,
+            JSON.stringify(payload.config),
+            payload.notes,
+            payload.isActive ? 1 : 0,
             Number(equipmentId)
         ]
     );
@@ -249,16 +273,16 @@ async function deleteEquipment(pool, equipmentId) {
 }
 
 function listEquipmentTypeCatalog() {
-    return Object.values(EQUIPMENT_TYPES).map((t) => ({
+    return Object.values(EQUIPMENT_TYPE_META).map((t) => ({
         id: t.id,
         label: t.label,
         description: t.description,
-        configFields: t.configFields
+        hasCatalog: t.hasCatalog
     }));
 }
 
 module.exports = {
-    EQUIPMENT_TYPES,
+    EQUIPMENT_TYPE_META,
     normalizeEquipmentType,
     listEquipment,
     listEquipmentForRegister,
@@ -266,5 +290,6 @@ module.exports = {
     createEquipment,
     updateEquipment,
     deleteEquipment,
-    listEquipmentTypeCatalog
+    listEquipmentTypeCatalog,
+    getHardwareCatalogForAdmin
 };

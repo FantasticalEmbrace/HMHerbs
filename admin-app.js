@@ -75,6 +75,15 @@ class AdminApp {
         if (loginScreen) loginScreen.style.display = 'flex';
         if (adminDashboard) adminDashboard.style.display = 'none';
 
+        const initParams = new URLSearchParams(window.location.search);
+        if (initParams.get('fresh_login') === '1') {
+            localStorage.removeItem('adminToken');
+            this.authToken = null;
+            initParams.delete('fresh_login');
+            const qs = initParams.toString();
+            window.history.replaceState({}, document.title, qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
+        }
+
         const handoffOk = await this.tryPosHandoffFromUrl();
         if (handoffOk) {
             try {
@@ -87,6 +96,8 @@ class AdminApp {
             void this.setupGoogleSignIn();
             return;
         }
+
+        this.setupEventListeners();
 
         // Check if user is already logged in
         if (this.authToken) {
@@ -112,7 +123,6 @@ class AdminApp {
             }
         }
 
-        this.setupEventListeners();
         void this.setupGoogleSignIn();
     }
 
@@ -498,10 +508,19 @@ class AdminApp {
     }
 
     setupEventListeners() {
+        if (this._adminUiListenersBound) return;
+        this._adminUiListenersBound = true;
+
         // Login form
         const loginForm = document.getElementById('loginForm');
         if (loginForm) {
             loginForm.addEventListener('submit', (e) => this.handleLogin(e));
+        }
+
+        const adminGoogleSignInBtn = document.getElementById('adminGoogleSignInBtn');
+        if (adminGoogleSignInBtn && !adminGoogleSignInBtn.dataset.wired) {
+            adminGoogleSignInBtn.dataset.wired = '1';
+            adminGoogleSignInBtn.addEventListener('click', () => this.startGoogleSignIn());
         }
 
         // Forgot password link
@@ -629,43 +648,38 @@ class AdminApp {
     }
 
     async setupGoogleSignIn() {
-        if (document.querySelector('link[data-hm-oauth-css]')) {
-            /* already linked */
-        } else {
-            const link = document.createElement('link');
-            link.rel = 'stylesheet';
-            link.href = 'css/oauth-buttons.css';
-            link.setAttribute('data-hm-oauth-css', '1');
-            document.head.appendChild(link);
+        const block = document.querySelector('[data-admin-oauth-block]');
+        const btn = document.getElementById('adminGoogleSignInBtn');
+        if (!block || !btn) return;
+
+        if (!btn.dataset.wired) {
+            btn.dataset.wired = '1';
+            btn.addEventListener('click', () => this.startGoogleSignIn());
         }
+
+        let enabled = true;
         try {
             const res = await fetch(`${this.apiBaseUrl}/admin/auth/google/status`);
-            const data = await res.json();
-            if (!data?.google?.enabled) return;
-            const form = document.getElementById('loginForm');
-            if (!form || form.querySelector('.btn-google-oauth')) return;
-            const divider = document.createElement('div');
-            divider.className = 'auth-divider';
-            divider.textContent = 'or';
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'btn-google btn-google-oauth';
-            btn.innerHTML = `${this._googleButtonSvg()} Continue with Google`;
-            btn.addEventListener('click', () => this.startGoogleSignIn());
-            const anchor = form.querySelector('button[type="submit"]')?.nextElementSibling || null;
-            if (anchor) {
-                form.insertBefore(divider, anchor);
-                form.insertBefore(btn, anchor);
-            } else {
-                form.appendChild(divider);
-                form.appendChild(btn);
+            if (res.ok) {
+                const data = await res.json();
+                enabled = Boolean(data?.google?.enabled);
             }
         } catch (_) {
-            /* optional */
+            /* Keep button visible if status check fails — server validates on start */
+        }
+
+        if (enabled) {
+            block.removeAttribute('hidden');
+            block.classList.remove('hidden');
+        } else {
+            block.setAttribute('hidden', '');
+            block.classList.add('hidden');
         }
     }
 
     startGoogleSignIn() {
+        localStorage.removeItem('adminToken');
+        this.authToken = null;
         window.location.href = `${this.apiBaseUrl}/admin/auth/google/start?returnTo=${encodeURIComponent('/admin.html')}`;
     }
 
@@ -675,17 +689,40 @@ class AdminApp {
         const emailElement = document.getElementById('email');
         const passwordElement = document.getElementById('password');
         const errorDiv = document.getElementById('loginError');
+        const submitBtn = document.querySelector('#loginForm button[type="submit"]');
 
-        if (!emailElement || !passwordElement || !errorDiv) {
-            // Log error in development only
-            if (typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'development') {
-                console.error('Required login form elements not found');
-            }
+        if (!emailElement || !passwordElement) {
+            console.error('Admin login: email or password field not found');
             return;
         }
 
-        const email = emailElement.value;
+        const showLoginError = (message) => {
+            if (!errorDiv) {
+                window.alert(message);
+                return;
+            }
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            errorDiv.classList.add('show');
+        };
+
+        const email = emailElement.value.trim();
         const password = passwordElement.value;
+
+        if (!email || !password) {
+            showLoginError('Enter your email and password.');
+            return;
+        }
+
+        if (errorDiv) {
+            errorDiv.textContent = '';
+            errorDiv.style.display = 'none';
+            errorDiv.classList.remove('show');
+        }
+
+        if (submitBtn) {
+            submitBtn.disabled = true;
+        }
 
         try {
             const response = await fetch(`${this.apiBaseUrl}/admin/auth/login`, {
@@ -696,7 +733,7 @@ class AdminApp {
                 body: JSON.stringify({ email, password })
             });
 
-            const data = await response.json();
+            const data = await response.json().catch(() => ({}));
 
             if (response.ok) {
                 this.authToken = data.token;
@@ -709,12 +746,8 @@ class AdminApp {
 
                 await this.loadDashboard();
             } else {
-                // Show detailed error message from server
                 const errorMessage = data.error || data.details || 'Login failed';
-                errorDiv.textContent = errorMessage;
-                errorDiv.style.display = 'block';
-
-                // Log full error for debugging
+                showLoginError(errorMessage);
                 console.error('Login error:', {
                     status: response.status,
                     error: data.error,
@@ -722,9 +755,12 @@ class AdminApp {
                 });
             }
         } catch (error) {
-            errorDiv.textContent = 'Connection error. Please try again.';
-            errorDiv.style.display = 'block';
+            showLoginError('Connection error. Please try again.');
             console.error('Login request failed:', error);
+        } finally {
+            if (submitBtn) {
+                submitBtn.disabled = false;
+            }
         }
     }
 
@@ -861,6 +897,10 @@ class AdminApp {
         const personnelNav = document.getElementById('nav-personnel-item');
         if (personnelNav) {
             personnelNav.style.display = isFullAdmin ? '' : 'none';
+        }
+        const refundPermRow = document.getElementById('register-refund-permission-row');
+        if (refundPermRow) {
+            refundPermRow.style.display = isFullAdmin ? 'flex' : 'none';
         }
 
         const developerNav = document.getElementById('nav-developer-tools-item');
@@ -1286,6 +1326,9 @@ class AdminApp {
                 if (window.AdminPosHub) {
                     await window.AdminPosHub.init();
                 }
+                if (window.AdminPosTroubleshoot) {
+                    await window.AdminPosTroubleshoot.init();
+                }
                 break;
             case 'settings':
                 await this.loadStoreInfoSettings();
@@ -1495,7 +1538,10 @@ class AdminApp {
     _posCashDiscountSettingMeta() {
         return {
             pos_cash_discount_enabled: 'Enable in-store cash discount (card price vs lower cash price)',
-            pos_cash_discount_percent: 'Cash discount percent off merchandise (max 15)',
+            pos_cash_discount_percent: 'In-store POS cash discount percent off merchandise (max 15)',
+            pos_payment_cash_enabled: 'Allow cash payments on Business One POS',
+            pos_payment_check_enabled: 'Allow check payments on Business One POS',
+            pos_payment_card_enabled: 'Allow card terminal payments on Business One POS',
             pos_store_logo_url: 'Optional store logo URL for POS customer display',
             store_card_payment_processor: 'Website card processor for checkout: epi or nmi_durango',
             pos_card_payment_processor: 'In-store POS processor: inherit, epi, or nmi_durango',
@@ -1519,7 +1565,7 @@ class AdminApp {
             pos_pin_lockout_minutes: 'Minutes to lock PIN entry after too many failures',
             pos_sign_out_after_sale: 'Sign cashier out after each completed sale (shared registers)',
             pos_require_manager_pin_discounts: 'Require manager PIN for line discounts above threshold',
-            pos_require_manager_pin_void_refund: 'Require manager PIN to void sales or process refunds',
+            pos_require_manager_pin_void_refund: 'Refunds always require manager PIN on the register',
             pos_max_line_discount_percent: 'Max line discount percent without manager PIN (0 = any discount needs manager)',
             pos_daily_sales_email_enabled: 'Email daily in-store sales summary to owner',
             pos_daily_sales_email_to: 'Recipient for daily POS sales email',
@@ -1533,13 +1579,10 @@ class AdminApp {
             pos_catalog_refresh_minutes: 'Auto-refresh product catalog interval in minutes',
             pos_large_touch_mode: 'Large touch mode with bigger category buttons on POS',
             pos_scan_beep_enabled: 'Play beep when barcode scan finds a product',
-            pos_quick_keys: 'Pinned quick keys for POS register (JSON or line format)',
             pos_display_store_hours_idle: 'Show store hours on idle customer display',
             pos_show_cost_in_cart: 'Show product cost in POS cart for manual discounts',
             pos_personnel_mode: 'Personnel mode: time_clock_only or time_clock_and_pos',
-            pos_hardware_printer: 'POS receipt printer: auto, elo_star, or browser',
             pos_display_card_checkout: 'Durango terminal card checkout enabled',
-            pos_poi_device_id: 'NMI/Durango POI device ID for A3700 terminal',
             pos_card_display_mode: 'Card checkout: durango_terminal only',
         };
     }
@@ -1555,6 +1598,8 @@ class AdminApp {
             store_state: 'Store state/province',
             store_postal_code: 'Store postal code',
             tax_rate: 'Store sales tax rate (decimal)',
+            store_cash_discount_enabled: 'Enable website/host cash discount (card price vs lower cash price)',
+            store_cash_discount_percent: 'Website cash discount percent off merchandise (max 15)',
             store_hours_weekdays: 'Operating hours for weekdays',
             store_hours_saturday: 'Operating hours for Saturday',
             store_hours_sunday: 'Operating hours for Sunday',
@@ -2125,6 +2170,26 @@ class AdminApp {
                 if (pct > 100) pct = 100;
                 value = String(Math.round(pct * 10000) / 1000000);
             }
+            if (key === 'store_cash_discount_enabled') {
+                const el = form.querySelector('[name="store_cash_discount_enabled"]');
+                return {
+                    key_name: key,
+                    value: el?.checked ? 'true' : 'false',
+                    description: meta[key],
+                    type: 'boolean',
+                };
+            }
+            if (key === 'store_cash_discount_percent') {
+                let pct = Number(form.querySelector('[name="store_cash_discount_percent"]')?.value);
+                if (!Number.isFinite(pct) || pct < 0) pct = 0;
+                if (pct > 15) pct = 15;
+                return {
+                    key_name: key,
+                    value: String(pct),
+                    description: meta[key],
+                    type: 'number',
+                };
+            }
             return {
                 key_name: key,
                 value,
@@ -2296,13 +2361,17 @@ class AdminApp {
             const p = Number(map.get('pos_cash_discount_percent'));
             percentEl.value = Number.isFinite(p) ? String(p) : '0';
         }
+        for (const key of ['pos_payment_cash_enabled', 'pos_payment_check_enabled', 'pos_payment_card_enabled']) {
+            const el = form.querySelector(`[name="${key}"]`);
+            if (!el) continue;
+            const raw = String(map.get(key) ?? 'true').toLowerCase();
+            el.checked = raw === 'true' || raw === '1' || raw === '';
+        }
         const logoEl = form.querySelector('[name="pos_store_logo_url"]');
         if (logoEl) logoEl.value = String(map.get('pos_store_logo_url') || '');
         const storeProcessor = String(map.get('store_card_payment_processor') || 'epi').toLowerCase();
         const storeProcessorEl = form.querySelector(`[name="store_card_payment_processor"][value="${['epi', 'nmi_durango'].includes(storeProcessor) ? storeProcessor : 'epi'}"]`);
         if (storeProcessorEl) storeProcessorEl.checked = true;
-        const poiDeviceEl = form.querySelector('[name="pos_poi_device_id"]');
-        if (poiDeviceEl) poiDeviceEl.value = String(map.get('pos_poi_device_id') || '');
         const headerEl = form.querySelector('[name="pos_receipt_header_text"]');
         if (headerEl) headerEl.value = String(map.get('pos_receipt_header_text') || '');
         const footerEl = form.querySelector('[name="pos_receipt_footer_text"]');
@@ -2349,11 +2418,6 @@ class AdminApp {
             const raw = String(map.get('pos_require_manager_pin_discounts') ?? 'true').toLowerCase();
             mgrDiscEl.checked = raw === 'true' || raw === '1' || raw === '';
         }
-        const mgrVoidEl = form.querySelector('[name="pos_require_manager_pin_void_refund"]');
-        if (mgrVoidEl) {
-            const raw = String(map.get('pos_require_manager_pin_void_refund') ?? 'true').toLowerCase();
-            mgrVoidEl.checked = raw === 'true' || raw === '1' || raw === '';
-        }
         const maxDiscEl = form.querySelector('[name="pos_max_line_discount_percent"]');
         if (maxDiscEl) maxDiscEl.value = String(map.get('pos_max_line_discount_percent') ?? '10');
         const dailyEmailEl = form.querySelector('[name="pos_daily_sales_email_enabled"]');
@@ -2377,7 +2441,16 @@ class AdminApp {
         const eodMinEl = form.querySelector('[name="pos_eod_reminder_minute"]');
         if (eodMinEl) eodMinEl.value = String(map.get('pos_eod_reminder_minute') ?? '0');
         const supportPhoneEl = form.querySelector('[name="pos_support_phone"]');
-        if (supportPhoneEl) supportPhoneEl.value = String(map.get('pos_support_phone') || '');
+        if (supportPhoneEl) {
+            const rawSupport = String(map.get('pos_support_phone') || '');
+            if (window.HMHERBS_PHONE_US) {
+                const d = HMHERBS_PHONE_US.digitsOnly(rawSupport);
+                supportPhoneEl.value = d ? HMHERBS_PHONE_US.formatDigitsToDisplay(d) : '';
+                HMHERBS_PHONE_US.attach(supportPhoneEl);
+            } else {
+                supportPhoneEl.value = rawSupport;
+            }
+        }
         const helpUrlEl = form.querySelector('[name="pos_help_url"]');
         if (helpUrlEl) helpUrlEl.value = String(map.get('pos_help_url') || '');
         const catalogRefreshEl = form.querySelector('[name="pos_catalog_refresh_minutes"]');
@@ -2402,39 +2475,10 @@ class AdminApp {
             const raw = String(map.get('pos_show_cost_in_cart') ?? 'false').toLowerCase();
             showCostEl.checked = raw === 'true' || raw === '1';
         }
-        const printerEl = form.querySelector('[name="pos_hardware_printer"]');
-        if (printerEl) {
-            const printer = String(map.get('pos_hardware_printer') || 'auto').toLowerCase();
-            printerEl.value = ['auto', 'elo_star', 'browser'].includes(printer) ? printer : 'auto';
-        }
         const personnelMode = String(map.get('pos_personnel_mode') || 'time_clock_and_pos').toLowerCase();
         form.querySelectorAll('[name="pos_personnel_mode"]').forEach((el) => {
             el.checked = el.value === personnelMode;
         });
-        const quickKeysEl = form.querySelector('[name="pos_quick_keys"]');
-        if (quickKeysEl) {
-            const raw = String(map.get('pos_quick_keys') || '').trim();
-            if (!raw || raw === '[]') {
-                quickKeysEl.value = '';
-            } else {
-                try {
-                    const parsed = JSON.parse(raw);
-                    if (Array.isArray(parsed)) {
-                        quickKeysEl.value = parsed
-                            .map((k) => {
-                                const type = k.type === 'category' ? 'category' : 'sku';
-                                const label = k.label ? `|${k.label}` : '';
-                                return `${type}:${k.value}${label}`;
-                            })
-                            .join('\n');
-                    } else {
-                        quickKeysEl.value = raw;
-                    }
-                } catch {
-                    quickKeysEl.value = raw;
-                }
-            }
-        }
     }
 
     _syncPosCustomDriverUrlVisibility() {
@@ -2492,6 +2536,19 @@ class AdminApp {
                 return {
                     key_name: key,
                     value: enabledEl?.checked ? 'true' : 'false',
+                    description: meta[key],
+                    type: 'boolean',
+                };
+            }
+            if (
+                key === 'pos_payment_cash_enabled' ||
+                key === 'pos_payment_check_enabled' ||
+                key === 'pos_payment_card_enabled'
+            ) {
+                const el = form.querySelector(`[name="${key}"]`);
+                return {
+                    key_name: key,
+                    value: el?.checked ? 'true' : 'false',
                     description: meta[key],
                     type: 'boolean',
                 };
@@ -2618,10 +2675,9 @@ class AdminApp {
                 };
             }
             if (key === 'pos_require_manager_pin_void_refund') {
-                const el = form.querySelector('[name="pos_require_manager_pin_void_refund"]');
                 return {
                     key_name: key,
-                    value: el?.checked ? 'true' : 'false',
+                    value: 'true',
                     description: meta[key],
                     type: 'boolean',
                 };
@@ -2691,34 +2747,6 @@ class AdminApp {
                 }
                 return { key_name: key, value: mode, description: meta[key], type: 'string' };
             }
-            if (key === 'pos_quick_keys') {
-                const text = String(form.querySelector('[name="pos_quick_keys"]')?.value || '').trim();
-                const lines = text ? text.split('\n') : [];
-                const keys = [];
-                for (const line of lines) {
-                    const row = line.trim();
-                    if (!row || row.startsWith('#')) continue;
-                    const pipe = row.indexOf('|');
-                    const head = pipe >= 0 ? row.slice(0, pipe).trim() : row;
-                    const label = pipe >= 0 ? row.slice(pipe + 1).trim() : '';
-                    const colon = head.indexOf(':');
-                    if (colon < 0) continue;
-                    const typeRaw = head.slice(0, colon).trim().toLowerCase();
-                    const value = head.slice(colon + 1).trim();
-                    if (!value) continue;
-                    const type =
-                        typeRaw === 'category' || typeRaw === 'department' || typeRaw === 'cat'
-                            ? 'category'
-                            : 'sku';
-                    keys.push({ type, value, label: label || value });
-                }
-                return {
-                    key_name: key,
-                    value: JSON.stringify(keys.slice(0, 24)),
-                    description: meta[key],
-                    type: 'string',
-                };
-            }
             if (key === 'pos_receipt_return_policy') {
                 const el = form.querySelector('[name="pos_receipt_return_policy"]');
                 return {
@@ -2728,27 +2756,11 @@ class AdminApp {
                     type: 'string',
                 };
             }
-            if (key === 'pos_poi_device_id') {
-                const el = form.querySelector('[name="pos_poi_device_id"]');
-                return {
-                    key_name: key,
-                    value: String(el?.value || '').trim().slice(0, 120),
-                    description: meta[key],
-                    type: 'string',
-                };
-            }
             if (key === 'pos_card_display_mode') {
                 return { key_name: key, value: 'durango_terminal', description: meta[key], type: 'string' };
             }
             if (key === 'pos_display_card_checkout') {
                 return { key_name: key, value: 'true', description: meta[key], type: 'boolean' };
-            }
-            if (key === 'pos_hardware_printer') {
-                let printer = String(form.querySelector('[name="pos_hardware_printer"]')?.value || 'auto')
-                    .trim()
-                    .toLowerCase();
-                if (!['auto', 'elo_star', 'browser'].includes(printer)) printer = 'auto';
-                return { key_name: key, value: printer, description: meta[key], type: 'string' };
             }
             return {
                 key_name: key,
@@ -2832,6 +2844,33 @@ class AdminApp {
         const msg = document.querySelector('[data-pos-settings-save-msg]');
         if (msg) msg.textContent = '';
         const settings = this._buildPosSettingsPayload(form);
+        const paymentToggleKeys = new Set([
+            'pos_payment_cash_enabled',
+            'pos_payment_check_enabled',
+            'pos_payment_card_enabled',
+        ]);
+        const enabledPaymentCount = settings.filter(
+            (row) => paymentToggleKeys.has(row.key_name) && row.value === 'true'
+        ).length;
+        if (enabledPaymentCount === 0) {
+            const errMsg = 'Enable at least one in-store payment method (cash, card, or check).';
+            if (msg) {
+                msg.textContent = errMsg;
+                msg.style.color = 'var(--error)';
+            }
+            this.showToast(errMsg, 'error');
+            return;
+        }
+        const supportPhone = form.querySelector('[name="pos_support_phone"]')?.value?.trim() || '';
+        if (supportPhone && window.HMHERBS_PHONE_US && !HMHERBS_PHONE_US.isValidDisplay(supportPhone, false)) {
+            const errMsg = 'Support phone must be formatted as (555) 555-0100 or left blank.';
+            if (msg) {
+                msg.textContent = errMsg;
+                msg.style.color = 'var(--error)';
+            }
+            this.showToast(errMsg, 'error');
+            return;
+        }
         try {
             await this.apiRequest('/admin/pos/settings', {
                 method: 'PUT',
@@ -2976,6 +3015,22 @@ class AdminApp {
         }
     }
 
+    async copyPosBillingSignupLink() {
+        try {
+            const res = await this.apiRequest('/admin/pos/billing/setup-token', { method: 'POST' });
+            const url = res.signupUrl || '';
+            if (!url) throw new Error('No signup URL returned');
+            if (navigator.clipboard?.writeText) {
+                await navigator.clipboard.writeText(url);
+            }
+            const pageLink = document.getElementById('pos-license-billing-page-link');
+            if (pageLink) pageLink.href = url;
+            this.showToast('Billing signup link copied (valid 7 days).', 'success');
+        } catch (err) {
+            this.showToast(err.message || 'Could not create billing signup link', 'error');
+        }
+    }
+
     async runPosBillingTest() {
         try {
             const res = await this.apiRequest('/admin/pos/license/run-billing', { method: 'POST' });
@@ -3033,15 +3088,21 @@ class AdminApp {
             const res = await this.apiRequest('/admin/pos/support/registers');
             if (configMsg) {
                 let msg =
-                    '<span style="color:var(--gray-600);">Screen share works on <strong>Windows</strong> and <strong>Android</strong> registers. Cashier must tap Allow when you connect.</span>';
+                    '<span style="color:var(--gray-600);">For <strong>Business One staff</strong>: use the central Support Desk at <a href="/support-desk" target="_blank" rel="noopener" style="font-weight:600;">/support-desk</a> — you do not log into each merchant admin.</span>';
                 if (res.platformHubEnabled) {
                     msg +=
-                        ' <a href="/platform-support.html" target="_blank" rel="noopener" style="font-weight:600;">Open all-store support queue</a>';
+                        ' <a href="/support-desk" target="_blank" rel="noopener" style="font-weight:600;">Open Support Desk</a>';
+                } else {
+                    msg +=
+                        ' <span style="color:var(--gray-500);">(Enable <code>POS_PLATFORM_HUB_ENABLED</code> on your support server and sync on each store.)</span>';
                 }
                 configMsg.innerHTML = msg;
             }
             const dl = document.getElementById('pos-support-download-link');
-            if (dl && res.windowsAgentDownloadUrl) dl.href = res.windowsAgentDownloadUrl;
+            if (dl && res.windowsAgentDownloadUrl) {
+                dl.href = res.windowsAgentDownloadUrl;
+                dl.style.display = '';
+            }
 
             const registers = Array.isArray(res.registers) ? res.registers : [];
             const agents = Array.isArray(res.windowsAgents) ? res.windowsAgents : [];
@@ -3091,7 +3152,10 @@ class AdminApp {
                                 <div style="font-weight:600;">${this.escapeHtml(a.machineLabel)}</div>
                                 <div style="font-size:0.85rem;color:var(--gray-600);">${status} · RustDesk ${rd}</div>
                             </div>
-                            <button type="button" class="btn btn-secondary btn-sm" data-pos-support-desktop="${a.id}">Full desktop</button>
+                            <div style="display:flex;gap:0.35rem;flex-wrap:wrap;">
+                                <button type="button" class="btn btn-secondary btn-sm" data-pos-support-desktop="${a.id}">Full desktop</button>
+                                <button type="button" class="btn btn-ghost btn-sm" data-pos-support-revoke="${a.id}">Revoke</button>
+                            </div>
                         </div>`;
                     })
                     .join('');
@@ -3106,6 +3170,11 @@ class AdminApp {
             list.querySelectorAll('[data-pos-support-desktop]').forEach((btn) => {
                 btn.addEventListener('click', () =>
                     this.connectPosSupport(btn.getAttribute('data-pos-support-desktop'))
+                );
+            });
+            list.querySelectorAll('[data-pos-support-revoke]').forEach((btn) => {
+                btn.addEventListener('click', () =>
+                    this.revokePosSupportAgent(btn.getAttribute('data-pos-support-revoke'))
                 );
             });
         } catch (err) {
@@ -3194,12 +3263,54 @@ class AdminApp {
         }
     }
 
+    _findPosDeviceByLabel(label) {
+        const needle = String(label || '').trim().toLowerCase();
+        if (!needle) return null;
+        const devices = Array.isArray(this._posDevicesList) ? this._posDevicesList : [];
+        return devices.find((d) => String(d.deviceLabel || '').trim().toLowerCase() === needle) || null;
+    }
+
+    _highlightPosDeviceRow(deviceId) {
+        const list = document.getElementById('pos-devices-list');
+        if (!list || !deviceId) return;
+        list.querySelectorAll('[data-pos-device-row]').forEach((row) => {
+            row.style.background = '';
+            row.style.borderRadius = '';
+            row.style.padding = '0.55rem 0.35rem';
+        });
+        const row = list.querySelector(`[data-pos-device-row="${deviceId}"]`);
+        if (!row) return;
+        row.style.background = 'var(--gray-100, #f3f4f6)';
+        row.style.borderRadius = '8px';
+        row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    async _offerRegenerateExistingPosDevice(existing, label) {
+        const msg = document.getElementById('pos-device-create-msg');
+        const name = existing?.deviceLabel || label;
+        if (msg) {
+            msg.innerHTML = `<strong>${this.escapeHtml(name)}</strong> is already registered (see list above). Click <strong>New key</strong> on that row, or confirm below to rotate the key now.`;
+            msg.style.color = 'var(--gray-800)';
+        }
+        this._highlightPosDeviceRow(existing?.id);
+        const regenerate = await this.showAdminConfirm({
+            title: 'Register already exists',
+            message: `"${name}" is already registered. Generate a new key for it? The old key will stop working.`,
+            confirmLabel: 'Generate new key',
+            cancelLabel: 'Cancel',
+        });
+        if (regenerate && existing?.id) {
+            await this.regeneratePosDevice(existing.id, { skipConfirm: true });
+        }
+    }
+
     async loadPosDevices() {
         const list = document.getElementById('pos-devices-list');
         if (!list || !this.authToken) return;
         try {
             const res = await this.apiRequest('/admin/pos/devices');
             const devices = Array.isArray(res?.devices) ? res.devices : [];
+            this._posDevicesList = devices;
             if (!devices.length) {
                 list.innerHTML =
                     '<p style="margin:0;color:var(--gray-500);font-size:0.9rem;">No registers yet. Generate a key for each tablet below.</p>';
@@ -3211,7 +3322,7 @@ class AdminApp {
             list.innerHTML = sorted
                 .map((d) => {
                     const seen = d.lastSeenAt ? this.formatAdminDateTime(d.lastSeenAt) : 'Never';
-                    return `<div style="display:flex;justify-content:space-between;gap:0.75rem;align-items:center;padding:0.55rem 0;border-bottom:1px solid var(--gray-200);">
+                    return `<div data-pos-device-row="${d.id}" data-device-label="${this.escapeHtml(d.deviceLabel)}" style="display:flex;justify-content:space-between;gap:0.75rem;align-items:center;padding:0.55rem 0.35rem;border-bottom:1px solid var(--gray-200);">
                         <div>
                             <div style="font-weight:600;">${this.escapeHtml(d.deviceLabel)}</div>
                             <div style="font-size:0.85rem;color:var(--gray-600);">${this.escapeHtml(d.keyPrefix)}… · Last seen ${this.escapeHtml(seen)}</div>
@@ -3234,14 +3345,17 @@ class AdminApp {
         }
     }
 
-    _showPosDeviceKeyMessage(msgEl, apiKey) {
+    _showPosDeviceKeyMessage(msgEl, apiKey, deviceLabel = '') {
         const msg = msgEl || document.getElementById('pos-device-create-msg');
         if (!msg) return;
+        const register = String(deviceLabel || document.getElementById('pos-new-device-label')?.value || '').trim();
+        const posUrl = `${window.location.origin.replace(/\/+$/, '')}/pos/${register ? `?register=${encodeURIComponent(register)}` : ''}`;
+        const openPos = `<a href="${this.escapeHtml(posUrl)}" target="_blank" rel="noopener noreferrer">Open POS setup</a>`;
         if (apiKey) {
-            msg.innerHTML = `<strong>Copy this key now</strong> (shown once): <code style="user-select:all">${this.escapeHtml(apiKey)}</code>`;
+            msg.innerHTML = `<strong>Copy this key now</strong> (shown once): <code style="user-select:all">${this.escapeHtml(apiKey)}</code><br><span style="font-size:0.9rem;">Paste it into the register setup screen, then ${openPos}.</span>`;
             msg.style.color = 'var(--gray-800)';
         } else {
-            msg.textContent = 'New register key created.';
+            msg.innerHTML = `New register key created. ${openPos}`;
             msg.style.color = 'var(--success)';
         }
     }
@@ -3268,7 +3382,7 @@ class AdminApp {
             const res = await this.apiRequest(`/admin/pos/devices/${id}/regenerate-key`, {
                 method: 'POST',
             });
-            this._showPosDeviceKeyMessage(msg, res?.apiKey);
+            this._showPosDeviceKeyMessage(msg, res?.apiKey, res?.device?.deviceLabel);
             await this.loadPosDevices();
             this.showToast('New register key generated', 'success');
         } catch (err) {
@@ -3283,46 +3397,49 @@ class AdminApp {
     async createPosDevice() {
         const msg = document.getElementById('pos-device-create-msg');
         const labelInput = document.getElementById('pos-new-device-label');
+        const createBtn = document.getElementById('pos-device-create-btn');
         const label = String(labelInput?.value || '').trim();
         if (!label) {
             if (msg) msg.textContent = 'Enter a register name first.';
             return;
         }
+        if (!Array.isArray(this._posDevicesList)) {
+            await this.loadPosDevices();
+        }
+        const existing = this._findPosDeviceByLabel(label);
+        if (existing) {
+            await this._offerRegenerateExistingPosDevice(existing, label);
+            return;
+        }
         if (msg) msg.textContent = 'Generating…';
+        if (createBtn) createBtn.disabled = true;
         try {
             const res = await this.apiRequest('/admin/pos/devices', {
                 method: 'POST',
                 body: JSON.stringify({ deviceLabel: label }),
             });
-            this._showPosDeviceKeyMessage(msg, res?.apiKey);
+            this._showPosDeviceKeyMessage(msg, res?.apiKey, label);
             if (labelInput) labelInput.value = '';
             await this.loadPosDevices();
         } catch (err) {
-            if (err.code === 'DUPLICATE_DEVICE_LABEL' || /duplicate entry/i.test(err.message || '')) {
-                const regenerate = await this.showAdminConfirm({
-                    title: 'Register already exists',
-                    message: `"${label}" is already registered. Generate a new key for it? The old key will stop working.`,
-                    confirmLabel: 'Generate new key',
-                    cancelLabel: 'Cancel',
-                });
-                if (regenerate) {
-                    if (err.existingDeviceId) {
-                        await this.regeneratePosDevice(err.existingDeviceId, { skipConfirm: true });
-                        return;
-                    }
-                    await this.loadPosDevices();
-                    const list = document.getElementById('pos-devices-list');
-                    const matchBtn = list?.querySelector('[data-regenerate-pos-device]');
-                    if (matchBtn) {
-                        await this.regeneratePosDevice(matchBtn.getAttribute('data-regenerate-pos-device'));
-                        return;
-                    }
+            if (err.code === 'DUPLICATE_DEVICE_LABEL' || /already exists/i.test(err.message || '')) {
+                await this.loadPosDevices();
+                const match =
+                    this._findPosDeviceByLabel(label) ||
+                    (err.existingDeviceId
+                        ? (this._posDevicesList || []).find((d) => Number(d.id) === Number(err.existingDeviceId))
+                        : null);
+                if (match) {
+                    await this._offerRegenerateExistingPosDevice(match, label);
+                    return;
                 }
             }
             if (msg) {
                 msg.textContent = err.message || 'Could not create device key';
                 msg.style.color = 'var(--error)';
             }
+        } finally {
+            if (createBtn) createBtn.disabled = false;
         }
     }
 
@@ -3343,6 +3460,114 @@ class AdminApp {
             this.showToast('Register removed', 'success');
         } catch (err) {
             this.showToast(err.message || 'Could not revoke register', 'error');
+        }
+    }
+
+    async loadPosFrontDisplays() {
+        const list = document.getElementById('pos-front-displays-list');
+        const msg = document.getElementById('pos-front-displays-msg');
+        if (!list || !this.authToken) return;
+        if (msg) msg.textContent = '';
+        try {
+            const displayRes = await this.apiRequest('/admin/pos/front-displays');
+            const adsRes = await this.apiRequest('/admin/pos/display-ads');
+            const displays = Array.isArray(displayRes?.displays) ? displayRes.displays : [];
+            const ads = Array.isArray(adsRes?.ads) ? adsRes.ads : [];
+
+            if (!displays.length) {
+                list.innerHTML =
+                    '<p style="margin:0;color:var(--gray-500);font-size:0.9rem;">No front-facing displays yet. Add a <strong>Customer display</strong> under Point of Sale → Equipment and assign it to a register.</p>';
+                return;
+            }
+
+            list.innerHTML = displays
+                .map((d) => {
+                    const register = d.posDeviceLabel ? this.escapeHtml(d.posDeviceLabel) : 'Unassigned';
+                    const modeLabel = d.adPlaylistMode === 'selected' ? 'Selected ads only' : 'All active ads';
+                    const assignedCount = (d.assignedAdIds || []).length;
+                    const playlistNote =
+                        d.adPlaylistMode === 'selected'
+                            ? assignedCount
+                                ? `${assignedCount} ad${assignedCount === 1 ? '' : 's'} assigned`
+                                : 'No ads selected yet'
+                            : 'Uses full ad library';
+                    const meta = [d.manufacturer, d.model].filter(Boolean).join(' ') || 'Customer display';
+                    const checkboxes = ads.length
+                        ? ads
+                              .map((ad) => {
+                                  const checked = (d.assignedAdIds || []).includes(ad.id) ? ' checked' : '';
+                                  const label =
+                                      [ad.title, ad.sourceLabel].filter(Boolean).join(' · ') || `Ad #${ad.id}`;
+                                  const thumb = ad.imageUrl
+                                      ? `<img src="${this.escapeHtml(ad.imageUrl)}" alt="" style="width:48px;height:32px;object-fit:cover;border-radius:4px;">`
+                                      : '';
+                                  return `<label style="display:flex;align-items:center;gap:0.5rem;padding:0.35rem 0;cursor:pointer;">
+                                    <input type="checkbox" class="pos-front-display-ad-cb" data-display-id="${d.id}" data-ad-id="${ad.id}"${checked}>
+                                    ${thumb}
+                                    <span style="font-size:0.9rem;">${this.escapeHtml(label)}</span>
+                                </label>`;
+                              })
+                              .join('')
+                        : '<p style="margin:0;font-size:0.85rem;color:var(--gray-500);">Add ads in the library below first.</p>';
+
+                    const playlistEditor =
+                        d.adPlaylistMode === 'selected'
+                            ? `<div style="margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid var(--gray-200);">
+                            <div style="font-size:0.85rem;font-weight:600;margin-bottom:0.35rem;">Assigned ads (drag order = checkbox order)</div>
+                            ${checkboxes}
+                            <button type="button" class="btn btn-primary btn-sm" data-save-front-display-ads="${d.id}" style="margin-top:0.5rem;">Save playlist</button>
+                        </div>`
+                            : '<p style="margin:0.35rem 0 0;font-size:0.82rem;color:var(--gray-500);">Set playlist to <em>Selected ads only</em> in Equipment to choose ads for this screen.</p>';
+
+                    return `<div style="border:1px solid var(--gray-200);border-radius:8px;padding:0.85rem 1rem;margin-bottom:0.75rem;">
+                        <div style="font-weight:600;">${this.escapeHtml(d.label)}</div>
+                        <div style="font-size:0.85rem;color:var(--gray-600);">${this.escapeHtml(meta)} · Register: ${register}</div>
+                        <div style="font-size:0.85rem;color:var(--gray-600);margin-top:0.25rem;">Playlist: <strong>${modeLabel}</strong> · ${playlistNote}</div>
+                        ${playlistEditor}
+                    </div>`;
+                })
+                .join('');
+
+            list.querySelectorAll('[data-save-front-display-ads]').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const displayId = btn.getAttribute('data-save-front-display-ads');
+                    const adIds = [];
+                    list
+                        .querySelectorAll(`.pos-front-display-ad-cb[data-display-id="${displayId}"]:checked`)
+                        .forEach((cb) => {
+                            adIds.push(Number(cb.getAttribute('data-ad-id')));
+                        });
+                    this.savePosFrontDisplayAds(displayId, adIds);
+                });
+            });
+        } catch (err) {
+            list.innerHTML = `<p style="margin:0;color:var(--error);font-size:0.9rem;">${this.escapeHtml(err.message || 'Could not load displays')}</p>`;
+        }
+    }
+
+    async savePosFrontDisplayAds(equipmentId, adIds) {
+        const msg = document.getElementById('pos-front-displays-msg');
+        if (msg) {
+            msg.textContent = 'Saving…';
+            msg.style.color = '';
+        }
+        try {
+            await this.apiRequest(`/admin/pos/front-displays/${equipmentId}/ads`, {
+                method: 'PUT',
+                body: JSON.stringify({ adIds })
+            });
+            if (msg) {
+                msg.textContent = 'Playlist saved.';
+                msg.style.color = 'var(--success, #059669)';
+            }
+            this.showToast('Display playlist saved', 'success');
+            await this.loadPosFrontDisplays();
+        } catch (err) {
+            if (msg) {
+                msg.textContent = err.message || 'Save failed';
+                msg.style.color = 'var(--error)';
+            }
+            this.showToast(err.message || 'Could not save playlist', 'error');
         }
     }
 
@@ -3455,6 +3680,7 @@ class AdminApp {
             }
             this.showToast('Display ad added', 'success');
             await this.loadPosDisplayAds();
+            await this.loadPosFrontDisplays();
         } catch (err) {
             if (msg) {
                 msg.textContent = err.message || 'Could not save ad';
@@ -3472,6 +3698,7 @@ class AdminApp {
                 body: JSON.stringify({ isActive: Boolean(isActive) })
             });
             await this.loadPosDisplayAds();
+            await this.loadPosFrontDisplays();
         } catch (err) {
             this.showToast(err.message || 'Could not update ad', 'error');
         }
@@ -3490,6 +3717,7 @@ class AdminApp {
         try {
             await this.apiRequest(`/admin/pos/display-ads/${id}`, { method: 'DELETE' });
             await this.loadPosDisplayAds();
+            await this.loadPosFrontDisplays();
             this.showToast('Display ad deleted', 'success');
         } catch (err) {
             this.showToast(err.message || 'Could not delete ad', 'error');
@@ -3524,6 +3752,16 @@ class AdminApp {
                 if (rate > 1) rate = rate / 100;
                 const pct = rate * 100;
                 taxInput.value = pct % 1 === 0 ? String(pct) : pct.toFixed(3).replace(/\.?0+$/, '');
+            }
+            const storeCashEnabled = String(map.get('store_cash_discount_enabled') || 'false').toLowerCase();
+            const storeCashEnabledEl = form.querySelector('[name="store_cash_discount_enabled"]');
+            if (storeCashEnabledEl) {
+                storeCashEnabledEl.checked = storeCashEnabled === 'true' || storeCashEnabled === '1';
+            }
+            const storeCashPercentEl = form.querySelector('[name="store_cash_discount_percent"]');
+            if (storeCashPercentEl) {
+                const p = Number(map.get('store_cash_discount_percent'));
+                storeCashPercentEl.value = Number.isFinite(p) ? String(p) : '0';
             }
             const holidayRaw = map.get('store_holiday_schedule') || '[]';
             try {
@@ -4170,7 +4408,7 @@ class AdminApp {
             if (signup) signup.value = eff.signupLandingUrl || '';
             if (headline) headline.value = eff.headline || '';
             await this.loadPromoBannerSettings();
-            await this.loadPosDisplayAds();
+            await Promise.all([this.loadPosFrontDisplays(), this.loadPosDisplayAds()]);
             await this.loadWebPromotionsTable();
         } catch (e) {
             console.error('loadMarketingHub', e);
@@ -4409,6 +4647,32 @@ class AdminApp {
         return /^\d{4}$/.test(this._normalizeRegisterPin(pin));
     }
 
+    _registerPermissionsHtml(reg) {
+        const canAuthorize = Boolean(reg?.canAuthorize);
+        const canProcessRefunds = Boolean(reg?.canProcessRefunds);
+        const canOpenDrawer = Boolean(reg?.canOpenDrawer);
+        const restrictedBlocks = this.isFullAdmin
+            ? `
+                <label style="display:flex;align-items:flex-start;gap:0.5rem;cursor:pointer;margin-bottom:0.65rem;">
+                    <input type="checkbox" name="canProcessRefunds" value="true"${canProcessRefunds ? ' checked' : ''} style="margin-top:0.2rem;">
+                    <span>Can process refunds <span style="color:var(--gray-600);font-weight:400;">(Admin/Developer only — register PIN required)</span></span>
+                </label>
+                <label style="display:flex;align-items:flex-start;gap:0.5rem;cursor:pointer;">
+                    <input type="checkbox" name="canOpenDrawer" value="true"${canOpenDrawer ? ' checked' : ''} style="margin-top:0.2rem;">
+                    <span>Can open cash drawer manually <span style="color:var(--gray-600);font-weight:400;">(Admin/Developer only — Shift screen button)</span></span>
+                </label>`
+            : '';
+        return `
+            <div style="margin:0.75rem 0 0;padding-top:1rem;border-top:1px solid var(--gray-200);">
+                <h5 style="margin:0 0 0.75rem;font-size:0.95rem;color:var(--gray-700);">Register permissions</h5>
+                <label style="display:flex;align-items:flex-start;gap:0.5rem;cursor:pointer;margin-bottom:0.65rem;">
+                    <input type="checkbox" name="canAuthorize" value="true"${canAuthorize ? ' checked' : ''} style="margin-top:0.2rem;">
+                    <span>Can approve line and sale discounts <span style="color:var(--gray-600);font-weight:400;">(manager PIN)</span></span>
+                </label>
+                ${restrictedBlocks}
+            </div>`;
+    }
+
     _registerFieldsHtml(reg, { pinRequired = false, pinFirst = false } = {}) {
         const pinBlock = `
             <div class="form-group personnel-pin-field">
@@ -4429,7 +4693,8 @@ class AdminApp {
             </div>
             <div class="form-group">
                 <label><input type="checkbox" name="registerActive" ${!reg || reg.isActive ? 'checked' : ''}> Active on register</label>
-            </div>`;
+            </div>
+            ${this._registerPermissionsHtml(reg)}`;
         return pinFirst ? pinBlock + idBlock + rest : idBlock + pinBlock + rest;
     }
 
@@ -4629,6 +4894,13 @@ class AdminApp {
         const employeeCode = String(fd.get('employeeCode') || '').trim();
         const hourlyRaw = String(fd.get('hourlyRate') || '').trim();
         const registerActive = !!form.querySelector('[name="registerActive"]')?.checked;
+        const canAuthorize = !!form.querySelector('[name="canAuthorize"]')?.checked;
+        const canProcessRefunds = this.isFullAdmin
+            ? !!form.querySelector('[name="canProcessRefunds"]')?.checked
+            : undefined;
+        const canOpenDrawer = this.isFullAdmin
+            ? !!form.querySelector('[name="canOpenDrawer"]')?.checked
+            : undefined;
 
         if (pin && !this._isValidRegisterPin(pin)) {
             if (msg) {
@@ -4655,6 +4927,9 @@ class AdminApp {
                     email,
                     isActive: registerActive,
                     hourlyRate: hourlyRaw === '' ? null : Number(hourlyRaw),
+                    canAuthorize,
+                    ...(canProcessRefunds !== undefined ? { canProcessRefunds } : {}),
+                    ...(canOpenDrawer !== undefined ? { canOpenDrawer } : {}),
                 };
                 if (pin) payload.pin = pin;
                 await this.apiRequest(`/admin/personnel/employees/${id}`, {
@@ -4714,6 +4989,9 @@ class AdminApp {
                             email: user?.email || null,
                             isActive: registerActive,
                             hourlyRate: hourlyRaw === '' ? null : Number(hourlyRaw),
+                            canAuthorize,
+                            ...(canProcessRefunds !== undefined ? { canProcessRefunds } : {}),
+                            ...(canOpenDrawer !== undefined ? { canOpenDrawer } : {}),
                         }),
                     });
                 }
@@ -4753,6 +5031,14 @@ class AdminApp {
                     email: fd.get('email'),
                     pin,
                     canAuthorize: fd.get('canAuthorize') === 'on' || fd.get('canAuthorize') === 'true',
+                    ...(this.isFullAdmin
+                        ? {
+                              canProcessRefunds:
+                                  fd.get('canProcessRefunds') === 'on' || fd.get('canProcessRefunds') === 'true',
+                              canOpenDrawer:
+                                  fd.get('canOpenDrawer') === 'on' || fd.get('canOpenDrawer') === 'true'
+                          }
+                        : {}),
                 }),
             });
             this.showToast('Register employee added', 'success');
@@ -12555,6 +12841,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (marketingHubForm && window.adminApp) {
         marketingHubForm.addEventListener('submit', (ev) => window.adminApp.saveMarketingHub(ev));
     }
+    document.querySelectorAll('[data-admin-nav="pos-equipment"]').forEach((link) => {
+        link.addEventListener('click', (ev) => {
+            ev.preventDefault();
+            window.adminApp.showSection('pos').then(() => {
+                document.querySelector('[data-pos-tab="equipment"]')?.click();
+            });
+        });
+    });
     const adminTeamForm = document.getElementById('admin-team-create-form');
     if (adminTeamForm && window.adminApp) {
         adminTeamForm.addEventListener('submit', (ev) => window.adminApp.handleCreateTeamMember(ev));
@@ -12598,6 +12892,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const posLicenseBillingRunBtn = document.getElementById('pos-license-billing-run-btn');
     if (posLicenseBillingRunBtn && window.adminApp) {
         posLicenseBillingRunBtn.addEventListener('click', () => window.adminApp.runPosBillingTest());
+    }
+    const posLicenseBillingLinkBtn = document.getElementById('pos-license-billing-link-btn');
+    if (posLicenseBillingLinkBtn && window.adminApp) {
+        posLicenseBillingLinkBtn.addEventListener('click', () => window.adminApp.copyPosBillingSignupLink());
     }
     const posLicenseWaiveForm = document.getElementById('pos-license-waive-form');
     if (posLicenseWaiveForm && window.adminApp) {

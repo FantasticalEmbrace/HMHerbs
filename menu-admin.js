@@ -4,7 +4,91 @@ const API_BASE_URL = window.location.origin.includes('localhost')
     ? 'http://localhost:3001' 
     : window.location.origin;
 
+const AUTH_STORAGE_KEY = 'adminToken';
+
 let currentEditingItemId = null;
+
+function getAdminToken() {
+    return sessionStorage.getItem(AUTH_STORAGE_KEY) || localStorage.getItem(AUTH_STORAGE_KEY) || '';
+}
+
+function setAdminToken(token) {
+    sessionStorage.setItem(AUTH_STORAGE_KEY, token);
+}
+
+function adminFetch(path, options = {}) {
+    const headers = { ...(options.headers || {}) };
+    const token = getAdminToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+    if (options.body && !headers['Content-Type']) {
+        headers['Content-Type'] = 'application/json';
+    }
+    return fetch(`${API_BASE_URL}${path}`, { ...options, headers });
+}
+
+function showMenuAdminApp() {
+    document.getElementById('menu-admin-login')?.setAttribute('hidden', '');
+    const app = document.getElementById('menu-admin-app');
+    if (app) app.hidden = false;
+}
+
+function showMenuAdminLogin(message = '') {
+    const app = document.getElementById('menu-admin-app');
+    if (app) app.hidden = true;
+    const overlay = document.getElementById('menu-admin-login');
+    if (overlay) overlay.removeAttribute('hidden');
+    const err = document.getElementById('menu-admin-login-error');
+    if (err) err.textContent = message || '';
+}
+
+async function loginMenuAdmin() {
+    const email = document.getElementById('menu-admin-email')?.value?.trim();
+    const password = document.getElementById('menu-admin-password')?.value || '';
+    const err = document.getElementById('menu-admin-login-error');
+    if (!email || !password) {
+        if (err) err.textContent = 'Email and password are required.';
+        return;
+    }
+    if (err) err.textContent = '';
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/admin/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Login failed');
+        setAdminToken(data.token);
+        showMenuAdminApp();
+        loadMenuItems();
+        loadApiKeys();
+    } catch (e) {
+        if (err) err.textContent = e.message || 'Login failed';
+    }
+}
+
+function parseFeaturesForForm(value) {
+    if (!value) return '';
+    if (Array.isArray(value)) return value.join('\n');
+    try {
+        const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+        return Array.isArray(parsed) ? parsed.join('\n') : '';
+    } catch {
+        return '';
+    }
+}
+
+async function parseMenuAdminResponse(response) {
+    const data = await response.json().catch(() => ({}));
+    if (response.status === 401 || response.status === 403) {
+        showMenuAdminLogin(data.error || 'Session expired. Sign in again.');
+        throw new Error(data.error || 'Unauthorized');
+    }
+    if (!response.ok) {
+        throw new Error(data.error || `Request failed (${response.status})`);
+    }
+    return data;
+}
 
 function escapeHtml(s) {
     if (s == null) return '';
@@ -113,8 +197,17 @@ function menuConfirm(
 document.addEventListener('DOMContentLoaded', () => {
     setupTabs();
     setupEventListeners();
-    loadMenuItems();
-    loadApiKeys();
+    document.getElementById('menu-admin-login-btn')?.addEventListener('click', loginMenuAdmin);
+    document.getElementById('menu-admin-password')?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') loginMenuAdmin();
+    });
+    if (getAdminToken()) {
+        showMenuAdminApp();
+        loadMenuItems();
+        loadApiKeys();
+    } else {
+        showMenuAdminLogin();
+    }
 });
 
 // Tab Switching
@@ -183,8 +276,8 @@ async function loadMenuItems() {
     tbody.innerHTML = '<tr><td colspan="6" class="loading">Loading menu items...</td></tr>';
 
     try {
-        const response = await fetch(`${API_BASE_URL}/api/menu/admin/items`);
-        const data = await response.json();
+        const response = await adminFetch('/api/menu/admin/items');
+        const data = await parseMenuAdminResponse(response);
 
         if (data.success && data.items) {
             renderMenuItems(data.items);
@@ -239,11 +332,14 @@ function openMenuItemModal(item = null) {
         document.getElementById('itemId').value = item.item_id;
         document.getElementById('itemName').value = item.name;
         document.getElementById('itemDescription').value = item.description || '';
+        document.getElementById('itemOverview').value = item.overview || '';
+        document.getElementById('itemFeatures').value = parseFeaturesForForm(item.features_json);
+        document.getElementById('itemIconClass').value = item.icon_class || '';
         document.getElementById('itemCategory').value = item.category || '';
         document.getElementById('itemPrice').value = item.price || '';
         document.getElementById('itemImageUrl').value = item.image_url || '';
         document.getElementById('itemDisplayOrder').value = item.display_order || 0;
-        document.getElementById('itemIsActive').checked = item.is_active === 1;
+        document.getElementById('itemIsActive').checked = Boolean(item.is_active);
         
         document.getElementById('itemId').disabled = true;
     } else {
@@ -269,6 +365,9 @@ async function handleMenuItemSubmit(e) {
         item_id: document.getElementById('itemId').value,
         name: document.getElementById('itemName').value,
         description: document.getElementById('itemDescription').value,
+        overview: document.getElementById('itemOverview').value,
+        features_json: document.getElementById('itemFeatures').value,
+        icon_class: document.getElementById('itemIconClass').value,
         price: document.getElementById('itemPrice').value || null,
         image_url: document.getElementById('itemImageUrl').value || null,
         category: document.getElementById('itemCategory').value || null,
@@ -280,21 +379,21 @@ async function handleMenuItemSubmit(e) {
         let response;
         if (currentEditingItemId) {
             // Update
-            response = await fetch(`${API_BASE_URL}/api/menu/admin/items/${currentEditingItemId}`, {
+            response = await adminFetch(`/api/menu/admin/items/${currentEditingItemId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(formData)
             });
         } else {
             // Create
-            response = await fetch(`${API_BASE_URL}/api/menu/admin/items`, {
+            response = await adminFetch('/api/menu/admin/items', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(formData)
             });
         }
         
-        const data = await response.json();
+        const data = await parseMenuAdminResponse(response);
         
         if (data.success) {
             closeMenuItemModal();
@@ -311,8 +410,8 @@ async function handleMenuItemSubmit(e) {
 
 async function editMenuItem(id) {
     try {
-        const response = await fetch(`${API_BASE_URL}/api/menu/admin/items`);
-        const data = await response.json();
+        const response = await adminFetch('/api/menu/admin/items');
+        const data = await parseMenuAdminResponse(response);
         
         if (data.success && data.items) {
             const item = data.items.find(i => i.id === id);
@@ -337,11 +436,11 @@ async function deleteMenuItem(id) {
     }
     
     try {
-        const response = await fetch(`${API_BASE_URL}/api/menu/admin/items/${id}`, {
+        const response = await adminFetch(`/api/menu/admin/items/${id}`, {
             method: 'DELETE'
         });
         
-        const data = await response.json();
+        const data = await parseMenuAdminResponse(response);
         
         if (data.success) {
             loadMenuItems();
@@ -361,8 +460,8 @@ async function loadApiKeys() {
     tbody.innerHTML = '<tr><td colspan="6" class="loading">Loading API keys...</td></tr>';
 
     try {
-        const response = await fetch(`${API_BASE_URL}/api/menu/admin/keys`);
-        const data = await response.json();
+        const response = await adminFetch('/api/menu/admin/keys');
+        const data = await parseMenuAdminResponse(response);
 
         if (data.success && data.keys) {
             renderApiKeys(data.keys);
@@ -422,13 +521,13 @@ async function handleApiKeySubmit(e) {
     const name = document.getElementById('apiKeyName').value;
     
     try {
-        const response = await fetch(`${API_BASE_URL}/api/menu/admin/keys`, {
+        const response = await adminFetch('/api/menu/admin/keys', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name })
         });
         
-        const data = await response.json();
+        const data = await parseMenuAdminResponse(response);
         
         if (data.success && data.apiKey) {
             closeApiKeyModal();
@@ -463,18 +562,20 @@ function copyApiKey() {
             btn.textContent = originalText;
             btn.classList.remove('btn-success');
         }, 2000);
+    }).catch(() => {
+        menuAlert('Could not copy to clipboard. Select the key and copy manually.', { title: 'Copy failed' });
     });
 }
 
 async function toggleApiKey(id, isActive) {
     try {
-        const response = await fetch(`${API_BASE_URL}/api/menu/admin/keys/${id}`, {
+        const response = await adminFetch(`/api/menu/admin/keys/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ is_active: isActive ? 1 : 0 })
         });
         
-        const data = await response.json();
+        const data = await parseMenuAdminResponse(response);
         
         if (data.success) {
             loadApiKeys();
@@ -497,11 +598,11 @@ async function deleteApiKey(id) {
     }
     
     try {
-        const response = await fetch(`${API_BASE_URL}/api/menu/admin/keys/${id}`, {
+        const response = await adminFetch(`/api/menu/admin/keys/${id}`, {
             method: 'DELETE'
         });
         
-        const data = await response.json();
+        const data = await parseMenuAdminResponse(response);
         
         if (data.success) {
             loadApiKeys();

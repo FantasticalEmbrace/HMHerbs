@@ -97,6 +97,25 @@ const sections = [
     }
 ];
 
+const includedBasenames = new Set(
+    sections.map((s) => path.basename(s.file)).filter((name) => name.toLowerCase().endsWith('.sql'))
+);
+const migrationsDir = path.join(root, 'migrations');
+const extraMigrations = fs
+    .readdirSync(migrationsDir)
+    .filter((name) => name.toLowerCase().endsWith('.sql'))
+    .filter((name) => !includedBasenames.has(name))
+    .sort((a, b) => a.localeCompare(b));
+
+const postambleIndex = sections.findIndex((s) => path.basename(s.file) === '99-postamble.sql');
+const insertAt = postambleIndex >= 0 ? postambleIndex : sections.length;
+for (const filename of extraMigrations) {
+    sections.splice(insertAt, 0, {
+        title: filename.replace(/\.sql$/i, ''),
+        file: path.join(migrationsDir, filename)
+    });
+}
+
 const header = `-- =============================================================================
 -- HM Herbs — STAGING DEPLOY BUNDLE (auto-generated)
 -- Generated: ${new Date().toISOString()}

@@ -40,10 +40,22 @@ class NewsletterSubscription {
         this.hideMessages();
 
         try {
-            // Determine API base URL (same logic as script.js)
-            const apiBaseUrl = window.location.protocol === 'file:'
-                ? 'http://localhost:3001'
-                : '';
+            const apiBaseUrl =
+                typeof window.hmHerbsStorefrontApiBase === 'function'
+                    ? window.hmHerbsStorefrontApiBase()
+                    : window.location.protocol === 'file:'
+                      ? 'http://localhost:3001'
+                      : (() => {
+                            const h = window.location.hostname;
+                            const isLoopback = h === 'localhost' || h === '127.0.0.1';
+                            if (isLoopback && window.location.port && window.location.port !== '3001') {
+                                return 'http://localhost:3001';
+                            }
+                            const explicit = String(window.HMHERBS_API_ORIGIN || '')
+                                .trim()
+                                .replace(/\/+$/, '');
+                            return explicit || '';
+                        })();
 
             // Use the default newsletter campaign (ID: 1) for 15% off offer
             const response = await fetch(`${apiBaseUrl}/api/email-campaign/subscribe`, {

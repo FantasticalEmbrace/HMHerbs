@@ -2,14 +2,30 @@
 const express = require('express');
 const router = express.Router();
 const logger = require('../utils/logger');
-const jwt = require('jsonwebtoken');
 const InventoryService = require('../services/inventory');
 const promoEngine = require('../services/webPromotionEngine');
 const { finalizePaidOrder, recalcUserOrderAggregates } = require('../services/finalizePaidOrder');
 const { cartLookupBinds, hasCartIdentity } = require('../utils/cartSession');
-const { redeemGiftCardForOrder, redeemGiftCardForOrderById } = require('../services/giftCardCheckout');
 const { validateGiftCardCartItems } = require('../services/giftCardFulfillment');
 const { isUsPhoneDisplay } = require('../utils/usPhoneDisplay');
+const {
+    normalizeWebStoreTenders,
+    splitWebCheckoutPayment,
+    validateWebStoreTenders,
+    applyWebStoreTenders,
+    persistOrderTenders,
+    formatTenderNotes,
+    loadLoyaltyProgramSettings,
+    savePendingStoreTenders
+} = require('../services/webCheckoutPayments');
+const {
+    getAuthenticatedUserFromRequest,
+    assertCanAccessOrder,
+    assertInternalOrderSecret
+} = require('../utils/orderAccess');
+const { reverseOrderFinancials } = require('../services/orderTenderReversal');
+const { nmiVoid } = require('../services/nmiGateway');
+const { loadStorePaymentProcessor, resolveProcessorCredentials } = require('../services/storePaymentProcessor');
 
 function mapCheckoutPromoHttpError(err) {
     const code = err && err.code ? String(err.code) : '';
@@ -31,8 +47,20 @@ function mapCheckoutPromoHttpError(err) {
         GIFT_CARD_EXPIRED: { status: 400, message: 'This gift card has expired.' },
         INSUFFICIENT_GIFT_CARD_BALANCE: {
             status: 400,
-            message: 'Gift card balance does not cover the full order total. Use a credit/debit card or bank account instead.'
+            message: 'Gift card balance is not enough for the amount requested.'
         },
+        TENDER_TOTAL_MISMATCH: {
+            status: 400,
+            message: 'Payment amounts do not match the order total.'
+        },
+        CUSTOMER_REQUIRED_FOR_LOYALTY: {
+            status: 401,
+            message: 'Sign in to use store credit, points, or gift cards on your account.'
+        },
+        INSUFFICIENT_LOYALTY_POINTS: { status: 400, message: 'Not enough loyalty points.' },
+        INSUFFICIENT_LOYALTY_CASH: { status: 400, message: 'Not enough store credit.' },
+        LOYALTY_NOT_ENROLLED: { status: 400, message: 'Loyalty program enrollment required.' },
+        LOYALTY_DISABLED: { status: 400, message: 'Loyalty rewards are not available.' },
         DIGITAL_GIFT_CARD_EMAIL_REQUIRED: {
             status: 400,
             message: 'Recipient email is required for digital gift cards.'
@@ -40,6 +68,23 @@ function mapCheckoutPromoHttpError(err) {
         INVALID_GIFT_CARD_EMAIL: {
             status: 400,
             message: 'Please enter a valid recipient email address for the gift card.'
+        },
+        DIGITAL_GIFT_CARD_RECIPIENT_NAME_REQUIRED: {
+            status: 400,
+            message: 'Recipient name is required for digital gift cards.'
+        },
+        DIGITAL_GIFT_CARD_RECIPIENT_PHONE_REQUIRED: {
+            status: 400,
+            message: 'Recipient phone is required for digital gift cards so we can set up their account.'
+        },
+        INVALID_GIFT_CARD_RECIPIENT_PHONE: {
+            status: 400,
+            message: 'Recipient phone must be formatted as (555) 123-4567.'
+        },
+        DIGITAL_GIFT_CARD_RECIPIENT_ADDRESS_REQUIRED: {
+            status: 400,
+            message:
+                'Recipient mailing address is required for digital gift cards so they can track their gift card balance in their account.'
         }
     };
     return table[code] || null;
@@ -107,25 +152,6 @@ function normalizeCartItems(cartItems = []) {
         .filter((item) => item.product_id > 0 && item.quantity > 0 && item.price >= 0);
 }
 
-async function getAuthenticatedUserFromRequest(req) {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
-    if (!token) return null;
-
-    try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const userId = Number(decoded?.userId);
-        if (!Number.isInteger(userId) || userId <= 0) return null;
-
-        const [rows] = await req.pool.execute(
-            'SELECT id, email, tax_exempt, tax_exempt_id, customer_type FROM users WHERE id = ? LIMIT 1',
-            [userId]
-        );
-        return rows[0] || null;
-    } catch {
-        return null;
-    }
-}
 
 // Create order (checkout process)
 router.post('/', async (req, res) => {
@@ -144,7 +170,7 @@ router.post('/', async (req, res) => {
             shippingAmount: rawShippingAmount,
         } = req.body || {};
 
-        const deferCartClear = Boolean(awaitingNmiPayment);
+        const deferCartClearRequested = Boolean(awaitingNmiPayment);
         const isGiftCardPayment = String(paymentMethod || '').toLowerCase() === 'gift_card';
 
         const authUser = await getAuthenticatedUserFromRequest(req);
@@ -228,8 +254,65 @@ router.post('/', async (req, res) => {
         const computedShipping = Number(t.shippingAfter) || 0;
         const computedTotal = Number(t.totalAmount) || 0;
         const orderNumber = generateOrderNumber();
-        const orderNotes = buildOrderNotes(rawOrderNotes);
-        const storedPaymentMethod = String(paymentMethod || '').trim().toLowerCase() || null;
+        const baseOrderNotes = buildOrderNotes(rawOrderNotes);
+
+        const loyaltySettings = await loadLoyaltyProgramSettings(req.pool);
+        let storeTenders = normalizeWebStoreTenders(req.body, loyaltySettings);
+        if (!storeTenders.length && isGiftCardPayment && rawGiftCard) {
+            storeTenders = [
+                {
+                    type: 'gift_card',
+                    amount: promoEngine.roundMoney(computedTotal),
+                    giftCardId: rawGiftCard.id != null ? Number(rawGiftCard.id) : null,
+                    code: rawGiftCard.code ? String(rawGiftCard.code).trim() : null,
+                    pin: rawGiftCard.pin != null ? String(rawGiftCard.pin).trim() : null
+                }
+            ];
+        }
+
+        let webPaymentSplit;
+        try {
+            validateWebStoreTenders(storeTenders, userId);
+            webPaymentSplit = splitWebCheckoutPayment(storeTenders, computedTotal);
+        } catch (tenderErr) {
+            const mapped = mapCheckoutPromoHttpError(tenderErr);
+            if (mapped) {
+                return res.status(mapped.status).json({ error: mapped.message, code: tenderErr.code });
+            }
+            throw tenderErr;
+        }
+
+        const appliedStoreTenders = webPaymentSplit.storeTenders;
+        const cardAmountDue = webPaymentSplit.cardDue;
+        const payFullyWithStoreValue = cardAmountDue <= 0.005 && appliedStoreTenders.length > 0;
+
+        if (cardAmountDue > 0.005) {
+            const pm = String(paymentMethod || '').toLowerCase();
+            if (pm !== 'credit_card' && pm !== 'debit_card') {
+                return res.status(400).json({
+                    error: 'A credit or debit card is required to pay the remaining balance.',
+                    code: 'CARD_REQUIRED_FOR_REMAINDER',
+                    cardAmountDue
+                });
+            }
+        }
+
+        let storedPaymentMethod = String(paymentMethod || '').trim().toLowerCase() || null;
+        if (appliedStoreTenders.length > 0) {
+            if (cardAmountDue > 0.005) {
+                storedPaymentMethod = 'split';
+            } else if (appliedStoreTenders.length > 1) {
+                storedPaymentMethod = 'split';
+            } else if (appliedStoreTenders[0].type === 'gift_card') {
+                storedPaymentMethod = 'gift_card';
+            } else {
+                storedPaymentMethod = 'loyalty';
+            }
+        }
+
+        const deferCartClear = cardAmountDue > 0.005 || deferCartClearRequested;
+        const tenderNoteText = appliedStoreTenders.length ? formatTenderNotes(appliedStoreTenders) : '';
+        const orderNotes = [baseOrderNotes, tenderNoteText].filter(Boolean).join('\n') || null;
 
         // Start transaction
         const connection = await req.pool.getConnection();
@@ -337,7 +420,7 @@ router.post('/', async (req, res) => {
                 );
             }
 
-            if (checkout.promotion) {
+            if (checkout.promotion && payFullyWithStoreValue) {
                 await promoEngine.insertRedemptionRow(connection, {
                     promotionId: checkout.promotion.id,
                     orderId,
@@ -349,40 +432,45 @@ router.post('/', async (req, res) => {
             }
 
             let giftCardRedemption = null;
-            if (isGiftCardPayment) {
-                const giftCardId = rawGiftCard && rawGiftCard.id != null ? Number(rawGiftCard.id) : null;
-                if (giftCardId) {
-                    giftCardRedemption = await redeemGiftCardForOrderById(connection, {
-                        giftCardId,
-                        userId,
-                        amount: computedTotal,
-                        orderId,
-                        customerId: userId
-                    });
-                } else {
-                    giftCardRedemption = await redeemGiftCardForOrder(connection, {
-                        code: rawGiftCard.code,
-                        pin: rawGiftCard.pin,
-                        amount: computedTotal,
-                        orderId,
-                        customerId: userId
-                    });
+            let loyaltyRedemption = null;
+            const deferStoreRedemption = cardAmountDue > 0.005 && appliedStoreTenders.length > 0;
+
+            if (appliedStoreTenders.length && deferStoreRedemption) {
+                await savePendingStoreTenders(connection, orderId, appliedStoreTenders);
+            } else if (appliedStoreTenders.length) {
+                const redeemResult = await applyWebStoreTenders(connection, {
+                    storeTenders: appliedStoreTenders,
+                    orderId,
+                    user: authUser,
+                    loyaltySettings
+                });
+                loyaltyRedemption = redeemResult;
+                giftCardRedemption = redeemResult?.giftCards?.[0] || null;
+                try {
+                    await persistOrderTenders(connection, orderId, appliedStoreTenders);
+                } catch (tenderPersistErr) {
+                    if (tenderPersistErr.code !== 'ER_NO_SUCH_TABLE') throw tenderPersistErr;
                 }
             }
 
             await connection.commit();
 
             let finalizeResult = null;
-            if (isGiftCardPayment && giftCardRedemption) {
+            if (payFullyWithStoreValue) {
+                const payRef = appliedStoreTenders.length > 1
+                    ? 'web:split'
+                    : appliedStoreTenders[0].type === 'gift_card'
+                      ? `gift_card:${giftCardRedemption?.giftCardId || 'account'}`
+                      : `web:${appliedStoreTenders[0].type}`;
                 finalizeResult = await finalizePaidOrder(req.pool, {
                     orderId,
-                    paymentId: `gift_card:${giftCardRedemption.giftCardId}`,
+                    paymentId: payRef,
                     paymentStatus: 'paid'
                 });
             }
 
             // Clear cart after successful order (NMI path clears cart only after charge succeeds)
-            if ((!deferCartClear || isGiftCardPayment) && hasCartIdentity(userId, sessionId)) {
+            if ((!deferCartClear || payFullyWithStoreValue) && hasCartIdentity(userId, sessionId)) {
                 const [cartUserId, cartSessionId] = cartLookupBinds(userId, sessionId);
                 const [carts] = await req.pool.execute(
                     'SELECT id FROM shopping_carts WHERE user_id = ? OR session_id = ?',
@@ -399,7 +487,8 @@ router.post('/', async (req, res) => {
                 orderId: orderId,
                 orderNumber,
                 message: 'Order created successfully',
-                paymentStatus: isGiftCardPayment ? 'paid' : 'pending',
+                paymentStatus: payFullyWithStoreValue ? 'paid' : 'pending',
+                cardAmountDue: cardAmountDue > 0.005 ? cardAmountDue : undefined,
                 trackingNumber: finalizeResult?.trackingNumber || null,
                 totals: {
                     subtotal: merchandiseSubtotal,
@@ -435,13 +524,12 @@ router.post('/', async (req, res) => {
     }
 });
 
-// Complete order (payment successful) - DEDUCT INVENTORY
+// Complete order (payment successful) - internal or customer-authenticated only
 router.post('/:orderId/complete', async (req, res) => {
     try {
         const { orderId } = req.params;
-        const { paymentId, paymentStatus } = req.body;
+        const { paymentId, paymentStatus, customerEmail } = req.body;
 
-        // Get order details
         const [orders] = await req.pool.execute(
             'SELECT * FROM orders WHERE id = ? AND status = ?',
             [orderId, 'pending']
@@ -449,6 +537,11 @@ router.post('/:orderId/complete', async (req, res) => {
 
         if (orders.length === 0) {
             return res.status(404).json({ error: 'Order not found or already processed' });
+        }
+
+        const order = orders[0];
+        if (!assertInternalOrderSecret(req)) {
+            return res.status(403).json({ error: 'Order completion is restricted to internal payment callbacks.' });
         }
 
         const result = await finalizePaidOrder(req.pool, {
@@ -473,13 +566,12 @@ router.post('/:orderId/complete', async (req, res) => {
     }
 });
 
-// Cancel order - RESTORE INVENTORY
+// Cancel order - RESTORE INVENTORY and reverse wallet tenders
 router.post('/:orderId/cancel', async (req, res) => {
     try {
         const { orderId } = req.params;
-        const { reason } = req.body;
+        const { reason, customerEmail } = req.body;
 
-        // Get order details
         const [orders] = await req.pool.execute(
             'SELECT * FROM orders WHERE id = ? AND status IN (?, ?)',
             [orderId, 'pending', 'processing']
@@ -491,7 +583,17 @@ router.post('/:orderId/cancel', async (req, res) => {
 
         const order = orders[0];
 
-        // Get order items
+        if (!assertInternalOrderSecret(req)) {
+            try {
+                await assertCanAccessOrder(req, order, { email: customerEmail });
+            } catch (e) {
+                if (e.status === 403) {
+                    return res.status(403).json({ error: 'Not allowed to cancel this order' });
+                }
+                throw e;
+            }
+        }
+
         const [orderItems] = await req.pool.execute(`
             SELECT oi.*, p.name as product_name, p.sku
             FROM order_items oi
@@ -499,23 +601,28 @@ router.post('/:orderId/cancel', async (req, res) => {
             WHERE oi.order_id = ?
         `, [orderId]);
 
-        // Start transaction
         const connection = await req.pool.getConnection();
         await connection.beginTransaction();
 
         try {
-            // Update order status
             const cancelNote = reason ? `Cancelled: ${reason}` : 'Cancelled';
+            const wasPaid = order.payment_status === 'paid' || order.status === 'processing';
             await connection.execute(
                 `UPDATE orders
                     SET status = 'cancelled',
+                        payment_status = CASE WHEN payment_status = 'paid' THEN 'refunded' ELSE payment_status END,
+                        pending_store_tenders = NULL,
                         notes = CONCAT(COALESCE(notes, ''), IF(COALESCE(notes, '') = '', '', '\n'), ?)
                   WHERE id = ?`,
                 [cancelNote, orderId]
             );
 
-            // Restore inventory if order was paid (inventory was deducted on finalize)
-            if (order.payment_status === 'paid' || order.status === 'processing') {
+            await reverseOrderFinancials(connection, orderId, order, {
+                clawbackEarn: wasPaid,
+                reversePromo: true
+            });
+
+            if (wasPaid) {
                 const inventoryService = new InventoryService(req.pool);
                 const inventoryItems = orderItems.map(item => ({
                     productId: item.product_id,
@@ -530,13 +637,35 @@ router.post('/:orderId/cancel', async (req, res) => {
                 );
             }
 
-            if ((order.payment_status === 'paid' || order.status === 'processing') && order.user_id) {
+            if (wasPaid && order.user_id) {
                 await recalcUserOrderAggregates(connection, order.user_id);
             }
 
             await connection.commit();
 
-            console.log(`✅ Order ${orderId} cancelled and inventory restored`);
+            const payRef = String(order.payment_reference || '').trim();
+            const looksLikeNmiTxn =
+                payRef &&
+                !payRef.startsWith('gift_card:') &&
+                !payRef.startsWith('web:') &&
+                !payRef.startsWith('pos:') &&
+                !payRef.startsWith('processing:');
+            if (wasPaid && looksLikeNmiTxn) {
+                try {
+                    const processor = await loadStorePaymentProcessor(req.pool);
+                    const creds = resolveProcessorCredentials(processor);
+                    const securityKey = creds?.securityKey || creds?.security_key;
+                    if (securityKey) {
+                        await nmiVoid({ securityKey, transactionId: payRef });
+                    }
+                } catch (voidErr) {
+                    logger.error('NMI void on order cancel failed', {
+                        orderId,
+                        paymentReference: payRef,
+                        err: voidErr.message
+                    });
+                }
+            }
 
             res.json({
                 success: true,
@@ -615,13 +744,12 @@ router.get('/:orderId/confirmation-summary', async (req, res) => {
     }
 });
 
-// Get order details
+// Get order details (authenticated owner or matching guest email only)
 router.get('/:orderId', async (req, res) => {
     try {
         const { orderId } = req.params;
-        const userId = req.user?.id;
+        const email = String(req.query.email || '').trim().toLowerCase();
 
-        // Get order with items
         const [orders] = await req.pool.execute(`
             SELECT o.*, 
                    GROUP_CONCAT(
@@ -641,15 +769,24 @@ router.get('/:orderId', async (req, res) => {
             LEFT JOIN order_items oi ON o.id = oi.order_id
             LEFT JOIN products p ON oi.product_id = p.id
             LEFT JOIN product_variants pv ON oi.variant_id = pv.id
-            WHERE o.id = ? AND (o.user_id = ? OR ? IS NULL)
+            WHERE o.id = ?
             GROUP BY o.id
-        `, [orderId, userId, userId]);
+        `, [orderId]);
 
         if (orders.length === 0) {
             return res.status(404).json({ error: 'Order not found' });
         }
 
         const order = orders[0];
+        try {
+            await assertCanAccessOrder(req, order, { email });
+        } catch (e) {
+            if (e.status === 403) {
+                return res.status(403).json({ error: 'Not allowed to view this order' });
+            }
+            throw e;
+        }
+
         order.items = order.items ? JSON.parse(`[${order.items}]`) : [];
 
         res.json(order);
@@ -660,41 +797,11 @@ router.get('/:orderId', async (req, res) => {
     }
 });
 
-// Get user orders
+// Deprecated — use GET /api/user/orders (authenticated)
 router.get('/', async (req, res) => {
-    try {
-        const userId = req.user?.id;
-        const sessionId = req.headers['x-session-id'] || req.sessionID || null;
-
-        if (!userId && !sessionId) {
-            return res.status(401).json({ error: 'Authentication required' });
-        }
-
-        const [orders] = await req.pool.execute(
-            `
-            SELECT 
-                o.id,
-                o.order_number,
-                o.status,
-                o.payment_status,
-                o.total_amount,
-                o.created_at,
-                COUNT(oi.id) as item_count
-            FROM orders o
-            LEFT JOIN order_items oi ON o.id = oi.order_id
-            WHERE o.user_id = ?
-            GROUP BY o.id
-            ORDER BY o.created_at DESC
-        `,
-            [userId]
-        );
-
-        res.json(orders);
-
-    } catch (error) {
-        logger.error('Get orders error:', error);
-        res.status(500).json({ error: 'Failed to get orders' });
-    }
+    res.status(410).json({
+        error: 'This endpoint is deprecated. Use GET /api/user/orders with a customer Bearer token.'
+    });
 });
 
 module.exports = router;

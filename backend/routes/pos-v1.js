@@ -13,8 +13,10 @@ const {
     refundInStorePosOrder,
     ALLOWED_PAYMENT_METHODS
 } = require('../services/posStoreOrder');
+const { listInStorePosSales, getInStorePosOrderReceipt } = require('../services/posOrderHistory');
 const { loadStoreTaxRate } = require('../utils/storeTaxRate');
 const { loadCashDiscountSettings } = require('../services/posCashDiscount');
+const { loadPosPaymentMethodsSettings } = require('../services/posPaymentMethodsSettings');
 const { loadPosStoreConfig } = require('../services/posStoreConfig');
 const { loadPosReceiptSettings } = require('../services/posReceiptSettings');
 const { loadPosSecuritySettings } = require('../services/posSecuritySettings');
@@ -24,9 +26,12 @@ const { loadStoreHours, storeHourFooterLines } = require('../utils/storePublicIn
 const { loadPosPaymentConfig } = require('../services/posPaymentConfig');
 const { loadPosCardCheckoutSettings } = require('../services/posCardCheckoutSettings');
 const { listDisplayAds } = require('../services/posDisplayAds');
+const { listDisplayAdsForRegister } = require('../services/posFrontDisplays');
+const { recordRegisterNetworkReport } = require('../services/posStoreNetwork');
 const { loadMerchantLicense } = require('../services/posMerchantLicense');
 const { requireActivePosLicense } = require('../middleware/posLicenseGate');
 const { listEquipmentForRegister } = require('../services/posEquipment');
+const { buildRegisterHardwareProfile } = require('../services/posRegisterHardware');
 const {
     createCheckoutIntent,
     getCheckoutIntent,
@@ -35,6 +40,16 @@ const {
 } = require('../services/posCheckoutIntent');
 const { createHandoffCode } = require('../services/posAdminHandoff');
 const { storefrontPrimaryImageFromFields } = require('../utils/catalogOverrides');
+const { loadLoyaltyProgramSettings } = require('../services/customerLoyalty');
+const posCustomerService = require('../services/posCustomerService');
+const { buildRegisterTroubleshootReport } = require('../services/posRegisterTroubleshoot');
+const {
+    isTroubleshootAiEnabled,
+    getTroubleshootAiConfig,
+    buildRegisterRulesBriefing,
+    briefRegisterTroubleshoot,
+    chatRegisterTroubleshoot
+} = require('../services/posTroubleshootAi');
 
 const posPinLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -63,9 +78,26 @@ router.get('/health', (req, res) => {
     });
 });
 
+router.put('/network/report', async (req, res) => {
+    try {
+        const localIp = req.body?.localIp ?? req.body?.reportedIp ?? req.body?.ip;
+        const result = await recordRegisterNetworkReport(req.pool, req.posDeviceRecordId, {
+            localIp,
+            userAgent: req.get('user-agent')
+        });
+        if (!result) {
+            return res.status(400).json({ error: 'localIp is required', code: 'IP_REQUIRED' });
+        }
+        res.json({ success: true, ...result });
+    } catch (e) {
+        logger.error('POS network report error:', e);
+        res.status(500).json({ error: 'Failed to record network report' });
+    }
+});
+
 router.get('/config', async (req, res) => {
     try {
-        const [cashDiscount, store, security, payment, taxRate, operations, experience, cardCheckout, displayAds] =
+        const [cashDiscount, store, security, payment, taxRate, operations, experience, cardCheckout, displayAds, paymentMethods, loyaltyProgram] =
             await Promise.all([
             loadCashDiscountSettings(req.pool),
             loadPosStoreConfig(req.pool),
@@ -75,7 +107,9 @@ router.get('/config', async (req, res) => {
             loadPosOperationsSettings(req.pool),
             loadPosRegisterExperienceSettings(req.pool),
             loadPosCardCheckoutSettings(req.pool),
-            listDisplayAds(req.pool, { activeOnly: true })
+            listDisplayAdsForRegister(req.pool, req.posDeviceRecordId),
+            loadPosPaymentMethodsSettings(req.pool),
+            loadLoyaltyProgramSettings(req.pool)
         ]);
         const receipt = await loadPosReceiptSettings(req.pool, store.storeLogoUrl);
         const storeHours = await loadStoreHours(req.pool);
@@ -83,13 +117,24 @@ router.get('/config', async (req, res) => {
         const equipment = req.posDeviceRecordId
             ? await listEquipmentForRegister(req.pool, req.posDeviceRecordId)
             : [];
+        const hardware = req.posDeviceRecordId
+            ? await buildRegisterHardwareProfile(req.pool, req.posDeviceRecordId, {
+                  globalCheckout: cardCheckout,
+                  globalPrinter: experience.hardwarePrinter
+              })
+            : null;
         res.json({
             storeName: store.storeName,
             storeLogoUrl: store.storeLogoUrl,
             platformName: 'Business One',
             taxRate,
             currency: 'USD',
-            paymentMethods: [...ALLOWED_PAYMENT_METHODS],
+            paymentMethods: paymentMethods.methods,
+            paymentMethodOptions: {
+                cash: paymentMethods.cash,
+                check: paymentMethods.check,
+                card: paymentMethods.card
+            },
             payment: {
                 cardAdapter: payment.cardAdapter,
                 cardAdapterLabel: payment.cardAdapterLabel,
@@ -104,7 +149,7 @@ router.get('/config', async (req, res) => {
                     displayMode: cardCheckout.displayMode,
                     durangoControlsTerminal: cardCheckout.durangoControlsTerminal,
                     displayCardCheckout: cardCheckout.displayCardCheckout,
-                    hasPoiDeviceId: Boolean(cardCheckout.poiDeviceId)
+                    hasPoiDeviceId: Boolean(hardware?.runtime?.poiDeviceId || cardCheckout.poiDeviceId)
                 }
             },
             receipt,
@@ -123,8 +168,17 @@ router.get('/config', async (req, res) => {
                 disclosure:
                     'Prices shown include standard payment pricing. Pay with cash to receive the cash discount.'
             },
+            loyalty: {
+                enabled: loyaltyProgram.enabled,
+                cashEnabled: loyaltyProgram.cashEnabled,
+                pointsEnabled: loyaltyProgram.pointsEnabled,
+                cashbackPercent: loyaltyProgram.cashbackPercent,
+                pointsPerDollar: loyaltyProgram.pointsPerDollar,
+                dollarPerPoint: loyaltyProgram.dollarPerPoint
+            },
             compliance: payment.compliance,
             equipment,
+            hardware,
             license: {
                 status: license.status,
                 licensedStationCount: license.licensedStationCount,
@@ -160,11 +214,10 @@ router.get('/config', async (req, res) => {
             experience: {
                 largeTouchMode: experience.largeTouchMode,
                 scanBeepEnabled: experience.scanBeepEnabled,
-                quickKeys: experience.quickKeys,
                 displayStoreHoursIdle: experience.displayStoreHoursIdle,
                 personnelMode: experience.personnelMode,
                 showCostInCart: experience.showCostInCart,
-                hardwarePrinter: experience.hardwarePrinter,
+                hardwarePrinter: hardware?.runtime?.printerDriver || experience.hardwarePrinter,
                 displayCardCheckout: experience.displayCardCheckout
             },
             storeHours: {
@@ -456,6 +509,82 @@ router.get('/products/lookup', async (req, res) => {
     }
 });
 
+// --- Customer profiles (shared with website gift cards & loyalty) ---
+
+router.get('/customers/search', authenticatePosEmployee, async (req, res) => {
+    try {
+        const q = String(req.query.q || '').trim();
+        const phone = String(req.query.phone || '').trim();
+        const searchTerm = phone || q;
+        if (searchTerm.length < 2) {
+            return res.json({ customers: [] });
+        }
+        const customers = await posCustomerService.searchCustomers(req.pool, searchTerm, req.query.limit);
+        res.json({ customers });
+    } catch (error) {
+        logger.error('POS customer search error:', error);
+        res.status(500).json({ error: 'Customer search failed' });
+    }
+});
+
+router.get('/customers/:id', authenticatePosEmployee, async (req, res) => {
+    try {
+        const customer = await posCustomerService.getCustomerForPos(req.pool, Number(req.params.id));
+        res.json({ customer });
+    } catch (error) {
+        const code = error.code || 'CUSTOMER_LOAD_FAILED';
+        res.status(code === 'CUSTOMER_NOT_FOUND' ? 404 : 500).json({
+            error: error.message || 'Failed to load customer',
+            code
+        });
+    }
+});
+
+router.post('/customers/quick-enroll', authenticatePosEmployee, async (req, res) => {
+    try {
+        const customer = await posCustomerService.quickEnrollCustomer(req.pool, req.body || {});
+        res.status(201).json({ success: true, customer });
+    } catch (error) {
+        const code = error.code || 'ENROLL_FAILED';
+        const statusMap = {
+            NAME_REQUIRED: 400,
+            CONTACT_REQUIRED: 400,
+            EMAIL_EXISTS: 409,
+            PHONE_FORMAT: 400
+        };
+        res.status(statusMap[code] || 400).json({
+            error: error.message || 'Could not create customer',
+            code
+        });
+    }
+});
+
+router.post('/customers/gift-cards/check', authenticatePosEmployee, async (req, res) => {
+    try {
+        const body = req.body || {};
+        const result = await posCustomerService.checkGiftCardBalance(req.pool, {
+            code: body.code,
+            pin: body.pin,
+            giftCardId: body.giftCardId ?? body.gift_card_id,
+            userId: body.userId ?? body.user_id ?? body.customerId ?? body.customer_id
+        });
+        res.json({ success: true, ...result });
+    } catch (error) {
+        const code = error.code || 'GIFT_CARD_CHECK_FAILED';
+        const statusMap = {
+            GIFT_CARD_NOT_FOUND: 404,
+            GIFT_CARD_INVALID_PIN: 403,
+            GIFT_CARD_INACTIVE: 400,
+            GIFT_CARD_EXPIRED: 400,
+            GIFT_CARD_CODE_REQUIRED: 400
+        };
+        res.status(statusMap[code] || 400).json({
+            error: error.message || 'Gift card check failed',
+            code
+        });
+    }
+});
+
 router.post('/orders', authenticatePosEmployee, requireActivePosLicense, async (req, res) => {
     try {
         const result = await createInStorePosOrder(req.pool, req.body, req.posDeviceId, req.posEmployee.id);
@@ -467,6 +596,7 @@ router.post('/orders', authenticatePosEmployee, requireActivePosLicense, async (
             EMPTY_CART: 400,
             INVALID_PAYMENT: 400,
             INVALID_PAYMENT_METHOD: 400,
+            PAYMENT_METHOD_DISABLED: 400,
             TERMINAL_LAST_FOUR_REQUIRED: 400,
             TERMINAL_LAST_FOUR_INVALID: 400,
             TERMINAL_APPROVAL_REQUIRED: 400,
@@ -479,6 +609,22 @@ router.post('/orders', authenticatePosEmployee, requireActivePosLicense, async (
             MANAGER_PIN_REQUIRED: 403,
             INVALID_MANAGER_PIN: 403,
             NOT_AUTHORIZED_MANAGER: 403,
+            CUSTOMER_NOT_FOUND: 404,
+            CUSTOMER_REQUIRED_FOR_LOYALTY: 400,
+            INSUFFICIENT_LOYALTY_POINTS: 400,
+            INSUFFICIENT_LOYALTY_CASH: 400,
+            LOYALTY_NOT_ENROLLED: 400,
+            LOYALTY_DISABLED: 400,
+            GIFT_CARD_NOT_FOUND: 404,
+            GIFT_CARD_INVALID_PIN: 403,
+            GIFT_CARD_INACTIVE: 400,
+            GIFT_CARD_EXPIRED: 400,
+            INSUFFICIENT_GIFT_CARD_BALANCE: 400,
+            INVALID_GIFT_CARD_AMOUNT: 400,
+            GIFT_CARD_CODE_REQUIRED: 400,
+            INSUFFICIENT_CASH_TENDER: 400,
+            TENDER_TOTAL_MISMATCH: 400,
+            PAYMENT_REQUIRED: 400,
             REFUND_REASON_REQUIRED: 400,
             ORDER_NOT_FOUND: 404,
             ORDER_NOT_POS: 400,
@@ -491,6 +637,50 @@ router.post('/orders', authenticatePosEmployee, requireActivePosLicense, async (
         });
     }
 });
+
+async function handleListPosSales(req, res) {
+    try {
+        const result = await listInStorePosSales(req.pool, {
+            date: req.query.date,
+            q: req.query.q,
+            limit: req.query.limit,
+            offset: req.query.offset
+        });
+        res.json({ success: true, ...result });
+    } catch (error) {
+        logger.error('POS list sales error:', error);
+        res.status(500).json({ error: error.message || 'Failed to load sales' });
+    }
+}
+
+async function handlePosOrderReceipt(req, res) {
+    try {
+        const receipt = await getInStorePosOrderReceipt(req.pool, req.params.orderNumber);
+        res.json({ success: true, receipt });
+    } catch (error) {
+        const code = error.code || 'RECEIPT_FAILED';
+        const statusMap = {
+            ORDER_NUMBER_REQUIRED: 400,
+            ORDER_NOT_FOUND: 404,
+            ORDER_NOT_POS: 400
+        };
+        res.status(statusMap[code] || 500).json({
+            error: error.message || 'Failed to load receipt',
+            code
+        });
+    }
+}
+
+const listPosSalesRoute = [authenticatePosEmployee, requireActivePosLicense, handleListPosSales];
+const posOrderReceiptRoute = [authenticatePosEmployee, requireActivePosLicense, handlePosOrderReceipt];
+
+router.get('/sales', ...listPosSalesRoute);
+/** @deprecated use GET /sales — kept for cached POS clients */
+router.get('/orders', ...listPosSalesRoute);
+
+router.get('/sales/:orderNumber/receipt', ...posOrderReceiptRoute);
+/** @deprecated use GET /sales/:orderNumber/receipt */
+router.get('/orders/:orderNumber/receipt', ...posOrderReceiptRoute);
 
 router.post('/sync', authenticatePosEmployee, requireActivePosLicense, async (req, res) => {
     try {
@@ -571,17 +761,22 @@ router.post('/admin/handoff', authenticatePosEmployee, async (req, res) => {
 router.post('/manager/verify-pin', authenticatePosEmployee, posPinLimiter, async (req, res) => {
     try {
         const pin = req.body?.pin;
-        const authorizer = await personnel.verifyManagerPin(req.pool, pin, {
+        const purpose = String(req.body?.purpose || 'manager');
+        const context = {
             deviceId: req.posDeviceId,
             ip: req.ip,
-            scope: String(req.body?.purpose || 'manager')
-        });
+            scope: purpose
+        };
+        const authorizer =
+            purpose === 'refund'
+                ? await personnel.verifyRefundPin(req.pool, pin, context)
+                : await personnel.verifyManagerPin(req.pool, pin, context);
         res.json({ success: true, authorizer });
     } catch (e) {
         const status =
             e.code === 'PIN_LOCKED' || e.code === 'PIN_RATE_LIMITED'
                 ? 429
-                : e.code === 'INVALID_PIN' || e.code === 'INVALID_MANAGER_PIN' || e.code === 'NOT_AUTHORIZED_MANAGER'
+                : e.code === 'INVALID_PIN' || e.code === 'INVALID_MANAGER_PIN' || e.code === 'NOT_AUTHORIZED_MANAGER' || e.code === 'NOT_AUTHORIZED_REFUND'
                   ? 403
                   : 400;
         res.status(status).json({ error: e.message, code: e.code || 'MANAGER_PIN_FAILED' });
@@ -606,6 +801,7 @@ router.post('/orders/:orderNumber/refund', authenticatePosEmployee, requireActiv
             MANAGER_PIN_REQUIRED: 403,
             INVALID_MANAGER_PIN: 403,
             NOT_AUTHORIZED_MANAGER: 403,
+            NOT_AUTHORIZED_REFUND: 403,
             REFUND_REASON_REQUIRED: 400,
             ORDER_NOT_FOUND: 404,
             ORDER_NOT_POS: 400,
@@ -620,8 +816,24 @@ router.post('/orders/:orderNumber/refund', authenticatePosEmployee, requireActiv
 });
 
 router.get('/employees/me', authenticatePosEmployee, async (req, res) => {
-    const employee = await personnel.getEmployeeById(req.pool, req.posEmployee.id);
-    res.json({ employee });
+    try {
+        const employee = await personnel.getEmployeeById(req.pool, req.posEmployee.id);
+        if (!employee) return res.status(404).json({ error: 'Employee not found' });
+        res.json({
+            employee: {
+                id: employee.id,
+                employeeCode: employee.employee_code,
+                firstName: employee.first_name,
+                lastName: employee.last_name,
+                name: `${employee.first_name} ${employee.last_name}`.trim(),
+                canAuthorize: Boolean(employee.can_authorize),
+                canProcessRefunds: Boolean(employee.can_process_refunds),
+                canOpenDrawer: Boolean(employee.can_open_drawer)
+            }
+        });
+    } catch (e) {
+        res.status(500).json({ error: 'Failed to load employee profile' });
+    }
 });
 
 router.post('/timesheet/clock-in', authenticatePosEmployee, async (req, res) => {
@@ -661,10 +873,14 @@ router.get('/timesheet/current', authenticatePosEmployee, async (req, res) => {
 });
 
 router.get('/shift/current', authenticatePosEmployee, async (req, res) => {
-    const shift = await personnel.getOpenShiftSession(req.pool, req.posEmployee.id, req.posDeviceId);
-    if (!shift) return res.json({ shift: null });
-    const expected = await personnel.computeExpectedCash(req.pool, shift);
-    res.json({ shift, expectedCash: expected });
+    try {
+        const shift = await personnel.getOpenShiftSession(req.pool, req.posEmployee.id, req.posDeviceId);
+        if (!shift) return res.json({ shift: null });
+        const expected = await personnel.computeExpectedCash(req.pool, shift);
+        res.json({ shift, expectedCash: expected });
+    } catch (e) {
+        res.status(500).json({ error: 'Failed to load current shift' });
+    }
 });
 
 router.post('/shift/open', authenticatePosEmployee, async (req, res) => {
@@ -711,7 +927,8 @@ router.post('/shift/close', authenticatePosEmployee, async (req, res) => {
         const shift = await personnel.closeShiftSession(req.pool, {
             shiftSessionId: Number(req.body?.shiftSessionId),
             closingCash: req.body?.closingCash,
-            notes: req.body?.notes
+            notes: req.body?.notes,
+            employeeId: req.posEmployee.id
         });
         await personnel.clockOut(req.pool, req.posEmployee.id).catch(() => {});
         const report = await personnel.getShiftReport(req.pool, shift.id);
@@ -722,18 +939,28 @@ router.post('/shift/close', authenticatePosEmployee, async (req, res) => {
 });
 
 router.get('/shifts/scheduled', authenticatePosEmployee, async (req, res) => {
-    const shifts = await personnel.listScheduledShifts(req.pool, {
-        employeeId: req.posEmployee.id,
-        from: req.query.from,
-        to: req.query.to
-    });
-    res.json({ shifts });
+    try {
+        const shifts = await personnel.listScheduledShifts(req.pool, {
+            employeeId: req.posEmployee.id,
+            from: req.query.from,
+            to: req.query.to
+        });
+        res.json({ shifts });
+    } catch (e) {
+        res.status(500).json({ error: 'Failed to load scheduled shifts' });
+    }
 });
 
 router.get('/reports/shift/:id', authenticatePosEmployee, async (req, res) => {
-    const report = await personnel.getShiftReport(req.pool, Number(req.params.id));
-    if (!report) return res.status(404).json({ error: 'Shift not found' });
-    res.json(report);
+    try {
+        const report = await personnel.getShiftReport(req.pool, Number(req.params.id), {
+            employeeId: req.posEmployee.id
+        });
+        if (!report) return res.status(404).json({ error: 'Shift not found' });
+        res.json(report);
+    } catch (e) {
+        res.status(500).json({ error: 'Failed to load shift report' });
+    }
 });
 
 const posSalesReports = require('../services/posSalesReports');
@@ -770,7 +997,7 @@ router.get('/reports/day', authenticatePosEmployee, async (req, res) => {
         const report = await posSalesReports.getDaySalesSummary(req.pool, date);
         res.json({ success: true, report });
     } catch (e) {
-        res.status(500).json({ error: e.message || 'Failed to build day summary' });
+        res.status(500).json({ error: e.message || 'Failed to build daily sales summary' });
     }
 });
 
@@ -836,12 +1063,31 @@ router.get('/display', async (req, res) => {
     }
 });
 
+router.get('/display/ads', async (req, res) => {
+    try {
+        const ads = await listDisplayAdsForRegister(req.pool, req.posDeviceRecordId);
+        res.json({
+            ads: (ads || []).map((ad) => ({
+                id: ad.id,
+                title: ad.title,
+                subtitle: ad.subtitle,
+                imageUrl: ad.imageUrl,
+                linkUrl: ad.linkUrl
+            }))
+        });
+    } catch (e) {
+        logger.error('POS display ads error:', e);
+        res.status(500).json({ error: 'Failed to load display ads' });
+    }
+});
+
 router.post('/checkout-intents', authenticatePosEmployee, requireActivePosLicense, async (req, res) => {
     try {
         const amount = Number(req.body?.amount);
         const cart = req.body?.cart && typeof req.body.cart === 'object' ? req.body.cart : {};
         const intent = await createCheckoutIntent(req.pool, {
             deviceId: req.posDeviceId,
+            deviceRecordId: req.posDeviceRecordId,
             amount,
             cart,
             employeeId: req.posEmployee?.id
@@ -856,7 +1102,10 @@ router.post('/checkout-intents', authenticatePosEmployee, requireActivePosLicens
 
 router.post('/checkout-intents/:id/charge-terminal', authenticatePosEmployee, requireActivePosLicense, async (req, res) => {
     try {
-        const intent = await chargeTerminalCheckoutIntent(req.pool, req.params.id, req.posDeviceId);
+        const intent = await chargeTerminalCheckoutIntent(req.pool, req.params.id, {
+            deviceId: req.posDeviceId,
+            deviceRecordId: req.posDeviceRecordId
+        });
         res.json({ success: true, intent });
     } catch (e) {
         const status =
@@ -948,6 +1197,92 @@ router.post('/support/heartbeat', async (req, res) => {
     }
 });
 
+router.post('/troubleshoot/briefing', async (req, res) => {
+    try {
+        const report = await buildRegisterTroubleshootReport(req.pool, req.posDeviceRecordId, {
+            deviceLabel: req.posDeviceId,
+            localChecks: req.body?.localChecks,
+            situation: req.body?.situation
+        });
+        const statusReport = report.statusReport || {};
+
+        if (isTroubleshootAiEnabled()) {
+            const result = await briefRegisterTroubleshoot(report);
+            return res.json({
+                reply: result.reply,
+                suggestedActions: result.suggestedActions,
+                autoAction: result.autoAction,
+                statusReport,
+                fingerprint: statusReport.fingerprint,
+                source: 'openai',
+                model: result.model,
+                ai: getTroubleshootAiConfig()
+            });
+        }
+
+        const rules = buildRegisterRulesBriefing(report);
+        res.json({
+            ...rules,
+            statusReport,
+            fingerprint: statusReport.fingerprint,
+            ai: { enabled: false }
+        });
+    } catch (e) {
+        if (e.code === 'AI_NOT_CONFIGURED' || e.code === 'AI_AUTH_FAILED') {
+            return res.status(503).json({ error: e.message, code: e.code });
+        }
+        logger.error('Register troubleshoot briefing error:', e);
+        res.status(500).json({ error: 'Failed to load help briefing' });
+    }
+});
+
+router.post('/troubleshoot/chat', async (req, res) => {
+    try {
+        const userMessage = String(req.body?.message || '').trim();
+        if (!userMessage) {
+            return res.status(400).json({ error: 'Message is required' });
+        }
+
+        const report = await buildRegisterTroubleshootReport(req.pool, req.posDeviceRecordId, {
+            deviceLabel: req.posDeviceId,
+            localChecks: req.body?.localChecks,
+            situation: req.body?.situation
+        });
+
+        if (!isTroubleshootAiEnabled()) {
+            const rules = buildRegisterRulesBriefing(report);
+            return res.json({
+                reply: rules.reply,
+                suggestedActions: rules.suggestedActions,
+                statusReport: report.statusReport,
+                source: 'rules',
+                ai: { enabled: false }
+            });
+        }
+
+        const result = await chatRegisterTroubleshoot({
+            report,
+            messages: req.body?.messages || [],
+            userMessage
+        });
+
+        res.json({
+            reply: result.reply,
+            suggestedActions: result.suggestedActions,
+            autoAction: result.autoAction,
+            statusReport: report.statusReport,
+            source: 'openai',
+            model: result.model
+        });
+    } catch (e) {
+        if (e.code === 'AI_NOT_CONFIGURED' || e.code === 'AI_AUTH_FAILED') {
+            return res.status(503).json({ error: e.message, code: e.code });
+        }
+        logger.error('Register troubleshoot chat error:', e);
+        res.status(500).json({ error: 'Help chat failed' });
+    }
+});
+
 router.post('/support/request', async (req, res) => {
     try {
         const session = await registerSupport.requestSupportSession(req.pool, req.posDeviceRecordId, {
@@ -1009,7 +1344,13 @@ router.post('/support/session/:id/offer', async (req, res) => {
 
 router.post('/support/session/:id/ice', async (req, res) => {
     try {
-        await registerSupport.appendIceCandidate(req.pool, req.params.id, 'pos', req.body?.candidate);
+        await registerSupport.appendIceCandidate(
+            req.pool,
+            req.params.id,
+            'pos',
+            req.body?.candidate,
+            req.posDeviceRecordId
+        );
         res.json({ ok: true });
     } catch (e) {
         res.status(400).json({ error: e.message });
@@ -1019,7 +1360,10 @@ router.post('/support/session/:id/ice', async (req, res) => {
 router.get('/support/session/:id/signal', async (req, res) => {
     try {
         const sinceVersion = Number(req.query.since) || 0;
-        const state = await registerSupport.getSignalState(req.pool, req.params.id, { sinceVersion });
+        const state = await registerSupport.getSignalState(req.pool, req.params.id, {
+            sinceVersion,
+            deviceRecordId: req.posDeviceRecordId
+        });
         res.json(state);
     } catch (e) {
         res.status(404).json({ error: e.message, code: e.code });
@@ -1028,7 +1372,9 @@ router.get('/support/session/:id/signal', async (req, res) => {
 
 router.post('/support/session/:id/end', async (req, res) => {
     try {
-        await registerSupport.endSession(req.pool, req.params.id);
+        await registerSupport.endSession(req.pool, req.params.id, {
+            deviceRecordId: req.posDeviceRecordId
+        });
         scheduleSupportSessionSync(req.pool, req.params.id);
         res.json({ success: true });
     } catch (e) {

@@ -4,6 +4,31 @@ const crypto = require('crypto');
 const { resolvePosProcessorCredentials } = require('./storePaymentProcessor');
 const { nmiPoiSale } = require('./nmiGateway');
 const { loadPosCardCheckoutSettings } = require('./posCardCheckoutSettings');
+const { buildRegisterHardwareProfile } = require('./posRegisterHardware');
+
+async function resolveCheckoutPoiDeviceId(pool, deviceRecordId) {
+    if (deviceRecordId) {
+        const globalCheckout = await loadPosCardCheckoutSettings(pool);
+        const profile = await buildRegisterHardwareProfile(pool, deviceRecordId, {
+            globalCheckout
+        });
+        const poi = String(profile?.runtime?.poiDeviceId || '').trim();
+        if (poi) return poi;
+    }
+    const checkoutSettings = await loadPosCardCheckoutSettings(pool);
+    return String(checkoutSettings.poiDeviceId || '').trim();
+}
+
+async function assertTerminalCheckoutReady(pool, deviceRecordId) {
+    const checkoutSettings = await loadPosCardCheckoutSettings(pool);
+    const poiDeviceId = await resolveCheckoutPoiDeviceId(pool, deviceRecordId);
+    if (checkoutSettings.displayMode !== 'durango_terminal' || !poiDeviceId) {
+        const err = new Error('Durango terminal checkout is not configured for this register');
+        err.code = 'TERMINAL_NOT_CONFIGURED';
+        throw err;
+    }
+    return poiDeviceId;
+}
 
 const INTENT_TTL_MS = 15 * 60 * 1000;
 
@@ -165,7 +190,7 @@ async function applySaleResult(pool, intentId, deviceId, sale) {
     return approved;
 }
 
-async function createCheckoutIntent(pool, { deviceId, amount, cart, employeeId }) {
+async function createCheckoutIntent(pool, { deviceId, deviceRecordId, amount, cart, employeeId }) {
     const checkoutSettings = await loadPosCardCheckoutSettings(pool);
     const id = crypto.randomUUID();
     const amt = Math.round(Number(amount) * 100) / 100;
@@ -202,7 +227,7 @@ async function createCheckoutIntent(pool, { deviceId, amount, cart, employeeId }
     await upsertDisplayCheckout(pool, deviceId, intent, checkoutMode);
 
     if (checkoutMode === 'durango_terminal') {
-        intent = await chargeTerminalCheckoutIntent(pool, id, deviceId);
+        intent = await chargeTerminalCheckoutIntent(pool, id, { deviceId, deviceRecordId });
     }
     return intent;
 }
@@ -232,7 +257,12 @@ async function cancelCheckoutIntent(pool, intentId, deviceId) {
     return intent;
 }
 
-async function chargeTerminalCheckoutIntent(pool, intentId, deviceId) {
+async function chargeTerminalCheckoutIntent(pool, intentId, deviceRef) {
+    const deviceId =
+        deviceRef && typeof deviceRef === 'object' ? deviceRef.deviceId : deviceRef;
+    const deviceRecordId =
+        deviceRef && typeof deviceRef === 'object' ? deviceRef.deviceRecordId : null;
+
     const existing = await getCheckoutIntent(pool, intentId);
     if (!existing) {
         const err = new Error('Checkout not found');
@@ -261,12 +291,7 @@ async function chargeTerminalCheckoutIntent(pool, intentId, deviceId) {
         throw err;
     }
 
-    const checkoutSettings = await loadPosCardCheckoutSettings(pool);
-    if (checkoutSettings.displayMode !== 'durango_terminal' || !checkoutSettings.poiDeviceId) {
-        const err = new Error('Durango terminal checkout is not configured');
-        err.code = 'TERMINAL_NOT_CONFIGURED';
-        throw err;
-    }
+    const poiDeviceId = await assertTerminalCheckoutReady(pool, deviceRecordId);
 
     const claimed = await claimIntentForProcessing(pool, intentId);
     await upsertDisplayCheckout(pool, existing.deviceId, claimed, 'durango_terminal');
@@ -283,7 +308,7 @@ async function chargeTerminalCheckoutIntent(pool, intentId, deviceId) {
         const sale = await nmiPoiSale({
             securityKey: creds.privateKey,
             amount: existing.amount.toFixed(2),
-            poiDeviceId: checkoutSettings.poiDeviceId,
+            poiDeviceId,
             transactUrl: creds.transactUrl
         });
         return await applySaleResult(pool, intentId, existing.deviceId, sale);

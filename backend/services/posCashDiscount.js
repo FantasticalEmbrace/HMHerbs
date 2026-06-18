@@ -29,6 +29,20 @@ async function loadCashDiscountSettings(pool) {
     }
 }
 
+function applyCartDiscountToEnriched(enriched, cartDiscountPercent) {
+    const pct = Math.min(100, Math.max(0, Number(cartDiscountPercent) || 0));
+    if (pct <= 0) return enriched;
+    const mult = 1 - pct / 100;
+    return enriched.map((line) => ({
+        ...line,
+        lineTotal: roundMoney(line.lineTotal * mult)
+    }));
+}
+
+function merchandiseSubtotal(enriched) {
+    return roundMoney(enriched.reduce((sum, line) => sum + line.lineTotal, 0));
+}
+
 /**
  * Card/check/terminal price = catalog + tax on full subtotal.
  * Cash price = discounted merchandise subtotal + tax on discounted taxable lines.
@@ -71,13 +85,14 @@ function computeLineTotals(enriched, taxRate, discountPercent) {
     return { subtotal, taxAmount, totalAmount };
 }
 
-function resolveTotalsForPayment(pricing, paymentMethod) {
+function resolveTotalsForPayment(pricing, paymentMethod, cartDiscountAmount = 0) {
+    const cartOff = roundMoney(Number(cartDiscountAmount) || 0);
     if (paymentMethod === 'cash' && pricing.cashDiscountEnabled) {
         return {
             subtotal: pricing.card.subtotal,
             taxAmount: pricing.cash.taxAmount,
             totalAmount: pricing.cash.totalAmount,
-            discountAmount: pricing.cash.cashDiscountAmount,
+            discountAmount: roundMoney(cartOff + pricing.cash.cashDiscountAmount),
             pricingMode: 'cash_discount'
         };
     }
@@ -85,7 +100,7 @@ function resolveTotalsForPayment(pricing, paymentMethod) {
         subtotal: pricing.card.subtotal,
         taxAmount: pricing.card.taxAmount,
         totalAmount: pricing.card.totalAmount,
-        discountAmount: 0,
+        discountAmount: cartOff,
         pricingMode: 'standard'
     };
 }
@@ -101,17 +116,23 @@ function snapshotForDisplay(cartSnapshot, settings) {
     }));
     const enriched = lines.map((l) => ({ ...l, lineTotal: l.lineTotal }));
     const taxRate = cartSnapshot.taxExempt ? 0 : (cartSnapshot.taxRate ?? 0.08);
+    const cartPct = Number(cartSnapshot.cartDiscountPercent) || 0;
+    const withCart = applyCartDiscountToEnriched(enriched, cartPct);
     const pricing = computeDualPricing(
-        enriched,
+        withCart,
         taxRate,
         settings.enabled ? settings.percent : 0
     );
+    const preCartSubtotal = merchandiseSubtotal(enriched);
+    const cartDiscountAmount = roundMoney(preCartSubtotal - pricing.card.subtotal);
     return {
         lines,
         card: pricing.card,
         cash: pricing.cash,
         cashDiscountEnabled: pricing.cashDiscountEnabled,
         cashDiscountPercent: pricing.cashDiscountPercent,
+        cartDiscountPercent: cartPct,
+        cartDiscountAmount,
         updatedAt: new Date().toISOString(),
         status: lines.length ? 'active' : 'idle'
     };
@@ -121,6 +142,8 @@ module.exports = {
     SETTING_ENABLED,
     SETTING_PERCENT,
     loadCashDiscountSettings,
+    applyCartDiscountToEnriched,
+    merchandiseSubtotal,
     computeDualPricing,
     resolveTotalsForPayment,
     snapshotForDisplay,

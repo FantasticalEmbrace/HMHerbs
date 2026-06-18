@@ -186,6 +186,55 @@ class GDPRCompliance {
         }
     }
 
+    cacheDefaultCookieBannerHtml() {
+        if (this._defaultCookieBannerHtml) return;
+        const content = document.getElementById('cookie-banner')?.querySelector('.cookie-popup-content');
+        if (content && content.querySelector('.cookie-popup-body')) {
+            this._defaultCookieBannerHtml = content.innerHTML;
+        }
+    }
+
+    ensureCookieBannerOpen() {
+        let banner = document.getElementById('cookie-banner');
+        if (!banner) {
+            this.mountPrivacyConsentBar();
+            banner = document.getElementById('cookie-banner');
+            this.setupEventListeners();
+        }
+        if (!banner) return null;
+        if (banner.classList.contains('show')) return banner;
+
+        try {
+            window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+        } catch (_) {
+            window.scrollTo(0, 0);
+        }
+
+        document.body.appendChild(banner);
+        banner.style.display = 'flex';
+        banner.style.visibility = '';
+        banner.style.opacity = '';
+        banner.style.pointerEvents = '';
+        banner.setAttribute('aria-hidden', 'false');
+
+        requestAnimationFrame(() => {
+            banner.classList.add('show');
+        });
+
+        return banner;
+    }
+
+    restoreDefaultCookieBannerContent() {
+        const banner = document.getElementById('cookie-banner');
+        const content = banner?.querySelector('.cookie-popup-content');
+        if (!content || !this._defaultCookieBannerHtml) return;
+        content.classList.remove('cookie-popup-content--preferences');
+        content.innerHTML = this._defaultCookieBannerHtml;
+        content.removeAttribute('role');
+        this._cookieListenersBound = false;
+        this.setupEventListeners();
+    }
+
     showCookieBanner() {
         if (this.consentGiven) return;
 
@@ -196,6 +245,11 @@ class GDPRCompliance {
             this.setupEventListeners();
         }
         if (!banner || banner.classList.contains('show')) return;
+
+        this.cacheDefaultCookieBannerHtml();
+        if (banner.querySelector('.cookie-popup-content--preferences')) {
+            this.restoreDefaultCookieBannerContent();
+        }
 
         try {
             window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
@@ -233,7 +287,7 @@ class GDPRCompliance {
         const banner = document.getElementById('cookie-banner');
         if (!banner) return;
 
-        const focusedButton = banner.querySelector('button:focus');
+        const focusedButton = banner.querySelector('button:focus, input:focus');
         if (focusedButton) focusedButton.blur();
 
         banner.setAttribute('aria-hidden', 'true');
@@ -302,26 +356,19 @@ class GDPRCompliance {
     }
 
     showCookiePreferences() {
-        // Check if modal already exists
-        let modal = document.getElementById('cookie-preferences-modal');
-        if (modal) {
-            modal.remove();
-        }
+        document.getElementById('cookie-preferences-modal')?.remove();
 
-        // Create modal overlay
-        modal = document.createElement('div');
-        modal.id = 'cookie-preferences-modal';
-        modal.className = 'gdpr-modal-overlay';
-        modal.setAttribute('role', 'dialog');
-        modal.setAttribute('aria-modal', 'true');
-        modal.setAttribute('aria-labelledby', 'cookie-preferences-title');
-        modal.style.display = 'flex';
+        this.cacheDefaultCookieBannerHtml();
+        const banner = this.ensureCookieBannerOpen();
+        if (!banner) return;
 
-        // Create modal content
-        const modalDiv = document.createElement('div');
-        modalDiv.className = 'gdpr-modal';
+        const content = banner.querySelector('.cookie-popup-content');
+        if (!content) return;
 
-        // Header
+        content.classList.add('cookie-popup-content--preferences');
+        content.innerHTML = '';
+        banner.setAttribute('aria-labelledby', 'cookie-preferences-title');
+
         const header = document.createElement('div');
         header.className = 'gdpr-modal-header';
 
@@ -331,86 +378,93 @@ class GDPRCompliance {
 
         const closeBtn = document.createElement('button');
         closeBtn.className = 'gdpr-modal-close';
+        closeBtn.type = 'button';
         closeBtn.setAttribute('aria-label', 'Close cookie preferences');
         closeBtn.innerHTML = GDPR_CLOSE_ICON_SVG;
 
         header.appendChild(titleEl);
         header.appendChild(closeBtn);
 
-        // Body
         const body = document.createElement('div');
         body.className = 'gdpr-modal-body';
 
         const description = document.createElement('p');
+        description.className = 'cookie-preferences-lead';
         description.textContent = 'We use cookies to enhance your browsing experience. You can choose which types of cookies to accept. Essential cookies are always required for the website to function properly.';
-        description.style.marginBottom = '1.5rem';
         body.appendChild(description);
 
-        // Essential cookies (always on, disabled)
-        const essentialCategory = this.createCookieCategory(
-            'Essential Cookies',
-            'essential',
-            true,
-            true,
-            'These cookies are necessary for the website to function and cannot be disabled.'
+        body.appendChild(
+            this.createCookieCategory(
+                'Essential Cookies',
+                'essential',
+                true,
+                true,
+                'These cookies are necessary for the website to function and cannot be disabled.'
+            )
         );
-        body.appendChild(essentialCategory);
-
-        // Analytics cookies
-        const analyticsCategory = this.createCookieCategory(
-            'Analytics Cookies',
-            'analytics',
-            this.cookieConsent.analytics,
-            false,
-            'These cookies help us understand how visitors interact with our website by collecting and reporting information anonymously.'
+        body.appendChild(
+            this.createCookieCategory(
+                'Analytics Cookies',
+                'analytics',
+                this.cookieConsent.analytics,
+                false,
+                'These cookies help us understand how visitors interact with our website by collecting and reporting information anonymously.'
+            )
         );
-        body.appendChild(analyticsCategory);
-
-        // Marketing cookies
-        const marketingCategory = this.createCookieCategory(
-            'Marketing Cookies',
-            'marketing',
-            this.cookieConsent.marketing,
-            false,
-            'These cookies are used to deliver advertisements and track campaign performance.'
+        body.appendChild(
+            this.createCookieCategory(
+                'Marketing Cookies',
+                'marketing',
+                this.cookieConsent.marketing,
+                false,
+                'These cookies are used to deliver advertisements and track campaign performance.'
+            )
         );
-        body.appendChild(marketingCategory);
 
-        // Footer
         const footer = document.createElement('div');
         footer.className = 'gdpr-modal-footer';
 
         const saveBtn = document.createElement('button');
         saveBtn.className = 'gdpr-btn gdpr-btn-primary';
+        saveBtn.type = 'button';
         saveBtn.id = 'cookie-save-preferences';
         saveBtn.textContent = 'Save Preferences';
 
         const cancelBtn = document.createElement('button');
         cancelBtn.className = 'gdpr-btn gdpr-btn-secondary';
+        cancelBtn.type = 'button';
         cancelBtn.id = 'cookie-cancel-preferences';
         cancelBtn.textContent = 'Cancel';
 
         footer.appendChild(saveBtn);
         footer.appendChild(cancelBtn);
 
-        // Assemble modal
-        modalDiv.appendChild(header);
-        modalDiv.appendChild(body);
-        modalDiv.appendChild(footer);
-        modal.appendChild(modalDiv);
+        content.appendChild(header);
+        content.appendChild(body);
+        content.appendChild(footer);
 
-        document.body.appendChild(modal);
-
-        // Event listeners
-        const closeModal = () => {
-            document.body.removeChild(modal);
+        const closePreferences = () => {
+            this.restoreDefaultCookieBannerContent();
+            banner.setAttribute('aria-labelledby', 'cookie-title');
+            if (this.consentGiven) {
+                this.hideCookieBanner();
+            } else {
+                this.setupEventListeners();
+                const firstButton = banner.querySelector('#cookie-accept, #cookie-reject, #cookie-settings');
+                if (firstButton) {
+                    try {
+                        firstButton.focus({ preventScroll: true });
+                    } catch (_) {
+                        firstButton.focus();
+                    }
+                }
+            }
         };
 
-        closeBtn.addEventListener('click', closeModal);
-        cancelBtn.addEventListener('click', closeModal);
+        closeBtn.addEventListener('click', closePreferences);
+        cancelBtn.addEventListener('click', closePreferences);
 
         saveBtn.addEventListener('click', () => {
-            // Get current toggle states
             const analyticsToggle = document.getElementById('cookie-toggle-analytics');
             const marketingToggle = document.getElementById('cookie-toggle-marketing');
 
@@ -422,32 +476,30 @@ class GDPRCompliance {
 
             this.saveConsentPreferences();
             this.applyConsentPreferences();
+            this.restoreDefaultCookieBannerContent();
+            banner.setAttribute('aria-labelledby', 'cookie-title');
             this.hideCookieBanner();
-
-            closeModal();
 
             this.showConsentNotification('Cookie preferences saved');
             this.announceToScreenReader('Cookie preferences have been saved');
         });
 
-        // Handle Escape key
-        modal.addEventListener('keydown', (e) => {
+        const onKeydown = (e) => {
             if (e.key === 'Escape') {
-                closeModal();
+                closePreferences();
             }
-        });
+        };
+        banner.addEventListener('keydown', onKeydown, { once: true });
 
-        // Focus the first toggle or save button (don't scroll the page)
         const firstToggle = body.querySelector('input[type="checkbox"]:not([disabled])');
-        if (firstToggle) {
-            setTimeout(() => {
-                try { firstToggle.focus({ preventScroll: true }); } catch (e) { firstToggle.focus(); }
-            }, 100);
-        } else {
-            setTimeout(() => {
-                try { saveBtn.focus({ preventScroll: true }); } catch (e) { saveBtn.focus(); }
-            }, 100);
-        }
+        setTimeout(() => {
+            const focusTarget = firstToggle || saveBtn;
+            try {
+                focusTarget.focus({ preventScroll: true });
+            } catch (_) {
+                focusTarget.focus();
+            }
+        }, 100);
     }
 
     createCookieCategory(title, id, checked, disabled, description) {

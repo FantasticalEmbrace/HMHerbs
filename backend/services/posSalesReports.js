@@ -19,7 +19,7 @@ function formatShiftReport(report, reportType) {
     const totalSales = roundMoney(sales.reduce((sum, row) => sum + Number(row.total_amount || 0), 0));
     return {
         reportType,
-        title: reportType === 'x' ? 'Current shift summary' : reportType === 'z' ? 'End-of-shift summary' : 'Shift report',
+        title: reportType === 'x' ? 'Current shift summary' : reportType === 'z' ? 'End-of-shift summary' : reportType === 'day' ? 'Daily sales summary' : 'Shift report',
         isFinal: reportType === 'z',
         generatedAt: new Date().toISOString(),
         shift: {
@@ -104,7 +104,7 @@ async function getDaySalesSummary(pool, dateKey) {
     );
     return {
         reportType: 'day',
-        title: 'Day summary',
+        title: 'Daily sales summary',
         date,
         generatedAt: new Date().toISOString(),
         totals: {

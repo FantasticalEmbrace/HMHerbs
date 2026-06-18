@@ -130,4 +130,35 @@ async function nmiPoiSale(opts) {
     return { ok, fields, responseCode, responseText, transactionId, asyncStatusGuid };
 }
 
-module.exports = { nmiSale, nmiPoiSale, nmiVaultAddCustomer, nmiVaultSale, parseNmiBody };
+/**
+ * Void a captured sale by transaction id (same-day void when supported by processor).
+ */
+async function nmiVoid(opts) {
+    const { securityKey, transactionId, transactUrl } = opts;
+    if (!transactionId) {
+        return { ok: false, responseText: 'transactionId required', fields: {} };
+    }
+    const url = transactUrl || getNmiTransactUrl();
+    const body = new URLSearchParams();
+    body.set('security_key', securityKey);
+    body.set('type', 'void');
+    body.set('transactionid', String(transactionId));
+
+    const res = await axios.post(url, body.toString(), {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        timeout: 60000,
+        validateStatus: () => true
+    });
+
+    const fields = parseNmiBody(res.data);
+    const responseCode = String(fields.response ?? '');
+    const ok = responseCode === '1';
+    return {
+        ok,
+        fields,
+        responseCode,
+        responseText: String(fields.responsetext || 'Unknown gateway response')
+    };
+}
+
+module.exports = { nmiSale, nmiPoiSale, nmiVaultAddCustomer, nmiVaultSale, nmiVoid, parseNmiBody };

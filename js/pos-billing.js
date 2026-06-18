@@ -2,29 +2,56 @@
 
 (function () {
     const apiOrigin = window.location.origin;
+    const urlParams = new URLSearchParams(window.location.search);
+    const setupToken = urlParams.get('token') || '';
 
     function $(id) {
         return document.getElementById(id);
     }
 
+    function showSetupAuthMessage(cfg) {
+        if (!cfg?.requiresSetupAuth || setupToken) return;
+        const msg = $('billing-msg');
+        if (msg) {
+            msg.style.color = '#b45309';
+            msg.textContent =
+                'This page requires a secure signup link from your Business One administrator. Open the link they emailed or copied for you.';
+        }
+        const submit = $('billing-submit');
+        if (submit) submit.disabled = true;
+    }
+
     async function fetchJson(path) {
         const r = await fetch(`${apiOrigin}/api/pos-billing${path}`);
-        return r.json();
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(data.error || `Request failed (${r.status})`);
+        return data;
     }
 
     async function updateQuote() {
-        const stations = Math.max(1, Number($('station-count')?.value) || 1);
-        const data = await fetchJson(`/pricing?stations=${stations}`);
-        const q = data.quote || {};
-        $('pricing-quote').textContent = `${q.formatted || ''} — ${q.summary || ''}`;
+        const quoteEl = $('pricing-quote');
+        try {
+            const stations = Math.max(1, Number($('station-count')?.value) || 1);
+            const data = await fetchJson(`/pricing?stations=${stations}`);
+            const q = data.quote || {};
+            if (quoteEl) quoteEl.textContent = `${q.formatted || ''} — ${q.summary || ''}`;
+        } catch (e) {
+            if (quoteEl) quoteEl.textContent = e.message || 'Could not load pricing quote.';
+        }
     }
 
     async function initCollect() {
         const cfg = await fetchJson('/client-config');
+        showSetupAuthMessage(cfg);
         const submit = $('billing-submit');
         if (!cfg.enabled || !cfg.tokenizationKey) {
             $('collect-placeholder').textContent =
                 cfg.message || 'Platform billing is not configured yet. Ask your administrator to add EPI platform keys.';
+            return;
+        }
+
+        if (cfg.requiresSetupAuth && !setupToken) {
+            $('collect-placeholder').textContent = 'Card entry is disabled until you open a valid signup link.';
             return;
         }
 
@@ -55,7 +82,11 @@
                 <div id="ccexp" style="min-height:2.5rem;border:1px solid #d1d5db;border-radius:6px;"></div>
                 <div id="cvv" style="min-height:2.5rem;border:1px solid #d1d5db;border-radius:6px;"></div>
               </div>`;
-            if (submit) submit.disabled = false;
+            if (submit && (!cfg.requiresSetupAuth || setupToken)) submit.disabled = false;
+        };
+        script.onerror = () => {
+            $('collect-placeholder').textContent =
+                'Could not load the secure card form. Check your connection or try again later.';
         };
         document.head.appendChild(script);
     }
@@ -73,7 +104,8 @@
                     businessName: $('business-name').value,
                     billingEmail: $('billing-email').value,
                     licensedStationCount: Number($('station-count').value) || 1,
-                    authorized: $('billing-authorize').checked
+                    authorized: $('billing-authorize').checked,
+                    setup_token: setupToken || undefined
                 })
             });
             const data = await r.json();

@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const router = express.Router();
 const logger = require('../utils/logger');
 const personnel = require('../services/posPersonnel');
+const { hasMinAdminRole, normalizeAdminRole } = require('../utils/adminRoles');
 
 async function authenticateAdmin(req, res, next) {
     const authHeader = req.headers['authorization'];
@@ -18,7 +19,10 @@ async function authenticateAdmin(req, res, next) {
             [decoded.adminId]
         );
         if (!rows.length) return res.status(401).json({ error: 'Invalid admin token' });
-        req.admin = rows[0];
+        req.admin = {
+            ...rows[0],
+            role: normalizeAdminRole(rows[0].role),
+        };
         next();
     } catch {
         return res.status(403).json({ error: 'Invalid admin token' });
@@ -29,10 +33,39 @@ router.use(authenticateAdmin);
 
 function requireManager(req, res, next) {
     const role = req.admin?.role;
-    if (!['admin', 'developer', 'manager', 'assistant_manager', 'super_admin'].includes(role)) {
+    if (!hasMinAdminRole(role, 'assistant_manager')) {
         return res.status(403).json({ error: 'Manager access required' });
     }
     next();
+}
+
+function assertCanChangeRestrictedRegisterPermission(req, body, fieldNames, label) {
+    const touched = fieldNames.some((key) => body?.[key] != null);
+    if (!touched) return;
+    if (!hasMinAdminRole(req.admin?.role, 'admin')) {
+        const err = new Error(`Only Admin or Developer can change ${label}`);
+        err.status = 403;
+        err.code = 'REGISTER_PERMISSION_ADMIN_ONLY';
+        throw err;
+    }
+}
+
+function assertCanChangeRefundPermission(req, body) {
+    assertCanChangeRestrictedRegisterPermission(
+        req,
+        body,
+        ['canProcessRefunds', 'can_process_refunds'],
+        'refund permission'
+    );
+}
+
+function assertCanChangeOpenDrawerPermission(req, body) {
+    assertCanChangeRestrictedRegisterPermission(
+        req,
+        body,
+        ['canOpenDrawer', 'can_open_drawer'],
+        'manual drawer permission'
+    );
 }
 
 function mapPosEmployeeRow(e) {
@@ -46,6 +79,8 @@ function mapPosEmployeeRow(e) {
         hourlyRate: e.hourly_rate != null ? Number(e.hourly_rate) : null,
         adminUserId: e.admin_user_id != null ? Number(e.admin_user_id) : null,
         canAuthorize: Boolean(e.can_authorize),
+        canProcessRefunds: Boolean(e.can_process_refunds),
+        canOpenDrawer: Boolean(e.can_open_drawer),
         createdAt: e.created_at,
         updatedAt: e.updated_at,
     };
@@ -65,6 +100,8 @@ router.get('/employees', async (req, res) => {
 
 router.post('/employees', requireManager, async (req, res) => {
     try {
+        assertCanChangeRefundPermission(req, req.body);
+        assertCanChangeOpenDrawerPermission(req, req.body);
         const employee = await personnel.createEmployee(req.pool, req.body, req.admin.id);
         res.status(201).json({
             employee: {
@@ -77,25 +114,29 @@ router.post('/employees', requireManager, async (req, res) => {
             }
         });
     } catch (e) {
-        const status = e.code === 'ER_DUP_ENTRY' ? 409 : e.code ? 400 : 500;
+        const status = e.status || (e.code === 'ER_DUP_ENTRY' ? 409 : e.code ? 400 : 500);
         res.status(status).json({ error: e.message, code: e.code });
     }
 });
 
 router.put('/employees/:id', requireManager, async (req, res) => {
     try {
+        assertCanChangeRefundPermission(req, req.body);
+        assertCanChangeOpenDrawerPermission(req, req.body);
         const employee = await personnel.updateEmployee(req.pool, Number(req.params.id), req.body);
         if (!employee) return res.status(404).json({ error: 'Employee not found' });
         res.json({
             employee: mapPosEmployeeRow(employee),
         });
     } catch (e) {
-        res.status(e.code ? 400 : 500).json({ error: e.message, code: e.code });
+        res.status(e.status || (e.code ? 400 : 500)).json({ error: e.message, code: e.code });
     }
 });
 
 router.put('/register-for-admin/:adminUserId', requireManager, async (req, res) => {
     try {
+        assertCanChangeRefundPermission(req, req.body);
+        assertCanChangeOpenDrawerPermission(req, req.body);
         const adminUserId = Number(req.params.adminUserId);
         if (!Number.isInteger(adminUserId) || adminUserId <= 0) {
             return res.status(400).json({ error: 'Invalid admin user id' });
@@ -105,7 +146,7 @@ router.put('/register-for-admin/:adminUserId', requireManager, async (req, res) 
             register: employee ? mapPosEmployeeRow(employee) : null,
         });
     } catch (e) {
-        const status = e.code === 'ER_DUP_ENTRY' ? 409 : e.code ? 400 : 500;
+        const status = e.status || (e.code === 'ER_DUP_ENTRY' ? 409 : e.code ? 400 : 500);
         res.status(status).json({ error: e.message, code: e.code });
     }
 });

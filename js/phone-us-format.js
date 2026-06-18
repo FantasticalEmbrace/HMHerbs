@@ -28,39 +28,47 @@
         return DISPLAY_RE.test(t);
     }
 
+    function isPhoneInput(el) {
+        if (!el || el.nodeName !== 'INPUT') return false;
+        if (el.type === 'tel' || el.getAttribute('type') === 'tel') return true;
+        return el.hasAttribute('data-phone-us');
+    }
+
+    function syncFromDigits(input) {
+        var oldVal = input.value;
+        var start = typeof input.selectionStart === 'number' ? input.selectionStart : oldVal.length;
+        var digitsBefore = oldVal.slice(0, start).replace(/\D/g, '').length;
+        var d = oldVal.replace(/\D/g, '').slice(0, 10);
+        var newVal = formatDigitsToDisplay(d);
+        if (newVal === oldVal) return;
+        input.value = newVal;
+        var seen = 0;
+        var pos = newVal.length;
+        for (var i = 0; i < newVal.length; i++) {
+            if (/\d/.test(newVal.charAt(i))) seen++;
+            pos = i + 1;
+            if (seen >= digitsBefore) break;
+        }
+        if (digitsBefore === 0) pos = 0;
+        try {
+            input.setSelectionRange(pos, pos);
+        } catch (_) {
+            /* IE / rare */
+        }
+    }
+
     function attach(input) {
-        if (!input || input.nodeName !== 'INPUT' || input.dataset.hmUsPhoneBound === '1') return;
+        if (!isPhoneInput(input) || input.dataset.hmUsPhoneBound === '1') return;
         input.dataset.hmUsPhoneBound = '1';
+        if (input.getAttribute('type') !== 'tel') {
+            input.setAttribute('type', 'tel');
+        }
         input.setAttribute('inputmode', 'numeric');
         input.setAttribute('maxlength', '14');
         if (!input.getAttribute('placeholder')) {
             input.setAttribute('placeholder', '(555) 555-0100');
         }
 
-        function syncFromDigits() {
-            var oldVal = input.value;
-            var start = typeof input.selectionStart === 'number' ? input.selectionStart : oldVal.length;
-            var digitsBefore = oldVal.slice(0, start).replace(/\D/g, '').length;
-            var d = oldVal.replace(/\D/g, '').slice(0, 10);
-            var newVal = formatDigitsToDisplay(d);
-            if (newVal === oldVal) return;
-            input.value = newVal;
-            var seen = 0;
-            var pos = newVal.length;
-            for (var i = 0; i < newVal.length; i++) {
-                if (/\d/.test(newVal.charAt(i))) seen++;
-                pos = i + 1;
-                if (seen >= digitsBefore) break;
-            }
-            if (digitsBefore === 0) pos = 0;
-            try {
-                input.setSelectionRange(pos, pos);
-            } catch (_) {
-                /* IE / rare */
-            }
-        }
-
-        input.addEventListener('input', syncFromDigits);
         input.addEventListener('blur', function () {
             var d = input.value.replace(/\D/g, '');
             if (!d.length) {
@@ -82,24 +90,34 @@
         for (var i = 0; i < list.length; i++) attach(list[i]);
     }
 
-    function hmHerbsIsCheckoutPage() {
-        var path = (typeof window !== 'undefined' && window.location && window.location.pathname) || '';
-        return path.indexOf('checkout.html') !== -1 || /\/checkout\/?$/i.test(path);
+    function ensureAttached(target) {
+        if (isPhoneInput(target)) attach(target);
     }
 
-    function phoneInitRoot() {
-        if (hmHerbsIsCheckoutPage()) {
-            var form = document.getElementById('checkout-form');
-            if (form) return form;
-        }
-        return document;
+    function onDelegatedInput(e) {
+        if (!isPhoneInput(e.target)) return;
+        ensureAttached(e.target);
+        syncFromDigits(e.target);
+    }
+
+    function onDelegatedFocusIn(e) {
+        ensureAttached(e.target);
+    }
+
+    function onDelegatedPaste(e) {
+        if (!isPhoneInput(e.target)) return;
+        ensureAttached(e.target);
+        var input = e.target;
+        setTimeout(function () {
+            syncFromDigits(input);
+        }, 0);
     }
 
     var debounceTimer;
     function scheduleInit(scope) {
         clearTimeout(debounceTimer);
         debounceTimer = setTimeout(function () {
-            init(scope && scope.querySelectorAll ? scope : phoneInitRoot());
+            init(scope && scope.querySelectorAll ? scope : document);
         }, 50);
     }
 
@@ -109,20 +127,25 @@
         formatDigitsToDisplay: formatDigitsToDisplay,
         isValidDisplay: isValidDisplay,
         attach: attach,
-        init: init
+        init: init,
+        refresh: init,
     };
 
     global.HMHERBS_PHONE_US = api;
 
+    document.addEventListener('input', onDelegatedInput, true);
+    document.addEventListener('focusin', onDelegatedFocusIn, true);
+    document.addEventListener('paste', onDelegatedPaste, true);
+
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function () {
-            scheduleInit(phoneInitRoot());
+            scheduleInit(document);
         });
     } else {
-        scheduleInit(phoneInitRoot());
+        scheduleInit(document);
     }
+
     if (typeof MutationObserver !== 'undefined' && document.documentElement) {
-        var observeRoot = phoneInitRoot();
         var mo = new MutationObserver(function (mutations) {
             var scope = null;
             for (var m = 0; m < mutations.length; m++) {
@@ -136,9 +159,9 @@
                 }
                 if (scope) break;
             }
-            scheduleInit(scope || observeRoot);
+            scheduleInit(scope || document);
         });
-        mo.observe(observeRoot === document ? document.documentElement : observeRoot, {
+        mo.observe(document.documentElement, {
             childList: true,
             subtree: true,
         });

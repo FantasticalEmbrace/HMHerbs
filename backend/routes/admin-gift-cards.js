@@ -237,7 +237,6 @@ router.post('/', async (req, res) => {
             physical_serial_number = null,
             physical_batch_id = null,
             physical_design = null,
-            expires_at = null,
             notes = null,
             code: providedCode = null,
             pin: providedPin = null,
@@ -282,7 +281,7 @@ router.post('/', async (req, res) => {
                 recipient_name, recipient_email, recipient_phone,
                 sender_name, personal_message, delivery_date,
                 physical_serial_number, physical_batch_id, physical_design,
-                issuedAt, activatedAt, expires_at,
+                issuedAt, activatedAt, null,
                 req.admin.id, notes
             ]
         );
@@ -378,12 +377,12 @@ router.post('/bulk-physical', async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// UPDATE gift card metadata (recipient, customer, expiry, notes)
+// UPDATE gift card metadata (recipient, customer, notes)
 // ---------------------------------------------------------------------------
 router.put('/:id', async (req, res) => {
     try {
         const id = parseInt(req.params.id, 10);
-        const allowed = ['customer_id','recipient_name','recipient_email','recipient_phone','sender_name','personal_message','delivery_date','expires_at','physical_serial_number','physical_batch_id','physical_design','notes','status'];
+        const allowed = ['customer_id','recipient_name','recipient_email','recipient_phone','sender_name','personal_message','delivery_date','physical_serial_number','physical_batch_id','physical_design','notes','status'];
         const fields = [];
         const params = [];
         for (const k of allowed) if (k in req.body) { fields.push(`${k} = ?`); params.push(req.body[k]); }

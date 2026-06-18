@@ -38,6 +38,17 @@
         div.textContent = String(s);
         return div.innerHTML;
     };
+    const phoneInputValue = (stored) => {
+        const raw = stored == null ? '' : String(stored);
+        if (window.HMHERBS_PHONE_US) {
+            const d = HMHERBS_PHONE_US.digitsOnly(raw);
+            return esc(d ? HMHERBS_PHONE_US.formatDigitsToDisplay(d) : '');
+        }
+        return esc(raw);
+    };
+    const initPhoneFields = (root) => {
+        if (window.HMHERBS_PHONE_US && root) HMHERBS_PHONE_US.init(root);
+    };
 
     function debounce(fn, ms = 300) {
         let t;
@@ -87,6 +98,7 @@
         mo.observe(root, { childList: true });
 
         root.appendChild(modal);
+        initPhoneFields(modal);
         return modal;
     }
     function closeAllModals() {
@@ -307,6 +319,7 @@
             });
             content.innerHTML = this._renderCustomerTab(name, data);
             this._wireCustomerTabActions(content, data, name);
+            initPhoneFields(content);
         };
         tabs.forEach(t => t.addEventListener('click', () => renderTab(t.dataset.tab)));
         renderTab('profile');
@@ -323,7 +336,7 @@
                     <div class="form-group"><label for="cust-${c.id}-last_name">Last Name</label><input class="form-input" id="cust-${c.id}-last_name" name="last_name" value="${esc(c.last_name||'')}"></div>
                     <div class="form-group"><label for="cust-${c.id}-preferred_name">Preferred Name</label><input class="form-input" id="cust-${c.id}-preferred_name" name="preferred_name" value="${esc(c.preferred_name||'')}"></div>
                     <div class="form-group"><label for="cust-${c.id}-email">Email</label><input class="form-input" id="cust-${c.id}-email" type="email" name="email" value="${esc(c.email||'')}"></div>
-                    <div class="form-group"><label for="cust-${c.id}-phone">Phone</label><input class="form-input" id="cust-${c.id}-phone" name="phone" value="${esc(c.phone||'')}"></div>
+                    <div class="form-group"><label for="cust-${c.id}-phone">Phone</label><input class="form-input" id="cust-${c.id}-phone" name="phone" type="tel" data-phone-us maxlength="14" inputmode="numeric" placeholder="(555) 555-0100" value="${phoneInputValue(c.phone)}"></div>
                     <div class="form-group"><label for="cust-${c.id}-dob">Date of Birth</label><input class="form-input" id="cust-${c.id}-dob" type="date" name="date_of_birth" value="${toDateInputValue(c.date_of_birth)}"></div>
                     <div class="form-group"><label for="cust-${c.id}-gender">Gender</label>
                         <select class="form-input" id="cust-${c.id}-gender" name="gender">
@@ -430,7 +443,7 @@
                 </div>
                 ${data.gift_cards.length ? `
                 <div class="table-container"><table class="table">
-                    <thead><tr><th>Code</th><th>Type</th><th>Status</th><th>Initial</th><th>Balance</th><th>Issued</th><th>Expires</th><th></th></tr></thead>
+                    <thead><tr><th>Code</th><th>Type</th><th>Status</th><th>Initial</th><th>Balance</th><th>Issued</th><th></th></tr></thead>
                     <tbody>${data.gift_cards.map(g => `
                         <tr>
                             <td><code>${esc(g.code)}</code></td>
@@ -439,40 +452,63 @@
                             <td>${fmtMoney(g.initial_balance)}</td>
                             <td><strong>${fmtMoney(g.current_balance)}</strong></td>
                             <td>${fmtDate(g.issued_at)}</td>
-                            <td>${fmtDate(g.expires_at)}</td>
                             <td><button class="btn btn-sm btn-secondary" onclick="adminApp.showGiftCardDetail(${g.id})"><i class="fas fa-eye"></i></button></td>
                         </tr>`).join('')}</tbody>
                 </table></div>` : '<p style="color:var(--gray-500);">No gift cards.</p>'}`;
         }
         if (tab === 'loyalty') {
             const c = data.customer;
+            const enroll = c.loyalty_enrollment || 'cash';
+            const settings = data.loyalty_settings || {};
             return `
                 <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem;">
+                    <div class="stat-card"><div class="stat-title">Store Credit</div><div class="stat-value">${fmtMoney(c.cash_balance||0)}</div></div>
                     <div class="stat-card"><div class="stat-title">Points Balance</div><div class="stat-value">${fmtNumber(c.points_balance||0)}</div></div>
-                    <div class="stat-card"><div class="stat-title">Lifetime Earned</div><div class="stat-value">${fmtNumber(c.lifetime_points_earned||0)}</div></div>
-                    <div class="stat-card"><div class="stat-title">Lifetime Redeemed</div><div class="stat-value">${fmtNumber(c.lifetime_points_redeemed||0)}</div></div>
-                    <div class="stat-card"><div class="stat-title">Tier</div><div class="stat-value" style="font-size:1.25rem;">${esc(c.tier||'—')}</div></div>
+                    <div class="stat-card"><div class="stat-title">Lifetime Cash Earned</div><div class="stat-value">${fmtMoney(c.lifetime_cash_earned||0)}</div></div>
+                    <div class="stat-card"><div class="stat-title">Lifetime Points Earned</div><div class="stat-value">${fmtNumber(c.lifetime_points_earned||0)}</div></div>
                 </div>
 
-                <div style="display:flex;gap:0.5rem;align-items:end;background:#fefce8;padding:1rem;border-radius:8px;margin-bottom:1.5rem;">
-                    <div style="flex:1;"><label for="adjustPointsAmount" style="display:block;font-size:0.85em;font-weight:600;">Adjust Points</label><input class="form-input" id="adjustPointsAmount" type="number" placeholder="e.g. 100 or -50"></div>
-                    <div style="flex:2;"><label for="adjustPointsReason" style="display:block;font-size:0.85em;font-weight:600;">Reason</label><input class="form-input" id="adjustPointsReason" placeholder="Reason for adjustment"></div>
-                    <button class="btn btn-primary" data-action="adjust-points">Apply</button>
+                <div style="background:#f0fdf4;padding:1rem;border-radius:8px;margin-bottom:1.5rem;">
+                    <label for="loyaltyEnrollmentSelect" style="display:block;font-size:0.85em;font-weight:600;margin-bottom:0.35rem;">Rewards preference</label>
+                    <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+                        <select class="form-input" id="loyaltyEnrollmentSelect" style="max-width:16rem">
+                            <option value="cash" ${enroll==='cash'?'selected':''}>Cash-back store credit</option>
+                            <option value="points" ${enroll==='points'?'selected':''}>Points only</option>
+                            <option value="both" ${enroll==='both'?'selected':''}>Both cash-back and points</option>
+                        </select>
+                        <button type="button" class="btn btn-secondary btn-sm" data-action="save-enrollment">Save preference</button>
+                        <span class="form-help">Store: ${settings.cashEnabled!==false?'cash-back':'no cash'} · ${settings.pointsEnabled!==false?'points':'no points'}${settings.cashbackPercent?` · ${settings.cashbackPercent}% cash-back`:''}</span>
+                    </div>
+                </div>
+
+                <div style="display:flex;gap:0.5rem;align-items:end;background:#fefce8;padding:1rem;border-radius:8px;margin-bottom:1rem;flex-wrap:wrap;">
+                    <div style="flex:1;min-width:8rem;"><label for="adjustCashAmount" style="display:block;font-size:0.85em;font-weight:600;">Adjust store credit ($)</label><input class="form-input" id="adjustCashAmount" type="number" step="0.01" placeholder="e.g. 5.00 or -2.50"></div>
+                    <div style="flex:1;min-width:8rem;"><label for="adjustPointsAmount" style="display:block;font-size:0.85em;font-weight:600;">Adjust points</label><input class="form-input" id="adjustPointsAmount" type="number" step="1" placeholder="e.g. 100 or -50"></div>
+                    <div style="flex:2;min-width:12rem;"><label for="adjustLoyaltyReason" style="display:block;font-size:0.85em;font-weight:600;">Reason</label><input class="form-input" id="adjustLoyaltyReason" placeholder="Reason for adjustment"></div>
+                    <button class="btn btn-primary" data-action="adjust-loyalty">Apply</button>
                 </div>
 
                 ${data.loyalty_transactions.length ? `
                 <h4>Recent Transactions</h4>
                 <div class="table-container"><table class="table">
-                    <thead><tr><th>Date</th><th>Type</th><th>Points</th><th>Balance</th><th>Source</th><th>Description</th></tr></thead>
-                    <tbody>${data.loyalty_transactions.map(t => `
+                    <thead><tr><th>Date</th><th>Type</th><th>Reward</th><th>Change</th><th>Balance</th><th>Source</th><th>Description</th></tr></thead>
+                    <tbody>${data.loyalty_transactions.map(t => {
+                        const isCash = t.reward_type === 'cash';
+                        const change = isCash ? t.cash_change : t.points_change;
+                        const balance = isCash ? t.cash_balance_after : t.points_balance_after;
+                        const changeLabel = isCash ? fmtMoney(change) : `${change>=0?'+':''}${fmtNumber(change)} pts`;
+                        const balanceLabel = isCash ? fmtMoney(balance) : fmtNumber(balance);
+                        return `
                         <tr>
                             <td>${fmtDateTime(t.created_at)}</td>
                             <td>${esc(t.transaction_type)}</td>
-                            <td style="color:${t.points_change>=0?'var(--success)':'var(--error)'};font-weight:600;">${t.points_change>=0?'+':''}${fmtNumber(t.points_change)}</td>
-                            <td>${fmtNumber(t.points_balance_after)}</td>
+                            <td>${isCash ? 'Store credit' : 'Points'}</td>
+                            <td style="color:${change>=0?'var(--success)':'var(--error)'};font-weight:600;">${changeLabel}</td>
+                            <td>${balanceLabel}</td>
                             <td>${esc(t.source)}</td>
                             <td>${esc(t.description||'—')}</td>
-                        </tr>`).join('')}</tbody>
+                        </tr>`;
+                    }).join('')}</tbody>
                 </table></div>` : ''}`;
         }
         if (tab === 'communications') {
@@ -622,17 +658,30 @@
             });
         }
         if (tab === 'loyalty') {
-            content.querySelector('[data-action="adjust-points"]')?.addEventListener('click', async () => {
-                const amount = parseInt($('adjustPointsAmount').value, 10);
-                const reason = $('adjustPointsReason').value;
-                if (!amount) {
-                    this.showToast('Enter a non-zero number of points.', 'error');
+            content.querySelector('[data-action="adjust-loyalty"]')?.addEventListener('click', async () => {
+                const cashAmount = parseFloat($('adjustCashAmount').value);
+                const pointsAmount = parseInt($('adjustPointsAmount').value, 10);
+                const reason = $('adjustLoyaltyReason').value;
+                if ((!cashAmount || isNaN(cashAmount)) && (!pointsAmount || isNaN(pointsAmount))) {
+                    this.showToast('Enter a non-zero store credit or points adjustment.', 'error');
                     return;
                 }
+                const body = { description: reason };
+                if (cashAmount && !isNaN(cashAmount)) body.cash_change = cashAmount;
+                if (pointsAmount && !isNaN(pointsAmount)) body.points_change = pointsAmount;
                 await this.apiRequest(`/admin/customers/${cId}/loyalty/adjust`, {
                     method: 'POST',
-                    body: JSON.stringify({ points_change: amount, description: reason }),
+                    body: JSON.stringify(body),
                 });
+                this.showCustomerProfile(cId);
+            });
+            content.querySelector('[data-action="save-enrollment"]')?.addEventListener('click', async () => {
+                const enrollment = $('loyaltyEnrollmentSelect').value;
+                await this.apiRequest(`/admin/customers/${cId}/loyalty/enrollment`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ enrollment }),
+                });
+                this.showToast('Rewards preference saved.');
                 this.showCustomerProfile(cId);
             });
         }
@@ -684,7 +733,7 @@
                     <div class="form-group"><label for="admin-new-cust-first_name">First Name *</label><input class="form-input" id="admin-new-cust-first_name" name="first_name" required></div>
                     <div class="form-group"><label for="admin-new-cust-last_name">Last Name *</label><input class="form-input" id="admin-new-cust-last_name" name="last_name" required></div>
                     <div class="form-group"><label for="admin-new-cust-email">Email *</label><input class="form-input" id="admin-new-cust-email" type="email" name="email" required></div>
-                    <div class="form-group"><label for="admin-new-cust-phone">Phone</label><input class="form-input" id="admin-new-cust-phone" name="phone"></div>
+                    <div class="form-group"><label for="admin-new-cust-phone">Phone</label><input class="form-input" id="admin-new-cust-phone" name="phone" type="tel" data-phone-us maxlength="14" inputmode="numeric" placeholder="(555) 555-0100"></div>
                     <div class="form-group"><label for="admin-new-cust-dob">Date of Birth</label><input class="form-input" id="admin-new-cust-dob" type="date" name="date_of_birth"></div>
                     <div class="form-group"><label for="admin-new-cust-type">Type</label>
                         <select class="form-input" id="admin-new-cust-type" name="customer_type">
@@ -793,7 +842,7 @@
                     <table class="table">
                         <thead><tr>
                             <th>Code</th><th>Type</th><th>Status</th><th>Initial</th><th>Balance</th>
-                            <th>Customer</th><th>Recipient</th><th>Issued</th><th>Expires</th><th></th>
+                            <th>Customer</th><th>Recipient</th><th>Issued</th><th></th>
                         </tr></thead>
                         <tbody>${data.gift_cards.map(g => `
                             <tr>
@@ -805,7 +854,6 @@
                                 <td>${g.customer_id ? `<a href="#" onclick="event.preventDefault();adminApp.showCustomerProfile(${g.customer_id})">${esc(g.customer_first_name||'')} ${esc(g.customer_last_name||'')}</a>` : '—'}</td>
                                 <td>${esc(g.recipient_email||g.recipient_name||'—')}</td>
                                 <td>${fmtDate(g.issued_at)}</td>
-                                <td>${fmtDate(g.expires_at)}</td>
                                 <td><button class="btn btn-sm btn-secondary" onclick="adminApp.showGiftCardDetail(${g.id})"><i class="fas fa-eye"></i></button></td>
                             </tr>`).join('')}</tbody>
                     </table>
@@ -865,7 +913,6 @@
                     <div class="form-group"><label for="newgc-sender-name">Sender Name</label><input class="form-input" id="newgc-sender-name" name="sender_name"></div>
                     <div class="form-group"><label for="newgc-delivery-date">Delivery Date</label><input class="form-input" id="newgc-delivery-date" type="date" name="delivery_date"></div>
                     <div class="form-group" style="grid-column:1/-1;"><label for="newgc-personal-message">Personal Message</label><textarea class="form-input" id="newgc-personal-message" name="personal_message" rows="2"></textarea></div>
-                    <div class="form-group"><label for="newgc-expires-at">Expires At</label><input class="form-input" id="newgc-expires-at" type="date" name="expires_at"></div>
                     <div class="form-group"><label for="newgc-custom-code">Custom Code (optional)</label><input class="form-input" id="newgc-custom-code" name="code" placeholder="leave blank to auto-generate"></div>
                     <div class="physical-only" style="display:none;grid-column:1/-1;border-top:1px solid var(--gray-200);padding-top:1rem;"><h4>Physical Card</h4></div>
                     <div class="form-group physical-only" style="display:none;"><label for="newgc-physical-serial">Serial Number</label><input class="form-input" id="newgc-physical-serial" name="physical_serial_number"></div>
@@ -1106,7 +1153,6 @@
                     <div><strong>Customer:</strong> ${g.customer_id ? `${esc(g.customer_first_name||'')} ${esc(g.customer_last_name||'')} (${esc(g.customer_email||'')})` : '—'}</div>
                     <div><strong>Recipient:</strong> ${esc(g.recipient_name||g.recipient_email||'—')}</div>
                     <div><strong>Issued:</strong> ${fmtDateTime(g.issued_at)}</div>
-                    <div><strong>Expires:</strong> ${fmtDate(g.expires_at)}</div>
                     ${g.physical_serial_number?`<div><strong>Serial:</strong> ${esc(g.physical_serial_number)}</div>`:''}
                     ${g.physical_batch_id?`<div><strong>Batch:</strong> ${esc(g.physical_batch_id)}</div>`:''}
                 </div>

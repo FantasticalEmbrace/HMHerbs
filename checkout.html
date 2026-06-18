@@ -29,6 +29,8 @@
     <link rel="stylesheet" href="css/hm-close-controls.css">
     <link rel="stylesheet" href="css/site-promo-banner.css">
     <link rel="stylesheet" href="css/age-gate.css">
+    <link rel="stylesheet" href="css/hm-gift-card.css">
+    <link rel="stylesheet" href="css/hm-choice-toggles.css">
 
     <style>
         .checkout-container {
@@ -279,7 +281,7 @@
             margin-bottom: var(--space-4);
         }
 
-        .checkbox-group input[type="checkbox"] {
+        .checkbox-group input[type="checkbox"]:not(.hm-choice-input) {
             width: auto;
             margin-right: var(--space-2);
         }
@@ -786,6 +788,40 @@
                             </div>
                         </div>
 
+                        <!-- Rewards & gift cards (signed-in customers — same balances as POS) -->
+                        <div id="checkout-rewards-panel" class="checkout-rewards-panel" style="display:none;margin-top:var(--space-8);">
+                            <h2>Rewards &amp; gift cards</h2>
+                            <p class="form-help" style="margin-bottom:var(--space-4);">
+                                Use store credit, points, or gift cards from your account. Pay any remainder with card below.
+                            </p>
+                            <div class="form-group" id="checkout-store-credit-group" style="display:none;">
+                                <label for="checkout-loyalty-cash">Store credit ($)</label>
+                                <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+                                    <input type="number" id="checkout-loyalty-cash" class="form-input" min="0" step="0.01" inputmode="decimal" style="max-width:8rem">
+                                    <button type="button" class="btn btn-secondary btn-sm" id="checkout-loyalty-cash-max">Use max</button>
+                                    <span id="checkout-loyalty-cash-available" class="form-help"></span>
+                                </div>
+                            </div>
+                            <div class="form-group" id="checkout-points-group" style="display:none;">
+                                <label for="checkout-loyalty-points">Loyalty points</label>
+                                <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+                                    <input type="number" id="checkout-loyalty-points" class="form-input" min="0" step="1" inputmode="numeric" style="max-width:8rem">
+                                    <button type="button" class="btn btn-secondary btn-sm" id="checkout-loyalty-max">Use max</button>
+                                    <span id="checkout-loyalty-worth" class="form-help"></span>
+                                </div>
+                            </div>
+                            <div class="form-group" id="checkout-gc-account-group" style="display:none;">
+                                <label for="checkout-giftcard-select">Gift card</label>
+                                <select id="checkout-giftcard-select" class="form-select">
+                                    <option value="">Select a gift card (optional)</option>
+                                </select>
+                                <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;margin-top:0.5rem;">
+                                    <input type="number" id="checkout-giftcard-amount" class="form-input" min="0" step="0.01" inputmode="decimal" style="max-width:8rem" placeholder="Amount">
+                                    <button type="button" class="btn btn-secondary btn-sm" id="checkout-giftcard-max">Use max</button>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Payment Method -->
                         <h2 style="margin-top: var(--space-8);">Payment Method</h2>
                         <div class="form-group">
@@ -794,8 +830,7 @@
                                 <option value="">Select payment method</option>
                                 <option value="credit_card">Credit Card (via EPI)</option>
                                 <option value="debit_card">Debit Card (via EPI)</option>
-                                <option value="bank_account">Bank Account (via EPI)</option>
-                                <option value="gift_card">Gift Card (store credit)</option>
+                                <option value="gift_card">Gift card only</option>
                             </select>
                             <span class="error-message">Please select a payment method</span>
                         </div>
@@ -1001,9 +1036,17 @@
                                 <span>Tax</span>
                                 <span id="tax">$0.00</span>
                             </div>
+                            <div class="order-total-row" id="checkout-rewards-applied-row" style="display:none;color:#166534;">
+                                <span>Rewards &amp; gift cards</span>
+                                <span id="checkout-rewards-applied-value">−$0.00</span>
+                            </div>
                             <div class="order-total-row final">
-                                <span>Total</span>
+                                <span id="checkout-total-label">Total</span>
                                 <span id="total">$0.00</span>
+                            </div>
+                            <div class="order-total-row final" id="checkout-card-due-row" style="display:none;">
+                                <span>Card payment due</span>
+                                <span id="checkout-card-due-value">$0.00</span>
                             </div>
                         </div>
                         <div id="tax-status-note" style="display:none;margin-top:0.75rem;padding:0.65rem 0.75rem;border-radius:8px;font-size:0.9rem;line-height:1.35;"></div>
@@ -1284,9 +1327,11 @@
     <script src="js/customer-auth.js?v=20260515" defer></script>
     <!-- Optional NMI public key fallback (see file header). Primary: backend .env → /api/payments/nmi-client-config -->
     <script src="js/nmi-public-token.js" defer></script>
+    <script src="js/hm-gift-card.js"></script>
     <script src="js/checkout.js?v=20260522-wallets" defer></script>
     <script src="script.js" defer></script>
-    <script src="gdpr-compliance.js?v=20260616b" defer></script>
+    <script src="js/hm-choice-toggles.js"></script>
+    <script src="gdpr-compliance.js?v=20260617a" defer></script>
 </body>
 
 </html>

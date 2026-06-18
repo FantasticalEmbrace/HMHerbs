@@ -134,6 +134,24 @@ async function ensurePosSchema(pool) {
     }
     try {
         await pool.query(`
+            CREATE TABLE IF NOT EXISTS pos_display_ad_assignments (
+                equipment_id INT NOT NULL,
+                ad_id INT NOT NULL,
+                sort_order INT NOT NULL DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (equipment_id, ad_id),
+                INDEX idx_display_ad_assign_equipment (equipment_id, sort_order),
+                INDEX idx_display_ad_assign_ad (ad_id),
+                CONSTRAINT fk_display_ad_assign_equipment
+                    FOREIGN KEY (equipment_id) REFERENCES pos_equipment(id) ON DELETE CASCADE,
+                CONSTRAINT fk_display_ad_assign_ad
+                    FOREIGN KEY (ad_id) REFERENCES pos_display_ads(id) ON DELETE CASCADE
+            )`);
+    } catch (e) {
+        logger.warn(`Database: pos_display_ad_assignments — ${logger.formatMysqlError(e)}`);
+    }
+    try {
+        await pool.query(`
             CREATE TABLE IF NOT EXISTS pos_pin_attempts (
                 attempt_key VARCHAR(128) NOT NULL PRIMARY KEY,
                 fail_count INT NOT NULL DEFAULT 0,
@@ -179,6 +197,26 @@ async function ensurePosSchema(pool) {
             )`);
     } catch (e) {
         logger.warn(`Database: pos_equipment — ${logger.formatMysqlError(e)}`);
+    }
+    const EQUIPMENT_PATCHES = [
+        {
+            column: 'mac_address',
+            sql: `ALTER TABLE pos_equipment ADD COLUMN mac_address VARCHAR(17) NULL`
+        }
+    ];
+    await applyColumnPatches(pool, 'pos_equipment', EQUIPMENT_PATCHES);
+    try {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS pos_register_network_reports (
+                pos_device_id INT NOT NULL PRIMARY KEY,
+                reported_ip VARCHAR(64) NOT NULL,
+                user_agent VARCHAR(500) NULL,
+                reported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                CONSTRAINT fk_pos_register_net_device
+                    FOREIGN KEY (pos_device_id) REFERENCES pos_devices(id) ON DELETE CASCADE
+            )`);
+    } catch (e) {
+        logger.warn(`Database: pos_register_network_reports — ${logger.formatMysqlError(e)}`);
     }
     try {
         await pool.query(`
@@ -238,6 +276,9 @@ async function ensurePosSchema(pool) {
             INSERT IGNORE INTO settings (key_name, value, description, type) VALUES
             ('pos_cash_discount_enabled', 'true', 'Enable in-store cash discount (card price vs lower cash price)', 'boolean'),
             ('pos_cash_discount_percent', '3.5', 'Cash discount percent off merchandise (max 15)', 'number'),
+            ('pos_payment_cash_enabled', 'true', 'Allow cash payments on Business One POS', 'boolean'),
+            ('pos_payment_check_enabled', 'true', 'Allow check payments on Business One POS', 'boolean'),
+            ('pos_payment_card_enabled', 'true', 'Allow card terminal payments on Business One POS', 'boolean'),
             ('pos_store_logo_url', '', 'Optional store logo URL for POS customer display', 'string'),
             ('pos_receipt_header_text', '', 'Optional extra line printed under store name on POS receipts', 'string'),
             ('pos_receipt_footer_text', 'Thank you for your purchase!', 'Closing message on POS receipts', 'string'),
@@ -287,6 +328,36 @@ async function ensurePosSchema(pool) {
         `);
     } catch (e) {
         logger.warn(`Database: pos cash discount settings — ${logger.formatMysqlError(e)}`);
+    }
+    try {
+        await pool.query(`
+            INSERT IGNORE INTO settings (key_name, value, description, type) VALUES
+            ('store_cash_discount_enabled', 'false', 'Enable website/host cash discount (card price vs lower cash price)', 'boolean'),
+            ('store_cash_discount_percent', '0', 'Website cash discount percent off merchandise (max 15)', 'number')
+        `);
+    } catch (e) {
+        logger.warn(`Database: store cash discount settings — ${logger.formatMysqlError(e)}`);
+    }
+    try {
+        await pool.query(`
+            INSERT IGNORE INTO settings (key_name, value, description, type) VALUES
+            ('pos_network_router_url', '', 'Router admin URL for store LAN (Equipment network setup)', 'string'),
+            ('pos_network_gateway_ip', '10.224.16.1', 'Store router address (recommended: 10.224.16.1)', 'string'),
+            ('pos_network_subnet_cidr', '10.224.16.0/24', 'Store network range (recommended: 10.224.16.0/24)', 'string'),
+            ('pos_network_notes', '', 'Notes about store network wiring and DHCP', 'string')
+        `);
+    } catch (e) {
+        logger.warn(`Database: pos network settings — ${logger.formatMysqlError(e)}`);
+    }
+    try {
+        await pool.query(
+            `UPDATE settings SET value = '10.224.16.1' WHERE key_name = 'pos_network_gateway_ip' AND (value IS NULL OR value = '')`
+        );
+        await pool.query(
+            `UPDATE settings SET value = '10.224.16.0/24' WHERE key_name = 'pos_network_subnet_cidr' AND (value IS NULL OR value = '')`
+        );
+    } catch (e) {
+        logger.warn(`Database: pos network standard defaults — ${logger.formatMysqlError(e)}`);
     }
     try {
         await pool.query(

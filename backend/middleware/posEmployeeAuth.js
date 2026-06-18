@@ -3,7 +3,7 @@
 const jwt = require('jsonwebtoken');
 const personnel = require('../services/posPersonnel');
 
-function authenticatePosEmployee(req, res, next) {
+async function authenticatePosEmployee(req, res, next) {
     const authHeader = req.headers.authorization || '';
     const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
     if (!token) {
@@ -11,10 +11,14 @@ function authenticatePosEmployee(req, res, next) {
     }
     try {
         const decoded = personnel.verifyEmployeeToken(token);
+        const employee = await personnel.getEmployeeById(req.pool, decoded.employeeId);
+        if (!employee || !employee.is_active) {
+            return res.status(401).json({ error: 'Employee session is no longer active', code: 'EMPLOYEE_INACTIVE' });
+        }
         req.posEmployee = {
-            id: decoded.employeeId,
-            employeeCode: decoded.employeeCode,
-            name: decoded.name
+            id: employee.id,
+            employeeCode: employee.employee_code,
+            name: `${employee.first_name || ''} ${employee.last_name || ''}`.trim() || decoded.name
         };
         next();
     } catch {

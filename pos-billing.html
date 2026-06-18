@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Business One POS — Billing setup</title>
-  <link rel="stylesheet" href="css/styles.css">
   <style>
     body { max-width: 40rem; margin: 2rem auto; padding: 0 1rem; font-family: system-ui, sans-serif; }
     .card { border: 1px solid #e5e7eb; border-radius: 10px; padding: 1.25rem; background: #fff; }
@@ -26,7 +25,7 @@
 
   <div class="card">
     <div class="quote" id="pricing-quote">Loading quote…</div>
-    <form id="billing-form">
+    <form id="billing-form" novalidate>
       <div class="form-group">
         <label for="business-name">Business name</label>
         <input id="business-name" name="businessName" type="text" maxlength="200" required>

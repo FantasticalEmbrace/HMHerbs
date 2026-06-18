@@ -87,7 +87,7 @@ class CustomerAuth {
             '</button>' +
             '<div id="register-contact-panel" class="register-optional-panel" hidden>' +
             '<div class="form-group"><label for="register-phone">Phone</label>' +
-            '<input type="tel" id="register-phone" class="form-input" placeholder="(555) 555-0100"' +
+            '<input type="tel" id="register-phone" class="form-input" data-phone-us placeholder="(555) 555-0100"' +
             ' maxlength="14" inputmode="numeric" autocomplete="tel"></div>' +
             '<p class="form-help register-address-intro">Start typing your street address for suggestions, or enter it manually.</p>' +
             '<div class="form-group"><label for="register-address-line1">Street address</label>' +

@@ -3,125 +3,105 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#1f82ff">
     <title>Business One Support Agent</title>
-    <link rel="icon" type="image/x-icon" href="../images/business-one/favicon.ico">
-    <link rel="icon" type="image/png" sizes="32x32" href="../images/business-one/favicon-32x32.png">
-    <link rel="apple-touch-icon" href="../images/business-one/apple-touch-icon.png">
+    <link rel="icon" type="image/png" href="/images/business-one/favicon.png">
+    <link rel="stylesheet" href="/css/business-one-support-desk.css?v=20260618c">
     <style>
-        :root {
-            --bg: #0f172a;
-            --card: #1e293b;
-            --text: #f1f5f9;
-            --muted: #94a3b8;
-            --accent: #22c55e;
-            --border: #334155;
+        .agent-main { max-width: 42rem; margin: 0 auto; padding: 1rem 1.25rem 2rem; }
+        .agent-main .panel { padding: 1.25rem; }
+        .agent-main h2 {
+            margin: 0 0 0.75rem;
+            font-size: 0.8125rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--orange);
         }
-        * { box-sizing: border-box; }
-        body {
-            margin: 0;
-            font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-            background: linear-gradient(160deg, #0f172a 0%, #1e3a5f 100%);
-            color: var(--text);
-            min-height: 100vh;
-            line-height: 1.5;
+        .agent-main ol { padding-left: 1.2rem; margin: 0; color: var(--gray-700); }
+        .agent-main ol li { margin-bottom: 0.5rem; }
+        .agent-main code {
+            font-size: 0.85em;
+            background: var(--gray-100);
+            padding: 0.1rem 0.35rem;
+            border-radius: 4px;
         }
-        .wrap { max-width: 42rem; margin: 0 auto; padding: 2rem 1.25rem 3rem; }
-        h1 { font-size: 1.6rem; margin: 0 0 0.35rem; }
-        .sub { color: var(--muted); margin-bottom: 1.5rem; font-size: 0.95rem; }
-        .card {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 1.25rem 1.35rem;
-            margin-bottom: 1rem;
-        }
-        h2 { font-size: 1rem; margin: 0 0 0.75rem; }
-        label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 0.25rem; }
-        input {
-            width: 100%;
-            padding: 0.55rem 0.65rem;
-            border-radius: 8px;
-            border: 1px solid var(--border);
-            background: #0f172a;
-            color: var(--text);
-            margin-bottom: 0.75rem;
-            font-size: 0.95rem;
-        }
-        button, .btn {
-            display: inline-block;
-            background: var(--accent);
-            color: #052e16;
-            border: none;
-            border-radius: 8px;
-            padding: 0.6rem 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            text-decoration: none;
-            font-size: 0.9rem;
-        }
-        button:hover { filter: brightness(1.05); }
-        pre {
-            background: #0f172a;
-            border: 1px solid var(--border);
-            border-radius: 8px;
+        .agent-main pre {
+            background: var(--gray-100);
+            border: 2px solid var(--gray-200);
+            border-radius: var(--radius);
             padding: 0.85rem;
             overflow-x: auto;
             font-size: 0.8rem;
             white-space: pre-wrap;
             word-break: break-all;
+            color: var(--gray-900);
         }
-        ol { padding-left: 1.2rem; margin: 0; }
-        ol li { margin-bottom: 0.5rem; }
-        .muted { color: var(--muted); font-size: 0.88rem; }
-        a { color: #7dd3fc; }
+        .agent-main a { color: var(--blue); font-weight: 600; }
+        .agent-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.75rem; }
     </style>
 </head>
-<body>
-    <div class="wrap">
-        <h1>Business One Support Agent</h1>
-        <p class="sub">Install on each Windows register PC for remote support via RustDesk.</p>
+<body class="support-desk-app">
+    <div class="app-shell">
+        <header class="top-bar">
+            <div class="brand">
+                <img src="/images/business-one/logo.png" alt="Business One" class="platform-logo">
+                <div>
+                    <h1>Support Agent</h1>
+                    <small>Windows register — optional full desktop remote access</small>
+                </div>
+            </div>
+        </header>
 
-        <div class="card">
-            <h2>Setup (3 steps)</h2>
-            <ol>
-                <li>In <strong>Admin → POS → Remote support</strong>, set <code>POS_SUPPORT_ENROLL_KEY</code> in server <code>.env</code> and restart the backend.</li>
-                <li>Fill in the form below and copy the install command.</li>
-                <li>On the register PC, open <strong>PowerShell as Administrator</strong>, paste the command, and press Enter.</li>
-            </ol>
-        </div>
+        <main class="agent-main">
+            <section class="panel">
+                <h2>Setup (3 steps)</h2>
+                <ol>
+                    <li>In <strong>Admin → POS → Remote support</strong>, set <code>POS_SUPPORT_ENROLL_KEY</code> in server <code>.env</code> and restart the backend.</li>
+                    <li>Fill in the form below and copy the install command.</li>
+                    <li>On the register PC, open <strong>PowerShell as Administrator</strong>, paste the command, and press Enter.</li>
+                </ol>
+            </section>
 
-        <div class="card">
-            <h2>Install command builder</h2>
-            <label for="storeUrl">Store URL</label>
-            <input id="storeUrl" type="url" placeholder="https://hmherbs.com" autocomplete="off">
+            <section class="panel">
+                <h2>Install command builder</h2>
+                <div class="form-group">
+                    <label for="storeUrl">Store URL</label>
+                    <input id="storeUrl" type="url" placeholder="https://hmherbs.com" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label for="enrollKey">Enrollment key (from server .env)</label>
+                    <input id="enrollKey" type="password" placeholder="POS_SUPPORT_ENROLL_KEY" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label for="machineLabel">Machine label (optional)</label>
+                    <input id="machineLabel" type="text" placeholder="Register 1">
+                </div>
+                <div class="form-group">
+                    <label for="registerLabel">Register label (optional)</label>
+                    <input id="registerLabel" type="text" placeholder="Front counter">
+                </div>
+                <button type="button" class="btn btn-primary" id="buildCmd">Generate install command</button>
+                <p class="form-help" style="margin-top:0.75rem;">Or download scripts and run <code>install.ps1</code> manually — see <a href="README.md">README</a>.</p>
+            </section>
 
-            <label for="enrollKey">Enrollment key (from server .env)</label>
-            <input id="enrollKey" type="password" placeholder="POS_SUPPORT_ENROLL_KEY" autocomplete="off">
+            <section class="panel hidden" id="cmdCard">
+                <h2>Run in PowerShell (Administrator)</h2>
+                <pre id="cmdOut"></pre>
+                <div class="agent-actions">
+                    <button type="button" class="btn btn-primary" id="copyCmd">Copy command</button>
+                </div>
+            </section>
 
-            <label for="machineLabel">Machine label (optional)</label>
-            <input id="machineLabel" type="text" placeholder="Register 1">
-
-            <label for="registerLabel">Register label (optional)</label>
-            <input id="registerLabel" type="text" placeholder="Front counter">
-
-            <button type="button" id="buildCmd">Generate install command</button>
-            <p class="muted" style="margin-top:0.75rem;">Or download scripts and run <code>install.ps1</code> manually — see <a href="README.md">README</a>.</p>
-        </div>
-
-        <div class="card" id="cmdCard" style="display:none;">
-            <h2>Run in PowerShell (Administrator)</h2>
-            <pre id="cmdOut"></pre>
-            <button type="button" id="copyCmd">Copy command</button>
-        </div>
-
-        <div class="card">
-            <h2>Files</h2>
-            <ul class="muted" style="margin:0;padding-left:1.2rem;">
-                <li><a href="install.ps1" download>install.ps1</a> — one-time setup</li>
-                <li><a href="agent.ps1" download>agent.ps1</a> — heartbeat (scheduled task)</li>
-                <li><a href="uninstall.ps1" download>uninstall.ps1</a> — remove agent</li>
-            </ul>
-        </div>
+            <section class="panel">
+                <h2>Files</h2>
+                <ul class="form-help" style="margin:0;padding-left:1.2rem;">
+                    <li><a href="install.ps1" download>install.ps1</a> — one-time setup</li>
+                    <li><a href="agent.ps1" download>agent.ps1</a> — heartbeat (scheduled task)</li>
+                    <li><a href="uninstall.ps1" download>uninstall.ps1</a> — remove agent</li>
+                </ul>
+            </section>
+        </main>
     </div>
     <script>
         (function () {
@@ -152,7 +132,7 @@
                 if (machine) cmd += " -MachineLabel '" + escPs(machine) + "'";
                 if (register) cmd += " -RegisterLabel '" + escPs(register) + "'";
                 document.getElementById('cmdOut').textContent = cmd;
-                document.getElementById('cmdCard').style.display = '';
+                document.getElementById('cmdCard').classList.remove('hidden');
             });
 
             document.getElementById('copyCmd').addEventListener('click', function () {

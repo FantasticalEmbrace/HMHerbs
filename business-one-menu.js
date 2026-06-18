@@ -1,7 +1,7 @@
 // Business One Menu App - JavaScript
 
-// Service Data
-const services = [
+// Fallback service data when the API is unavailable
+const FALLBACK_SERVICES = [
     {
         id: 'pos',
         title: 'Point of Sale (POS)',
@@ -64,30 +64,69 @@ const services = [
     }
 ];
 
+let services = FALLBACK_SERVICES.slice();
+
+function resolveApiOrigin() {
+    if (typeof window === 'undefined' || !window.location) return '';
+    if (window.location.protocol === 'file:') return 'http://127.0.0.1:3001';
+    const host = window.location.hostname;
+    const isLocal = host === 'localhost' || host === '127.0.0.1';
+    if (isLocal && window.location.port && window.location.port !== '3001') {
+        return 'http://127.0.0.1:3001';
+    }
+    return window.location.origin;
+}
+
+async function fetchServicesFromApi() {
+    try {
+        const origin = resolveApiOrigin();
+        const response = await fetch(`${origin}/api/menu/public/services`);
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.success || !Array.isArray(data.services) || !data.services.length) {
+            return false;
+        }
+        const fallbackById = Object.fromEntries(FALLBACK_SERVICES.map((s) => [s.id, s]));
+        services = data.services.map((service) => {
+            const fallback = fallbackById[service.id] || {};
+            const features = Array.isArray(service.features) && service.features.length
+                ? service.features
+                : (fallback.features || []);
+            return {
+                id: service.id,
+                title: service.title || fallback.title || '',
+                iconClass: service.iconClass || fallback.iconClass || 'fas fa-briefcase',
+                description: service.description || fallback.description || '',
+                features,
+                details: service.details || fallback.details || service.description || ''
+            };
+        });
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 // App State
 const appState = {
-    currentTheme: localStorage.getItem('theme') || 'light',
+    themePreference: localStorage.getItem('theme') || 'light',
     compactView: localStorage.getItem('compactView') === 'true',
     showDescriptions: localStorage.getItem('showDescriptions') !== 'false'
 };
 
-// Initialize App
-document.addEventListener('DOMContentLoaded', () => {
-    initializeApp();
-    loadServices();
-    setupEventListeners();
-    applyTheme(appState.currentTheme);
-    applySettings();
-});
+function resolveTheme(preference) {
+    if (preference === 'auto') {
+        return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    return preference === 'dark' ? 'dark' : 'light';
+}
 
 // Initialize App
-function initializeApp() {
-    // Check for system theme preference
-    if (appState.currentTheme === 'auto') {
-        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        appState.currentTheme = prefersDark ? 'dark' : 'light';
-    }
-}
+document.addEventListener('DOMContentLoaded', async () => {
+    setupEventListeners();
+    applyTheme(appState.themePreference);
+    await fetchServicesFromApi();
+    loadServices();
+});
 
 // Load Services
 function loadServices() {
@@ -112,6 +151,10 @@ function createServiceCard(service) {
         <div class="service-icon"><i class="${service.iconClass}" aria-hidden="true"></i></div>
         <h3 class="service-title">${service.title}</h3>
         ${appState.showDescriptions ? `<p class="service-description">${service.description}</p>` : ''}
+        ${!appState.compactView && service.features.length ? `
+        <ul class="service-features">
+            ${service.features.slice(0, 3).map((feature) => `<li>${feature}</li>`).join('')}
+        </ul>` : ''}
         <span class="service-link">Learn More <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
     `;
 
@@ -143,7 +186,7 @@ function openServiceModal(service) {
             </ul>
             <h3>Overview</h3>
             <p>${service.details}</p>
-            <button class="cta-button" onclick="contactUs('${service.title}')">Get Started with ${service.title}</button>
+            <button class="cta-button" onclick="contactUs('${service.id}')">Get Started with ${service.title}</button>
         </div>
     `;
 
@@ -174,7 +217,7 @@ function openSettingsModal() {
         // Set active theme button
         document.querySelectorAll('.theme-btn').forEach(btn => {
             btn.classList.remove('active');
-            if (btn.dataset.theme === appState.currentTheme) {
+            if (btn.dataset.theme === appState.themePreference) {
                 btn.classList.add('active');
             }
         });
@@ -191,28 +234,10 @@ function closeSettingsModal() {
 }
 
 // Apply Theme
-function applyTheme(theme) {
-    if (theme === 'auto') {
-        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        theme = prefersDark ? 'dark' : 'light';
-    }
-    
-    document.documentElement.setAttribute('data-theme', theme);
-    appState.currentTheme = theme;
-    localStorage.setItem('theme', theme);
-}
-
-// Apply Settings
-function applySettings() {
-    // Apply compact view
-    if (appState.compactView) {
-        document.querySelectorAll('.service-card').forEach(card => {
-            card.classList.add('compact');
-        });
-    }
-    
-    // Reload services to apply description visibility
-    loadServices();
+function applyTheme(preference) {
+    appState.themePreference = preference;
+    document.documentElement.setAttribute('data-theme', resolveTheme(preference));
+    localStorage.setItem('theme', preference);
 }
 
 // Setup Event Listeners
@@ -292,12 +317,51 @@ function setupEventListeners() {
     // Contact form
     const contactForm = document.getElementById('contactForm');
     const formSuccess = document.getElementById('formSuccess');
+    const formSuccessReset = document.getElementById('formSuccessReset');
+    if (formSuccessReset && contactForm && formSuccess) {
+        formSuccessReset.addEventListener('click', () => {
+            formSuccess.style.display = 'none';
+            contactForm.style.display = '';
+            const errEl = document.getElementById('formError');
+            if (errEl) errEl.style.display = 'none';
+            const submitBtn = contactForm.querySelector('button[type="submit"]');
+            if (submitBtn) submitBtn.disabled = false;
+        });
+    }
     if (contactForm && formSuccess) {
-        contactForm.addEventListener('submit', (e) => {
+        contactForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            contactForm.style.display = 'none';
-            formSuccess.style.display = 'block';
-            contactForm.reset();
+            const submitBtn = contactForm.querySelector('button[type="submit"]');
+            if (submitBtn) submitBtn.disabled = true;
+            const interests = [...contactForm.querySelectorAll('input[name="interest"]:checked')]
+                .map((el) => el.value);
+            const payload = {
+                name: contactForm.name.value.trim(),
+                email: contactForm.email.value.trim(),
+                phone: contactForm.phone.value.trim(),
+                businessName: contactForm.subject.value.trim(),
+                interests,
+                message: contactForm.message.value.trim()
+            };
+            try {
+                const res = await fetch(`${resolveApiOrigin()}/api/business-one/contact`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.error || 'Could not send message');
+                contactForm.style.display = 'none';
+                formSuccess.style.display = 'block';
+                contactForm.reset();
+            } catch (err) {
+                if (submitBtn) submitBtn.disabled = false;
+                const errEl = document.getElementById('formError');
+                if (errEl) {
+                    errEl.textContent = err.message || 'Could not send message. Please call us instead.';
+                    errEl.style.display = 'block';
+                }
+            }
         });
     }
 
@@ -328,24 +392,19 @@ function setupEventListeners() {
     });
 
     // Listen for system theme changes
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (_e) => {
-        if (appState.currentTheme === 'auto') {
-            applyTheme('auto');
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+        if (appState.themePreference === 'auto') {
+            document.documentElement.setAttribute('data-theme', resolveTheme('auto'));
         }
     });
 }
 
 // Contact Us Function
-function contactUs(serviceName = '') {
+function contactUs(serviceRef = '') {
     closeServiceModal();
 
-    const interestMap = {
-        'Point of Sale (POS)': 'interest-pos',
-        'Payment Processing': 'interest-payment',
-        'Phone Service': 'interest-phone',
-        'Website Development': 'interest-website'
-    };
-    const checkboxId = interestMap[serviceName];
+    const service = services.find((s) => s.id === serviceRef || s.title === serviceRef);
+    const checkboxId = service ? `interest-${service.id}` : null;
     if (checkboxId) {
         const box = document.getElementById(checkboxId);
         if (box) box.checked = true;

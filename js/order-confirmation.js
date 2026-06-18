@@ -1,12 +1,15 @@
 // Order thank-you page — reads URL params and optionally loads summary from API
 
 function hmHerbsApiOrigin() {
+    if (typeof window !== 'undefined' && typeof window.hmHerbsStorefrontApiBase === 'function') {
+        return window.hmHerbsStorefrontApiBase();
+    }
     const explicit = String(window.HMHERBS_API_ORIGIN || '').trim().replace(/\/+$/, '');
     if (explicit) return explicit;
-    if (window.location.protocol === 'file:') return 'http://127.0.0.1:3001';
+    if (window.location.protocol === 'file:') return 'http://localhost:3001';
     const h = window.location.hostname;
     if ((h === 'localhost' || h === '127.0.0.1') && window.location.port && window.location.port !== '3001') {
-        return 'http://127.0.0.1:3001';
+        return 'http://localhost:3001';
     }
     if (window.location.protocol.startsWith('http')) {
         return window.location.origin;

@@ -41,7 +41,7 @@
                 status.innerHTML =
                     '<span class="error">' +
                     error.replace(/</g, '&lt;') +
-                    '</span><p style="margin-top:1rem"><a href="admin.html">Back to admin login</a></p>';
+                    '</span><p style="margin-top:1rem"><a href="admin.html?fresh_login=1">Back to admin login</a></p>';
                 return;
             }
             const token = params.get('token');

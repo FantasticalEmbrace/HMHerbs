@@ -5,8 +5,14 @@
     const sessionId = params.get('session');
     const storeOrigin = String(params.get('store') || '').trim().replace(/\/+$/, '');
     const forcePlatform = params.get('mode') === 'platform';
+    const merchantLabel = params.get('merchant') || '';
     const statusEl = document.getElementById('status');
     const videoEl = document.getElementById('remote-video');
+    const merchantEl = document.getElementById('viewer-merchant');
+
+    if (merchantEl && merchantLabel) {
+        merchantEl.textContent = merchantLabel;
+    }
 
     let pc = null;
     let signalVersion = 0;
@@ -141,10 +147,7 @@
             setStatus('Missing session id in URL');
             return;
         }
-        if (isPlatformMode && !storeOrigin) {
-            setStatus('Missing store URL');
-            return;
-        }
+        // storeOrigin is optional when the viewer is hosted on the merchant store (apiBase uses location.origin).
         cleanup();
         setStatus('Waiting for register screen share…');
 
@@ -152,6 +155,10 @@
         pc.ontrack = (ev) => {
             if (videoEl && ev.streams[0]) {
                 videoEl.srcObject = ev.streams[0];
+                const playPromise = videoEl.play();
+                if (playPromise && typeof playPromise.catch === 'function') {
+                    playPromise.catch(() => setStatus('Video ready — click Retry if the screen stays black'));
+                }
             }
         };
         pc.onicecandidate = (ev) => {

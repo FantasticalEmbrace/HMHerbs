@@ -1,22 +1,38 @@
 'use strict';
 
-const { finalizePaidOrder } = require('./finalizePaidOrder');
+const { finalizePaidOrder, recalcUserOrderAggregates } = require('./finalizePaidOrder');
+const { reverseOrderFinancials } = require('./orderTenderReversal');
 const { normalizeSalesChannel } = require('../utils/orderChannel');
-const { recordSaleOnShift } = require('./posPersonnel');
+const { verifyManagerPin, verifyRefundPin } = require('./posPersonnel');
 const {
     loadCashDiscountSettings,
+    applyCartDiscountToEnriched,
+    merchandiseSubtotal,
     computeDualPricing,
     resolveTotalsForPayment
 } = require('./posCashDiscount');
+const { loadPosPaymentMethodsSettings } = require('./posPaymentMethodsSettings');
 const { loadStoreTaxRate } = require('../utils/storeTaxRate');
 const {
     loadPosSecuritySettings,
     lineDiscountNeedsManagerPin
 } = require('./posSecuritySettings');
-const { verifyManagerPin } = require('./posPersonnel');
 const InventoryService = require('./inventory');
+const { resolveCustomerUser } = require('./posCustomerService');
+const { loadLoyaltyProgramSettings } = require('./customerLoyalty');
+const {
+    normalizeTendersFromPayload,
+    validateTendersForSale,
+    formatTenderNotes,
+    applyTendersToOrder,
+    persistOrderTenders,
+    recordTendersOnShift,
+    usesCardPricing,
+    resolvePrimaryPaymentMethod,
+    buildPaymentReference: buildSplitPaymentReference
+} = require('./posSplitTender');
 
-const ALLOWED_PAYMENT_METHODS = new Set(['cash', 'check', 'card_terminal']);
+const ALLOWED_PAYMENT_METHODS = new Set(['cash', 'check', 'card_terminal', 'gift_card']);
 const FORBIDDEN_PAYMENT_KEYS = new Set([
     'card_number',
     'cardNumber',
@@ -67,7 +83,78 @@ function getInStoreEmail() {
     return String(process.env.POS_IN_STORE_EMAIL || 'pos-instore@hmherbs.local').trim();
 }
 
-function assertCompliantPaymentPayload(body) {
+function parseCustomerId(payload) {
+    const raw =
+        payload.userId
+        ?? payload.user_id
+        ?? payload.customerId
+        ?? payload.customer_id
+        ?? null;
+    const id = Number(raw);
+    return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+function parseGiftCardTender(payload) {
+    const gc = payload.giftCard || payload.gift_card;
+    if (!gc || typeof gc !== 'object') return null;
+    const amount = Number(gc.amount);
+    if (!Number.isFinite(amount) || amount <= 0) return null;
+    return {
+        giftCardId: gc.giftCardId != null ? Number(gc.giftCardId) : gc.id != null ? Number(gc.id) : null,
+        code: gc.code ? String(gc.code).trim() : null,
+        pin: gc.pin != null ? String(gc.pin).trim() : null,
+        amount: roundMoney(amount)
+    };
+}
+
+function parseLoyaltyPointsRedeem(payload) {
+    const pts = Number(payload.loyaltyPointsRedeem ?? payload.loyalty_points_redeem ?? 0);
+    if (!Number.isFinite(pts) || pts <= 0) return 0;
+    return Math.floor(pts);
+}
+
+function parseLoyaltyCashRedeem(payload) {
+    const amt = Number(payload.loyaltyCashRedeem ?? payload.loyalty_cash_redeem ?? 0);
+    if (!Number.isFinite(amt) || amt <= 0) return 0;
+    return roundMoney(amt);
+}
+
+function appendTenderNotes(notes, { loyaltyCash, loyaltyPoints, giftCard, amountDue }) {
+    const parts = [notes];
+    if (loyaltyCash?.cashRedeemed > 0) {
+        parts.push(`Store credit redeemed: $${loyaltyCash.cashRedeemed.toFixed(2)}`);
+    }
+    if (loyaltyPoints?.pointsRedeemed > 0) {
+        parts.push(`Loyalty points redeemed: ${loyaltyPoints.pointsRedeemed} pts ($${loyaltyPoints.dollarValue.toFixed(2)})`);
+    }
+    if (giftCard?.amount > 0) {
+        parts.push(`Gift card applied: $${giftCard.amount.toFixed(2)}`);
+    }
+    if (amountDue <= 0.005 && (loyaltyCash?.cashRedeemed || loyaltyPoints?.pointsRedeemed || giftCard?.amount)) {
+        parts.push('Balance paid with store credit (loyalty / gift card).');
+    }
+    return parts.filter(Boolean).join('\n');
+}
+
+function assertPaymentCoversDue(method, paymentMeta, amountDue) {
+    const due = roundMoney(amountDue);
+    if (due <= 0.005) return method;
+
+    if (method === 'cash') {
+        const tendered = Number(paymentMeta.cashTendered ?? paymentMeta.cash_tendered);
+        if (Number.isFinite(tendered) && tendered + 0.0001 < due) {
+            const err = new Error('INSUFFICIENT_CASH_TENDER');
+            err.code = 'INSUFFICIENT_CASH_TENDER';
+            err.message = 'Cash tendered is less than the amount due after store credit.';
+            throw err;
+        }
+    }
+    return method;
+}
+
+function assertCompliantPaymentPayload(body, enabledMethods, opts = {}) {
+    const amountDue = opts.amountDue != null ? roundMoney(opts.amountDue) : null;
+    const skipTenderChecks = amountDue != null && amountDue <= 0.005;
     if (!body || typeof body !== 'object') {
         const err = new Error('INVALID_PAYMENT');
         err.code = 'INVALID_PAYMENT';
@@ -84,21 +171,27 @@ function assertCompliantPaymentPayload(body) {
     }
 
     const method = String(body.paymentMethod || body.payment_method || '').trim().toLowerCase();
-    if (!ALLOWED_PAYMENT_METHODS.has(method)) {
-        const err = new Error('INVALID_PAYMENT_METHOD');
-        err.code = 'INVALID_PAYMENT_METHOD';
+    const allowed = enabledMethods instanceof Set
+        ? enabledMethods
+        : new Set(
+              Array.isArray(enabledMethods) && enabledMethods.length
+                  ? enabledMethods
+                  : [...ALLOWED_PAYMENT_METHODS]
+          );
+    if (!allowed.has(method)) {
+        const err = new Error('PAYMENT_METHOD_NOT_AVAILABLE');
+        err.code = method && ALLOWED_PAYMENT_METHODS.has(method) ? 'PAYMENT_METHOD_DISABLED' : 'INVALID_PAYMENT_METHOD';
+        err.message =
+            err.code === 'PAYMENT_METHOD_DISABLED'
+                ? 'This payment method is turned off for this store.'
+                : 'Invalid payment method';
         throw err;
     }
 
-    if (method === 'card_terminal') {
+    if (method === 'card_terminal' && !skipTenderChecks) {
         const lastFour = String(body.terminalLastFour || body.terminal_last_four || '').replace(/\D/g, '');
         const auth = String(body.terminalAuthCode || body.terminal_auth_code || '').trim();
         const approved = body.terminalApprovedConfirmed || body.terminal_approved_confirmed;
-        if (lastFour.length === 4 && /\d{13,19}/.test(lastFour)) {
-            const err = new Error('CARD_DATA_NOT_ALLOWED');
-            err.code = 'CARD_DATA_NOT_ALLOWED';
-            throw err;
-        }
         if (lastFour.length > 0 && lastFour.length !== 4) {
             const err = new Error('TERMINAL_LAST_FOUR_INVALID');
             err.code = 'TERMINAL_LAST_FOUR_INVALID';
@@ -126,11 +219,15 @@ function buildPaymentReference(method, paymentMeta = {}) {
     return `pos:terminal:${offline}:${lastFour}:${auth || 'na'}:${ref || 'na'}`.slice(0, 120);
 }
 
-function buildOrderNotes(method, paymentMeta = {}, cashDiscountAmount = 0, taxExemptInfo = null) {
+function buildOrderNotes(method, paymentMeta = {}, discountAmount = 0, taxExemptInfo = null, cartDiscountAmount = 0) {
     const parts = [`Payment method: ${method}`, 'Channel: in_store POS'];
     if (taxExemptInfo?.exempt) {
         parts.push(`Tax exempt: ${taxExemptInfo.reason || 'no reason recorded'}`);
     }
+    if (cartDiscountAmount > 0) {
+        parts.push(`Sale discount: -$${cartDiscountAmount.toFixed(2)}`);
+    }
+    const cashDiscountAmount = roundMoney(Number(discountAmount) - Number(cartDiscountAmount));
     if (cashDiscountAmount > 0) {
         parts.push(`Cash discount: -$${cashDiscountAmount.toFixed(2)}`);
     }
@@ -264,26 +361,55 @@ function computeTotals(enriched, taxRate) {
 async function findExistingByClientTx(pool, clientTransactionId) {
     if (!clientTransactionId) return null;
     const [rows] = await pool.execute(
-        `SELECT id, order_number, payment_status, total_amount
+        `SELECT id, order_number, payment_status, total_amount, payment_reference, status
          FROM orders WHERE pos_client_transaction_id = ? LIMIT 1`,
         [clientTransactionId]
     );
     return rows[0] || null;
 }
 
-async function validateSaleManagerAuth(pool, lineItems, managerPin, context = {}) {
+async function resumePendingPosOrder(pool, existing) {
+    const result = {
+        duplicate: true,
+        orderId: existing.id,
+        orderNumber: existing.order_number,
+        paymentStatus: existing.payment_status,
+        totalAmount: Number(existing.total_amount)
+    };
+    if (existing.payment_status !== 'pending') return result;
+
+    const finalized = await finalizePaidOrder(pool, {
+        orderId: existing.id,
+        paymentId: existing.payment_reference || `pos:retry:${existing.id}`,
+        paymentStatus: 'paid',
+        skipConfirmationEmail: true
+    });
+    return {
+        ...result,
+        paymentStatus: 'paid',
+        orderNumber: finalized.orderNumber || result.orderNumber
+    };
+}
+
+async function validateSaleManagerAuth(pool, lineItems, managerPin, context = {}, cartDiscountPercent = 0) {
     const settings = await loadPosSecuritySettings(pool);
     const needsPin = (lineItems || []).some((raw) =>
         lineDiscountNeedsManagerPin(raw.lineDiscountPercent || raw.line_discount_percent, settings)
-    );
+    ) || lineDiscountNeedsManagerPin(cartDiscountPercent, settings);
     if (!needsPin) return null;
     if (!managerPin) {
         const err = new Error('MANAGER_PIN_REQUIRED');
         err.code = 'MANAGER_PIN_REQUIRED';
-        err.message = 'Manager PIN required for line discounts above the allowed limit.';
+        err.message = 'Manager PIN required for discounts above the allowed limit.';
         throw err;
     }
     return verifyManagerPin(pool, managerPin, context);
+}
+
+function parseCartDiscountPercent(payload) {
+    const pct = Number(payload?.cartDiscountPercent ?? payload?.cart_discount_percent ?? 0);
+    if (!Number.isFinite(pct)) return 0;
+    return Math.min(100, Math.max(0, pct));
 }
 
 /**
@@ -302,7 +428,8 @@ async function createInStorePosOrder(pool, payload, deviceId, verifiedEmployeeId
     const employeeId = Number(verifiedEmployeeId);
     const payloadEmployeeId =
         payload.employeeId || payload.employee_id ? Number(payload.employeeId || payload.employee_id) : null;
-    if (payloadEmployeeId && payloadEmployeeId !== employeeId) {
+    const fromOfflineSync = Boolean(payload.fromOfflineSync || payload._fromOfflineSync);
+    if (!fromOfflineSync && payloadEmployeeId && payloadEmployeeId !== employeeId) {
         const err = new Error('EMPLOYEE_MISMATCH');
         err.code = 'EMPLOYEE_MISMATCH';
         err.message = 'Sale employee does not match signed-in employee.';
@@ -315,13 +442,7 @@ async function createInStorePosOrder(pool, payload, deviceId, verifiedEmployeeId
     if (clientTransactionId) {
         const existing = await findExistingByClientTx(pool, clientTransactionId);
         if (existing) {
-            return {
-                duplicate: true,
-                orderId: existing.id,
-                orderNumber: existing.order_number,
-                paymentStatus: existing.payment_status,
-                totalAmount: Number(existing.total_amount)
-            };
+            return resumePendingPosOrder(pool, existing);
         }
     }
 
@@ -333,14 +454,31 @@ async function createInStorePosOrder(pool, payload, deviceId, verifiedEmployeeId
     }
 
     const managerPin = String(payload.managerPin || payload.manager_pin || '').replace(/\D/g, '').slice(0, 4);
+    const cartDiscountPercent = parseCartDiscountPercent(payload);
     const authorizer = await validateSaleManagerAuth(pool, lineItems, managerPin || null, {
         deviceId,
         ip: payload.clientIp
-    });
+    }, cartDiscountPercent);
 
-    const paymentMethod = assertCompliantPaymentPayload(payload.payment || payload);
+    const paymentSettings = await loadPosPaymentMethodsSettings(pool);
+    const loyaltySettings = await loadLoyaltyProgramSettings(pool);
+    const customerUserId = parseCustomerId(payload);
+    const customerUser = customerUserId ? await resolveCustomerUser(pool, customerUserId) : null;
+    if (customerUserId && !customerUser) {
+        const err = new Error('CUSTOMER_NOT_FOUND');
+        err.code = 'CUSTOMER_NOT_FOUND';
+        err.message = 'Attached customer profile was not found.';
+        throw err;
+    }
+
     const paymentMeta = payload.payment || payload;
-    const taxExemptInfo = parseTaxExemptSale(payload);
+    let taxExemptInfo = parseTaxExemptSale(payload);
+    if (!taxExemptInfo.exempt && customerUser?.tax_exempt) {
+        taxExemptInfo = {
+            exempt: true,
+            reason: String(customerUser.tax_exempt_id || 'Customer tax-exempt on file').slice(0, 500)
+        };
+    }
     if (taxExemptInfo.exempt && taxExemptInfo.reason.length < 3) {
         const err = new Error('TAX_EXEMPT_REASON_REQUIRED');
         err.code = 'TAX_EXEMPT_REASON_REQUIRED';
@@ -350,17 +488,92 @@ async function createInStorePosOrder(pool, payload, deviceId, verifiedEmployeeId
     const storeTaxRate = await loadStoreTaxRate(pool);
     const taxRate = taxExemptInfo.exempt ? 0 : storeTaxRate;
     const enriched = await loadCatalogLines(pool, lineItems);
+    const preCartSubtotal = merchandiseSubtotal(enriched);
+    const pricedLines = applyCartDiscountToEnriched(enriched, cartDiscountPercent);
     const cashSettings = await loadCashDiscountSettings(pool);
-    const pricing = computeDualPricing(enriched, taxRate, cashSettings.enabled ? cashSettings.percent : 0);
-    const totals = resolveTotalsForPayment(pricing, paymentMethod);
+    const pricing = computeDualPricing(pricedLines, taxRate, cashSettings.enabled ? cashSettings.percent : 0);
+    const cartDiscountAmount = roundMoney(preCartSubtotal - pricing.card.subtotal);
+
+    const draftTenders = normalizeTendersFromPayload(payload, loyaltySettings);
+    const pricingMethod = usesCardPricing(draftTenders) ? 'card_terminal' : 'cash';
+    const totalsFinal = resolveTotalsForPayment(pricing, pricingMethod, cartDiscountAmount);
+    const saleTotal = totalsFinal.totalAmount;
+
+    const tenders = Array.isArray(payload.paymentTenders) && payload.paymentTenders.length
+        ? draftTenders
+        : normalizeTendersFromPayload(payload, loyaltySettings, saleTotal);
+
+    if (!tenders.length) {
+        const err = new Error('PAYMENT_REQUIRED');
+        err.code = 'PAYMENT_REQUIRED';
+        err.message = 'At least one payment tender is required.';
+        throw err;
+    }
+
+    for (const key of Object.keys(paymentMeta || {})) {
+        if (FORBIDDEN_PAYMENT_KEYS.has(key)) {
+            const err = new Error('CARD_DATA_NOT_ALLOWED');
+            err.code = 'CARD_DATA_NOT_ALLOWED';
+            err.message = 'Card numbers and CVV must never be sent to this POS API. Use the external card terminal.';
+            throw err;
+        }
+    }
+
+    const enabledMethods = new Set([...paymentSettings.methods, 'gift_card', 'split']);
+    for (const t of tenders) {
+        if (t.type === 'cash' && !enabledMethods.has('cash')) {
+            const err = new Error('PAYMENT_METHOD_DISABLED');
+            err.code = 'PAYMENT_METHOD_DISABLED';
+            err.message = 'Cash payments are turned off for this store.';
+            throw err;
+        }
+        if (t.type === 'check' && !enabledMethods.has('check')) {
+            const err = new Error('PAYMENT_METHOD_DISABLED');
+            err.code = 'PAYMENT_METHOD_DISABLED';
+            err.message = 'Check payments are turned off for this store.';
+            throw err;
+        }
+        if (t.type === 'card_terminal' && !enabledMethods.has('card_terminal')) {
+            const err = new Error('PAYMENT_METHOD_DISABLED');
+            err.code = 'PAYMENT_METHOD_DISABLED';
+            err.message = 'Card terminal payments are turned off for this store.';
+            throw err;
+        }
+    }
+
+    validateTendersForSale(tenders, saleTotal, {
+        customerUserId: customerUser?.id || null,
+        cardApprovedConfirmed: Boolean(
+            paymentMeta.terminalApprovedConfirmed || paymentMeta.terminal_approved_confirmed
+        ),
+        skipCardTerminalChecks: tenders.every((t) => t.type !== 'card_terminal' || t.amount <= 0.005)
+    });
+
+    const paymentMethod = resolvePrimaryPaymentMethod(tenders);
+    const primaryCash = tenders.find((t) => t.type === 'cash');
+    const primaryCard = tenders.find((t) => t.type === 'card_terminal');
+    const paymentReference = primaryCard
+        ? buildSplitPaymentReference('card_terminal', primaryCard)
+        : primaryCash
+          ? buildSplitPaymentReference('cash', primaryCash)
+          : buildSplitPaymentReference(tenders[0].type, tenders[0]);
+
     const orderNumber = generatePosOrderNumber();
-    const orderEmail = getInStoreEmail();
+    const orderEmail = customerUser?.email || getInStoreEmail();
+    const shippingFirst = customerUser?.first_name || 'In-Store';
+    const shippingLast = customerUser?.last_name || 'Customer';
     const salesChannel = normalizeSalesChannel('in_store');
-    const paymentReference = buildPaymentReference(paymentMethod, paymentMeta);
-    const notes = buildOrderNotes(paymentMethod, paymentMeta, totals.discountAmount, taxExemptInfo);
+    const notesBase = buildOrderNotes(
+        paymentMethod,
+        paymentMeta,
+        totalsFinal.discountAmount,
+        taxExemptInfo,
+        cartDiscountAmount
+    );
     const notesWithAuth = authorizer
-        ? `${notes}\nManager approval: ${authorizer.name} (${authorizer.employeeCode})`
-        : notes;
+        ? `${notesBase}\nManager approval: ${authorizer.name} (${authorizer.employeeCode})`
+        : notesBase;
+    const notesFinal = `${notesWithAuth}\n${formatTenderNotes(tenders)}`.trim();
 
     const connection = await pool.getConnection();
     await connection.beginTransaction();
@@ -374,19 +587,20 @@ async function createInStorePosOrder(pool, payload, deviceId, verifiedEmployeeId
                 billing_first_name, billing_last_name,
                 notes, payment_method, payment_reference, sales_channel,
                 pos_client_transaction_id, pos_device_id, pos_employee_id, pos_shift_session_id
-            ) VALUES (?, NULL, ?, 'pending', 'pending', ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            ) VALUES (?, ?, ?, 'pending', 'pending', ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 orderNumber,
+                customerUser?.id || null,
                 orderEmail,
-                totals.subtotal,
-                totals.taxAmount,
-                totals.discountAmount,
-                totals.totalAmount,
-                'In-Store',
-                'Customer',
-                'In-Store',
-                'Customer',
-                notesWithAuth,
+                totalsFinal.subtotal,
+                totalsFinal.taxAmount,
+                totalsFinal.discountAmount,
+                saleTotal,
+                shippingFirst,
+                shippingLast,
+                shippingFirst,
+                shippingLast,
+                notesFinal,
                 paymentMethod,
                 paymentReference,
                 salesChannel,
@@ -398,6 +612,37 @@ async function createInStorePosOrder(pool, payload, deviceId, verifiedEmployeeId
         );
 
         const orderId = orderResult.insertId;
+
+        const redemptionTypes = new Set(['loyalty_cash', 'loyalty_points', 'gift_card']);
+        const redeemTenders = tenders.filter((t) => redemptionTypes.has(t.type));
+        let redemptionResults = { loyaltyCash: null, loyaltyPoints: null, giftCards: [] };
+        const needsAttachedCustomer = redeemTenders.some(
+            (t) =>
+                t.type === 'loyalty_cash' ||
+                t.type === 'loyalty_points' ||
+                (t.type === 'gift_card' && t.giftCardId)
+        );
+        if (needsAttachedCustomer && !customerUser) {
+            const err = new Error('CUSTOMER_REQUIRED_FOR_LOYALTY');
+            err.code = 'CUSTOMER_REQUIRED_FOR_LOYALTY';
+            err.message = 'Attach a customer profile to use store credit, points, or account gift cards.';
+            throw err;
+        }
+        if (redeemTenders.length) {
+            redemptionResults = await applyTendersToOrder(connection, {
+                tenders: redeemTenders,
+                orderId,
+                customerUser: customerUser || null,
+                loyaltySettings,
+                source: 'pos'
+            });
+        }
+
+        try {
+            await persistOrderTenders(connection, orderId, tenders);
+        } catch (persistErr) {
+            if (persistErr?.code !== 'ER_NO_SUCH_TABLE') throw persistErr;
+        }
 
         for (const line of enriched) {
             await connection.execute(
@@ -429,31 +674,37 @@ async function createInStorePosOrder(pool, payload, deviceId, verifiedEmployeeId
         });
 
         if (shiftSessionId) {
-            await recordSaleOnShift(pool, shiftSessionId, paymentMethod, totals.totalAmount);
+            await recordTendersOnShift(pool, shiftSessionId, tenders);
         }
+
+        const cashTender = tenders.find((t) => t.type === 'cash');
+        const giftCardTotal = tenders
+            .filter((t) => t.type === 'gift_card')
+            .reduce((s, t) => s + roundMoney(t.amount), 0);
 
         return {
             duplicate: false,
             orderId: finalized.orderId,
             orderNumber: finalized.orderNumber,
             paymentStatus: 'paid',
-            totalAmount: totals.totalAmount,
-            subtotal: totals.subtotal,
-            taxAmount: totals.taxAmount,
-            cashDiscountAmount: totals.discountAmount
+            totalAmount: saleTotal,
+            paymentTenders: tenders,
+            subtotal: totalsFinal.subtotal,
+            taxAmount: totalsFinal.taxAmount,
+            cashDiscountAmount: pricing.cash?.cashDiscountAmount || 0,
+            customerId: customerUser?.id || null,
+            loyaltyEarned: loyaltySettings.enabled && customerUser ? undefined : null,
+            loyaltyCashRedeemed: redemptionResults.loyaltyCash?.cashRedeemed || 0,
+            loyaltyPointsRedeemed: redemptionResults.loyaltyPoints?.pointsRedeemed || 0,
+            giftCardApplied: giftCardTotal,
+            cashChange: cashTender?.cashChange || 0
         };
     } catch (e) {
         await connection.rollback();
         if (e?.code === 'ER_DUP_ENTRY' && clientTransactionId) {
             const existing = await findExistingByClientTx(pool, clientTransactionId);
             if (existing) {
-                return {
-                    duplicate: true,
-                    orderId: existing.id,
-                    orderNumber: existing.order_number,
-                    paymentStatus: existing.payment_status,
-                    totalAmount: Number(existing.total_amount)
-                };
+                return resumePendingPosOrder(pool, existing);
             }
         }
         throw e;
@@ -466,7 +717,10 @@ async function syncPosOrderBatch(pool, sales, deviceId, verifiedEmployeeId = nul
     const results = [];
     for (const sale of sales) {
         try {
-            const result = await createInStorePosOrder(pool, sale, deviceId, verifiedEmployeeId);
+            const normalized = { ...sale, fromOfflineSync: true };
+            delete normalized.employeeId;
+            delete normalized.employee_id;
+            const result = await createInStorePosOrder(pool, normalized, deviceId, verifiedEmployeeId);
             results.push({
                 clientTransactionId: sale.clientTransactionId || sale.client_transaction_id,
                 success: true,
@@ -488,17 +742,14 @@ async function syncPosOrderBatch(pool, sales, deviceId, verifiedEmployeeId = nul
 }
 
 async function refundInStorePosOrder(pool, orderNumber, payload, employeeId, deviceId, context = {}) {
-    const settings = await loadPosSecuritySettings(pool);
     const managerPin = String(payload.managerPin || payload.manager_pin || '').replace(/\D/g, '').slice(0, 4);
-    if (settings.requireManagerPinVoidRefund) {
-        if (!managerPin) {
-            const err = new Error('MANAGER_PIN_REQUIRED');
-            err.code = 'MANAGER_PIN_REQUIRED';
-            err.message = 'Manager PIN required to process refunds.';
-            throw err;
-        }
-        await verifyManagerPin(pool, managerPin, { deviceId, ip: context.ip, scope: 'refund' });
+    if (!managerPin) {
+        const err = new Error('MANAGER_PIN_REQUIRED');
+        err.code = 'MANAGER_PIN_REQUIRED';
+        err.message = 'An authorized employee PIN is required to process refunds.';
+        throw err;
     }
+    const authorizer = await verifyRefundPin(pool, managerPin, { deviceId, ip: context.ip });
 
     const reason = String(payload.reason || payload.refundReason || '').trim().slice(0, 500);
     if (reason.length < 3) {
@@ -545,7 +796,7 @@ async function refundInStorePosOrder(pool, orderNumber, payload, employeeId, dev
     const connection = await pool.getConnection();
     await connection.beginTransaction();
     try {
-        const refundNote = `POS refund by employee #${employeeId}: ${reason}`;
+        const refundNote = `POS refund by employee #${employeeId}: ${reason}\nRefund authorized by: ${authorizer.name} (${authorizer.employeeCode})`;
         await connection.execute(
             `UPDATE orders SET status = 'cancelled', payment_status = 'refunded',
                 notes = CONCAT(COALESCE(notes, ''), IF(COALESCE(notes, '') = '', '', '\n'), ?)
@@ -562,8 +813,23 @@ async function refundInStorePosOrder(pool, orderNumber, payload, employeeId, dev
         await inventoryService.restoreInventoryForOrder(
             inventoryItems,
             order.id,
-            `POS refund ${orderNum} — ${reason}`
+            `POS refund ${orderNum} — ${reason}`,
+            connection
         );
+
+        const [[fullOrder]] = await connection.execute('SELECT * FROM orders WHERE id = ? LIMIT 1', [order.id]);
+        await reverseOrderFinancials(connection, order.id, fullOrder || order, {
+            clawbackEarn: true,
+            reversePromo: true
+        });
+
+        const [[refreshed]] = await connection.execute(
+            'SELECT user_id FROM orders WHERE id = ? LIMIT 1',
+            [order.id]
+        );
+        if (refreshed?.user_id) {
+            await recalcUserOrderAggregates(connection, refreshed.user_id);
+        }
 
         await connection.commit();
         return {

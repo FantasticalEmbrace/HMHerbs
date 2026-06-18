@@ -4375,6 +4375,9 @@ router.get('/team', ...adminAuth, requirePermission('admin'), async (req, res) =
                 email: row.email,
                 isActive: Boolean(row.is_active),
                 hourlyRate: row.hourly_rate != null ? Number(row.hourly_rate) : null,
+                canAuthorize: Boolean(row.can_authorize),
+                canProcessRefunds: Boolean(row.can_process_refunds),
+                canOpenDrawer: Boolean(row.can_open_drawer),
             };
             if (row.admin_user_id) registerByAdmin.set(row.admin_user_id, reg);
             else registerOnlyEmployees.push(reg);
@@ -4463,11 +4466,30 @@ function mapTeamRegisterRow(employee) {
         email: employee.email,
         isActive: Boolean(employee.is_active),
         hourlyRate: employee.hourly_rate != null ? Number(employee.hourly_rate) : null,
+        canAuthorize: Boolean(employee.can_authorize),
+        canProcessRefunds: Boolean(employee.can_process_refunds),
+        canOpenDrawer: Boolean(employee.can_open_drawer),
     };
 }
 
 router.put('/team/:id/register', ...adminAuth, requirePermission('admin'), async (req, res) => {
     try {
+        if (req.body?.canProcessRefunds != null || req.body?.can_process_refunds != null) {
+            if (!hasMinAdminRole(req.admin?.role, 'admin')) {
+                return res.status(403).json({
+                    error: 'Only Admin or Developer can change refund permission',
+                    code: 'REFUND_PERMISSION_ADMIN_ONLY'
+                });
+            }
+        }
+        if (req.body?.canOpenDrawer != null || req.body?.can_open_drawer != null) {
+            if (!hasMinAdminRole(req.admin?.role, 'admin')) {
+                return res.status(403).json({
+                    error: 'Only Admin or Developer can change manual drawer permission',
+                    code: 'DRAWER_PERMISSION_ADMIN_ONLY'
+                });
+            }
+        }
         const adminUserId = Number(req.params.id);
         if (!Number.isInteger(adminUserId) || adminUserId <= 0) {
             return res.status(400).json({ error: 'Invalid user id' });

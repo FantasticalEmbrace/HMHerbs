@@ -68,6 +68,8 @@ class CheckoutManager {
         this.nmiDisableWallets = true;
         this.savedCards = [];
         this.selectedSavedCardId = null;
+        this.loyaltyProfile = null;
+        this.loyaltySettings = null;
         /** @type {null | (() => void)} */
         this._nmiConsoleNoiseFilterRestore = null;
         this.init();
@@ -85,8 +87,7 @@ class CheckoutManager {
         const suffix = ` (via ${label})`;
         const labels = {
             credit_card: `Credit Card${suffix}`,
-            debit_card: `Debit Card${suffix}`,
-            bank_account: `Bank Account${suffix}`
+            debit_card: `Debit Card${suffix}`
         };
         const select = document.getElementById('payment-method');
         if (!select) return;
@@ -115,6 +116,8 @@ class CheckoutManager {
         void this.initNmiIfConfigured();
         void this.loadSavedCards();
         this.schedulePrefillLoggedInCustomer();
+        this.bindCheckoutRewardsUi();
+        void this.loadCheckoutRewards();
     }
 
     /** Wait for customer-auth.js, then prefill once profile hydrates (debounced). */
@@ -141,6 +144,12 @@ class CheckoutManager {
             window.addEventListener('hmherbs:customer-profile-updated', this._boundGiftCardAuthRefresh);
             window.addEventListener('hmherbs:customer-signed-in', this._boundGiftCardAuthRefresh);
             window.addEventListener('hmherbs:customer-signed-out', this._boundGiftCardAuthRefresh);
+        }
+        if (!this._boundCheckoutRewardsRefresh) {
+            this._boundCheckoutRewardsRefresh = () => void this.loadCheckoutRewards();
+            window.addEventListener('hmherbs:customer-profile-updated', this._boundCheckoutRewardsRefresh);
+            window.addEventListener('hmherbs:customer-signed-in', this._boundCheckoutRewardsRefresh);
+            window.addEventListener('hmherbs:customer-signed-out', this._boundCheckoutRewardsRefresh);
         }
     }
 
@@ -417,8 +426,12 @@ class CheckoutManager {
     }
 
     getNmiPaymentAmountString() {
-        const total = Number(this.total);
-        return Number.isFinite(total) && total >= 0 ? total.toFixed(2) : '0.00';
+        const due = typeof this.getCheckoutAmountDue === 'function' ? this.getCheckoutAmountDue() : null;
+        const amount =
+            due != null && Number.isFinite(due) && due >= 0
+                ? due
+                : Number(this.total);
+        return Number.isFinite(amount) && amount >= 0 ? amount.toFixed(2) : '0.00';
     }
 
     /** NMI requires price/country/currency for wallet SDK init even when buttons are hidden. */
@@ -1049,7 +1062,7 @@ class CheckoutManager {
         }
 
         try {
-            const response = await fetch('/api/user/tax-status', {
+            const response = await fetch(`${this.getApiOrigin()}/api/user/tax-status`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
@@ -1319,12 +1332,20 @@ class CheckoutManager {
             const incDisabled = maxQ != null && qty >= maxQ ? 'disabled' : '';
             const safeName = this.escapeHtml(item.name);
             const giftMeta = item.giftCard
-                ? `<div class="order-item-gift-meta">${item.giftCard.recipientEmail ? `To: ${this.escapeHtml(item.giftCard.recipientEmail)}` : 'Physical gift card'}${item.giftCard.cardType === 'digital' ? ' · Digital' : ' · Physical'}</div>`
+                ? `<div class="order-item-gift-meta">${item.giftCard.recipientEmail ? `To: ${this.escapeHtml(item.giftCard.recipientEmail)}` : 'Physical gift card'}${item.giftCard.cardType === 'digital' ? ' · Digital' : ' · Physical'}${item.giftCard.includePersonalizedEmail ? ' · Personalized email' : ''}</div>`
                 : '';
+            const giftThumb =
+                item.giftCard && window.HmGiftCard?.markup
+                    ? `<div class="checkout-gift-card-thumb">${window.HmGiftCard.markup({
+                          amount: item.price,
+                          cardType: item.giftCard.cardType || 'digital',
+                          compact: true
+                      })}</div>`
+                    : `<img src="${item.image || this.createPlaceholderImage()}" alt="${safeName}" class="order-item-image" onerror="this.src='${this.createPlaceholderImage()}'">`;
             const itemDiv = document.createElement('div');
             itemDiv.className = 'order-item';
             itemDiv.innerHTML = `
-                <img src="${item.image || this.createPlaceholderImage()}" alt="${safeName}" class="order-item-image" onerror="this.src='${this.createPlaceholderImage()}'">
+                ${giftThumb}
                 <div class="order-item-details">
                     <div class="order-item-name">${safeName}</div>
                     ${giftMeta}
@@ -1432,6 +1453,7 @@ class CheckoutManager {
         if (shippingEl) shippingEl.textContent = this.shipping === 0 ? 'FREE' : `$${this.shipping.toFixed(2)}`;
         if (taxEl) taxEl.textContent = `$${this.tax.toFixed(2)}`;
         if (totalEl) totalEl.textContent = `$${this.total.toFixed(2)}`;
+        this.updateCheckoutRewardsSummary();
         this.updateTaxStatusNote();
         this.refreshNmiCollectConfiguration();
     }
@@ -1577,44 +1599,6 @@ class CheckoutManager {
                         cardholderName.setAttribute('required', 'required');
                         cardholderName.removeAttribute('disabled');
                         cardholderName.removeAttribute('readonly');
-                    }
-                } else if (selectedMethod === 'bank_account') {
-                    // Show bank account fields
-                    if (bankAccountFields) {
-                        bankAccountFields.style.display = 'block';
-                        bankAccountFields.style.visibility = 'visible';
-                        bankAccountFields.style.opacity = '1';
-                    }
-                    // Make bank account fields required
-                    const accountHolderName = document.getElementById('account-holder-name');
-                    const accountType = document.getElementById('account-type');
-                    const routingNumber = document.getElementById('routing-number');
-                    const accountNumber = document.getElementById('account-number');
-                    const confirmAccountNumber = document.getElementById('confirm-account-number');
-                    
-                    if (accountHolderName) {
-                        accountHolderName.setAttribute('required', 'required');
-                        accountHolderName.removeAttribute('disabled');
-                        accountHolderName.removeAttribute('readonly');
-                    }
-                    if (accountType) {
-                        accountType.setAttribute('required', 'required');
-                        accountType.removeAttribute('disabled');
-                    }
-                    if (routingNumber) {
-                        routingNumber.setAttribute('required', 'required');
-                        routingNumber.removeAttribute('disabled');
-                        routingNumber.removeAttribute('readonly');
-                    }
-                    if (accountNumber) {
-                        accountNumber.setAttribute('required', 'required');
-                        accountNumber.removeAttribute('disabled');
-                        accountNumber.removeAttribute('readonly');
-                    }
-                    if (confirmAccountNumber) {
-                        confirmAccountNumber.setAttribute('required', 'required');
-                        confirmAccountNumber.removeAttribute('disabled');
-                        confirmAccountNumber.removeAttribute('readonly');
                     }
                 } else if (selectedMethod === 'gift_card') {
                     if (giftCardFields) {
@@ -1987,7 +1971,7 @@ class CheckoutManager {
                 return;
             }
         }
-        if (paymentMethod === 'gift_card') {
+        if (paymentMethod === 'gift_card' && !this.getCheckoutStoreTenders().length) {
             const accountId = this.selectedAccountGiftCardId;
             if (!accountId) {
                 const code = document.getElementById('gift-card-code')?.value?.trim() || '';
@@ -2001,15 +1985,31 @@ class CheckoutManager {
                 }
             }
             const balance = Number(this.giftCardLastBalance);
-            if (!Number.isFinite(balance) || balance < this.total) {
+            if (!Number.isFinite(balance) || balance <= 0) {
+                this.showNotification('Gift card has no usable balance.', 'error');
+                return;
+            }
+            if (balance < this.total) {
                 this.showNotification(
-                    `Gift card balance ($${balance.toFixed(2)}) does not cover the order total ($${this.total.toFixed(2)}). Choose a credit/debit card or bank account for the full amount.`,
-                    'error'
+                    `Gift card balance ($${balance.toFixed(2)}) is less than the order total. Use Rewards & gift cards with a credit/debit card for the remainder, or enter a partial amount there.`,
+                    'warning'
                 );
                 return;
             }
         }
-        if (paymentMethod === 'credit_card' || paymentMethod === 'debit_card') {
+
+        const storeTenders = this.getCheckoutStoreTenders();
+        const amountDue = this.getCheckoutAmountDue();
+        if (storeTenders.length && amountDue > 0.005) {
+            const pm = document.getElementById('payment-method')?.value || '';
+            if (pm !== 'credit_card' && pm !== 'debit_card') {
+                this.showNotification('Select credit or debit card to pay the remaining balance.', 'error');
+                return;
+            }
+        }
+        if (storeTenders.length && amountDue <= 0.005) {
+            // Pay fully with store credit / points / gift cards — skip NMI
+        } else if (paymentMethod === 'credit_card' || paymentMethod === 'debit_card') {
             try {
                 window.CollectJS.startPaymentRequest();
             } catch (e) {
@@ -2199,6 +2199,230 @@ class CheckoutManager {
         this.syncGiftCardRequiredFields();
     }
 
+    bindCheckoutRewardsUi() {
+        const ids = [
+            'checkout-loyalty-cash',
+            'checkout-loyalty-points',
+            'checkout-giftcard-select',
+            'checkout-giftcard-amount'
+        ];
+        ids.forEach((id) => {
+            document.getElementById(id)?.addEventListener('input', () => this.updateCheckoutRewardsSummary());
+            document.getElementById(id)?.addEventListener('change', () => this.updateCheckoutRewardsSummary());
+        });
+        document.getElementById('checkout-loyalty-cash-max')?.addEventListener('click', () => this.applyMaxCheckoutLoyaltyCash());
+        document.getElementById('checkout-loyalty-max')?.addEventListener('click', () => this.applyMaxCheckoutLoyaltyPoints());
+        document.getElementById('checkout-giftcard-max')?.addEventListener('click', () => this.applyMaxCheckoutGiftCard());
+        document.getElementById('checkout-giftcard-select')?.addEventListener('change', () => this.onCheckoutGiftCardSelected());
+    }
+
+    async loadCheckoutRewards() {
+        const panel = document.getElementById('checkout-rewards-panel');
+        const token = this._getCustomerToken();
+        if (!token || !panel) {
+            if (panel) panel.style.display = 'none';
+            this.loyaltyProfile = null;
+            return;
+        }
+        try {
+            const apiOrigin = this.getApiOrigin();
+            const [loyaltyRes, gcRes] = await Promise.all([
+                fetch(`${apiOrigin}/api/user/loyalty`, { headers: { Authorization: `Bearer ${token}` } }),
+                fetch(`${apiOrigin}/api/user/gift-cards`, { headers: { Authorization: `Bearer ${token}` } })
+            ]);
+            const loyaltyData = loyaltyRes.ok ? await loyaltyRes.json().catch(() => ({})) : {};
+            const gcData = gcRes.ok ? await gcRes.json().catch(() => ({})) : {};
+            this.loyaltyProfile = loyaltyData.loyalty || null;
+            this.loyaltySettings = loyaltyData.settings || {};
+            this.accountGiftCards = (Array.isArray(gcData.gift_cards) ? gcData.gift_cards : []).filter(
+                (g) => g.status === 'active' && Number(g.current_balance) > 0
+            );
+            this.renderCheckoutRewardsUi();
+            panel.style.display = 'block';
+            this.updateCheckoutRewardsSummary();
+        } catch (err) {
+            console.error('loadCheckoutRewards', err);
+            if (panel) panel.style.display = 'none';
+        }
+    }
+
+    renderCheckoutRewardsUi() {
+        const loyalty = this.loyaltyProfile || {};
+        const settings = this.loyaltySettings || {};
+        const enrollment = String(loyalty.loyalty_enrollment || 'cash').toLowerCase();
+        const canUseCash = settings.cashEnabled !== false && (enrollment === 'cash' || enrollment === 'both');
+        const canUsePoints = settings.pointsEnabled !== false && (enrollment === 'points' || enrollment === 'both');
+        const cashGroup = document.getElementById('checkout-store-credit-group');
+        const ptsGroup = document.getElementById('checkout-points-group');
+        const gcGroup = document.getElementById('checkout-gc-account-group');
+        const cashAvail = document.getElementById('checkout-loyalty-cash-available');
+        const cashBal = Number(loyalty.cash_balance) || 0;
+        const ptsBal = Number(loyalty.points_balance) || 0;
+        const dollarPerPoint = Number(settings.dollarPerPoint) || 0.01;
+
+        if (cashGroup) {
+            cashGroup.style.display = canUseCash && cashBal > 0 ? 'block' : 'none';
+        }
+        if (ptsGroup) {
+            ptsGroup.style.display = canUsePoints && ptsBal > 0 ? 'block' : 'none';
+        }
+        if (cashAvail) cashAvail.textContent = cashBal > 0 ? `$${cashBal.toFixed(2)} available` : '';
+
+        const select = document.getElementById('checkout-giftcard-select');
+        if (select) {
+            const prev = select.value;
+            select.innerHTML = '<option value="">Select a gift card (optional)</option>';
+            this.accountGiftCards.forEach((gc) => {
+                const opt = document.createElement('option');
+                opt.value = String(gc.id);
+                const masked = gc.code && gc.code.length > 4 ? `••••${gc.code.slice(-4)}` : 'Gift card';
+                opt.textContent = `${masked} — $${Number(gc.current_balance).toFixed(2)}`;
+                opt.dataset.balance = String(gc.current_balance);
+                select.appendChild(opt);
+            });
+            if (prev && this.accountGiftCards.some((g) => String(g.id) === prev)) select.value = prev;
+        }
+        if (gcGroup) {
+            gcGroup.style.display = this.accountGiftCards.length > 0 ? 'block' : 'none';
+        }
+
+        const pts = Number(document.getElementById('checkout-loyalty-points')?.value) || 0;
+        const worthEl = document.getElementById('checkout-loyalty-worth');
+        if (worthEl) {
+            worthEl.textContent = pts > 0
+                ? `= $${(pts * dollarPerPoint).toFixed(2)}`
+                : (ptsBal > 0 ? `${ptsBal} pts available` : '');
+        }
+    }
+
+    getCheckoutStoreTenders() {
+        const tenders = [];
+        const cash = Number(document.getElementById('checkout-loyalty-cash')?.value) || 0;
+        const pts = Math.floor(Number(document.getElementById('checkout-loyalty-points')?.value) || 0);
+        const gcSelect = document.getElementById('checkout-giftcard-select');
+        const gcAmt = Number(document.getElementById('checkout-giftcard-amount')?.value) || 0;
+        const dollarPerPoint = Number(this.loyaltySettings?.dollarPerPoint) || 0.01;
+
+        if (cash > 0) tenders.push({ type: 'loyalty_cash', amount: Math.round(cash * 100) / 100 });
+        if (pts > 0) {
+            tenders.push({
+                type: 'loyalty_points',
+                points: pts,
+                amount: Math.round(pts * dollarPerPoint * 100) / 100
+            });
+        }
+        if (gcSelect?.value && gcAmt > 0) {
+            tenders.push({
+                type: 'gift_card',
+                amount: Math.round(gcAmt * 100) / 100,
+                giftCardId: Number(gcSelect.value)
+            });
+        } else if (this.giftCardBalanceChecked && this.giftCardManualMode) {
+            const code = document.getElementById('gift-card-code')?.value?.trim();
+            const pin = document.getElementById('gift-card-pin')?.value?.trim();
+            const manualAmt = Number(document.getElementById('checkout-giftcard-amount')?.value) || 0;
+            if (code && manualAmt > 0) {
+                tenders.push({
+                    type: 'gift_card',
+                    amount: Math.round(manualAmt * 100) / 100,
+                    code,
+                    pin: pin || null
+                });
+            }
+        }
+        return tenders;
+    }
+
+    getRewardsAppliedTotal() {
+        return this.getCheckoutStoreTenders().reduce((s, t) => s + (Number(t.amount) || 0), 0);
+    }
+
+    getCheckoutAmountDue() {
+        return Math.max(0, Math.round((this.total - this.getRewardsAppliedTotal()) * 100) / 100);
+    }
+
+    updateCheckoutRewardsSummary() {
+        const applied = this.getRewardsAppliedTotal();
+        const due = this.getCheckoutAmountDue();
+        const row = document.getElementById('checkout-rewards-applied-row');
+        const val = document.getElementById('checkout-rewards-applied-value');
+        const dueRow = document.getElementById('checkout-card-due-row');
+        const dueVal = document.getElementById('checkout-card-due-value');
+        const totalLabel = document.getElementById('checkout-total-label');
+        if (row && val) {
+            row.style.display = applied > 0.005 ? 'flex' : 'none';
+            val.textContent = `−$${applied.toFixed(2)}`;
+        }
+        if (dueRow && dueVal) {
+            dueRow.style.display = applied > 0.005 && due > 0.005 ? 'flex' : 'none';
+            dueVal.textContent = `$${due.toFixed(2)}`;
+        }
+        if (totalLabel) {
+            totalLabel.textContent = applied > 0.005 && due > 0.005 ? 'Order total' : 'Total';
+        }
+        const pts = Number(document.getElementById('checkout-loyalty-points')?.value) || 0;
+        const worthEl = document.getElementById('checkout-loyalty-worth');
+        const dollarPerPoint = Number(this.loyaltySettings?.dollarPerPoint) || 0.01;
+        if (worthEl && pts > 0) worthEl.textContent = `= $${(pts * dollarPerPoint).toFixed(2)}`;
+        this.refreshNmiCollectConfiguration();
+    }
+
+    checkoutTenderRoom(field) {
+        const due = this.getCheckoutAmountDue();
+        const tenders = this.getCheckoutStoreTenders();
+        const current = {
+            loyalty_cash: tenders.find((t) => t.type === 'loyalty_cash')?.amount || 0,
+            loyalty_points: tenders.find((t) => t.type === 'loyalty_points')?.amount || 0,
+            gift_card: tenders.find((t) => t.type === 'gift_card')?.amount || 0
+        };
+        return Math.round((due + (current[field] || 0)) * 100) / 100;
+    }
+
+    applyMaxCheckoutLoyaltyCash() {
+        const bal = Number(this.loyaltyProfile?.cash_balance) || 0;
+        const room = this.checkoutTenderRoom('loyalty_cash');
+        const el = document.getElementById('checkout-loyalty-cash');
+        if (el) el.value = Math.min(bal, room).toFixed(2);
+        this.updateCheckoutRewardsSummary();
+    }
+
+    applyMaxCheckoutLoyaltyPoints() {
+        const bal = Number(this.loyaltyProfile?.points_balance) || 0;
+        const dollarPerPoint = Number(this.loyaltySettings?.dollarPerPoint) || 0.01;
+        const room = this.checkoutTenderRoom('loyalty_points');
+        const maxPts = Math.min(bal, Math.floor(room / dollarPerPoint));
+        const el = document.getElementById('checkout-loyalty-points');
+        if (el) el.value = String(maxPts);
+        this.updateCheckoutRewardsSummary();
+    }
+
+    applyMaxCheckoutGiftCard() {
+        const select = document.getElementById('checkout-giftcard-select');
+        if (!select?.value) {
+            this.showNotification('Select a gift card first', 'error');
+            return;
+        }
+        const balance = Number(select.selectedOptions[0]?.dataset.balance) || 0;
+        const room = this.checkoutTenderRoom('gift_card');
+        const el = document.getElementById('checkout-giftcard-amount');
+        if (el) el.value = Math.min(balance, room).toFixed(2);
+        this.updateCheckoutRewardsSummary();
+    }
+
+    onCheckoutGiftCardSelected() {
+        const select = document.getElementById('checkout-giftcard-select');
+        const amountEl = document.getElementById('checkout-giftcard-amount');
+        if (!select?.value) {
+            if (amountEl) amountEl.value = '';
+            this.updateCheckoutRewardsSummary();
+            return;
+        }
+        const balance = Number(select.selectedOptions[0]?.dataset.balance) || 0;
+        const room = this.checkoutTenderRoom('gift_card');
+        if (amountEl) amountEl.value = Math.min(balance, room).toFixed(2);
+        this.updateCheckoutRewardsSummary();
+    }
+
     async loadAccountGiftCards() {
         const token = this._getCustomerToken();
         if (!token) {
@@ -2309,7 +2533,7 @@ class CheckoutManager {
                 const covers = balance >= this.total;
                 resultEl.textContent = covers
                     ? `Available balance: $${balance.toFixed(2)} — covers this order.`
-                    : `Available balance: $${balance.toFixed(2)} — not enough for order total ($${this.total.toFixed(2)}). Use a card or bank account instead.`;
+                    : `Available balance: $${balance.toFixed(2)} — not enough for order total ($${this.total.toFixed(2)}). Use a card instead.`;
             }
             return true;
         } catch (err) {
@@ -2383,42 +2607,43 @@ class CheckoutManager {
                     processor: this.activePaymentProcessor || 'epi'
                 };
             }
-        } else if (paymentMethod === 'bank_account') {
-            const accountHolderName = document.getElementById('account-holder-name')?.value || '';
-            const accountType = document.getElementById('account-type')?.value || '';
-            const routingNumber = document.getElementById('routing-number')?.value || '';
-            const accountNumber = document.getElementById('account-number')?.value || '';
-            const confirmAccountNumber = document.getElementById('confirm-account-number')?.value || '';
-
-            paymentData = {
-                account_holder_name: accountHolderName,
-                account_type: accountType,
-                routing_number: routingNumber,
-                account_number: accountNumber,
-                confirm_account_number: confirmAccountNumber,
-                processor: this.activePaymentProcessor || 'epi'
-            };
         }
 
         let giftCard = null;
-        if (paymentMethod === 'gift_card') {
+        const storeTenders = this.getCheckoutStoreTenders();
+        const amountDue = this.getCheckoutAmountDue();
+
+        if (paymentMethod === 'gift_card' && !storeTenders.length) {
+            const balance = Number(this.giftCardLastBalance) || this.total;
+            const gcAmount = Math.min(balance, this.total);
             if (this.selectedAccountGiftCardId) {
-                giftCard = { id: this.selectedAccountGiftCardId };
+                giftCard = { id: this.selectedAccountGiftCardId, amount: gcAmount };
             } else {
                 giftCard = {
                     code: document.getElementById('gift-card-code')?.value?.trim() || '',
-                    pin: document.getElementById('gift-card-pin')?.value?.trim() || ''
+                    pin: document.getElementById('gift-card-pin')?.value?.trim() || '',
+                    amount: gcAmount
                 };
             }
+        }
+
+        const needsCard = amountDue > 0.005;
+        const effectiveMethod = storeTenders.length && needsCard
+            ? (paymentMethod === 'debit_card' ? 'debit_card' : 'credit_card')
+            : (storeTenders.length && !needsCard ? 'gift_card' : paymentMethod);
+
+        if ((effectiveMethod === 'credit_card' || effectiveMethod === 'debit_card') && !paymentData && this.nmiEnabled) {
+            paymentData = { processor: this.activePaymentProcessor || 'epi' };
         }
 
         return {
             customerInfo,
             shippingAddress,
             billingAddress,
-            paymentMethod: paymentMethod,
-            paymentData: paymentData, // EPI payment data
+            paymentMethod: effectiveMethod,
+            paymentData: paymentData,
             giftCard,
+            paymentTenders: storeTenders.length ? storeTenders : undefined,
             orderNotes: document.getElementById('order-notes')?.value || '',
             cartItems,
             promoCode: document.getElementById('checkout-promo-code')?.value?.trim() || '',
@@ -2428,7 +2653,7 @@ class CheckoutManager {
             tax: this.tax,
             shipping: this.shipping,
             total: this.total,
-            awaitingNmiPayment: false
+            awaitingNmiPayment: needsCard && (effectiveMethod === 'credit_card' || effectiveMethod === 'debit_card')
         };
     }
 

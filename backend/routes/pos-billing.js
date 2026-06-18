@@ -1,6 +1,8 @@
 'use strict';
 
 const express = require('express');
+const rateLimit = require('express-rate-limit');
+const jwt = require('jsonwebtoken');
 const router = express.Router();
 const logger = require('../utils/logger');
 const {
@@ -15,6 +17,50 @@ const {
 } = require('../utils/nmiEnv');
 const { saveBillingVault, loadMerchantLicense } = require('../services/posMerchantLicense');
 const { describeMonthlyPricing } = require('../services/posBillingPricing');
+const { verifySetupToken } = require('../utils/posBillingSetupToken');
+
+function isOpenBillingSetupAllowed() {
+    return (
+        process.env.NODE_ENV !== 'production' &&
+        String(process.env.POS_BILLING_ALLOW_OPEN_SETUP || '').toLowerCase() === 'true'
+    );
+}
+
+async function assertBillingSetupAuthorized(req) {
+    if (isOpenBillingSetupAllowed()) return { type: 'dev_open' };
+
+    const authHeader = req.headers.authorization || '';
+    const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+    if (bearer && process.env.JWT_SECRET) {
+        try {
+            const decoded = jwt.verify(bearer, process.env.JWT_SECRET);
+            const [rows] = await req.pool.execute(
+                'SELECT id FROM admin_users WHERE id = ? AND is_active = 1',
+                [decoded.adminId]
+            );
+            if (rows.length) return { type: 'admin', adminId: rows[0].id };
+        } catch {
+            /* try setup token */
+        }
+    }
+
+    const setupToken =
+        req.body?.setup_token ||
+        req.body?.setupToken ||
+        req.headers['x-pos-billing-setup-token'];
+    const decoded = verifySetupToken(setupToken);
+    if (decoded) return { type: 'setup_token', adminId: decoded.adminId };
+
+    return null;
+}
+
+const setupLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many billing setup attempts. Please try again later.', code: 'RATE_LIMITED' }
+});
 
 /** Public pricing summary for signup page */
 router.get('/pricing', (req, res) => {
@@ -36,7 +82,8 @@ router.get('/client-config', async (req, res) => {
         return res.json({
             enabled: false,
             configured: false,
-            message: 'Platform billing keys are not configured on the server yet.'
+            message: 'Platform billing keys are not configured on the server yet.',
+            requiresSetupAuth: !isOpenBillingSetupAllowed()
         });
     }
 
@@ -48,7 +95,8 @@ router.get('/client-config', async (req, res) => {
                 tokenizationKey,
                 collectJsUrl: getNmiCollectJsUrl(),
                 sandbox: isNmiSandboxHint(),
-                preflightSkipped: true
+                preflightSkipped: true,
+                requiresSetupAuth: !isOpenBillingSetupAllowed()
             });
         }
         const resolved = await nmiResolveTokenizationCollectJs(tokenizationKey);
@@ -57,7 +105,8 @@ router.get('/client-config', async (req, res) => {
             configured: isPlatformBillingConfigured(),
             tokenizationKey: resolved.ok ? tokenizationKey : '',
             collectJsUrl: resolved.collectJsUrl || getNmiCollectJsUrl(),
-            sandbox: isNmiSandboxHint()
+            sandbox: isNmiSandboxHint(),
+            requiresSetupAuth: !isOpenBillingSetupAllowed()
         });
     } catch (e) {
         logger.warn('Platform billing client config error', { err: e.message });
@@ -66,13 +115,22 @@ router.get('/client-config', async (req, res) => {
             configured: isPlatformBillingConfigured(),
             tokenizationKey,
             collectJsUrl: getNmiCollectJsUrl(),
-            sandbox: isNmiSandboxHint()
+            sandbox: isNmiSandboxHint(),
+            requiresSetupAuth: !isOpenBillingSetupAllowed()
         });
     }
 });
 
-router.post('/setup', async (req, res) => {
+router.post('/setup', setupLimiter, async (req, res) => {
     try {
+        const auth = await assertBillingSetupAuthorized(req);
+        if (!auth) {
+            return res.status(401).json({
+                error: 'A valid billing setup link or admin authorization is required.',
+                code: 'SETUP_AUTH_REQUIRED'
+            });
+        }
+
         if (!req.body?.authorized) {
             return res.status(400).json({
                 error: 'You must authorize recurring monthly charges.',
@@ -110,7 +168,11 @@ router.post('/setup', async (req, res) => {
 router.post('/webhook/epi', async (req, res) => {
     try {
         const secret = String(process.env.EPI_PLATFORM_WEBHOOK_SECRET || '').trim();
-        if (secret) {
+        if (!secret) {
+            if (process.env.NODE_ENV === 'production') {
+                return res.status(503).json({ error: 'Webhook secret is not configured' });
+            }
+        } else {
             const incoming = String(req.headers['x-epi-webhook-secret'] || req.headers['x-nmi-webhook-secret'] || '').trim();
             if (incoming !== secret) {
                 return res.status(401).json({ error: 'Invalid webhook secret' });

@@ -205,18 +205,7 @@ class HMHerbsApp {
     }
 
     async loadProducts() {
-        // Check if we're in file:// protocol (local file)
-        const isFileProtocol = window.location.protocol === 'file:';
-
-        // Skip API call if in file:// protocol to avoid CORS errors
-        if (isFileProtocol) {
-            Logger.log('File protocol detected, skipping API call');
-            this.products = [];
-            return;
-        }
-
         try {
-            // Get API base URL from environment or default to current origin
             const apiBaseUrl = hmHerbsGetApiBaseUrl();
 
             try {
@@ -659,18 +648,7 @@ class HMHerbsApp {
             return;
         }
 
-        // Check if we're in file:// protocol (local file)
-        const isFileProtocol = window.location.protocol === 'file:';
-
         try {
-            // Skip fetch if in file:// protocol to avoid CORS errors
-            if (isFileProtocol) {
-                // Use fallback demo products for local file viewing
-                const fallbackProducts = this.getFallbackSpotlightProducts();
-                this.renderSpotlightProductsFromData(fallbackProducts);
-                return;
-            }
-
             // First, try to use products loaded from API (this.products)
             // These are already limited to 4 via the API call (limit=4&featured=true)
             console.log('🎨 renderSpotlightProducts - checking products:', {
@@ -904,6 +882,21 @@ class HMHerbsApp {
         });
     }
 
+    _cartLineKey(item) {
+        if (!item) return '';
+        if (item.cartLineId) return String(item.cartLineId);
+        if (item.giftCard || item.gift_card) {
+            const gc = item.giftCard || item.gift_card;
+            const email = gc.recipientEmail || gc.recipient_email || '';
+            return `gc-${item.id}-${email}-${item.price}`;
+        }
+        return String(item.id);
+    }
+
+    _findCartItem(cartKey) {
+        return this.cart.find((item) => this._cartLineKey(item) === String(cartKey));
+    }
+
     addToCart(productId, quantity = 1) {
         // Debounce cart operations to prevent race conditions
         const operationKey = `add-${productId}`;
@@ -935,7 +928,9 @@ class HMHerbsApp {
         }
 
         // Check if adding this quantity would exceed available inventory
-        const existingItem = this.cart.find(item => String(item.id) === String(productId));
+        const existingItem = this.cart.find(
+            (item) => String(item.id) === String(productId) && !item.giftCard && !item.gift_card && !item.cartLineId
+        );
         const currentCartQuantity = existingItem ? existingItem.quantity : 0;
         const totalRequestedQuantity = currentCartQuantity + quantity;
 
@@ -965,7 +960,7 @@ class HMHerbsApp {
 
         this.updateCartDisplay();
         this.saveCartToStorage();
-        this.showNotification(`${product.name} added to cart`, 'success');
+        this.showNotification('Added to cart', 'success');
         this.announceToScreenReader(`${product.name} added to cart`);
     }
 
@@ -978,6 +973,7 @@ class HMHerbsApp {
         }
 
         const productId = productData.product_id || productData.id;
+        const isGiftCardLine = Boolean(productData.giftCard || productData.gift_card || productData.cartLineId);
         const productName = productData.name || 'Product';
         const productPrice = productData.price || 0;
         const productImage = productData.image || '';
@@ -998,9 +994,16 @@ class HMHerbsApp {
         }
 
         // Check if adding this quantity would exceed available inventory
-        const existingItem = this.cart.find(item => {
-            return String(item.id) === String(productId);
-        });
+        const existingItem = isGiftCardLine
+            ? null
+            : this.cart.find((item) => {
+                  return (
+                      String(item.id) === String(productId) &&
+                      !item.giftCard &&
+                      !item.gift_card &&
+                      !item.cartLineId
+                  );
+              });
         const currentCartQuantity = existingItem ? existingItem.quantity : 0;
         const totalRequestedQuantity = currentCartQuantity + productQuantity;
 
@@ -1025,7 +1028,7 @@ class HMHerbsApp {
                 }
                 this.updateCartDisplay();
                 this.saveCartToStorage();
-                this.showNotification(`${productName} added to cart`, 'success');
+                this.showNotification('Added to cart', 'success');
                 this.announceToScreenReader(`${productName} added to cart`);
                 return;
             }
@@ -1035,18 +1038,23 @@ class HMHerbsApp {
         if (existingItem) {
             existingItem.quantity += productQuantity;
         } else {
-            this.cart.push({
+            const line = {
                 id: productId,
                 name: productName,
                 price: productPrice,
                 image: productImage,
                 quantity: productQuantity
-            });
+            };
+            if (productData.cartLineId) line.cartLineId = productData.cartLineId;
+            if (productData.variant_id != null) line.variant_id = productData.variant_id;
+            if (productData.giftCard) line.giftCard = productData.giftCard;
+            if (productData.gift_card) line.giftCard = productData.gift_card;
+            this.cart.push(line);
         }
 
         this.updateCartDisplay();
         this.saveCartToStorage();
-        this.showNotification(`${productName} added to cart`, 'success');
+        this.showNotification('Added to cart', 'success');
         this.announceToScreenReader(`${productName} added to cart`);
     }
 
@@ -1062,8 +1070,8 @@ class HMHerbsApp {
         this.addProductToCart(this.toCartProduct(product), 1);
     }
 
-    removeFromCart(productId) {
-        this.cart = this.cart.filter(item => String(item.id) !== String(productId));
+    removeFromCart(cartKey) {
+        this.cart = this.cart.filter((item) => this._cartLineKey(item) !== String(cartKey));
         this.updateCartDisplay();
         this.saveCartToStorage();
         this.showNotification('Item removed from cart', 'success');
@@ -1124,9 +1132,8 @@ class HMHerbsApp {
         return true;
     }
 
-    updateCartQuantity(productId, newQuantity) {
-        // Debounce cart quantity updates to prevent race conditions
-        const operationKey = `update-${productId}`;
+    updateCartQuantity(cartKey, newQuantity) {
+        const operationKey = `update-${cartKey}`;
 
         // Clear existing timeout for this operation
         if (this.cartOperationTimeouts.has(operationKey)) {
@@ -1135,24 +1142,26 @@ class HMHerbsApp {
 
         // Set new timeout
         const timeoutId = setTimeout(() => {
-            this._performUpdateCartQuantity(productId, newQuantity);
+            this._performUpdateCartQuantity(cartKey, newQuantity);
             this.cartOperationTimeouts.delete(operationKey);
         }, this.cartOperationDelay);
 
         this.cartOperationTimeouts.set(operationKey, timeoutId);
     }
 
-    _performUpdateCartQuantity(productId, newQuantity) {
-        const item = this.cart.find(item => String(item.id) === String(productId));
+    _performUpdateCartQuantity(cartKey, newQuantity) {
+        const item = this._findCartItem(cartKey);
 
         if (item) {
             if (newQuantity <= 0) {
-                this.removeFromCart(productId);
+                this.removeFromCart(cartKey);
+            } else if (item.giftCard || item.gift_card) {
+                item.quantity = 1;
+                this.updateCartDisplay();
+                this.saveCartToStorage();
             } else {
-                // Find the product to check inventory limits
-                const product = this.products.find(p => String(p.id) === String(productId));
+                const product = this.products.find((p) => String(p.id) === String(item.id));
 
-                // Check inventory limits before updating quantity
                 if (product && typeof product.inventory !== 'undefined') {
                     if (newQuantity > product.inventory) {
                         this.showNotification(`Only ${product.inventory} items available in stock`, 'error');
@@ -1262,7 +1271,7 @@ class HMHerbsApp {
         const removeBtn = document.createElement('button');
         removeBtn.className = 'remove-item';
         removeBtn.type = 'button';
-        removeBtn.setAttribute('data-product-id', item.id);
+        removeBtn.setAttribute('data-cart-key', this._cartLineKey(item));
         removeBtn.setAttribute('aria-label', `Remove ${item.name} from cart`);
         appendCartDeleteButtonContents(removeBtn);
 
@@ -1280,23 +1289,22 @@ class HMHerbsApp {
 
         // Add event listeners (using the elements we created above)
         decreaseBtn.addEventListener('click', () => {
-            this.updateCartQuantity(item.id, item.quantity - 1);
+            this.updateCartQuantity(this._cartLineKey(item), item.quantity - 1);
         });
 
         increaseBtn.addEventListener('click', () => {
-            // Check inventory before increasing
-            const product = this.products.find(p => String(p.id) === String(item.id));
+            const product = this.products.find((p) => String(p.id) === String(item.id));
             if (product && typeof product.inventory !== 'undefined') {
                 if (item.quantity >= product.inventory) {
                     this.showNotification(`Only ${product.inventory} items available in stock`, 'error');
                     return;
                 }
             }
-            this.updateCartQuantity(item.id, item.quantity + 1);
+            this.updateCartQuantity(this._cartLineKey(item), item.quantity + 1);
         });
 
         removeBtn.addEventListener('click', () => {
-            this.removeFromCart(item.id);
+            this.removeFromCart(this._cartLineKey(item));
         });
 
         return cartItem;

@@ -663,21 +663,13 @@ async function loginPosDemo(page) {
 }
 
 async function addDemoProductToCart(page) {
-    await page.waitForFunction(
-        () => document.querySelector('#quick-keys-bar .quick-key-btn') || document.getElementById('product-search'),
-        { timeout: 15000 }
-    );
-    const quickKey = await page.$('#quick-keys-bar .quick-key-btn');
-    if (quickKey) {
-        await quickKey.click();
-    } else {
-        await page.type('#product-search', 'DEMO-VIT-C');
-        await sleep(400);
-        await page.keyboard.press('Enter');
-        await sleep(600);
-        const tile = await page.$('.product-tile, .lookup-result button, [data-sku="DEMO-VIT-C"]');
-        if (tile) await tile.click();
-    }
+    await page.waitForSelector('#search-input', { timeout: 15000 });
+    await page.type('#search-input', 'DEMO-VIT-C');
+    await sleep(400);
+    await page.keyboard.press('Enter');
+    await sleep(600);
+    const tile = await page.$('.product-tile, .lookup-result button, [data-sku="DEMO-VIT-C"]');
+    if (tile) await tile.click();
     await page.waitForFunction(
         () => !document.getElementById('checkout-btn')?.disabled,
         { timeout: 10000 }

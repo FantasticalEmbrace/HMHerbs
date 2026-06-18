@@ -3,7 +3,9 @@
 const logger = require('../utils/logger');
 const InventoryService = require('./inventory');
 const { sendOrderConfirmationEmail } = require('./orderConfirmationEmail');
+const { loadLoyaltyProgramSettings, earnLoyaltyForOrder } = require('./customerLoyalty');
 const { fulfillGiftCardsForOrder } = require('./giftCardFulfillment');
+const { getNonEarnTenderTotal } = require('./webCheckoutPayments');
 
 async function recalcUserOrderAggregates(connection, userId) {
     const uid = Number(userId);
@@ -68,8 +70,9 @@ async function finalizePaidOrder(pool, { orderId, paymentId, paymentStatus, skip
 
     try {
         const paidStatus = paymentStatus || 'paid';
+        let statusUpdated = false;
         if (paymentId) {
-            await connection.execute(
+            const [upd] = await connection.execute(
                 `UPDATE orders
                     SET status = 'processing',
                         payment_status = ?,
@@ -77,14 +80,22 @@ async function finalizePaidOrder(pool, { orderId, paymentId, paymentStatus, skip
                   WHERE id = ? AND status = 'pending'`,
                 [paidStatus, String(paymentId).trim(), oid]
             );
+            statusUpdated = upd.affectedRows > 0;
         } else {
-            await connection.execute(
+            const [upd] = await connection.execute(
                 `UPDATE orders
                     SET status = 'processing',
                         payment_status = ?
                   WHERE id = ? AND status = 'pending'`,
                 [paidStatus, oid]
             );
+            statusUpdated = upd.affectedRows > 0;
+        }
+
+        if (!statusUpdated) {
+            const err = new Error('ORDER_NOT_PENDING');
+            err.code = 'ORDER_NOT_PENDING';
+            throw err;
         }
 
         const inventoryService = new InventoryService(pool);
@@ -106,6 +117,29 @@ async function finalizePaidOrder(pool, { orderId, paymentId, paymentStatus, skip
 
         await connection.commit();
         logger.info(`Order ${oid} finalized (payment ${paymentId})`);
+
+        if (orderRow.user_id) {
+            const loyaltySettings = await loadLoyaltyProgramSettings(pool);
+            if (loyaltySettings.enabled) {
+                const channel = String(orderRow.sales_channel || '').toLowerCase();
+                const source = channel === 'in_store' ? 'pos' : 'web';
+                const nonEarn = await getNonEarnTenderTotal(pool, oid);
+                const eligibleSubtotal = Math.max(
+                    0,
+                    Math.round((Number(orderRow.subtotal) - nonEarn) * 100) / 100
+                );
+                void earnLoyaltyForOrder(
+                    pool,
+                    orderRow.user_id,
+                    oid,
+                    eligibleSubtotal,
+                    loyaltySettings,
+                    source
+                ).catch((loyaltyErr) => {
+                    logger.error(`Order ${oid} loyalty earn error:`, loyaltyErr);
+                });
+            }
+        }
 
         void fulfillGiftCardsForOrder(pool, oid).catch((giftErr) => {
             logger.error(`Order ${oid} gift card fulfillment error:`, giftErr);

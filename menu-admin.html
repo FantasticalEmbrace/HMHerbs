@@ -9,7 +9,24 @@
     <link rel="stylesheet" href="css/hm-close-controls.css">
 </head>
 <body>
-    <div class="admin-container">
+    <div id="menu-admin-login" class="login-overlay">
+        <div class="login-card">
+            <h2>Menu Admin Sign In</h2>
+            <p>Use your store admin account (manager role or higher).</p>
+            <div class="form-group">
+                <label for="menu-admin-email">Email</label>
+                <input type="email" id="menu-admin-email" autocomplete="username">
+            </div>
+            <div class="form-group">
+                <label for="menu-admin-password">Password</label>
+                <input type="password" id="menu-admin-password" autocomplete="current-password">
+            </div>
+            <p id="menu-admin-login-error" class="login-error"></p>
+            <button type="button" class="btn btn-primary" id="menu-admin-login-btn">Sign in</button>
+        </div>
+    </div>
+
+    <div class="admin-container" id="menu-admin-app" hidden>
         <!-- Header -->
         <header class="admin-header">
             <div class="header-content">
@@ -107,8 +124,24 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="itemDescription">Description</label>
-                        <textarea id="itemDescription" rows="4" placeholder="Service description"></textarea>
+                        <label for="itemDescription">Short description</label>
+                        <textarea id="itemDescription" rows="3" placeholder="Shown on the service card"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="itemOverview">Overview</label>
+                        <textarea id="itemOverview" rows="4" placeholder="Longer overview shown in the service modal"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="itemFeatures">Features (one per line)</label>
+                        <textarea id="itemFeatures" rows="5" placeholder="Real-time inventory tracking&#10;Sales reporting and analytics"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="itemIconClass">Icon class</label>
+                        <input type="text" id="itemIconClass" placeholder="fas fa-cash-register">
+                        <small>Font Awesome class, e.g. fas fa-credit-card</small>
                     </div>
 
                     <div class="form-row">

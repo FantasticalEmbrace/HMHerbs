@@ -35,6 +35,7 @@ const {
 const { ensureProductVariantSchema } = require('./utils/ensureProductVariantSchema');
 const { ensureShippingSchema } = require('./utils/ensureShippingSchema');
 const { ensurePosSchema } = require('./utils/ensurePosSchema');
+const { ensureMenuSchema } = require('./utils/ensureMenuSchema');
 const { ensurePlatformSupportSchema } = require('./utils/ensurePlatformSupportSchema');
 const { ensurePersonnelSchema } = require('./utils/ensurePersonnelSchema');
 const { ensureGiftCardPurchaseSchema } = require('./utils/ensureGiftCardPurchaseSchema');
@@ -51,6 +52,7 @@ const {
     loadCustomerRow
 } = require('./utils/customerAccountReactivation');
 const { provisionWebCustomerProfile } = require('./utils/provisionCustomerProfile');
+const { loadLoyaltyProgramSettings } = require('./services/customerLoyalty');
 const { saveRegistrationMailingAddress, normalizeRegistrationMailingAddress } = require('./utils/saveRegistrationMailingAddress');
 const { isUsPhoneDisplayOrEmpty } = require('./utils/usPhoneDisplay');
 const { startTaxReserveScheduler } = require('./services/taxReserveScheduler');
@@ -256,7 +258,9 @@ const allowedOrigins = [
     'https://localhost',
     'http://localhost',
     'capacitor://localhost',
-    'ionic://localhost'
+    'ionic://localhost',
+    'https://businessonecomprehensive.com',
+    'http://businessonecomprehensive.com'
 ];
 
 // Add production frontend URL if specified
@@ -450,6 +454,17 @@ const supportAgentPath = fsSync.existsSync(path.join(rootPath, 'business-one-sup
 if (fsSync.existsSync(supportAgentPath)) {
     app.use('/support-agent', express.static(supportAgentPath));
 }
+
+// Business One Support Desk — dedicated local URL (not the HM Herbs storefront)
+app.get('/support-desk', (req, res) => {
+    res.sendFile(path.join(rootPath, 'platform-support.html'));
+});
+app.get('/support-desk/viewer', (req, res) => {
+    res.sendFile(path.join(rootPath, 'support-viewer.html'));
+});
+app.get('/platform-support.html', (req, res) => {
+    res.redirect(302, '/support-desk');
+});
 
 // Serve admin panel and frontend files
 app.use(express.static(rootPath)); // Serve files from project root
@@ -1091,8 +1106,9 @@ app.get('/api/user/loyalty', authenticateToken, async (req, res) => {
     try {
         const userId = req.user.id;
         let [[loyalty]] = await pool.execute(
-            `SELECT points_balance, points_pending, lifetime_points_earned,
-                    lifetime_points_redeemed, tier, tier_progress, member_since,
+            `SELECT points_balance, cash_balance, points_pending, lifetime_points_earned,
+                    lifetime_points_redeemed, lifetime_cash_earned, lifetime_cash_redeemed,
+                    loyalty_enrollment, tier, tier_progress, member_since,
                     last_earned_at, last_redeemed_at,
                     last_synced_at, sync_status
                FROM customer_loyalty WHERE user_id = ?`,
@@ -1100,28 +1116,31 @@ app.get('/api/user/loyalty', authenticateToken, async (req, res) => {
         );
         if (!loyalty) {
             await pool.execute(
-                'INSERT INTO customer_loyalty (user_id, member_since) VALUES (?, CURDATE())',
+                `INSERT INTO customer_loyalty (user_id, member_since, loyalty_enrollment)
+                 VALUES (?, CURDATE(), 'cash')`,
                 [userId]
             );
             [[loyalty]] = await pool.execute(
-                `SELECT points_balance, points_pending, lifetime_points_earned,
-                        lifetime_points_redeemed, tier, tier_progress, member_since,
+                `SELECT points_balance, cash_balance, points_pending, lifetime_points_earned,
+                        lifetime_points_redeemed, lifetime_cash_earned, lifetime_cash_redeemed,
+                        loyalty_enrollment, tier, tier_progress, member_since,
                         last_earned_at, last_redeemed_at,
                         last_synced_at, sync_status
                    FROM customer_loyalty WHERE user_id = ?`,
                 [userId]
             );
         }
+        const loyaltySettings = await loadLoyaltyProgramSettings(pool);
         const [transactions] = await pool.execute(
-            `SELECT id, transaction_type, points_change, points_balance_after,
-                    description, created_at
+            `SELECT id, transaction_type, reward_type, points_change, points_balance_after,
+                    cash_change, cash_balance_after, description, created_at
                FROM loyalty_transactions
               WHERE user_id = ?
               ORDER BY created_at DESC
               LIMIT 25`,
             [userId]
         );
-        res.json({ loyalty, transactions });
+        res.json({ loyalty, settings: loyaltySettings, transactions });
     } catch (error) {
         logger.error('Get user loyalty error:', error);
         res.status(500).json({ error: 'Internal server error' });
@@ -1148,22 +1167,43 @@ app.get('/api/user/gift-cards', authenticateToken, async (req, res) => {
     }
 });
 
-// Customer-facing gift card balance check (no auth required - by code+pin)
-app.post('/api/gift-cards/check-balance', async (req, res) => {
+// Customer-facing gift card balance check (PIN required when card has a PIN)
+const giftCardBalanceLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 15,
+    message: { error: 'Too many gift card lookups. Please wait a moment and try again.' },
+    standardHeaders: true,
+    legacyHeaders: false
+});
+
+app.post('/api/gift-cards/check-balance', giftCardBalanceLimiter, async (req, res) => {
     try {
         const { code, pin } = req.body || {};
         if (!code) return res.status(400).json({ error: 'code is required' });
         const cleanCode = String(code).trim().toUpperCase().replace(/\s+/g, '');
         const [[card]] = await pool.execute(
             `SELECT card_type, status, initial_balance, current_balance, currency,
-                    expires_at, last_used_at
+                    expires_at, last_used_at, pin
                FROM gift_cards
-              WHERE code = ? AND (pin IS NULL OR pin = ? OR ? IS NULL)
+              WHERE code = ?
               LIMIT 1`,
-            [cleanCode, pin || null, pin || null]
+            [cleanCode]
         );
         if (!card) return res.status(404).json({ error: 'Gift card not found or invalid PIN' });
-        res.json({ gift_card: card });
+        if (card.pin) {
+            const pinTrim = pin != null ? String(pin).trim() : '';
+            if (!pinTrim || pinTrim !== String(card.pin).trim()) {
+                return res.status(400).json({ error: 'Invalid gift card PIN', code: 'GIFT_CARD_INVALID_PIN' });
+            }
+        }
+        if (card.status !== 'active') {
+            return res.status(400).json({ error: 'This gift card is not active', code: 'GIFT_CARD_INACTIVE' });
+        }
+        if (card.expires_at && new Date(card.expires_at) < new Date()) {
+            return res.status(400).json({ error: 'This gift card has expired', code: 'GIFT_CARD_EXPIRED' });
+        }
+        const { pin: _pin, ...safeCard } = card;
+        res.json({ gift_card: safeCard, balance: Number(card.current_balance) });
     } catch (error) {
         logger.error('Check gift card balance error:', error);
         res.status(500).json({ error: 'Internal server error' });
@@ -1636,6 +1676,11 @@ const adminRoutes = require('./routes/admin');
 const paymentCardsRoutes = require('./routes/payment-cards');
 const publicRoutes = require('./routes/public');
 const marketingSettingsSvc = require('./services/marketingSettings');
+const {
+    listFrontDisplays,
+    getFrontDisplay,
+    setDisplayAdAssignments
+} = require('./services/posFrontDisplays');
 
 /** req.pool is attached at app init (right after createPool). */
 
@@ -1668,6 +1713,44 @@ app.put('/api/admin/marketing-settings', authenticateAdmin, requireAdminPermissi
     }
 });
 
+// Front-facing display ad playlists — registered on the main app (same reliability fix as marketing-settings).
+app.get('/api/admin/pos/front-displays', authenticateAdmin, requireAdminPermissionLevel('manager'), async (req, res) => {
+    try {
+        const displays = await listFrontDisplays(pool);
+        res.json({ displays });
+    } catch (error) {
+        logger.error('List front displays error:', error);
+        res.status(500).json({ error: 'Failed to load front-facing displays' });
+    }
+});
+
+app.get('/api/admin/pos/front-displays/:equipmentId', authenticateAdmin, requireAdminPermissionLevel('manager'), async (req, res) => {
+    try {
+        const display = await getFrontDisplay(pool, req.params.equipmentId);
+        if (!display) return res.status(404).json({ error: 'Display not found' });
+        res.json({ display });
+    } catch (error) {
+        logger.error('Get front display error:', error);
+        res.status(500).json({ error: 'Failed to load display' });
+    }
+});
+
+app.put('/api/admin/pos/front-displays/:equipmentId/ads', authenticateAdmin, requireAdminPermissionLevel('manager'), async (req, res) => {
+    try {
+        const adIds = Array.isArray(req.body?.adIds) ? req.body.adIds : req.body?.ad_ids || [];
+        const display = await setDisplayAdAssignments(pool, req.params.equipmentId, adIds);
+        res.json({ display });
+    } catch (error) {
+        const status =
+            error.code === 'NOT_FOUND' || error.code === 'AD_NOT_FOUND'
+                ? 404
+                : error.code === 'INVALID_EQUIPMENT'
+                  ? 400
+                  : 500;
+        res.status(status).json({ error: error.message, code: error.code });
+    }
+});
+
 // Analytics endpoint (public, for client-side analytics)
 app.post('/api/analytics', express.json(), (req, res) => {
     // Accept analytics data but don't require database connection
@@ -1692,6 +1775,7 @@ app.use('/api/orders', require('./routes/orders'));
 app.use('/api/shipping', require('./routes/shipping'));
 app.use('/api/edsa', edsaRoutes);
 app.use('/api/menu', require('./routes/menu'));
+app.use('/api/business-one', require('./routes/business-one-contact'));
 app.use('/api/admin/customers', require('./routes/admin-customers'));
 app.use('/api/admin/customer-groups', require('./routes/admin-customer-groups'));
 app.use('/api/admin/gift-cards', require('./routes/admin-gift-cards'));
@@ -1757,6 +1841,7 @@ app.use('/api/*', (req, res) => {
     try {
         await ensureShippingSchema(pool);
         await ensurePosSchema(pool);
+        await ensureMenuSchema(pool);
         await ensurePlatformSupportSchema(pool);
         await ensurePersonnelSchema(pool);
     } catch (e) {

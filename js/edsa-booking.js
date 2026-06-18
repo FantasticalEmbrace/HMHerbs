@@ -201,6 +201,10 @@ class EDSABookingSystem {
         `;
 
         document.body.insertAdjacentHTML('beforeend', modalHTML);
+        if (window.HMHERBS_PHONE_US) {
+            const modal = document.getElementById('edsa-booking-modal');
+            if (modal) HMHERBS_PHONE_US.init(modal);
+        }
         if (!document.getElementById('edsa-nmi-wallet-stub')) {
             const stub = document.createElement('div');
             stub.id = 'edsa-nmi-wallet-stub';

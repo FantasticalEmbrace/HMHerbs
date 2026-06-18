@@ -63,7 +63,7 @@ function verifyEmployeeToken(token) {
 
 async function findEmployeeByPin(pool, pin) {
     const [rows] = await pool.execute(
-        `SELECT id, employee_code, first_name, last_name, email, pin_hash, is_active, admin_user_id, can_authorize
+        `SELECT id, employee_code, first_name, last_name, email, pin_hash, is_active, admin_user_id, can_authorize, can_process_refunds, can_open_drawer
          FROM pos_employees WHERE is_active = 1`
     );
     for (const row of rows) {
@@ -129,9 +129,48 @@ async function verifyManagerPin(pool, pin, context = {}) {
     return mapAuthorizer(employee);
 }
 
+async function employeeCanProcessRefunds(employee) {
+    return Boolean(employee?.can_process_refunds);
+}
+
+async function verifyRefundPin(pool, pin, context = {}) {
+    const settings = await loadPosSecuritySettings(pool);
+    const attemptKey = buildAttemptKey(`refund:${context.deviceId || 'device'}`, context.ip);
+    await assertPinNotLocked(pool, attemptKey);
+
+    if (!validatePinFormat(pin)) {
+        await recordFailedPinAttempt(pool, attemptKey, settings).catch(() => {});
+        const err = new Error('PIN must be exactly 4 digits');
+        err.code = 'INVALID_PIN';
+        throw err;
+    }
+
+    const employee = await findEmployeeByPin(pool, pin);
+    if (!employee) {
+        try {
+            await recordFailedPinAttempt(pool, attemptKey, settings);
+        } catch (lockErr) {
+            throw lockErr;
+        }
+        const err = new Error('Invalid PIN');
+        err.code = 'INVALID_MANAGER_PIN';
+        throw err;
+    }
+
+    if (!(await employeeCanProcessRefunds(employee))) {
+        await recordFailedPinAttempt(pool, attemptKey, settings).catch(() => {});
+        const err = new Error('This employee is not authorized to process refunds');
+        err.code = 'NOT_AUTHORIZED_REFUND';
+        throw err;
+    }
+
+    await clearPinAttempts(pool, attemptKey);
+    return mapAuthorizer(employee);
+}
+
 async function getEmployeeById(pool, id) {
     const [rows] = await pool.execute(
-        `SELECT id, employee_code, first_name, last_name, email, is_active, hourly_rate, admin_user_id, can_authorize, created_at, updated_at
+        `SELECT id, employee_code, first_name, last_name, email, is_active, hourly_rate, admin_user_id, can_authorize, can_process_refunds, can_open_drawer, created_at, updated_at
          FROM pos_employees WHERE id = ? LIMIT 1`,
         [id]
     );
@@ -154,6 +193,16 @@ async function employeeHasAdminAccess(pool, employee) {
         [employee.admin_user_id]
     );
     return rows.length > 0;
+}
+
+async function getLinkedAdminEmail(pool, employee) {
+    if (!employee?.admin_user_id) return null;
+    const [rows] = await pool.execute(
+        `SELECT email FROM admin_users WHERE id = ? AND is_active = 1 LIMIT 1`,
+        [employee.admin_user_id]
+    );
+    const email = rows[0]?.email;
+    return email ? String(email).trim() : null;
 }
 
 async function loginWithPin(pool, pin, context = {}) {
@@ -183,6 +232,7 @@ async function loginWithPin(pool, pin, context = {}) {
     const expiresIn = `${settings.sessionTimeoutMinutes}m`;
     const token = signEmployeeToken(employee, expiresIn);
     const hasAdminAccess = await employeeHasAdminAccess(pool, employee);
+    const adminEmail = hasAdminAccess ? await getLinkedAdminEmail(pool, employee) : null;
     return {
         token,
         employee: {
@@ -190,9 +240,13 @@ async function loginWithPin(pool, pin, context = {}) {
             employeeCode: employee.employee_code,
             firstName: employee.first_name,
             lastName: employee.last_name,
-            name: `${employee.first_name} ${employee.last_name}`.trim()
+            name: `${employee.first_name} ${employee.last_name}`.trim(),
+            canAuthorize: Boolean(employee.can_authorize),
+            canProcessRefunds: Boolean(employee.can_process_refunds),
+            canOpenDrawer: Boolean(employee.can_open_drawer)
         },
         hasAdminAccess,
+        adminEmail,
         sessionTimeoutMinutes: settings.sessionTimeoutMinutes,
         expiresIn
     };
@@ -213,9 +267,11 @@ async function createEmployee(pool, data, adminId) {
     }
     const pinHash = await hashPin(pin);
     const canAuthorize = data.canAuthorize || data.can_authorize ? 1 : 0;
+    const canProcessRefunds = data.canProcessRefunds || data.can_process_refunds ? 1 : 0;
+    const canOpenDrawer = data.canOpenDrawer || data.can_open_drawer ? 1 : 0;
     const [result] = await pool.execute(
-        `INSERT INTO pos_employees (employee_code, first_name, last_name, email, pin_hash, hourly_rate, admin_user_id, can_authorize)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO pos_employees (employee_code, first_name, last_name, email, pin_hash, hourly_rate, admin_user_id, can_authorize, can_process_refunds, can_open_drawer)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
             code,
             String(data.firstName || data.first_name || '').trim(),
@@ -224,7 +280,9 @@ async function createEmployee(pool, data, adminId) {
             pinHash,
             data.hourlyRate != null ? Number(data.hourlyRate) : null,
             data.adminUserId || adminId || null,
-            canAuthorize
+            canAuthorize,
+            canProcessRefunds,
+            canOpenDrawer
         ]
     );
     return getEmployeeById(pool, result.insertId);
@@ -276,6 +334,14 @@ async function updateEmployee(pool, id, data) {
         updates.push('can_authorize = ?');
         params.push(data.canAuthorize || data.can_authorize ? 1 : 0);
     }
+    if (data.canProcessRefunds != null || data.can_process_refunds != null) {
+        updates.push('can_process_refunds = ?');
+        params.push(data.canProcessRefunds || data.can_process_refunds ? 1 : 0);
+    }
+    if (data.canOpenDrawer != null || data.can_open_drawer != null) {
+        updates.push('can_open_drawer = ?');
+        params.push(data.canOpenDrawer || data.can_open_drawer ? 1 : 0);
+    }
     if (!updates.length) return getEmployeeById(pool, id);
     params.push(id);
     await pool.execute(`UPDATE pos_employees SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, params);
@@ -284,7 +350,7 @@ async function updateEmployee(pool, id, data) {
 
 async function listEmployees(pool) {
     const [rows] = await pool.execute(
-        `SELECT id, employee_code, first_name, last_name, email, is_active, hourly_rate, admin_user_id, can_authorize, created_at, updated_at
+        `SELECT id, employee_code, first_name, last_name, email, is_active, hourly_rate, admin_user_id, can_authorize, can_process_refunds, can_open_drawer, created_at, updated_at
          FROM pos_employees ORDER BY last_name, first_name`
     );
     return rows;
@@ -319,6 +385,15 @@ async function upsertRegisterForAdminUser(pool, adminUserId, data) {
         isActive: data.isActive !== false && data.isActive !== 0,
     };
     if (data.pin) payload.pin = data.pin;
+    if (data.canAuthorize != null || data.can_authorize != null) {
+        payload.canAuthorize = Boolean(data.canAuthorize || data.can_authorize);
+    }
+    if (data.canProcessRefunds != null || data.can_process_refunds != null) {
+        payload.canProcessRefunds = Boolean(data.canProcessRefunds || data.can_process_refunds);
+    }
+    if (data.canOpenDrawer != null || data.can_open_drawer != null) {
+        payload.canOpenDrawer = Boolean(data.canOpenDrawer || data.can_open_drawer);
+    }
 
     if (existing) {
         return updateEmployee(pool, existing.id, payload);
@@ -402,7 +477,22 @@ async function computeExpectedCash(pool, shift) {
     );
 }
 
+async function assertShiftOwnedByEmployee(pool, shiftSessionId, employeeId) {
+    const [rows] = await pool.execute(
+        'SELECT id FROM pos_shift_sessions WHERE id = ? AND employee_id = ? LIMIT 1',
+        [shiftSessionId, employeeId]
+    );
+    if (!rows[0]) {
+        const err = new Error('Shift not found or not authorized');
+        err.code = 'SHIFT_NOT_FOUND';
+        throw err;
+    }
+}
+
 async function addCashDrawerEvent(pool, { shiftSessionId, eventType, amount, reason, employeeId }) {
+    if (employeeId) {
+        await assertShiftOwnedByEmployee(pool, shiftSessionId, employeeId);
+    }
     const [result] = await pool.execute(
         `INSERT INTO pos_cash_drawer_events (shift_session_id, event_type, amount, reason, recorded_by_employee_id)
          VALUES (?, ?, ?, ?, ?)`,
@@ -425,7 +515,10 @@ async function recordSaleOnShift(pool, shiftSessionId, paymentMethod, totalAmoun
     );
 }
 
-async function closeShiftSession(pool, { shiftSessionId, closingCash, notes }) {
+async function closeShiftSession(pool, { shiftSessionId, closingCash, notes, employeeId }) {
+    if (employeeId) {
+        await assertShiftOwnedByEmployee(pool, shiftSessionId, employeeId);
+    }
     const [rows] = await pool.execute('SELECT * FROM pos_shift_sessions WHERE id = ? AND status = ?', [
         shiftSessionId,
         'open'
@@ -550,7 +643,7 @@ async function listTimeEntries(pool, filters = {}) {
     return rows;
 }
 
-async function getShiftReport(pool, shiftSessionId) {
+async function getShiftReport(pool, shiftSessionId, { employeeId } = {}) {
     const [shifts] = await pool.execute(
         `SELECT ss.*, e.employee_code, e.first_name, e.last_name
          FROM pos_shift_sessions ss
@@ -560,6 +653,9 @@ async function getShiftReport(pool, shiftSessionId) {
     );
     const shift = shifts[0];
     if (!shift) return null;
+    if (employeeId != null && Number(shift.employee_id) !== Number(employeeId)) {
+        return null;
+    }
     const [events] = await pool.execute(
         `SELECT * FROM pos_cash_drawer_events WHERE shift_session_id = ? ORDER BY created_at`,
         [shiftSessionId]
@@ -578,13 +674,17 @@ module.exports = {
     validatePinFormat,
     loginWithPin,
     verifyManagerPin,
+    verifyRefundPin,
     employeeCanAuthorize,
+    employeeCanProcessRefunds,
     verifyEmployeeToken,
     createEmployee,
     updateEmployee,
     listEmployees,
     getEmployeeById,
     getEmployeeByAdminUserId,
+    employeeHasAdminAccess,
+    getLinkedAdminEmail,
     upsertRegisterForAdminUser,
     getOpenShiftSession,
     openShiftSession,

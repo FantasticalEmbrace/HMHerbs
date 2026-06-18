@@ -85,72 +85,12 @@ async function syncUserCustomerGroups(pool, userId, groupIds) {
     }
 }
 
-// Adjust a customer's loyalty point balance locally (website-only loyalty).
-async function adjustLoyaltyPoints(pool, userId, pointsChange, { description, adminUserId, source = 'manual', orderId = null, metadata = null } = {}) {
-    const conn = await pool.getConnection();
-    try {
-        await conn.beginTransaction();
-
-        const [[loyalty]] = await conn.query(
-            'SELECT * FROM customer_loyalty WHERE user_id = ? FOR UPDATE',
-            [userId]
-        );
-        if (!loyalty) {
-            await conn.query(
-                'INSERT INTO customer_loyalty (user_id, points_balance) VALUES (?, 0)',
-                [userId]
-            );
-        }
-
-        const [[fresh]] = await conn.query(
-            'SELECT * FROM customer_loyalty WHERE user_id = ?',
-            [userId]
-        );
-
-        const newBalance = Math.max(0, (fresh.points_balance || 0) + pointsChange);
-        const earnedDelta = pointsChange > 0 ? pointsChange : 0;
-        const redeemedDelta = pointsChange < 0 ? Math.abs(pointsChange) : 0;
-
-        await conn.query(
-            `UPDATE customer_loyalty
-                SET points_balance = ?,
-                    lifetime_points_earned = lifetime_points_earned + ?,
-                    lifetime_points_redeemed = lifetime_points_redeemed + ?,
-                    last_earned_at = CASE WHEN ? > 0 THEN CURRENT_TIMESTAMP ELSE last_earned_at END,
-                    last_redeemed_at = CASE WHEN ? > 0 THEN CURRENT_TIMESTAMP ELSE last_redeemed_at END
-              WHERE user_id = ?`,
-            [newBalance, earnedDelta, redeemedDelta, earnedDelta, redeemedDelta, userId]
-        );
-
-        const txType = pointsChange >= 0 ? 'earn' : 'redeem';
-        await conn.query(
-            `INSERT INTO loyalty_transactions
-                (user_id, transaction_type, points_change, points_balance_after,
-                 source, order_id, description, admin_user_id, metadata)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-                userId,
-                source === 'manual' ? 'adjust' : txType,
-                pointsChange,
-                newBalance,
-                source,
-                orderId,
-                description || null,
-                adminUserId || null,
-                metadata ? JSON.stringify(metadata) : null,
-            ]
-        );
-
-        await conn.commit();
-        return { success: true, newBalance };
-    } catch (err) {
-        await conn.rollback();
-        throw err;
-    } finally {
-        conn.release();
-    }
-}
-
+const {
+    adjustLoyaltyPoints,
+    adjustLoyaltyCash,
+    setLoyaltyEnrollment,
+    loadLoyaltyProgramSettings
+} = require('../services/customerLoyalty');
 // ---------------------------------------------------------------------------
 // LIST customers (paginated, with search & filters)
 // ---------------------------------------------------------------------------
@@ -174,8 +114,10 @@ router.get('/', async (req, res) => {
         if (type)              { where.push('u.customer_type = ?');   params.push(type); }
         if (marketing_opt_in === 'true')  where.push('u.marketing_email_opt_in = 1');
         if (marketing_opt_in === 'false') where.push('u.marketing_email_opt_in = 0');
-        if (has_loyalty === 'true')  where.push('cl.points_balance > 0');
-        if (has_loyalty === 'false') where.push('(cl.points_balance IS NULL OR cl.points_balance = 0)');
+        if (has_loyalty === 'true') where.push('(cl.points_balance > 0 OR cl.cash_balance > 0)');
+        if (has_loyalty === 'false') {
+            where.push('(cl.points_balance IS NULL OR cl.points_balance = 0) AND (cl.cash_balance IS NULL OR cl.cash_balance = 0)');
+        }
 
         const sortOptions = {
             recent:        'u.created_at DESC',
@@ -329,6 +271,7 @@ router.get('/stats', async (req, res) => {
             `SELECT
                 COUNT(*) AS loyalty_members,
                 COALESCE(SUM(points_balance), 0) AS total_points_outstanding,
+                COALESCE(SUM(cash_balance), 0) AS total_cash_outstanding,
                 SUM(CASE WHEN sync_status = 'synced' THEN 1 ELSE 0 END) AS synced_with_pos
               FROM customer_loyalty`
         );
@@ -386,8 +329,10 @@ router.get('/:id', async (req, res) => {
         if (!id) return res.status(400).json({ error: 'Invalid customer id' });
 
         const [[customer]] = await req.pool.execute(
-            `SELECT u.*, cl.points_balance, cl.tier, cl.lifetime_points_earned,
-                    cl.lifetime_points_redeemed,
+            `SELECT u.*, cl.points_balance, cl.cash_balance, cl.tier,
+                    cl.lifetime_points_earned, cl.lifetime_points_redeemed,
+                    cl.lifetime_cash_earned, cl.lifetime_cash_redeemed,
+                    cl.loyalty_enrollment,
                     cl.last_synced_at AS loyalty_synced_at,
                     cl.sync_status AS loyalty_sync_status
                FROM users u
@@ -423,14 +368,16 @@ router.get('/:id', async (req, res) => {
         );
 
         const [loyaltyTx] = await req.pool.execute(
-            `SELECT id, transaction_type, points_change, points_balance_after,
-                    source, order_id, description, created_at
+            `SELECT id, transaction_type, reward_type, points_change, points_balance_after,
+                    cash_change, cash_balance_after, source, order_id, description, created_at
                FROM loyalty_transactions
               WHERE user_id = ?
               ORDER BY created_at DESC
               LIMIT 50`,
             [id]
         );
+
+        const loyaltySettings = await loadLoyaltyProgramSettings(req.pool);
 
         const [notes] = await req.pool.execute(
             `SELECT cn.*, au.first_name AS admin_first_name, au.last_name AS admin_last_name
@@ -470,6 +417,7 @@ router.get('/:id', async (req, res) => {
             orders,
             gift_cards: giftCards,
             loyalty_transactions: loyaltyTx,
+            loyalty_settings: loyaltySettings,
             notes,
             communications,
             customer_groups,
@@ -824,19 +772,47 @@ router.delete('/:id/notes/:noteId', async (req, res) => {
 router.post('/:id/loyalty/adjust', async (req, res) => {
     try {
         const id = parseInt(req.params.id, 10);
-        const { points_change, description } = req.body || {};
-        const change = parseInt(points_change, 10);
-        if (!change || isNaN(change)) return res.status(400).json({ error: 'points_change must be a non-zero integer' });
+        const { points_change, cash_change, description } = req.body || {};
+        const pointChange = points_change != null ? parseInt(points_change, 10) : 0;
+        const cashChange = cash_change != null ? Number(cash_change) : 0;
+        if ((!pointChange || isNaN(pointChange)) && (!cashChange || isNaN(cashChange))) {
+            return res.status(400).json({ error: 'points_change or cash_change must be a non-zero number' });
+        }
 
-        const result = await adjustLoyaltyPoints(req.pool, id, change, {
-            description,
-            adminUserId: req.admin.id,
-            source: 'manual',
-        });
-        res.json({ success: true, new_balance: result.newBalance });
+        const results = {};
+        if (pointChange && !isNaN(pointChange)) {
+            results.points = await adjustLoyaltyPoints(req.pool, id, pointChange, {
+                description,
+                adminUserId: req.admin.id,
+                source: 'manual',
+            });
+        }
+        if (cashChange && !isNaN(cashChange)) {
+            results.cash = await adjustLoyaltyCash(req.pool, id, cashChange, {
+                description,
+                adminUserId: req.admin.id,
+                source: 'manual',
+            });
+        }
+        res.json({ success: true, ...results });
     } catch (err) {
         logger.error('Adjust loyalty error', { error: err.message });
-        res.status(500).json({ error: 'Failed to adjust loyalty points' });
+        res.status(500).json({ error: 'Failed to adjust loyalty rewards' });
+    }
+});
+
+router.put('/:id/loyalty/enrollment', async (req, res) => {
+    try {
+        const id = parseInt(req.params.id, 10);
+        const { enrollment } = req.body || {};
+        const result = await setLoyaltyEnrollment(req.pool, id, enrollment);
+        res.json({ success: true, ...result });
+    } catch (err) {
+        if (err.code === 'INVALID_LOYALTY_ENROLLMENT') {
+            return res.status(400).json({ error: 'enrollment must be cash, points, or both' });
+        }
+        logger.error('Set loyalty enrollment error', { error: err.message });
+        res.status(500).json({ error: 'Failed to update loyalty preference' });
     }
 });
 

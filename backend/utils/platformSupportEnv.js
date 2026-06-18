@@ -23,6 +23,12 @@ function getPlatformHubUrl() {
     return String(process.env.POS_PLATFORM_HUB_URL || '').trim().replace(/\/+$/, '');
 }
 
+function getPlatformHubPublicUrl() {
+    const explicit = String(process.env.PLATFORM_SUPPORT_HUB_PUBLIC_URL || '').trim().replace(/\/+$/, '');
+    if (explicit) return explicit;
+    return '';
+}
+
 function getStoreBaseUrl() {
     const explicit = String(process.env.POS_PLATFORM_STORE_URL || '').trim().replace(/\/+$/, '');
     if (explicit) return explicit;
@@ -42,6 +48,7 @@ module.exports = {
     isPlatformHubSyncConfigured,
     getPlatformMerchantId,
     getPlatformHubUrl,
+    getPlatformHubPublicUrl,
     getStoreBaseUrl,
     verifyPlatformHubSecret
 };

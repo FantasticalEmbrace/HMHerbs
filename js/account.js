@@ -19,6 +19,16 @@ function hmHerbsToDateInputValue(raw) {
 }
 
 function hmHerbsAccountApiBase() {
+    if (typeof window !== 'undefined' && typeof window.hmHerbsStorefrontApiBase === 'function') {
+        const origin = window.hmHerbsStorefrontApiBase();
+        return origin ? `${origin}/api` : '/api';
+    }
+    const explicit = String(
+        typeof window !== 'undefined' && window.HMHERBS_API_ORIGIN ? window.HMHERBS_API_ORIGIN : ''
+    )
+        .trim()
+        .replace(/\/+$/, '');
+    if (explicit) return `${explicit}/api`;
     if (typeof window === 'undefined') return '/api';
     if (window.location.protocol === 'file:') {
         return 'http://localhost:3001/api';
@@ -363,9 +373,38 @@ class AccountManager {
         });
     }
 
-    _renderOrderDetail({ order, items, shipping_address, billing_address }) {
+    _renderOrderDetail({ order, items, shipping_address, billing_address, payment_tenders }) {
         const esc = (s) => this._esc(s);
         const fmt = (v) => `$${parseFloat(v || 0).toFixed(2)}`;
+        const tenderLabels = {
+            loyalty_cash: 'Store credit',
+            loyalty_points: 'Points',
+            gift_card: 'Gift card',
+            cash: 'Cash',
+            card_terminal: 'Card',
+            credit_card: 'Card',
+            debit_card: 'Card',
+            split: 'Split payment',
+            check: 'Check'
+        };
+        const paymentMethod = String(order.payment_method || '').toLowerCase();
+        const fallbackTender =
+            !payment_tenders?.length && paymentMethod
+                ? [{ tender_type: paymentMethod, amount: order.total_amount }]
+                : [];
+        const tendersToShow = (payment_tenders || []).length ? payment_tenders : fallbackTender;
+        const tendersHtml = tendersToShow.length
+            ? `<div style="margin:0 0 1rem;padding:0.75rem 1rem;background:var(--gray-50,#f9fafb);border-radius:8px;">
+                <div style="font-weight:600;margin-bottom:0.35rem;">Payment</div>
+                ${tendersToShow.map((t) => {
+                    const label = tenderLabels[t.tender_type] || t.tender_type;
+                    const extra = t.tender_type === 'loyalty_points' && t.loyalty_points
+                        ? ` (${t.loyalty_points} pts)`
+                        : '';
+                    return `<div style="font-size:0.9rem;">${esc(label)}: ${fmt(t.amount)}${extra}</div>`;
+                }).join('')}
+               </div>`
+            : '';
         const itemsHtml = (items || []).map(it => `
             <tr>
                 <td style="padding:0.4rem;">${esc(it.product_name)}</td>
@@ -397,6 +436,7 @@ class AccountManager {
 
         return `
             ${progressBlock}
+            ${tendersHtml}
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-bottom:1rem;">
                 ${addrHtml(shipping_address, 'Ship To')}
                 ${addrHtml(billing_address, 'Bill To')}
@@ -1158,7 +1198,6 @@ class AccountManager {
             const hit = app.products.find((p) => String(p.id) === String(productId));
             if (hit) {
                 app.addToCart(productId, 1);
-                this.showNotification('Added to cart', 'success');
                 return;
             }
         }
@@ -1170,7 +1209,6 @@ class AccountManager {
                 const payload = this._apiProductToCartPayload(prod);
                 if (payload) {
                     app.addProductToCart(payload, 1);
-                    this.showNotification('Added to cart', 'success');
                     return;
                 }
             } catch (e) {
@@ -1186,7 +1224,6 @@ class AccountManager {
 
         if (window.app && typeof window.app.addToCart === 'function') {
             window.app.addToCart(productId, 1);
-            this.showNotification('Added to cart', 'success');
             return;
         }
 
@@ -1246,30 +1283,47 @@ class AccountManager {
         try {
             const response = await this.apiRequest('/user/loyalty');
             const loyalty = response.loyalty || {};
+            const settings = response.settings || {};
             const fmt = (n) => new Intl.NumberFormat('en-US').format(Number(n) || 0);
+            const fmtMoney = (n) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(n) || 0);
 
+            document.getElementById('loyalty-cash-balance').textContent = fmtMoney(loyalty.cash_balance);
             document.getElementById('loyalty-points-balance').textContent = fmt(loyalty.points_balance);
-            document.getElementById('loyalty-tier').textContent = loyalty.tier || '—';
-            document.getElementById('loyalty-lifetime-earned').textContent = fmt(loyalty.lifetime_points_earned);
+            const enrollLabels = { cash: 'Cash-back store credit', points: 'Points', both: 'Cash-back + points' };
+            document.getElementById('loyalty-enrollment').textContent =
+                enrollLabels[loyalty.loyalty_enrollment] || enrollLabels.cash;
             document.getElementById('loyalty-member-since').textContent =
                 loyalty.member_since ? new Date(loyalty.member_since).toLocaleDateString() : '—';
 
             if (cardInfo) {
-                cardInfo.innerHTML = '<em>Earn rewards on every purchase!</em>';
+                const parts = [];
+                if (settings.cashEnabled !== false && settings.cashbackPercent > 0) {
+                    parts.push(`Earn <strong>${settings.cashbackPercent}%</strong> back as store credit on eligible purchases`);
+                }
+                if (settings.pointsEnabled !== false) {
+                    parts.push(`Earn <strong>${settings.pointsPerDollar || 1}</strong> point(s) per dollar spent`);
+                }
+                cardInfo.innerHTML = parts.length
+                    ? parts.join(' · ')
+                    : '<em>Rewards program details will appear here.</em>';
             }
 
             if (container) {
                 if (response.transactions && response.transactions.length > 0) {
                     container.innerHTML = response.transactions.map(t => {
-                        const sign = t.points_change >= 0 ? '+' : '';
-                        const color = t.points_change >= 0 ? 'var(--success, #16a34a)' : 'var(--error, #dc2626)';
+                        const isCash = t.reward_type === 'cash';
+                        const change = isCash ? Number(t.cash_change) : Number(t.points_change);
+                        const sign = change >= 0 ? '+' : '';
+                        const color = change >= 0 ? 'var(--success, #16a34a)' : 'var(--error, #dc2626)';
+                        const changeLabel = isCash ? `${sign}${fmtMoney(change)}` : `${sign}${fmt(change)} pts`;
+                        const typeLabel = isCash ? 'Store credit' : 'Points';
                         return `
                             <div class="order-card" style="display:flex;justify-content:space-between;align-items:center;padding:0.75rem 1rem;">
                                 <div>
-                                    <div style="font-weight:600;text-transform:capitalize;">${t.transaction_type.replace('_',' ')}</div>
+                                    <div style="font-weight:600;text-transform:capitalize;">${t.transaction_type.replace('_',' ')} <span style="font-weight:500;color:var(--gray-500,#6b7280);">(${typeLabel})</span></div>
                                     <div style="font-size:0.85rem;color:var(--gray-500,#6b7280);">${new Date(t.created_at).toLocaleString()}${t.description ? ' — ' + this._esc(t.description) : ''}</div>
                                 </div>
-                                <div style="font-weight:700;color:${color};">${sign}${fmt(t.points_change)} pts</div>
+                                <div style="font-weight:700;color:${color};">${changeLabel}</div>
                             </div>`;
                     }).join('');
                 } else {
@@ -1306,25 +1360,28 @@ class AccountManager {
 
     renderGiftCard(g) {
         const fmt = (v) => new Intl.NumberFormat('en-US', { style: 'currency', currency: g.currency || 'USD' }).format(Number(v) || 0);
-        const expires = g.expires_at ? new Date(g.expires_at).toLocaleDateString() : '—';
+        const cardType = g.card_type === 'physical' ? 'physical' : 'digital';
+        const cardHtml =
+            window.HmGiftCard?.markup({
+                amount: Number(g.current_balance),
+                cardType,
+                code: g.code
+            }) ||
+            `<div class="address-card">${this._esc(g.code)}</div>`;
         return `
-            <div class="address-card" style="background:linear-gradient(135deg,var(--primary-green,#0a7e3e),#066332);color:#fff;">
-                <h4 style="color:#fff;">${g.card_type === 'physical' ? 'Physical Gift Card' : 'Digital Gift Card'}</h4>
-                <p style="font-family:monospace;font-size:1.1em;letter-spacing:0.05em;">${this._esc(g.code)}</p>
-                <div style="display:flex;justify-content:space-between;margin-top:0.75rem;">
-                    <div>
-                        <div style="opacity:0.85;font-size:0.85em;">Balance</div>
-                        <div style="font-size:1.5em;font-weight:700;">${fmt(g.current_balance)}</div>
+            <div class="gift-cards-container">
+                ${cardHtml}
+                <div class="gift-card-account-meta">
+                    <div class="gift-card-account-balance">
+                        <span class="gift-card-account-label">Balance</span>
+                        <span class="gift-card-account-value">${fmt(g.current_balance)}</span>
                     </div>
-                    <div style="text-align:right;">
-                        <div style="opacity:0.85;font-size:0.85em;">Status</div>
-                        <div style="text-transform:capitalize;font-weight:600;">${this._esc(g.status)}</div>
+                    <div class="gift-card-account-status">
+                        <span class="gift-card-account-label">Status</span>
+                        <span class="gift-card-account-value">${this._esc(g.status)}</span>
                     </div>
                 </div>
-                <div style="margin-top:0.75rem;font-size:0.85em;opacity:0.85;">
-                    Expires: ${expires}
-                    ${g.personal_message ? `<div style="margin-top:0.5rem;font-style:italic;">"${this._esc(g.personal_message)}"</div>` : ''}
-                </div>
+                ${g.personal_message ? `<p class="gift-card-account-message">&ldquo;${this._esc(g.personal_message)}&rdquo;</p>` : ''}
             </div>`;
     }
 
@@ -1352,7 +1409,6 @@ class AccountManager {
                     <div style="padding:1rem;background:#dcfce7;border:1px solid #16a34a;border-radius:8px;">
                         <div><strong>Status:</strong> <span style="text-transform:capitalize;">${this._esc(g.status)}</span></div>
                         <div><strong>Balance:</strong> ${fmt(g.current_balance)} of ${fmt(g.initial_balance)}</div>
-                        ${g.expires_at ? `<div><strong>Expires:</strong> ${new Date(g.expires_at).toLocaleDateString()}</div>` : ''}
                     </div>`;
             } catch (err) {
                 result.innerHTML = `<div style="padding:1rem;background:#fee2e2;border:1px solid #dc2626;border-radius:8px;color:#991b1b;">${this._esc(err.message)}</div>`;

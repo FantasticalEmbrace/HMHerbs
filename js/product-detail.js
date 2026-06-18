@@ -713,8 +713,9 @@ class ProductDetailPage {
             console.error('Product detail: Cannot add to cart - product not loaded');
             return;
         }
+        if (this._addToCartInFlight) return;
+        this._addToCartInFlight = true;
 
-        console.log('Product detail: Adding to cart', { product: this.product, quantity: this.quantity });
         try {
             const inventory = this.selectedVariant?.inventory_quantity ?? this.product.inventory_quantity ?? undefined;
             const canPurchase = this.selectedVariant?.can_purchase ?? this.product.can_purchase;
@@ -734,70 +735,74 @@ class ProductDetailPage {
                 canPurchase: canPurchase
             };
 
-            // Wait a bit for window.hmHerbsApp to initialize (since script.js loads with defer)
-            const tryAddToCart = () => {
-                if (window.hmHerbsApp && window.hmHerbsApp.addProductToCart) {
-                    // Use addProductToCart which accepts product data directly
-                    window.hmHerbsApp.addProductToCart(cartItem, this.quantity);
-                    // Force update cart display multiple times to ensure it updates
-                    setTimeout(() => this.updateCartDisplay(), 50);
-                    setTimeout(() => this.updateCartDisplay(), 200);
-                    setTimeout(() => this.updateCartDisplay(), 500);
-                } else if (window.hmHerbsApp && window.hmHerbsApp.addToCart) {
-                    // Fallback: try with product ID if addProductToCart doesn't exist
-                    window.hmHerbsApp.addToCart(this.product.id, this.quantity);
-                    setTimeout(() => this.updateCartDisplay(), 50);
-                    setTimeout(() => this.updateCartDisplay(), 200);
-                    setTimeout(() => this.updateCartDisplay(), 500);
-                } else {
-                    // Fallback: add to localStorage cart
-                    let cart = JSON.parse(localStorage.getItem('hmherbs_cart') || '[]');
-                    const existingIndex = cart.findIndex(item => {
-                        const itemId = item.id || item.product_id;
-                        const cartItemId = cartItem.id || cartItem.product_id;
-                        // Use string comparison for IDs to handle both numeric and alphanumeric IDs
-                        return String(itemId) === String(cartItemId) &&
-                            (item.variant_id || null) === (cartItem.variant_id || null);
-                    });
-
-                    if (existingIndex >= 0) {
-                        cart[existingIndex].quantity += cartItem.quantity;
-                    } else {
-                        // Ensure cart item has the right structure
-                        cart.push({
-                            id: cartItem.id || cartItem.product_id,
-                            product_id: cartItem.product_id,
-                            name: cartItem.name,
-                            price: cartItem.price,
-                            image: cartItem.image,
-                            quantity: cartItem.quantity
-                        });
-                    }
-
-                    localStorage.setItem('hmherbs_cart', JSON.stringify(cart));
-                    this.updateCartDisplay();
-                    this.showNotification('Product added to cart', 'success');
-
-                    // Also try to update main app's cart if it becomes available
-                    setTimeout(() => {
-                        if (window.hmHerbsApp && window.hmHerbsApp.loadCartFromStorage) {
-                            window.hmHerbsApp.loadCartFromStorage();
-                            window.hmHerbsApp.updateCartDisplay();
-                        }
-                    }, 300);
-                }
-            };
-
-            // Try immediately, and retry after delays if hmHerbsApp isn't ready
-            tryAddToCart();
-            if (!window.hmHerbsApp) {
-                setTimeout(tryAddToCart, 200);
-                setTimeout(tryAddToCart, 500);
+            const app = await this.waitForCartApp(1500);
+            if (app?.addProductToCart) {
+                app.addProductToCart(cartItem, this.quantity);
+                setTimeout(() => this.updateCartDisplay(), 50);
+                return;
             }
+            if (app?.addToCart) {
+                app.addToCart(this.product.id, this.quantity);
+                setTimeout(() => this.updateCartDisplay(), 50);
+                return;
+            }
+
+            let cart = JSON.parse(localStorage.getItem('hmherbs_cart') || '[]');
+            const existingIndex = cart.findIndex(item => {
+                const itemId = item.id || item.product_id;
+                const cartItemId = cartItem.id || cartItem.product_id;
+                return String(itemId) === String(cartItemId) &&
+                    (item.variant_id || null) === (cartItem.variant_id || null);
+            });
+
+            if (existingIndex >= 0) {
+                cart[existingIndex].quantity += cartItem.quantity;
+            } else {
+                cart.push({
+                    id: cartItem.id || cartItem.product_id,
+                    product_id: cartItem.product_id,
+                    name: cartItem.name,
+                    price: cartItem.price,
+                    image: cartItem.image,
+                    quantity: cartItem.quantity
+                });
+            }
+
+            localStorage.setItem('hmherbs_cart', JSON.stringify(cart));
+            this.updateCartDisplay();
+            this.showNotification('Added to cart', 'success');
+
+            setTimeout(() => {
+                if (window.hmHerbsApp?.loadCartFromStorage) {
+                    window.hmHerbsApp.loadCartFromStorage();
+                    window.hmHerbsApp.updateCartDisplay();
+                }
+            }, 300);
         } catch (error) {
             console.error('Error adding to cart:', error);
             this.showNotification('Failed to add product to cart', 'error');
+        } finally {
+            this._addToCartInFlight = false;
         }
+    }
+
+    waitForCartApp(maxMs = 1500) {
+        return new Promise((resolve) => {
+            const started = Date.now();
+            const tick = () => {
+                const app = window.hmHerbsApp;
+                if (app && (app.addProductToCart || app.addToCart)) {
+                    resolve(app);
+                    return;
+                }
+                if (Date.now() - started >= maxMs) {
+                    resolve(null);
+                    return;
+                }
+                setTimeout(tick, 50);
+            };
+            tick();
+        });
     }
 
     async addToWishlist() {

@@ -953,7 +953,7 @@ class ProductsPage {
 
         this.updateCartDisplay();
         this.saveCartToStorage();
-        this.showNotification(`${product.name} added to cart`, 'success');
+        this.showNotification('Added to cart', 'success');
     }
 
     removeFromCart(productId) {
