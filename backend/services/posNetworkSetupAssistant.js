@@ -4,16 +4,14 @@ const { listEquipment } = require('./posEquipment');
 const {
     loadStoreNetworkSettings,
     equipmentNeedsNetworkIp,
-    normalizeMac,
-    getStandardStoreNetworkTemplate,
-    suggestedStandardIp
+    normalizeMac
 } = require('./posStoreNetwork');
 
 const STEP_DEFS = Object.freeze([
     {
         id: 'network_settings',
         title: 'Set up network settings',
-        summary: 'Load the recommended router address and network range, then save them here.',
+        summary: 'Enter your store router address and network range, then save them here.',
         canSkip: false
     },
     {
@@ -31,7 +29,7 @@ const STEP_DEFS = Object.freeze([
     {
         id: 'configure_router',
         title: 'Set fixed addresses on the router',
-        summary: 'In the router settings, reserve each device address from the plan below.',
+        summary: 'In the router settings, reserve each device address you assigned in equipment.',
         canSkip: true
     },
     {
@@ -48,12 +46,6 @@ const STEP_DEFS = Object.freeze([
     }
 ]);
 
-function planLoaded(settings, template) {
-    const gw = String(settings?.gatewayIp || '').trim();
-    const subnet = String(settings?.subnetCidr || '').trim();
-    return gw === template.gatewayIp && subnet === template.subnetCidr;
-}
-
 function settingsSaved(settings) {
     return Boolean(String(settings?.gatewayIp || '').trim() && String(settings?.subnetCidr || '').trim());
 }
@@ -65,8 +57,7 @@ function summarizeNetworkEquipment(row) {
         equipmentType: row.equipmentType,
         equipmentTypeLabel: row.equipmentTypeLabel,
         macAddress: normalizeMac(row.macAddress) || '',
-        networkAddress: row.config?.address || '',
-        suggestedAddress: suggestedStandardIp(row.equipmentType, 0) || ''
+        networkAddress: row.config?.address || ''
     };
 }
 
@@ -74,10 +65,9 @@ async function buildNetworkSetupAssistant(pool, clientState = {}) {
     const skipped = new Set(Array.isArray(clientState.skipped) ? clientState.skipped : []);
     const routerMarkedDone = Boolean(clientState.routerMarkedDone);
 
-    const [settings, equipment, template] = await Promise.all([
+    const [settings, equipment] = await Promise.all([
         loadStoreNetworkSettings(pool),
-        listEquipment(pool, { includeInactive: false }),
-        Promise.resolve(getStandardStoreNetworkTemplate())
+        listEquipment(pool, { includeInactive: false })
     ]);
 
     const networkEquipment = equipment.filter((row) => equipmentNeedsNetworkIp(row));
@@ -85,7 +75,7 @@ async function buildNetworkSetupAssistant(pool, clientState = {}) {
     const missingAddress = networkEquipment.filter((row) => !String(row.config?.address || '').trim());
 
     const stepStatus = {
-        network_settings: planLoaded(settings, template) && settingsSaved(settings),
+        network_settings: settingsSaved(settings),
         add_equipment: equipment.length > 0,
         enter_macs: networkEquipment.length === 0 || missingMac.length === 0,
         configure_router: routerMarkedDone || skipped.has('configure_router'),
@@ -102,7 +92,6 @@ async function buildNetworkSetupAssistant(pool, clientState = {}) {
 
         const detail = buildStepDetail(def.id, {
             settings,
-            template,
             equipment,
             networkEquipment,
             missingMac,
@@ -143,7 +132,6 @@ async function buildNetworkSetupAssistant(pool, clientState = {}) {
         allDone,
         steps,
         settings,
-        standardTemplate: template,
         counts: {
             equipment: equipment.length,
             networkEquipment: networkEquipment.length,
@@ -165,7 +153,6 @@ async function buildNetworkSetupAssistant(pool, clientState = {}) {
 function buildSetupStatusReport(snapshot, clientState = {}) {
     const steps = snapshot?.steps || [];
     const settings = snapshot?.settings || {};
-    const template = snapshot?.standardTemplate || {};
     const skipped = new Set(Array.isArray(clientState.skipped) ? clientState.skipped : []);
 
     const completedSteps = steps.filter((s) => s.status === 'complete');
@@ -176,29 +163,14 @@ function buildSetupStatusReport(snapshot, clientState = {}) {
 
     const missingItems = [];
 
-    const networkOk =
-        settings.gatewayIp === template.gatewayIp &&
-        settings.subnetCidr === template.subnetCidr &&
-        Boolean(settings.gatewayIp) &&
-        Boolean(settings.subnetCidr);
-    if (!networkOk) {
-        if (!settings.gatewayIp || !settings.subnetCidr) {
-            missingItems.push({
-                id: 'network_not_saved',
-                label: 'Network settings are not saved yet',
-                detail: 'Load the recommended router address (10.224.16.1) and network range, then save.',
-                stepId: 'network_settings',
-                actionId: 'save_settings'
-            });
-        } else {
-            missingItems.push({
-                id: 'network_not_recommended',
-                label: 'Network settings do not match the recommended plan',
-                detail: `Currently ${settings.gatewayIp || '—'} / ${settings.subnetCidr || '—'}. Recommended: ${template.gatewayIp} / ${template.subnetCidr}.`,
-                stepId: 'network_settings',
-                actionId: 'load_plan'
-            });
-        }
+    if (!settingsSaved(settings)) {
+        missingItems.push({
+            id: 'network_not_saved',
+            label: 'Network settings are not saved yet',
+            detail: 'Enter your router address and network range, then save.',
+            stepId: 'network_settings',
+            actionId: 'save_settings'
+        });
     }
 
     if ((snapshot.counts?.equipment || 0) === 0) {
@@ -231,9 +203,9 @@ function buildSetupStatusReport(snapshot, clientState = {}) {
         missingItems.push({
             id: 'router_reservations',
             label: 'Fixed addresses not set on the router yet',
-            detail: 'Reserve each device address on the router to match the plan below.',
+            detail: 'Reserve each device address on the router to match what you entered on equipment.',
             stepId: 'configure_router',
-            actionId: 'show_ip_plan'
+            actionId: 'router_done'
         });
     }
 
@@ -241,9 +213,7 @@ function buildSetupStatusReport(snapshot, clientState = {}) {
         missingItems.push({
             id: `ip_${eq.id}`,
             label: `Network address missing on ${eq.label}`,
-            detail: eq.suggestedAddress
-                ? `Suggested: ${eq.suggestedAddress} — paste from router and apply.`
-                : 'Paste the router device list and sync addresses.',
+            detail: 'Paste the router device list and sync addresses.',
             stepId: 'paste_and_sync',
             actionId: 'focus_paste',
             equipmentId: eq.id
@@ -304,36 +274,33 @@ function buildSetupStatusReport(snapshot, clientState = {}) {
             label: eq.label,
             type: eq.equipmentTypeLabel,
             mac: eq.macAddress || null,
-            address: eq.networkAddress || null,
-            suggestedAddress: eq.suggestedAddress || null
+            address: eq.networkAddress || null
         })),
         networkSettings: {
-            saved: Boolean(settings.gatewayIp && settings.subnetCidr),
+            saved: settingsSaved(settings),
             gateway: settings.gatewayIp || '',
             subnet: settings.subnetCidr || '',
-            matchesRecommended: networkOk,
             routerUrl: settings.routerUrl || ''
         }
     };
 }
 
 function buildStepDetail(stepId, ctx) {
-    const { settings, template, equipment, missingMac, missingAddress, networkEquipment } = ctx;
+    const { settings, equipment, missingMac, missingAddress, networkEquipment } = ctx;
 
     switch (stepId) {
         case 'network_settings':
             return {
-                message: planLoaded(settings, template) && settingsSaved(settings)
-                    ? 'Your network settings are saved with the recommended addresses.'
-                    : 'First load the recommended addresses into the form below, then save. Add your router settings page link and Wi‑Fi notes if you have them.',
+                message: settingsSaved(settings)
+                    ? 'Your network settings are saved.'
+                    : 'Enter your router address and network range below, then save. Add your router settings page link and Wi‑Fi notes if helpful.',
                 actions: [
-                    { id: 'load_plan', label: 'Load recommended addresses', primary: false },
                     { id: 'focus_settings', label: 'Go to network form', primary: false },
                     { id: 'save_settings', label: 'Save network settings now', primary: true }
                 ],
                 checks: [
-                    { label: 'Router address is 10.224.16.1', done: settings.gatewayIp === template.gatewayIp },
-                    { label: 'Network range is 10.224.16.0/24', done: settings.subnetCidr === template.subnetCidr },
+                    { label: 'Router address entered', done: Boolean(String(settings.gatewayIp || '').trim()) },
+                    { label: 'Network range entered', done: Boolean(String(settings.subnetCidr || '').trim()) },
                     { label: 'Settings saved', done: settingsSaved(settings) }
                 ]
             };
@@ -381,11 +348,8 @@ function buildStepDetail(stepId, ctx) {
         case 'configure_router':
             return {
                 message:
-                    'On the router, give each POS device a fixed address that matches the table below. This is done in the router admin page — not in this screen.',
-                actions: [
-                    { id: 'show_ip_plan', label: 'Show address table', primary: false },
-                    { id: 'router_done', label: "I've set this up on the router", primary: true }
-                ],
+                    'On the router, give each POS device a fixed address that matches what you entered on the equipment record. This is done in the router admin page — not in this screen.',
+                actions: [{ id: 'router_done', label: "I've set this up on the router", primary: true }],
                 checks: [
                     { label: 'Fixed addresses reserved on the router', done: ctx.routerMarkedDone || ctx.skippedStep }
                 ]
@@ -433,7 +397,7 @@ function answerSetupQuestion(question, snapshot) {
         return 'The hardware address (MAC) is a code on a sticker on the device — usually looks like AA:BB:CC:DD:EE:FF. The router uses it to always give that device the same network address.';
     }
     if (/what is (a )?gateway|router address/.test(q)) {
-        return `The router address is the door every device uses to reach the internet. For this store we recommend ${snapshot.standardTemplate?.gatewayIp || '10.224.16.1'}.`;
+        return 'The router address is the door every device uses to reach the internet. Enter whatever address your router installer or ISP gave you (often something like 192.168.1.1).';
     }
     if (/why.*(no|not).*match|didn.?t match|parse/.test(q)) {
         if (snapshot.counts?.missingMac > 0) {
@@ -443,23 +407,11 @@ function answerSetupQuestion(question, snapshot) {
         return 'Make sure each line in your paste has a device name, IP address, and hardware address. The hardware address on the paste must match what you entered on the equipment record.';
     }
     if (/register|printer|terminal|card reader/.test(q) && /address|ip/.test(q)) {
-        const plan = snapshot.standardTemplate?.ipPlan || [];
-        const roleMap = [
-            { re: /register/, type: 'register' },
-            { re: /printer|receipt/, type: 'receipt_printer' },
-            { re: /terminal|card|a3700/, type: 'card_terminal' },
-            { re: /display/, type: 'customer_display' }
-        ];
-        for (const { re, type } of roleMap) {
-            if (re.test(q)) {
-                const row = plan.find((r) => r.equipmentType === type && r.station === 1);
-                if (row) return `For register station 1, the recommended address for the ${row.role.toLowerCase()} is ${row.ip}. Station 2 uses .32–.38, station 3 uses .48–.54.`;
-            }
+        const onFile = (snapshot.networkEquipment || []).find((eq) => /register|printer|terminal|display/i.test(eq.label));
+        if (onFile?.networkAddress) {
+            return `${onFile.label} is set to ${onFile.networkAddress}. Enter the address you reserved on the router on each equipment record.`;
         }
-        const first = plan[0];
-        return first
-            ? `See the address table in the setup steps. Example: ${first.role} at station 1 uses ${first.ip}.`
-            : 'Open the address table in step 5 to see recommended addresses per device.';
+        return 'Enter the IP or hostname on each equipment record under Equipment, then reserve the same address on your router using the device MAC.';
     }
     if (/skip|stuck|help|what.*next/.test(q)) {
         const step = (snapshot.steps || []).find((s) => s.id === snapshot.currentStepId);
@@ -475,7 +427,7 @@ function answerSetupQuestion(question, snapshot) {
     if (step) {
         return `Right now: ${step.title}. ${step.message} You can also use the action buttons on that step.`;
     }
-    return 'Use the step buttons to load addresses, save settings, and sync from your router. Ask about MAC addresses, recommended IPs, or why a paste did not match.';
+    return 'Use the step buttons to save settings and sync from your router. Ask about MAC addresses, IP addresses, or why a paste did not match.';
 }
 
 module.exports = {

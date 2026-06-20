@@ -12,7 +12,7 @@ const BRAND = {
     headerTo: '#065f46',
     lightGreen: '#ecfdf5',
     sageBorder: '#bbf7d0',
-    sageAccent: '#6ee7b7',
+    accentGold: '#cfad37',
     text: '#111827',
     textMuted: '#4b5563',
     footerMuted: '#6b7280',

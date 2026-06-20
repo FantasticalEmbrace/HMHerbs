@@ -4,13 +4,11 @@ const axios = require('axios');
 const logger = require('../utils/logger');
 
 const ALLOWED_ACTIONS = Object.freeze([
-    'load_plan',
     'save_settings',
     'focus_settings',
     'add_equipment',
     'scroll_equipment',
     'edit_next_mac',
-    'show_ip_plan',
     'router_done',
     'focus_paste',
     'parse_list',
@@ -24,10 +22,10 @@ Goals:
 - Walk them through fixed network addresses for registers, printers, and card readers.
 - Use plain, friendly English. Explain technical terms briefly when needed.
 - Use the live store context JSON — never guess equipment names or IPs that are not in context.
-- Recommended addresses use 10.224.16.x (router at 10.224.16.1). Do not invent other schemes.
+- Use only addresses and settings the store owner has entered — do not recommend a fixed IP scheme.
 
 You can suggest buttons using ONLY these action ids:
-load_plan, save_settings, focus_settings, add_equipment, scroll_equipment, edit_next_mac, show_ip_plan, router_done, focus_paste, parse_list, apply_all, backup_done
+save_settings, focus_settings, add_equipment, scroll_equipment, edit_next_mac, router_done, focus_paste, parse_list, apply_all, backup_done
 
 When edit_next_mac is needed, include equipmentId from context for the specific device.
 
@@ -44,7 +42,7 @@ Respond with JSON only (no markdown fences):
   "highlight": null
 }
 
-highlight may be: network_form, equipment, paste, ip_plan — to scroll the user to the right area.
+highlight may be: network_form, equipment, paste — to scroll the user to the right area.
 Keep reply under 120 words unless the user asked for detail.`;
 
 function isNetworkSetupAiEnabled() {
@@ -79,10 +77,7 @@ function compactContext(snapshot, stepId = null) {
         counts: snapshot?.counts,
         missingMacEquipment: snapshot?.missingMacEquipment,
         missingAddressEquipment: snapshot?.missingAddressEquipment,
-        networkEquipment: snapshot?.networkEquipment,
-        recommendedGateway: snapshot?.standardTemplate?.gatewayIp,
-        recommendedSubnet: snapshot?.standardTemplate?.subnetCidr,
-        ipPlanSample: (snapshot?.standardTemplate?.ipPlan || []).slice(0, 12)
+        networkEquipment: snapshot?.networkEquipment
     };
 }
 
@@ -128,7 +123,7 @@ function sanitizeAiResponse(parsed) {
     const autoActionEquipmentId =
         parsed.autoActionEquipmentId != null ? Number(parsed.autoActionEquipmentId) : null;
 
-    const highlightAllowed = new Set(['network_form', 'equipment', 'paste', 'ip_plan']);
+    const highlightAllowed = new Set(['network_form', 'equipment', 'paste']);
     const highlight = highlightAllowed.has(parsed.highlight) ? parsed.highlight : null;
 
     return {

@@ -6,7 +6,8 @@ const {
     validateEquipmentConfig,
     catalogLabelsForConfig,
     findModel,
-    validateEquipmentBinding
+    validateEquipmentBinding,
+    getManualConfigFieldsForType
 } = require('./posHardwareCatalog');
 
 function normalizeEquipmentType(raw) {
@@ -277,7 +278,8 @@ function listEquipmentTypeCatalog() {
         id: t.id,
         label: t.label,
         description: t.description,
-        hasCatalog: t.hasCatalog
+        hasCatalog: false,
+        configFields: getManualConfigFieldsForType(t.id)
     }));
 }
 

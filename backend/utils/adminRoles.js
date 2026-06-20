@@ -166,6 +166,8 @@ const SECTION_ACCESS = Object.freeze({
 
         'brands',
 
+        'vendors',
+
         'orders',
 
         'tax-ledger',

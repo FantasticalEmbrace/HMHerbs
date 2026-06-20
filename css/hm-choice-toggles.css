@@ -30,6 +30,7 @@
     flex-shrink: 0;
     display: inline-flex;
     align-items: center;
+    line-height: 0;
 }
 
 .hm-choice-input {
@@ -61,6 +62,9 @@
     transition: background 0.2s ease, border-color 0.2s ease, width 0.2s ease;
     cursor: pointer;
     pointer-events: none;
+    overflow: hidden;
+    line-height: 0;
+    vertical-align: middle;
 }
 
 .hm-choice-row--sm .hm-choice-pill {
@@ -142,14 +146,17 @@
 
 .hm-choice-row:has(.hm-choice-input:checked) .hm-choice-knob {
     left: calc(100% - 1.23rem);
+    transform: translateY(-50%);
 }
 
 .hm-choice-row--md:has(.hm-choice-input:checked) .hm-choice-knob {
     left: calc(100% - 1.4rem);
+    transform: translateY(-50%);
 }
 
 .hm-choice-row--lg:has(.hm-choice-input:checked) .hm-choice-knob {
     left: calc(100% - 1.62rem);
+    transform: translateY(-50%);
 }
 
 .hm-choice-row:has(.hm-choice-input:checked) .hm-choice-state-off { display: none; }

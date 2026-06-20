@@ -342,22 +342,12 @@ async function ensurePosSchema(pool) {
         await pool.query(`
             INSERT IGNORE INTO settings (key_name, value, description, type) VALUES
             ('pos_network_router_url', '', 'Router admin URL for store LAN (Equipment network setup)', 'string'),
-            ('pos_network_gateway_ip', '10.224.16.1', 'Store router address (recommended: 10.224.16.1)', 'string'),
-            ('pos_network_subnet_cidr', '10.224.16.0/24', 'Store network range (recommended: 10.224.16.0/24)', 'string'),
+            ('pos_network_gateway_ip', '', 'Store router address (e.g. 192.168.1.1)', 'string'),
+            ('pos_network_subnet_cidr', '', 'Store network range (e.g. 192.168.1.0/24)', 'string'),
             ('pos_network_notes', '', 'Notes about store network wiring and DHCP', 'string')
         `);
     } catch (e) {
         logger.warn(`Database: pos network settings — ${logger.formatMysqlError(e)}`);
-    }
-    try {
-        await pool.query(
-            `UPDATE settings SET value = '10.224.16.1' WHERE key_name = 'pos_network_gateway_ip' AND (value IS NULL OR value = '')`
-        );
-        await pool.query(
-            `UPDATE settings SET value = '10.224.16.0/24' WHERE key_name = 'pos_network_subnet_cidr' AND (value IS NULL OR value = '')`
-        );
-    } catch (e) {
-        logger.warn(`Database: pos network standard defaults — ${logger.formatMysqlError(e)}`);
     }
     try {
         await pool.query(

@@ -1114,10 +1114,10 @@ class CheckoutManager {
         }
     }
 
-    /** Recompute totals; re-run server promo preview if a code is already entered. */
+    /** Recompute totals; re-run server pricing when cart has items (promo code, group discounts, employee discount). */
     async refreshCheckoutTotals() {
-        const pcode = document.getElementById('checkout-promo-code')?.value?.trim();
-        if (pcode && this.cart.length > 0) {
+        const pcode = document.getElementById('checkout-promo-code')?.value?.trim() || '';
+        if (this.cart.length > 0) {
             await this.fetchPromoPreview(pcode);
             return;
         }
@@ -1128,7 +1128,7 @@ class CheckoutManager {
         if (drow) drow.style.display = 'none';
         if (dval) dval.textContent = '-$0.00';
         const fb = document.getElementById('checkout-promo-feedback');
-        if (fb && !pcode) {
+        if (fb) {
             fb.textContent = '';
             fb.style.color = 'var(--gray-600)';
         }
@@ -1186,7 +1186,7 @@ class CheckoutManager {
             fb.textContent = '';
         }
 
-        if (!code || this.cart.length === 0) {
+        if (this.cart.length === 0) {
             this.promoPreview = null;
             this.calculateTotals();
             return;
@@ -1241,7 +1241,21 @@ class CheckoutManager {
             this.promoPreview = data;
             if (fb) {
                 fb.style.color = 'var(--gray-700)';
-                fb.textContent = `Applied: ${data.promoCode || code}`;
+                const parts = [];
+                if (data.promoCode) parts.push(`Promo: ${data.promoCode}`);
+                if (data.groupAutoPromotionApplied && data.groupAutoPromotionCode) {
+                    parts.push(`Group promo: ${data.groupAutoPromotionCode}`);
+                }
+                if (data.groupDiscountApplied && data.groupDiscountLabel) {
+                    parts.push(data.groupDiscountLabel);
+                } else if (data.groupDiscountApplied && data.groupDiscountAmount > 0) {
+                    parts.push(`Group discount −$${Number(data.groupDiscountAmount).toFixed(2)}`);
+                }
+                if (data.availableGroupPromotions?.length && !data.promoApplied) {
+                    const codes = data.availableGroupPromotions.map((p) => p.code).join(', ');
+                    parts.push(`Your group codes: ${codes}`);
+                }
+                fb.textContent = parts.length ? parts.join(' · ') : code ? `Applied: ${data.promoCode || code}` : '';
             }
 
             this.calculateTotals();
@@ -1249,12 +1263,14 @@ class CheckoutManager {
             this.promoPreview = null;
             const msg =
                 err && err.message ? err.message : 'Promo unavailable. Confirm the code or try again.';
-            if (fb) {
+            if (fb && code) {
                 fb.style.color = 'var(--error, #dc2626)';
                 fb.textContent = msg;
             }
             this.calculateTotals();
-            this.showNotification(msg, 'error');
+            if (code) {
+                this.showNotification(msg, 'error');
+            }
         }
     }
 

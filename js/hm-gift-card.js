@@ -56,12 +56,14 @@
                </div>`
             : '';
 
+        const logoMarkup = `<img class="hm-gift-card__logo" src="${LOGO_SRC}" alt="" width="120" height="36" loading="lazy" data-skip-error-handling />`;
+
         return `<div class="${mods}" role="img" aria-label="${escapeHtml(typeLabel)} gift card ${escapeHtml(ariaAmount)}">
             <div class="hm-gift-card__pattern" aria-hidden="true"></div>
             <div class="hm-gift-card__shine" aria-hidden="true"></div>
             <div class="hm-gift-card__inner">
                 <div class="hm-gift-card__header">
-                    <img class="hm-gift-card__logo" src="${LOGO_SRC}" alt="" width="120" height="36" loading="lazy" />
+                    ${logoMarkup}
                     <span class="hm-gift-card__badge">${escapeHtml(typeLabel)}</span>
                 </div>
                 ${amountBlock}

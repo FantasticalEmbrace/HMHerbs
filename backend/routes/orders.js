@@ -232,6 +232,7 @@ router.post('/', async (req, res) => {
                 email: orderEmail,
                 applyTaxExemption,
                 customerType: authUser?.customer_type,
+                userId: userId || undefined,
                 shippingMethod: String(rawShippingMethod || '').trim() || undefined,
                 shippingAmount: rawShippingAmount != null ? Number(rawShippingAmount) : undefined,
             });

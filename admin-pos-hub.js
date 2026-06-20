@@ -1,5 +1,5 @@
 /**
- * Admin Point of Sale — equipment catalog, tabs, hardware CRUD
+ * Admin Point of Sale — equipment tabs, manual hardware CRUD
  */
 (function () {
     'use strict';
@@ -24,13 +24,11 @@
     }
 
     let equipmentTypes = [];
-    let hardwareCatalog = { types: [] };
     let equipmentRows = [];
     let registerOptions = [];
     let tabsBound = false;
     let dhcpMatchResults = null;
     let networkBound = false;
-    let standardNetworkTemplate = null;
     let setupAssistantSnapshot = null;
     let setupAssistantViewStepId = null;
     let setupAssistantBound = false;
@@ -44,11 +42,7 @@
     const SETUP_CHAT_STORAGE_KEY = 'hmherbs_pos_network_setup_chat_v1';
 
     function typeMeta(id) {
-        return equipmentTypes.find((t) => t.id === id) || hardwareCatalog.types.find((t) => t.id === id) || null;
-    }
-
-    function catalogType(id) {
-        return hardwareCatalog.types.find((t) => t.id === id) || null;
+        return equipmentTypes.find((t) => t.id === id) || null;
     }
 
     function fieldVisible(field, config) {
@@ -69,29 +63,33 @@
         return false;
     }
 
-    function isPayPointModelId(modelId) {
-        return String(modelId || '').toLowerCase().includes('paypoint');
+    function equipmentIdentityText() {
+        const manufacturer = document.getElementById('pos-equipment-manufacturer')?.value || '';
+        const model = document.getElementById('pos-equipment-model')?.value || '';
+        return `${manufacturer} ${model}`.trim().toLowerCase();
     }
 
-    function isAndroidAioModelId(modelId) {
-        const id = String(modelId || '').toLowerCase();
-        return id.startsWith('sunmi_') || id.startsWith('landi_reg_') || id === 'aures_yuno';
+    function isPayPointRegister() {
+        return equipmentIdentityText().includes('paypoint');
     }
 
-    function updatePayPointFormHints(typeId, modelId) {
+    function isAndroidAioRegister() {
+        return /sunmi|landi|aures/.test(equipmentIdentityText());
+    }
+
+    function updatePayPointFormHints(typeId) {
         const guide = document.getElementById('pos-equipment-paypoint-guide');
         const serialLabel = document.querySelector('label[for="pos-equipment-serial"]');
         const registerHelp = document.getElementById('pos-equipment-register-help');
-        const needsStationIds =
-            typeId === 'register' && (isPayPointModelId(modelId) || isAndroidAioModelId(modelId));
+        const needsStationIds = typeId === 'register' && (isPayPointRegister() || isAndroidAioRegister());
         const needsSerial = typeId === 'register' || typeId === 'card_terminal';
 
         if (guide) {
-            if (isPayPointModelId(modelId)) {
+            if (isPayPointRegister()) {
                 guide.style.display = '';
                 const strong = guide.querySelector('strong');
                 if (strong) strong.textContent = 'How this PayPoint ties to the real unit';
-            } else if (isAndroidAioModelId(modelId)) {
+            } else if (isAndroidAioRegister()) {
                 guide.style.display = '';
                 const strong = guide.querySelector('strong');
                 if (strong) strong.textContent = 'How this Android register ties to the real unit';
@@ -119,34 +117,19 @@
         }
     }
 
-    function renderConfigFields(typeId, catalogModelId, config) {
+    function renderConfigFields(typeId, config) {
         const mount = document.getElementById('pos-equipment-config-fields');
         if (!mount) return;
 
         const cfg = { ...(config || {}) };
-        if (catalogModelId) cfg.catalogModelId = catalogModelId;
-
-        const catType = catalogType(typeId);
-        const modelDef = catalogModelId
-            ? (catType?.brandModels
-                  ? Object.values(catType.brandModels)
-                        .flat()
-                        .find((m) => m.id === catalogModelId)
-                  : null)
-            : null;
-
-        const fields = modelDef?.configFields || [];
+        const meta = typeMeta(typeId);
+        const fields = meta?.configFields || [];
         const manualWrap = document.getElementById('pos-equipment-manual-wrap');
-        const cascadeWrap = document.getElementById('pos-equipment-cascade-wrap');
 
-        const hasCatalog = Boolean(typeMeta(typeId)?.hasCatalog);
-        if (manualWrap) manualWrap.style.display = hasCatalog ? 'none' : '';
-        if (cascadeWrap) cascadeWrap.style.display = hasCatalog ? '' : 'none';
+        if (manualWrap) manualWrap.style.display = 'grid';
 
         if (!fields.length) {
-            mount.innerHTML = hasCatalog
-                ? '<p class="form-help" style="margin:0;">Select a brand and model to configure connection settings.</p>'
-                : '';
+            mount.innerHTML = '';
             return;
         }
 
@@ -217,19 +200,16 @@
                     key === 'kickMode' ||
                     key === 'adPlaylistMode'
                 ) {
-                    renderConfigFields(typeId, catalogModelId, readConfigFromForm(catalogModelId));
+                    renderConfigFields(typeId, readConfigFromForm());
                 }
             });
         });
 
-        updatePayPointFormHints(typeId, catalogModelId);
+        updatePayPointFormHints(typeId);
     }
 
-    function readConfigFromForm(catalogModelId) {
+    function readConfigFromForm() {
         const config = {};
-        if (catalogModelId) config.catalogModelId = catalogModelId;
-        const brandId = document.getElementById('pos-equipment-brand')?.value;
-        if (brandId) config.catalogBrandId = brandId;
         document.querySelectorAll('.pos-equipment-config-input').forEach((el) => {
             const key = el.getAttribute('data-config-key');
             if (key) config[key] = el.value;
@@ -263,57 +243,6 @@
         if (help) help.textContent = meta?.description || '';
     }
 
-    function fillBrandSelect(typeId, selectedBrandId) {
-        const sel = document.getElementById('pos-equipment-brand');
-        if (!sel) return;
-        const catType = catalogType(typeId);
-        const brands = catType?.brands || [];
-        if (!brands.length) {
-            sel.innerHTML = '<option value="">—</option>';
-            sel.disabled = true;
-            return;
-        }
-        sel.disabled = false;
-        sel.innerHTML =
-            '<option value="">— Select brand —</option>' +
-            brands.map((b) => `<option value="${esc(b.id)}"${b.id === selectedBrandId ? ' selected' : ''}>${esc(b.label)}</option>`).join('');
-    }
-
-    function fillModelSelect(typeId, brandId, selectedModelId) {
-        const sel = document.getElementById('pos-equipment-catalog-model');
-        if (!sel) return;
-        const catType = catalogType(typeId);
-        const models = brandId && catType?.brandModels?.[brandId] ? catType.brandModels[brandId] : [];
-        if (!brandId || !models.length) {
-            sel.innerHTML = '<option value="">— Select model —</option>';
-            sel.disabled = !brandId;
-            return;
-        }
-        sel.disabled = false;
-        sel.innerHTML =
-            '<option value="">— Select model —</option>' +
-            models
-                .map(
-                    (m) =>
-                        `<option value="${esc(m.id)}"${m.id === selectedModelId ? ' selected' : ''}>${esc(m.label)}</option>`
-                )
-                .join('');
-        const desc = document.getElementById('pos-equipment-model-desc');
-        if (desc) {
-            const model = models.find((m) => m.id === selectedModelId);
-            desc.textContent = model?.description || '';
-        }
-    }
-
-    function syncCascadeFromRow(row) {
-        const typeId = row?.equipmentType || document.getElementById('pos-equipment-type')?.value;
-        const brandId = row?.catalogBrandId || row?.config?.catalogBrandId || '';
-        const modelId = row?.catalogModelId || row?.config?.catalogModelId || '';
-        fillBrandSelect(typeId, brandId);
-        fillModelSelect(typeId, brandId, modelId);
-        renderConfigFields(typeId, modelId, row?.config || {});
-    }
-
     function showEquipmentEditor(row, opts = {}) {
         const card = document.getElementById('pos-equipment-editor-card');
         const title = document.getElementById('pos-equipment-editor-title');
@@ -332,9 +261,7 @@
         document.getElementById('pos-equipment-notes').value = row?.notes || '';
         document.getElementById('pos-equipment-active').checked = row ? row.isActive !== false : true;
         fillRegisterSelect(row?.posDeviceId);
-        syncCascadeFromRow(row);
-        const modelId = row?.catalogModelId || row?.config?.catalogModelId || '';
-        updatePayPointFormHints(row?.equipmentType || 'register', modelId);
+        renderConfigFields(row?.equipmentType || 'register', row?.config || {});
         const msg = document.getElementById('pos-equipment-form-msg');
         if (msg) msg.textContent = '';
         card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -359,41 +286,12 @@
 
     async function ensureHardwareCatalog() {
         await loadEquipmentTypes();
-        const sample = catalogType('register');
-        if (!sample?.brands?.length) {
-            await loadHardwareCatalog();
-        }
-        if (!catalogType('register')?.brands?.length) {
-            const msg = document.getElementById('pos-equipment-catalog-warning');
-            if (msg) {
-                msg.textContent =
-                    'Equipment catalog did not load. Restart the backend server, then hard-refresh this page (Ctrl+Shift+R).';
-                msg.style.display = '';
-            }
-            return false;
-        }
-        const msg = document.getElementById('pos-equipment-catalog-warning');
-        if (msg) msg.style.display = 'none';
         return true;
-    }
-
-    async function loadHardwareCatalog() {
-        try {
-            const res = await posApi('/equipment/catalog');
-            hardwareCatalog = res?.types?.length ? res : { types: [] };
-        } catch {
-            /* loadEquipmentTypes may already have set catalog */
-        }
     }
 
     async function loadEquipmentTypes() {
         const res = await posApi('/equipment/types');
         equipmentTypes = res.types || [];
-        if (res.catalog?.types?.length) {
-            hardwareCatalog = res.catalog;
-        } else if (!hardwareCatalog.types?.length) {
-            hardwareCatalog = { types: [] };
-        }
         fillTypeSelect('register');
     }
 
@@ -403,55 +301,18 @@
         fillRegisterSelect();
     }
 
-    function renderStandardIpPlan(template) {
-        const mount = document.getElementById('pos-network-standard-ip-plan');
-        if (!mount || !template?.ipPlan?.length) return;
-        mount.innerHTML = `<p class="form-help" style="margin:0.75rem 0 0.35rem;">Recommended fixed addresses — reserve these on the router, then enter the same hardware (MAC) addresses in Equipment:</p>
-            <div class="table-container"><table class="pos-network-ip-plan-table"><thead><tr>
-                <th>Register station</th><th>Device</th><th>Reserved address</th>
-            </tr></thead><tbody>${template.ipPlan
-                .map(
-                    (r) =>
-                        `<tr><td>Station ${r.station}</td><td>${esc(r.role)}</td><td><code>${esc(r.ip)}</code></td></tr>`
-                )
-                .join('')}</tbody></table></div>
-            <p class="form-help" style="margin:0.5rem 0 0;">Automatic addresses for other devices (phones, etc.): <code>${esc(template.dhcpPool)}</code></p>`;
-    }
-
-    function applyStandardNetworkTemplate() {
-        const template = standardNetworkTemplate;
-        if (!template) return;
-        const gateway = document.getElementById('pos-network-gateway-ip');
-        const subnet = document.getElementById('pos-network-subnet');
-        const notes = document.getElementById('pos-network-notes');
-        if (gateway) gateway.value = template.gatewayIp || '10.224.16.1';
-        if (subnet) subnet.value = template.subnetCidr || '10.224.16.0/24';
-        if (notes && template.notesTemplate) notes.value = template.notesTemplate;
-        const msg = document.getElementById('pos-network-settings-msg');
-        if (msg) {
-            msg.textContent = 'Recommended addresses loaded — click Save network settings';
-            msg.style.color = 'var(--gray-600)';
-        }
-    }
-
     async function loadStoreNetwork() {
         const settingsMsg = document.getElementById('pos-network-settings-msg');
         try {
             const res = await posApi('/network');
             const settings = res.settings || {};
-            standardNetworkTemplate = res.standardTemplate || null;
-            renderStandardIpPlan(standardNetworkTemplate);
             const routerUrl = document.getElementById('pos-network-router-url');
             const gatewayIp = document.getElementById('pos-network-gateway-ip');
             const subnet = document.getElementById('pos-network-subnet');
             const notes = document.getElementById('pos-network-notes');
             if (routerUrl) routerUrl.value = settings.routerUrl || '';
-            if (gatewayIp) {
-                gatewayIp.value = settings.gatewayIp || standardNetworkTemplate?.gatewayIp || '10.224.16.1';
-            }
-            if (subnet) {
-                subnet.value = settings.subnetCidr || standardNetworkTemplate?.subnetCidr || '10.224.16.0/24';
-            }
+            if (gatewayIp) gatewayIp.value = settings.gatewayIp || '';
+            if (subnet) subnet.value = settings.subnetCidr || '';
             if (notes) notes.value = settings.notes || '';
             renderRegisterNetworkReports(res.registerReports || []);
             if (settingsMsg) settingsMsg.textContent = '';
@@ -940,9 +801,6 @@
             case 'paste':
                 focusDhcpPaste();
                 break;
-            case 'ip_plan':
-                openIpPlanGuide();
-                break;
             default:
                 break;
         }
@@ -1209,20 +1067,9 @@
         paste?.focus();
     }
 
-    function openIpPlanGuide() {
-        const guide = document.querySelector('.pos-network-setup-guide');
-        if (guide) guide.open = true;
-        document.getElementById('pos-network-standard-ip-plan')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-
     async function runSetupAction(actionId, meta = {}) {
         const state = loadSetupClientState();
         switch (actionId) {
-            case 'load_plan':
-                applyStandardNetworkTemplate();
-                scrollToNetworkForm();
-                window.adminApp?.showToast?.('Recommended addresses loaded — now save them', 'success');
-                break;
             case 'save_settings':
                 scrollToNetworkForm();
                 if (await saveNetworkSettingsFromForm()) {
@@ -1250,9 +1097,6 @@
                 else scrollToEquipmentSection();
                 break;
             }
-            case 'show_ip_plan':
-                openIpPlanGuide();
-                break;
             case 'router_done':
                 state.routerMarkedDone = true;
                 saveSetupClientState(state);
@@ -1378,7 +1222,6 @@
         });
         document.getElementById('pos-network-parse-btn')?.addEventListener('click', parseDhcpList);
         document.getElementById('pos-network-apply-all-btn')?.addEventListener('click', () => applyAllMacMatches());
-        document.getElementById('pos-network-apply-standard-btn')?.addEventListener('click', applyStandardNetworkTemplate);
     }
 
     async function loadRegisterProfiles() {
@@ -1552,39 +1395,19 @@
             const help = document.getElementById('pos-equipment-type-help');
             const meta = typeMeta(typeId);
             if (help) help.textContent = meta?.description || '';
-            fillBrandSelect(typeId, '');
-            fillModelSelect(typeId, '', '');
-            renderConfigFields(typeId, '', {});
-            updatePayPointFormHints(typeId, '');
+            renderConfigFields(typeId, {});
         });
 
-        document.getElementById('pos-equipment-brand')?.addEventListener('change', (e) => {
-            const typeId = document.getElementById('pos-equipment-type')?.value;
-            fillModelSelect(typeId, e.target.value, '');
-            renderConfigFields(typeId, '', {});
-            updatePayPointFormHints(typeId, '');
-        });
-
-        document.getElementById('pos-equipment-catalog-model')?.addEventListener('change', (e) => {
-            const typeId = document.getElementById('pos-equipment-type')?.value;
-            const brandId = document.getElementById('pos-equipment-brand')?.value;
-            const modelId = e.target.value;
-            const catType = catalogType(typeId);
-            const model = catType?.brandModels?.[brandId]?.find((m) => m.id === modelId);
-            const desc = document.getElementById('pos-equipment-model-desc');
-            if (desc) desc.textContent = model?.description || '';
-            const labelInput = document.getElementById('pos-equipment-label');
-            if (labelInput && model && !labelInput.value.trim()) {
-                labelInput.value = model.label;
-            }
-            renderConfigFields(typeId, modelId, readConfigFromForm(modelId));
-            updatePayPointFormHints(typeId, modelId);
+        ['pos-equipment-manufacturer', 'pos-equipment-model'].forEach((id) => {
+            document.getElementById(id)?.addEventListener('input', () => {
+                const typeId = document.getElementById('pos-equipment-type')?.value;
+                updatePayPointFormHints(typeId);
+            });
         });
 
         document.getElementById('pos-equipment-register')?.addEventListener('change', () => {
             const typeId = document.getElementById('pos-equipment-type')?.value;
-            const modelId = document.getElementById('pos-equipment-catalog-model')?.value;
-            renderConfigFields(typeId, modelId, readConfigFromForm(modelId));
+            renderConfigFields(typeId, readConfigFromForm());
         });
 
         const eqForm = document.getElementById('pos-equipment-form');
@@ -1596,9 +1419,7 @@
                 if (msg) msg.textContent = '';
                 const id = document.getElementById('pos-equipment-id')?.value;
                 const typeId = document.getElementById('pos-equipment-type')?.value;
-                const modelId = document.getElementById('pos-equipment-catalog-model')?.value;
-                const hasCatalog = Boolean(typeMeta(typeId)?.hasCatalog);
-                const config = hasCatalog ? readConfigFromForm(modelId) : readConfigFromForm('');
+                const config = readConfigFromForm();
                 const body = {
                     equipmentType: typeId,
                     label: document.getElementById('pos-equipment-label')?.value,

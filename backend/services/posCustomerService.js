@@ -12,6 +12,7 @@ const {
     isUsPhoneDisplayOrEmpty,
     usPhoneDigitsSql
 } = require('../utils/usPhoneDisplay');
+const groupDiscount = require('./customerGroupDiscount');
 
 function getInStorePlaceholderEmail() {
     return String(process.env.POS_IN_STORE_EMAIL || 'pos-instore@hmherbs.local').trim().toLowerCase();
@@ -130,6 +131,8 @@ async function getCustomerForPos(pool, userId) {
     );
 
     const loyaltySettings = await loadLoyaltyProgramSettings(pool);
+    const groupBenefits = await groupDiscount.loadUserGroupBenefits(pool, uid, 'pos');
+    const standingPos = groupDiscount.resolvePosStandingDiscount(groupBenefits, 0);
 
     return {
         id: user.id,
@@ -142,6 +145,20 @@ async function getCustomerForPos(pool, userId) {
         customerStatus: user.customer_status || 'active',
         taxExempt: Boolean(user.tax_exempt),
         taxExemptId: user.tax_exempt_id || null,
+        customerGroups: groupBenefits.groups || [],
+        groupBenefits: {
+            standingDiscount:
+                standingPos.percent > 0
+                    ? {
+                          percent: standingPos.percent,
+                          label: standingPos.label,
+                          groupName: standingPos.groupName
+                      }
+                    : null,
+            linkedPromotions: groupBenefits.linkedPromotions || [],
+            manualPromotions: groupBenefits.manualPromotions || [],
+            autoApplyPromotions: groupBenefits.autoApplyPromotions || []
+        },
         loyalty: {
             pointsBalance: Number(user.points_balance) || 0,
             cashBalance: Number(user.cash_balance) || 0,

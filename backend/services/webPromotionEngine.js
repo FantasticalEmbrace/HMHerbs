@@ -1,6 +1,7 @@
 'use strict';
 
 const employeeDiscount = require('./employeeDiscount');
+const groupDiscount = require('./customerGroupDiscount');
 const { loadStoreTaxRate } = require('../utils/storeTaxRate');
 
 const {
@@ -580,6 +581,7 @@ async function previewOrApplyTotals(pool, {
     email,
     applyTaxExemption,
     customerType,
+    userId,
     shippingMethod,
     shippingAmount,
 }) {
@@ -593,8 +595,23 @@ async function previewOrApplyTotals(pool, {
     let enriched = await enrichCartLines(pool, normalized);
     let rulesParsed = { scope: 'all', productIds: [], categoryIds: [], effects: [], triggerReward: null };
     let promotion = null;
+    let groupAutoPromotion = null;
 
     const trimmedCode = String(promoCode || '').trim();
+    const taxExempt = Boolean(applyTaxExemption);
+    const storeTaxRate = await loadStoreTaxRate(pool);
+    const shippingOpts = {
+        applyTaxExemption: taxExempt,
+        shippingMethod,
+        shippingAmount,
+        taxRate: storeTaxRate
+    };
+
+    let groupBenefits = null;
+    if (userId) {
+        groupBenefits = await groupDiscount.loadUserGroupBenefits(pool, userId, 'web');
+    }
+
     if (trimmedCode) {
         promotion = await loadActivePromotionByCode(pool, trimmedCode);
         if (!promotion) {
@@ -620,17 +637,32 @@ async function previewOrApplyTotals(pool, {
             err.code = 'PROMO_NO_EFFECTS';
             throw err;
         }
+    } else if (groupBenefits?.autoApplyPromotions?.length) {
+        groupAutoPromotion = await groupDiscount.pickBestAutoApplyPromotion(pool, groupBenefits, {
+            cartItems,
+            email,
+            applyTaxExemption: taxExempt,
+            shippingMethod,
+            shippingAmount,
+            taxRate: storeTaxRate
+        });
+        if (groupAutoPromotion) {
+            promotion = groupAutoPromotion.promotion;
+            rulesParsed = groupAutoPromotion.rulesParsed;
+        }
     }
 
-    const taxExempt = Boolean(applyTaxExemption);
-    const storeTaxRate = await loadStoreTaxRate(pool);
-    const shippingOpts = {
-        applyTaxExemption: taxExempt,
-        shippingMethod,
-        shippingAmount,
-        taxRate: storeTaxRate
-    };
     let totalsBase = evaluateTotals(rulesParsed, enriched, shippingOpts);
+
+    let groupStandingApplied = null;
+    if (groupBenefits?.standingDiscount) {
+        const standingResult = groupDiscount.applyStandingGroupDiscountToTotals(
+            totalsBase,
+            groupBenefits.standingDiscount
+        );
+        totalsBase = standingResult.totals;
+        groupStandingApplied = standingResult.applied;
+    }
 
     const empSettings = await employeeDiscount.loadEmployeeDiscountSettings(pool);
     totalsBase = employeeDiscount.applyEmployeeDiscountToTotals(
@@ -648,6 +680,12 @@ async function previewOrApplyTotals(pool, {
             enriched,
             shippingOpts
         );
+        if (groupBenefits?.standingDiscount) {
+            totalsNoPromo = groupDiscount.applyStandingGroupDiscountToTotals(
+                totalsNoPromo,
+                groupBenefits.standingDiscount
+            ).totals;
+        }
         totalsNoPromo = employeeDiscount.applyEmployeeDiscountToTotals(
             totalsNoPromo,
             empSettings,
@@ -664,7 +702,18 @@ async function previewOrApplyTotals(pool, {
         totals: totalsBase,
         baselineTotals: totalsNoPromo,
         employeeDiscountApplied: Boolean(totalsBase.employeeDiscountApplied),
-        employeeDiscountAmount: Number(totalsBase.employeeDiscount) || 0
+        employeeDiscountAmount: Number(totalsBase.employeeDiscount) || 0,
+        groupDiscountApplied: Boolean(groupStandingApplied),
+        groupDiscountAmount: Number(groupStandingApplied?.amount) || 0,
+        groupDiscountLabel: groupStandingApplied?.label || null,
+        groupAutoPromotionApplied: Boolean(groupAutoPromotion),
+        groupAutoPromotionCode: groupAutoPromotion?.promotion?.code || null,
+        customerGroups: groupBenefits?.groups || [],
+        availableGroupPromotions: (groupBenefits?.manualPromotions || []).map((p) => ({
+            code: p.code,
+            description: p.description,
+            groupName: p.groupName
+        }))
     };
 }
 

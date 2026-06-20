@@ -1782,6 +1782,13 @@ app.use('/api/admin/gift-cards', require('./routes/admin-gift-cards'));
 app.use('/api/admin/dev-tools', require('./routes/admin-dev-tools'));
 app.use('/api/admin/personnel', require('./routes/admin-personnel'));
 app.use('/api/admin/pos', require('./routes/admin-pos'));
+const { mountVendorReceivingRoutes, ensureVendorReceivingReady } = require('./register-vendor-receiving');
+const { authenticatePosEmployee } = require('./middleware/posEmployeeAuth');
+mountVendorReceivingRoutes(app, {
+    pool,
+    posEmployeeAuth: authenticatePosEmployee,
+    requireAdmin: authenticateAdmin
+});
 app.use('/api/admin', adminRoutes);
 app.use('/api/payment-cards', paymentCardsRoutes);
 app.use('/api/pos-billing', require('./routes/pos-billing'));
@@ -1902,6 +1909,12 @@ app.use('/api/*', (req, res) => {
         await ensureProductCatalogImages(rootPath, logger);
     } catch (e) {
         logger.error(`ensureProductCatalogImages failed: ${logger.formatMysqlError(e)}`);
+    }
+
+    try {
+        await ensureVendorReceivingReady(pool);
+    } catch (e) {
+        logger.error(`ensureVendorReceivingReady failed: ${logger.formatMysqlError(e)}`);
     }
 
     const stopTaxReserveScheduler = startTaxReserveScheduler(pool);

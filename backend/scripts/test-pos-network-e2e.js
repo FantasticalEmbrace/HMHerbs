@@ -25,9 +25,7 @@ const {
     matchDhcpEntriesToEquipment,
     applyNetworkAssignment,
     recordRegisterNetworkReport,
-    listRegisterNetworkReports,
-    getStandardStoreNetworkTemplate,
-    suggestedStandardIp
+    listRegisterNetworkReports
 } = require('../services/posStoreNetwork');
 const { buildStoreTroubleshootReport } = require('../services/posStoreTroubleshoot');
 
@@ -102,8 +100,6 @@ function staticHtmlChecks() {
         check(`HTML has #${id}`, html.includes(`id="${id}"`));
     }
     check('HTML has network setup guide', html.includes('pos-network-setup-guide'));
-    check('HTML has pos-network-standard-ip-plan', html.includes('id="pos-network-standard-ip-plan"'));
-    check('HTML has apply standard template button', html.includes('id="pos-network-apply-standard-btn"'));
     check('HTML has setup assistant', html.includes('id="pos-network-setup-assistant"'));
     check('HTML has troubleshoot assistant', html.includes('id="pos-troubleshoot-assistant"'));
     check('HTML has troubleshoot chat form', html.includes('id="pos-troubleshoot-chat-form"'));
@@ -135,9 +131,6 @@ function staticHtmlChecks() {
         'pos-equipment-mac',
         'macAddress:',
         'pos-network-save-btn',
-        'pos-network-apply-standard-btn',
-        'applyStandardNetworkTemplate',
-        'renderStandardIpPlan',
         'loadStoreNetwork'
     ];
     for (const snippet of requiredHandlers) {
@@ -187,8 +180,6 @@ async function serviceLayerTests(pool) {
             posDeviceId: device.id,
             macAddress: mac1,
             config: {
-                catalogModelId: 'star_tsp143iii',
-                catalogBrandId: 'star',
                 connection: 'network',
                 address: '0.0.0.0'
             },
@@ -203,8 +194,6 @@ async function serviceLayerTests(pool) {
             serialNumber: `SER-${TAG}`,
             macAddress: mac2,
             config: {
-                catalogModelId: 'elo_paypoint_15',
-                catalogBrandId: 'elo',
                 address: '0.0.0.0'
             },
             isActive: true
@@ -326,11 +315,7 @@ async function httpApiTests(pool) {
             Array.isArray(getNet.data?.registerReports),
             `length ${getNet.data?.registerReports?.length}`
         );
-        check(
-            'GET returns recommended store network template',
-            getNet.data?.standardTemplate?.gatewayIp === '10.224.16.1' &&
-                getNet.data?.standardTemplate?.ipPlan?.some((r) => r.ip === '10.224.16.16')
-        );
+        check('GET does not expose recommended IP plan', getNet.data?.standardTemplate == null);
 
         const getAssistant = await api('/api/admin/pos/network/setup-assistant', { token });
         check('GET /network/setup-assistant', getAssistant.status === 200 && Array.isArray(getAssistant.data?.assistant?.steps));
@@ -400,8 +385,6 @@ async function httpApiTests(pool) {
             posDeviceId: device.id,
             macAddress: mac,
             config: {
-                catalogModelId: 'star_tsp143iii',
-                catalogBrandId: 'star',
                 connection: 'network',
                 address: '0.0.0.0'
             },
@@ -440,8 +423,6 @@ async function httpApiTests(pool) {
             posDeviceId: device.id,
             macAddress: mac2,
             config: {
-                catalogModelId: 'star_tsp143iii',
-                catalogBrandId: 'star',
                 connection: 'network',
                 address: '0.0.0.0'
             },
@@ -516,10 +497,6 @@ async function parserEdgeCases() {
         parseDhcpClientList('Device1\t192.168.1.5\tAA:BB:CC:DD:EE:0A')[0]?.ip === '192.168.1.5'
     );
     check('normalizeMac dedupes', normalizeMac('aa-bb-cc-dd-ee-ff') === 'AA:BB:CC:DD:EE:FF');
-    const template = getStandardStoreNetworkTemplate();
-    check('Standard template gateway', template.gatewayIp === '10.224.16.1');
-    check('Standard register 1 IP', suggestedStandardIp('register', 0) === '10.224.16.16');
-    check('Standard A3700 station 1', suggestedStandardIp('card_terminal', 0) === '10.224.16.17');
 }
 
 async function main() {

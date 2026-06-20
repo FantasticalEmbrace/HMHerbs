@@ -603,8 +603,8 @@ img {
   overflow: hidden;
 }
 
-[aria-live="polite"],
-[aria-live="assertive"] {
+[aria-live="polite"]:not(.sr-announcement),
+[aria-live="assertive"]:not(.sr-announcement) {
   position: absolute;
   left: -10000px;
   width: 1px;

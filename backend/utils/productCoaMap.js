@@ -54,6 +54,11 @@ const PRODUCT_COA_MAP = [
         slug: 'regalabs-full-spectrum-cbd-gummies',
         coa_url: '/images/coa/Regal Labs - CBD Gummies COA.pdf',
         coa_updated_at: '2026-06-03'
+    },
+    {
+        slug: 'regalabs-cannabis-oil-for-pets',
+        coa_url: '/images/coa/Pet CBD Oil.pdf',
+        coa_updated_at: '2026-06-19'
     }
 ];
 
@@ -97,8 +102,6 @@ const OLD_SITE_COA_DOWNLOADS = [
 ];
 
 /** Products with no public COA found online (hmherbs, wayback, manufacturer sites). */
-const COA_PENDING_SLUGS = [
-    'regalabs-cannabis-oil-for-pets'
-];
+const COA_PENDING_SLUGS = [];
 
 module.exports = { PRODUCT_COA_MAP, OLD_SITE_COA_DOWNLOADS, COA_PENDING_SLUGS };

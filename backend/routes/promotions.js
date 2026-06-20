@@ -46,6 +46,7 @@ router.post('/preview', async (req, res) => {
             email: emailResolved || null,
             applyTaxExemption,
             customerType: authUser?.customer_type,
+            userId: authUser?.id,
             shippingMethod: shippingMethod ? String(shippingMethod).trim() : undefined,
             shippingAmount: shippingAmount != null ? Number(shippingAmount) : undefined,
         });
@@ -57,6 +58,13 @@ router.post('/preview', async (req, res) => {
             description: result.promotion ? String(result.promotion.description || '') : '',
             employeeDiscountApplied: Boolean(result.employeeDiscountApplied),
             employeeDiscountAmount: Number(result.employeeDiscountAmount) || 0,
+            groupDiscountApplied: Boolean(result.groupDiscountApplied),
+            groupDiscountAmount: Number(result.groupDiscountAmount) || 0,
+            groupDiscountLabel: result.groupDiscountLabel || null,
+            groupAutoPromotionApplied: Boolean(result.groupAutoPromotionApplied),
+            groupAutoPromotionCode: result.groupAutoPromotionCode || null,
+            customerGroups: result.customerGroups || [],
+            availableGroupPromotions: result.availableGroupPromotions || [],
             totals: result.totals,
             baselineTotals: result.baselineTotals,
             serverLineItems: result.enrichment.map((r) => ({

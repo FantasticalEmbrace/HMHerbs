@@ -4,7 +4,7 @@
 const fs = require('fs').promises;
 const csv = require('csv-parser');
 const xml2js = require('xml2js');
-const axios = require('axios');
+const { buildCatalogAxiosConfig, fetchVendorCatalogText } = require('../utils/vendorCatalogFetch');
 
 class VendorService {
     constructor(db) {
@@ -21,18 +21,19 @@ class VendorService {
 
             const [result] = await connection.execute(`
                 INSERT INTO vendors (
-                    name, company_name, contact_person, email, phone, website,
+                    name, company_name, contact_person, email, phone, fax, website,
                     address_line1, address_line2, city, state, postal_code, country,
-                    tax_id, business_license, payment_terms, currency,
+                    tax_id, business_license, account_number, payment_terms, currency,
                     catalog_url, catalog_format, catalog_auth_type, catalog_auth_credentials,
-                    auto_sync_enabled, sync_frequency, status, created_by
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    auto_sync_enabled, sync_frequency, status, notes, pos_ordering_enabled, created_by
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `, [
                 vendorData.name,
                 vendorData.company_name || null,
                 vendorData.contact_person || null,
                 vendorData.email || null,
                 vendorData.phone || null,
+                vendorData.fax || null,
                 vendorData.website || null,
                 vendorData.address_line1 || null,
                 vendorData.address_line2 || null,
@@ -42,6 +43,7 @@ class VendorService {
                 vendorData.country || 'United States',
                 vendorData.tax_id || null,
                 vendorData.business_license || null,
+                vendorData.account_number || null,
                 vendorData.payment_terms || 'net_30',
                 vendorData.currency || 'USD',
                 vendorData.catalog_url || null,
@@ -51,6 +53,8 @@ class VendorService {
                 vendorData.auto_sync_enabled || false,
                 vendorData.sync_frequency || 'daily',
                 vendorData.status || 'pending',
+                vendorData.notes || null,
+                vendorData.pos_ordering_enabled !== false,
                 adminId
             ]);
 
@@ -90,10 +94,12 @@ class VendorService {
             params.push(searchTerm, searchTerm, searchTerm);
         }
         
-        query += ' GROUP BY v.id ORDER BY v.created_at DESC LIMIT ? OFFSET ?';
-        params.push(parseInt(limit), parseInt(offset));
-        
-        const [vendors] = await this.db.execute(query, params);
+        query += ' GROUP BY v.id ORDER BY v.created_at DESC';
+        const limitSql = String(Math.min(500, Math.max(1, parseInt(String(limit), 10) || 50)));
+        const offsetSql = String(Math.max(0, parseInt(String(offset), 10) || 0));
+        query += ` LIMIT ${limitSql} OFFSET ${offsetSql}`;
+
+        const [vendors] = await this.db.query(query, params);
         return vendors;
     }
 
@@ -134,11 +140,11 @@ class VendorService {
             const params = [];
             
             const allowedFields = [
-                'name', 'company_name', 'contact_person', 'email', 'phone', 'website',
+                'name', 'company_name', 'contact_person', 'email', 'phone', 'fax', 'website',
                 'address_line1', 'address_line2', 'city', 'state', 'postal_code', 'country',
-                'tax_id', 'business_license', 'payment_terms', 'currency',
+                'tax_id', 'business_license', 'account_number', 'payment_terms', 'currency',
                 'catalog_url', 'catalog_format', 'catalog_auth_type', 'auto_sync_enabled',
-                'sync_frequency', 'status', 'rating'
+                'sync_frequency', 'status', 'rating', 'notes', 'pos_ordering_enabled'
             ];
 
             for (const field of allowedFields) {
@@ -148,9 +154,13 @@ class VendorService {
                 }
             }
 
-            if (updateData.catalog_auth_credentials) {
+            if (Object.prototype.hasOwnProperty.call(updateData, 'catalog_auth_credentials')) {
                 updateFields.push('catalog_auth_credentials = ?');
-                params.push(JSON.stringify(updateData.catalog_auth_credentials));
+                params.push(
+                    updateData.catalog_auth_credentials
+                        ? JSON.stringify(updateData.catalog_auth_credentials)
+                        : null
+                );
             }
 
             if (updateFields.length === 0) {
@@ -304,38 +314,8 @@ class VendorService {
     }
 
     async fetchCatalogFromUrl(vendor) {
-        const config = {
-            method: 'GET',
-            url: vendor.catalog_url,
-            timeout: 30000
-        };
-
-        // Add authentication if configured
-        if (vendor.catalog_auth_type !== 'none' && vendor.catalog_auth_credentials) {
-            const creds = vendor.catalog_auth_credentials;
-            
-            switch (vendor.catalog_auth_type) {
-                case 'basic':
-                    config.auth = {
-                        username: creds.username,
-                        password: creds.password
-                    };
-                    break;
-                case 'bearer':
-                    config.headers = {
-                        'Authorization': `Bearer ${creds.token}`
-                    };
-                    break;
-                case 'api_key':
-                    config.headers = {
-                        [creds.header_name || 'X-API-Key']: creds.api_key
-                    };
-                    break;
-            }
-        }
-
-        const response = await axios(config);
-        return this.parseCatalogData(response.data, vendor.catalog_format);
+        const { text } = await fetchVendorCatalogText(vendor);
+        return this.parseCatalogData(text, vendor.catalog_format);
     }
 
     async parseCatalogFile(filePath, format) {

@@ -157,7 +157,7 @@ const FIELD = {
 };
 
 function model(id, label, extra = {}) {
-    return {
+    const def = {
         id,
         label,
         driver: extra.driver || '',
@@ -166,15 +166,69 @@ function model(id, label, extra = {}) {
         linkFields: extra.linkFields || [],
         defaults: extra.defaults || {}
     };
+    if (extra.aioBuiltIn && Object.keys(extra.aioBuiltIn).length) {
+        def.aioBuiltIn = { ...extra.aioBuiltIn };
+    }
+    return def;
 }
 
-const ELO_INTEGRATED_CONN = {
+/** Built-in peripheral catalog IDs per all-in-one platform family. */
+const AIO_PLATFORM_BUILTIN = Object.freeze({
+    paypoint_plus: {
+        receiptPrinter: 'elo_paypoint_printer',
+        customerDisplay: 'elo_paypoint_customer_display'
+    },
+    sunmi: { receiptPrinter: 'sunmi_builtin_printer' },
+    landi: { receiptPrinter: 'landi_builtin_printer' },
+    aures: { receiptPrinter: 'aures_builtin_printer' },
+    posiflex: { receiptPrinter: 'posiflex_builtin_printer' },
+    partner: { receiptPrinter: 'partner_builtin_printer' }
+});
+
+function inferAioPlatformFromRegisterId(id) {
+    const x = String(id || '').toLowerCase();
+    if (x.includes('paypoint')) return 'paypoint_plus';
+    if (x.startsWith('sunmi_')) return 'sunmi';
+    if (x.startsWith('landi_reg_')) return 'landi';
+    if (x.startsWith('aures_')) return 'aures';
+    if (x.startsWith('posiflex_')) return 'posiflex';
+    if (x.startsWith('partner_')) return 'partner';
+    return null;
+}
+
+function buildAioBuiltInForRegister(id, extra = {}) {
+    if (extra.builtInPrinter === false && !extra.builtInCustomerDisplay) return {};
+    const platform = extra.aioPlatform || inferAioPlatformFromRegisterId(id);
+    if (!platform || !AIO_PLATFORM_BUILTIN[platform]) return {};
+
+    const aioBuiltIn = {};
+    if (extra.builtInPrinter !== false && AIO_PLATFORM_BUILTIN[platform].receiptPrinter) {
+        aioBuiltIn.receiptPrinter = AIO_PLATFORM_BUILTIN[platform].receiptPrinter;
+    }
+    if (extra.builtInCustomerDisplay) {
+        aioBuiltIn.customerDisplay = extra.builtInCustomerDisplay;
+    } else if (extra.builtInCustomerDisplay !== false) {
+        if (platform === 'paypoint_plus' && AIO_PLATFORM_BUILTIN.paypoint_plus.customerDisplay) {
+            aioBuiltIn.customerDisplay = AIO_PLATFORM_BUILTIN.paypoint_plus.customerDisplay;
+        } else if (platform === 'sunmi' && /^sunmi_t2s|^sunmi_t3/.test(id)) {
+            aioBuiltIn.customerDisplay = 'sunmi_builtin_customer_display';
+        } else if (platform === 'landi' && /^landi_reg_(c20_pro|m20se|a9)/.test(id)) {
+            aioBuiltIn.customerDisplay = 'landi_builtin_customer_display';
+        }
+    }
+    return aioBuiltIn;
+}
+
+const AIO_BUILTIN_CONN = {
     key: 'connection',
     label: 'Connection',
     type: 'select',
-    options: [{ value: 'integrated', label: 'Built-in (PayPoint / all-in-one)' }],
+    options: [{ value: 'integrated', label: 'Built-in (same all-in-one unit)' }],
     default: 'integrated'
 };
+
+/** @deprecated alias */
+const ELO_INTEGRATED_CONN = AIO_BUILTIN_CONN;
 
 const PAYPOINT_DEPLOYMENT = {
     key: 'connection',
@@ -222,10 +276,12 @@ function durangoMobile(id, label, description) {
 }
 
 function eloPayPoint(id, label, description) {
+    const aioBuiltIn = buildAioBuiltInForRegister(id, { aioPlatform: 'paypoint_plus' });
     return model(id, label, {
         driver: 'elo_star',
         description,
-        configFields: [PAYPOINT_DEPLOYMENT, FIELD.paypointAddress, FIELD.paperWidth]
+        configFields: [PAYPOINT_DEPLOYMENT, FIELD.paypointAddress, FIELD.paperWidth],
+        aioBuiltIn
     });
 }
 
@@ -242,12 +298,36 @@ function registerBrowser(id, label, description, extra = {}) {
 /** Android all-in-one SmartPOS (Sunmi, Landi, etc.). */
 function androidAioRegister(id, label, description, extra = {}) {
     const fields = [PAYPOINT_DEPLOYMENT, FIELD.paypointAddress];
-    if (extra.builtInPrinter !== false) fields.push(FIELD.paperWidth);
+    const hasBuiltInPrinter = extra.builtInPrinter !== false;
+    if (hasBuiltInPrinter) fields.push(FIELD.paperWidth);
+
+    const { builtInPrinter, builtInCustomerDisplay, aioPlatform, ...restExtra } = extra;
+    const aioBuiltIn = buildAioBuiltInForRegister(id, {
+        builtInPrinter,
+        builtInCustomerDisplay,
+        aioPlatform
+    });
+
     return model(id, label, {
         driver: 'browser',
         description,
         configFields: fields,
-        ...extra
+        ...(Object.keys(aioBuiltIn).length ? { aioBuiltIn } : {}),
+        ...restExtra
+    });
+}
+
+/** Fanless Windows / Linux all-in-one POS terminal (Posiflex, Partner Tech, Aures, etc.). */
+function fanlessAioRegister(id, label, description, extra = {}) {
+    const { builtInPrinter, builtInCustomerDisplay, aioPlatform, ...restExtra } = extra;
+    const aioBuiltIn = buildAioBuiltInForRegister(id, {
+        builtInPrinter,
+        builtInCustomerDisplay,
+        aioPlatform
+    });
+    return registerBrowser(id, label, description, {
+        ...(Object.keys(aioBuiltIn).length ? { aioBuiltIn } : {}),
+        ...restExtra
     });
 }
 
@@ -269,6 +349,43 @@ function scannerWedge(id, label, description) {
         description: description || 'USB keyboard-wedge — plug in and scan.',
         configFields: [FIELD.keyboardWedge]
     });
+}
+
+/** Built-in receipt printer on an all-in-one register (PayPoint, Sunmi, Landi, etc.). */
+function aioBuiltinPrinter(id, peripheralLabel, driver, hostPlatform, description) {
+    return model(id, peripheralLabel, {
+        driver,
+        description:
+            description ||
+            `Built-in ${peripheralLabel.toLowerCase()} on ${hostPlatform} — same physical unit as the register.`,
+        configFields: [AIO_BUILTIN_CONN, FIELD.paperWidth]
+    });
+}
+
+/** Built-in customer-facing screen on an all-in-one register. */
+function aioBuiltinCustomerDisplay(id, peripheralLabel, hostPlatform, description) {
+    return model(id, peripheralLabel, {
+        description:
+            description ||
+            `Built-in ${peripheralLabel.toLowerCase()} on ${hostPlatform} — same physical unit as the register.`,
+        configFields: [
+            AIO_BUILTIN_CONN,
+            {
+                key: 'mode',
+                label: 'Display mode',
+                type: 'select',
+                options: [{ value: 'browser', label: 'Built-in front-facing screen' }],
+                default: 'browser'
+            },
+            FIELD.displayUrl,
+            FIELD.adPlaylistMode
+        ]
+    });
+}
+
+/** @deprecated use aioBuiltinCustomerDisplay */
+function paypointCustomerDisplay(id, label, description) {
+    return aioBuiltinCustomerDisplay(id, label, 'PayPoint Plus', description);
 }
 
 function customerDisplay(id, label, extra = {}) {
@@ -467,15 +584,31 @@ const CATALOG_BY_TYPE = Object.freeze({
             posiflex: {
                 label: 'Posiflex',
                 models: {
-                    xt4015: eloTouchBrowser(
+                    xt4015: fanlessAioRegister(
                         'posiflex_xt4015',
                         'XT-4015',
-                        '15" fanless Posiflex all-in-one — common independent retail.'
+                        '15" fanless Posiflex all-in-one — common independent retail.',
+                        { aioPlatform: 'posiflex' }
                     ),
-                    xt6015: eloTouchBrowser('posiflex_xt6015', 'XT-6015', '15" Posiflex terminal with optional MSR.'),
+                    xt6015: fanlessAioRegister(
+                        'posiflex_xt6015',
+                        'XT-6015',
+                        '15" Posiflex terminal with optional MSR.',
+                        { aioPlatform: 'posiflex' }
+                    ),
                     hs3510: eloTouchBrowser('posiflex_hs3510', 'HS-3510', 'Compact 10" Posiflex touchscreen.'),
-                    xt3215: eloTouchBrowser('posiflex_xt3215', 'XT-3215', '15" Posiflex XT-3215 fanless terminal.'),
-                    ks7215: eloTouchBrowser('posiflex_ks7215', 'KS-7215', '15" Posiflex KS series kiosk / POS.'),
+                    xt3215: fanlessAioRegister(
+                        'posiflex_xt3215',
+                        'XT-3215',
+                        '15" Posiflex XT-3215 fanless terminal.',
+                        { aioPlatform: 'posiflex' }
+                    ),
+                    ks7215: fanlessAioRegister(
+                        'posiflex_ks7215',
+                        'KS-7215',
+                        '15" Posiflex KS series kiosk / POS.',
+                        { aioPlatform: 'posiflex' }
+                    ),
                     mp3006: eloTouchBrowser('posiflex_mp3006', 'MP-3006', 'Posiflex MP-3006 modular POS.')
                 }
             },
@@ -512,18 +645,38 @@ const CATALOG_BY_TYPE = Object.freeze({
             partner: {
                 label: 'Partner Tech',
                 models: {
-                    pt8900: eloTouchBrowser('partner_pt8900', 'PT-8900', 'Partner Tech 15" POS terminal.'),
+                    pt8900: fanlessAioRegister(
+                        'partner_pt8900',
+                        'PT-8900',
+                        'Partner Tech 15" POS terminal.',
+                        { aioPlatform: 'partner' }
+                    ),
                     sp631: eloTouchBrowser('partner_sp631', 'SP-631', 'Compact Partner Tech touchscreen POS.'),
-                    pt6200: eloTouchBrowser('partner_pt6200', 'PT-6200', 'Partner Tech PT-6200 POS terminal.'),
-                    rp330: eloTouchBrowser('partner_rp330', 'RP-330', 'Partner Tech RP-330 receipt printer combo base.')
+                    pt6200: fanlessAioRegister(
+                        'partner_pt6200',
+                        'PT-6200',
+                        'Partner Tech PT-6200 POS terminal.',
+                        { aioPlatform: 'partner' }
+                    ),
+                    rp330: fanlessAioRegister(
+                        'partner_rp330',
+                        'RP-330',
+                        'Partner Tech RP-330 receipt printer combo base.',
+                        { aioPlatform: 'partner' }
+                    )
                 }
             },
             aures: {
                 label: 'Aures',
                 models: {
                     yuno: androidAioRegister('aures_yuno', 'YUNO', 'Aures YUNO compact Android POS.'),
-                    odyss: eloTouchBrowser('aures_odyss', 'ODYSS II', 'Aures ODYSS II touchscreen register.'),
-                    k18: eloTouchBrowser('aures_k18', 'K18', 'Aures K18 fanless POS terminal.')
+                    odyss: fanlessAioRegister(
+                        'aures_odyss',
+                        'ODYSS II',
+                        'Aures ODYSS II touchscreen register.',
+                        { aioPlatform: 'aures' }
+                    ),
+                    k18: fanlessAioRegister('aures_k18', 'K18', 'Aures K18 fanless POS terminal.', { aioPlatform: 'aures' })
                 }
             },
             generic: {
@@ -686,13 +839,76 @@ const CATALOG_BY_TYPE = Object.freeze({
                     tsp847ii: receiptPrinter('star_tsp847ii', 'TSP847II', 'star_network', 'High-speed Star TSP847II receipt printer.')
                 }
             },
-            elo: {
-                label: 'Elo (PayPoint built-in)',
+            paypoint_plus_builtin: {
+                label: 'PayPoint Plus · Built-in',
                 models: {
-                    paypoint_builtin: model('elo_paypoint_printer', 'PayPoint integrated printer', {
-                        driver: 'elo_star',
-                        configFields: [ELO_INTEGRATED_CONN, FIELD.paperWidth]
-                    })
+                    receipt_printer: aioBuiltinPrinter(
+                        'elo_paypoint_printer',
+                        'Receipt printer',
+                        'elo_star',
+                        'PayPoint Plus',
+                        'Integrated Star printer inside PayPoint Plus — same unit as the register.'
+                    )
+                }
+            },
+            sunmi_builtin: {
+                label: 'Sunmi · Built-in',
+                models: {
+                    receipt_printer: aioBuiltinPrinter(
+                        'sunmi_builtin_printer',
+                        'Receipt printer',
+                        'escpos_network',
+                        'Sunmi Android POS',
+                        'Integrated thermal printer on Sunmi T2, T2s, T3, D3 Pro, and similar units.'
+                    )
+                }
+            },
+            landi_builtin: {
+                label: 'Landi · Built-in',
+                models: {
+                    receipt_printer: aioBuiltinPrinter(
+                        'landi_builtin_printer',
+                        'Receipt printer',
+                        'escpos_network',
+                        'Landi SmartPOS',
+                        'Integrated thermal printer on Landi M20, A8, A9, and similar Android all-in-ones.'
+                    )
+                }
+            },
+            aures_builtin: {
+                label: 'Aures · Built-in',
+                models: {
+                    receipt_printer: aioBuiltinPrinter(
+                        'aures_builtin_printer',
+                        'Receipt printer',
+                        'escpos_network',
+                        'Aures all-in-one',
+                        'Integrated thermal printer on Aures YUNO, ODYSS II, K18, and similar units.'
+                    )
+                }
+            },
+            posiflex_builtin: {
+                label: 'Posiflex · Built-in',
+                models: {
+                    receipt_printer: aioBuiltinPrinter(
+                        'posiflex_builtin_printer',
+                        'Receipt printer',
+                        'escpos_network',
+                        'Posiflex all-in-one',
+                        'Integrated thermal printer on Posiflex XT, KS, and similar fanless terminals.'
+                    )
+                }
+            },
+            partner_builtin: {
+                label: 'Partner Tech · Built-in',
+                models: {
+                    receipt_printer: aioBuiltinPrinter(
+                        'partner_builtin_printer',
+                        'Receipt printer',
+                        'escpos_network',
+                        'Partner Tech all-in-one',
+                        'Integrated thermal printer on Partner Tech PT and RP series terminals.'
+                    )
                 }
             },
             epson: {
@@ -832,6 +1048,39 @@ const CATALOG_BY_TYPE = Object.freeze({
     },
     customer_display: {
         brands: {
+            paypoint_plus_builtin: {
+                label: 'PayPoint Plus · Built-in',
+                models: {
+                    customer_display: aioBuiltinCustomerDisplay(
+                        'elo_paypoint_customer_display',
+                        'Customer display',
+                        'PayPoint Plus',
+                        'Built-in front-facing screen on PayPoint Plus — faces the customer at checkout.'
+                    )
+                }
+            },
+            sunmi_builtin: {
+                label: 'Sunmi · Built-in',
+                models: {
+                    customer_display: aioBuiltinCustomerDisplay(
+                        'sunmi_builtin_customer_display',
+                        'Customer display',
+                        'Sunmi Android POS',
+                        'Built-in secondary customer-facing screen on Sunmi dual-display models (T2s, T3, etc.).'
+                    )
+                }
+            },
+            landi_builtin: {
+                label: 'Landi · Built-in',
+                models: {
+                    customer_display: aioBuiltinCustomerDisplay(
+                        'landi_builtin_customer_display',
+                        'Customer display',
+                        'Landi SmartPOS',
+                        'Built-in customer-facing screen on Landi dual-display SmartPOS models.'
+                    )
+                }
+            },
             elo: {
                 label: 'Elo',
                 models: {
@@ -1082,57 +1331,103 @@ const EQUIPMENT_TYPE_META = Object.freeze({
         id: 'register',
         label: 'POS register',
         description: 'The touchscreen or computer running Business One POS.',
-        hasCatalog: true
+        hasCatalog: false,
+        manualConfigFields: [FIELD.connectionUsbNetwork, FIELD.networkAddress, FIELD.networkPort]
     },
     card_terminal: {
         id: 'card_terminal',
         label: 'Payment terminal',
         description: 'Countertop or mobile card reader for customer payments.',
-        hasCatalog: true
+        hasCatalog: false,
+        manualConfigFields: [FIELD.poiDeviceId, FIELD.connectionUsbNetwork, FIELD.terminalLanAddress]
     },
     receipt_printer: {
         id: 'receipt_printer',
         label: 'Receipt printer',
         description: 'Thermal printer for customer receipts and drawer kick.',
-        hasCatalog: true
+        hasCatalog: false,
+        manualConfigFields: [FIELD.connectionUsbNetwork, FIELD.networkAddress, FIELD.networkPort, FIELD.paperWidth]
     },
     barcode_scanner: {
         id: 'barcode_scanner',
         label: 'Barcode scanner',
         description: 'USB or Bluetooth scanner for SKU lookup.',
-        hasCatalog: true
+        hasCatalog: false,
+        manualConfigFields: [FIELD.keyboardWedge]
     },
     cash_drawer: {
         id: 'cash_drawer',
         label: 'Cash drawer',
         description: 'Cash drawer opened via linked receipt printer or register.',
-        hasCatalog: true
+        hasCatalog: false,
+        manualConfigFields: [FIELD.linkedPrinter]
     },
     customer_display: {
         id: 'customer_display',
         label: 'Customer display',
         description: 'Front-facing screen for cart totals and marketing ads. Assign ad playlists under Marketing → Front-facing displays.',
-        hasCatalog: true
+        hasCatalog: false,
+        manualConfigFields: [FIELD.displayMode, FIELD.displayUrl, FIELD.adPlaylistMode, FIELD.networkAddress]
     },
     label_printer: {
         id: 'label_printer',
         label: 'Label printer',
         description: 'Shelf or product label printer.',
-        hasCatalog: true
+        hasCatalog: false,
+        manualConfigFields: [FIELD.connectionUsbNetwork, FIELD.networkAddress, FIELD.networkPort]
     },
     scale: {
         id: 'scale',
         label: 'Scale',
         description: 'Weighing scale for bulk items.',
-        hasCatalog: true
+        hasCatalog: false,
+        manualConfigFields: [
+            FIELD.connectionUsbNetwork,
+            FIELD.networkAddress,
+            FIELD.serialPort,
+            {
+                key: 'unit',
+                label: 'Unit',
+                type: 'select',
+                options: [
+                    { value: 'lb', label: 'Pounds (lb)' },
+                    { value: 'kg', label: 'Kilograms (kg)' }
+                ],
+                default: 'lb'
+            }
+        ]
     },
     other: {
         id: 'other',
         label: 'Other',
         description: 'Any other POS peripheral — enter manufacturer and model manually.',
-        hasCatalog: false
+        hasCatalog: false,
+        manualConfigFields: [FIELD.connectionUsbNetwork, FIELD.networkAddress, FIELD.networkPort]
     }
 });
+
+function serializeConfigField(field) {
+    if (!field) return null;
+    const out = {
+        key: field.key,
+        label: field.label,
+        type: field.type || 'text',
+        placeholder: field.placeholder,
+        help: field.help,
+        default: field.default,
+        required: Boolean(field.required),
+        filterType: field.filterType
+    };
+    if (field.options) out.options = field.options;
+    if (field.requiredWhen) out.requiredWhen = field.requiredWhen;
+    if (field.showWhen) out.showWhen = field.showWhen;
+    return out;
+}
+
+function getManualConfigFieldsForType(equipmentType) {
+    const meta = EQUIPMENT_TYPE_META[equipmentType];
+    return (meta?.manualConfigFields || []).map(serializeConfigField).filter(Boolean);
+}
 
 function getCatalogForType(equipmentType) {
     return CATALOG_BY_TYPE[equipmentType] || null;
@@ -1239,7 +1534,79 @@ function getHardwareCatalogForAdmin() {
         }
         return { ...t, brands, brandModels };
     });
-    return { types };
+    return {
+        types,
+        aioRegisterBuiltin: buildAioRegisterBuiltinMap(),
+        builtinModelIds: collectBuiltinCatalogModelIds()
+    };
+}
+
+function buildAioRegisterBuiltinMap() {
+    const map = {};
+    const reg = CATALOG_BY_TYPE.register;
+    if (!reg?.brands) return Object.freeze(map);
+    for (const brand of Object.values(reg.brands)) {
+        for (const modelDef of Object.values(brand.models)) {
+            if (modelDef.aioBuiltIn && Object.keys(modelDef.aioBuiltIn).length) {
+                map[modelDef.id] = { ...modelDef.aioBuiltIn };
+            }
+        }
+    }
+    return Object.freeze(map);
+}
+
+function collectBuiltinCatalogModelIds() {
+    const ids = new Set();
+    for (const typeCatalog of Object.values(CATALOG_BY_TYPE)) {
+        for (const [brandId, brand] of Object.entries(typeCatalog.brands || {})) {
+            if (!String(brandId).includes('_builtin')) continue;
+            for (const modelDef of Object.values(brand.models)) {
+                ids.add(modelDef.id);
+            }
+        }
+    }
+    ids.add('elo_paypoint_printer');
+    ids.add('elo_paypoint_customer_display');
+    return Object.freeze([...ids]);
+}
+
+function isBuiltinCatalogModelId(catalogModelId) {
+    return collectBuiltinCatalogModelIds().includes(String(catalogModelId || '').trim());
+}
+
+function getAioRegisterBuiltinProfile(registerCatalogModelId) {
+    const id = String(registerCatalogModelId || '').trim();
+    if (!id) return null;
+    return buildAioRegisterBuiltinMap()[id] || null;
+}
+
+/**
+ * Limit peripheral choices for a station when the register is an all-in-one with built-ins.
+ * Kitchen / secondary printers always use external models only.
+ */
+function filterModelsForStationContext(equipmentType, registerCatalogModelId, models, options = {}) {
+    const list = Array.isArray(models) ? models : [];
+    const profile = getAioRegisterBuiltinProfile(registerCatalogModelId);
+    const slot = String(options.slot || '');
+
+    if (equipmentType === 'receipt_printer') {
+        if (slot === 'kitchen') {
+            return list.filter((m) => !isBuiltinCatalogModelId(m.id));
+        }
+        if (profile?.receiptPrinter) {
+            return list.filter((m) => m.id === profile.receiptPrinter);
+        }
+        return list.filter((m) => !isBuiltinCatalogModelId(m.id));
+    }
+
+    if (equipmentType === 'customer_display') {
+        if (profile?.customerDisplay) {
+            return list.filter((m) => m.id === profile.customerDisplay);
+        }
+        return list.filter((m) => !isBuiltinCatalogModelId(m.id));
+    }
+
+    return list;
 }
 
 function fieldMatchesWhen(field, config, whenKey) {
@@ -1329,6 +1696,15 @@ function validateEquipmentConfig(equipmentType, config) {
         return { ok: false, error: 'Unknown equipment type' };
     }
     if (!typeMeta.hasCatalog) {
+        const configFields = getManualConfigFieldsForType(equipmentType);
+        for (const field of configFields) {
+            if (!fieldVisible(field, cfg)) continue;
+            if (!fieldRequired(field, cfg)) continue;
+            const val = cfg[field.key];
+            if (val == null || String(val).trim() === '') {
+                return { ok: false, error: `${field.label} is required` };
+            }
+        }
         return { ok: true, config: cfg };
     }
     if (!catalogModelId) {
@@ -1370,7 +1746,14 @@ module.exports = {
     listBrandsForType,
     listModelsForBrand,
     getModelFields,
+    getManualConfigFieldsForType,
+    serializeConfigField,
     getHardwareCatalogForAdmin,
+    buildAioRegisterBuiltinMap,
+    collectBuiltinCatalogModelIds,
+    getAioRegisterBuiltinProfile,
+    filterModelsForStationContext,
+    isBuiltinCatalogModelId,
     validateEquipmentConfig,
     catalogLabelsForConfig,
     isPayPointModel,

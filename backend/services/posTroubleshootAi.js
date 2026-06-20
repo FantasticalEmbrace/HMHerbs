@@ -15,13 +15,11 @@ const ALLOWED_ACTIONS = Object.freeze([
     'edit_equipment',
     'edit_next_mac',
     'scroll_equipment',
-    'load_plan',
     'save_settings',
     'focus_settings',
     'focus_paste',
     'parse_list',
     'apply_all',
-    'show_ip_plan',
     'refresh_scan'
 ]);
 
@@ -32,12 +30,12 @@ Goals:
 - Give clear numbered steps the store owner can follow to fix each issue.
 - Never guess device names, IPs, or register labels — only use what is in the context JSON.
 - Prioritize urgent (error) issues before warnings.
-- For network problems, recommended addresses use 10.224.16.x (router at 10.224.16.1).
+- For network problems, refer only to addresses and settings already saved by the store.
 
 You can suggest buttons using ONLY these action ids:
 go_general, go_registers, go_payments, go_equipment, go_license, go_support,
 add_equipment, edit_equipment, edit_next_mac, scroll_equipment,
-load_plan, save_settings, focus_settings, focus_paste, parse_list, apply_all, show_ip_plan, refresh_scan
+save_settings, focus_settings, focus_paste, parse_list, apply_all, refresh_scan
 
 When edit_equipment or edit_next_mac is needed, include equipmentId from context.
 When guiding to a tab, prefer go_equipment, go_registers, etc.
@@ -55,7 +53,7 @@ Respond with JSON only (no markdown fences):
   "highlight": null
 }
 
-highlight may be: network_form, equipment, paste, ip_plan, troubleshoot
+highlight may be: network_form, equipment, paste, troubleshoot
 Keep reply under 180 words unless the user asked for detail.`;
 
 function compactTroubleshootContext(report) {
@@ -132,7 +130,7 @@ function sanitizeAiResponse(parsed) {
     const autoActionEquipmentId =
         parsed.autoActionEquipmentId != null ? Number(parsed.autoActionEquipmentId) : null;
 
-    const highlightAllowed = new Set(['network_form', 'equipment', 'paste', 'ip_plan', 'troubleshoot']);
+    const highlightAllowed = new Set(['network_form', 'equipment', 'paste', 'troubleshoot']);
     const highlight = highlightAllowed.has(parsed.highlight) ? parsed.highlight : null;
 
     return {

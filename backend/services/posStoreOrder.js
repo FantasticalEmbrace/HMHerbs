@@ -19,6 +19,7 @@ const {
 } = require('./posSecuritySettings');
 const InventoryService = require('./inventory');
 const { resolveCustomerUser } = require('./posCustomerService');
+const groupDiscount = require('./customerGroupDiscount');
 const { loadLoyaltyProgramSettings } = require('./customerLoyalty');
 const {
     normalizeTendersFromPayload,
@@ -219,13 +220,14 @@ function buildPaymentReference(method, paymentMeta = {}) {
     return `pos:terminal:${offline}:${lastFour}:${auth || 'na'}:${ref || 'na'}`.slice(0, 120);
 }
 
-function buildOrderNotes(method, paymentMeta = {}, discountAmount = 0, taxExemptInfo = null, cartDiscountAmount = 0) {
+function buildOrderNotes(method, paymentMeta = {}, discountAmount = 0, taxExemptInfo = null, cartDiscountAmount = 0, groupDiscountLabel = null) {
     const parts = [`Payment method: ${method}`, 'Channel: in_store POS'];
     if (taxExemptInfo?.exempt) {
         parts.push(`Tax exempt: ${taxExemptInfo.reason || 'no reason recorded'}`);
     }
     if (cartDiscountAmount > 0) {
-        parts.push(`Sale discount: -$${cartDiscountAmount.toFixed(2)}`);
+        const label = groupDiscountLabel ? `Group discount (${groupDiscountLabel})` : 'Sale discount';
+        parts.push(`${label}: -$${cartDiscountAmount.toFixed(2)}`);
     }
     const cashDiscountAmount = roundMoney(Number(discountAmount) - Number(cartDiscountAmount));
     if (cashDiscountAmount > 0) {
@@ -454,11 +456,7 @@ async function createInStorePosOrder(pool, payload, deviceId, verifiedEmployeeId
     }
 
     const managerPin = String(payload.managerPin || payload.manager_pin || '').replace(/\D/g, '').slice(0, 4);
-    const cartDiscountPercent = parseCartDiscountPercent(payload);
-    const authorizer = await validateSaleManagerAuth(pool, lineItems, managerPin || null, {
-        deviceId,
-        ip: payload.clientIp
-    }, cartDiscountPercent);
+    const clientCartDiscountPercent = parseCartDiscountPercent(payload);
 
     const paymentSettings = await loadPosPaymentMethodsSettings(pool);
     const loyaltySettings = await loadLoyaltyProgramSettings(pool);
@@ -470,6 +468,26 @@ async function createInStorePosOrder(pool, payload, deviceId, verifiedEmployeeId
         err.message = 'Attached customer profile was not found.';
         throw err;
     }
+
+    const enrichedPreview = await loadCatalogLines(pool, lineItems);
+    const preCartSubtotal = merchandiseSubtotal(enrichedPreview);
+
+    let effectiveCartDiscountPercent = clientCartDiscountPercent;
+    let groupDiscountLabel = null;
+    if (customerUser) {
+        const benefits = await groupDiscount.loadUserGroupBenefits(pool, customerUser.id, 'pos');
+        const resolved = groupDiscount.resolvePosStandingDiscount(benefits, preCartSubtotal);
+        const merged = groupDiscount.mergePosCartDiscount(clientCartDiscountPercent, resolved);
+        effectiveCartDiscountPercent = merged.percent;
+        if (merged.fromGroup) {
+            groupDiscountLabel = merged.label || merged.groupName;
+        }
+    }
+
+    const authorizer = await validateSaleManagerAuth(pool, lineItems, managerPin || null, {
+        deviceId,
+        ip: payload.clientIp
+    }, effectiveCartDiscountPercent);
 
     const paymentMeta = payload.payment || payload;
     let taxExemptInfo = parseTaxExemptSale(payload);
@@ -487,12 +505,12 @@ async function createInStorePosOrder(pool, payload, deviceId, verifiedEmployeeId
     }
     const storeTaxRate = await loadStoreTaxRate(pool);
     const taxRate = taxExemptInfo.exempt ? 0 : storeTaxRate;
-    const enriched = await loadCatalogLines(pool, lineItems);
-    const preCartSubtotal = merchandiseSubtotal(enriched);
-    const pricedLines = applyCartDiscountToEnriched(enriched, cartDiscountPercent);
+    const enriched = enrichedPreview;
+    const preCartSubtotalFinal = preCartSubtotal;
+    const pricedLines = applyCartDiscountToEnriched(enriched, effectiveCartDiscountPercent);
     const cashSettings = await loadCashDiscountSettings(pool);
     const pricing = computeDualPricing(pricedLines, taxRate, cashSettings.enabled ? cashSettings.percent : 0);
-    const cartDiscountAmount = roundMoney(preCartSubtotal - pricing.card.subtotal);
+    const cartDiscountAmount = roundMoney(preCartSubtotalFinal - pricing.card.subtotal);
 
     const draftTenders = normalizeTendersFromPayload(payload, loyaltySettings);
     const pricingMethod = usesCardPricing(draftTenders) ? 'card_terminal' : 'cash';
@@ -568,7 +586,8 @@ async function createInStorePosOrder(pool, payload, deviceId, verifiedEmployeeId
         paymentMeta,
         totalsFinal.discountAmount,
         taxExemptInfo,
-        cartDiscountAmount
+        cartDiscountAmount,
+        groupDiscountLabel
     );
     const notesWithAuth = authorizer
         ? `${notesBase}\nManager approval: ${authorizer.name} (${authorizer.employeeCode})`

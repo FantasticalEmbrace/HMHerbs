@@ -84,6 +84,10 @@ const sections = [
         file: path.join(root, 'migrations', '20260603_regal_labs_cbd_gummies_coa.sql')
     },
     {
+        title: 'Regal Labs Pet CBD Oil COA',
+        file: path.join(root, 'migrations', '20260619_regal_labs_pet_cbd_oil_coa.sql')
+    },
+    {
         title: 'Customer groups',
         file: path.join(root, 'migrations', '20260612_customer_groups.sql')
     },

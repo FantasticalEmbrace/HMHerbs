@@ -11,8 +11,22 @@ async function tableExists(pool, tableName) {
     return Number(rows[0].c) > 0;
 }
 
+async function columnExists(pool, tableName, columnName) {
+    const [rows] = await pool.query(
+        `SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
+        [tableName, columnName]
+    );
+    return Number(rows[0].c) > 0;
+}
+
+async function addColumnIfMissing(pool, tableName, columnName, definition) {
+    if (await columnExists(pool, tableName, columnName)) return;
+    await pool.execute(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
+}
+
 /**
- * Ensures customer_groups + user_customer_groups tables exist.
+ * Ensures customer_groups + user_customer_groups tables exist, plus discount columns.
  * @param {import('mysql2/promise').Pool} pool
  */
 async function ensureCustomerGroupSchema(pool) {
@@ -33,6 +47,27 @@ async function ensureCustomerGroupSchema(pool) {
             )
         `);
 
+        await addColumnIfMissing(
+            pool,
+            'customer_groups',
+            'discount_type',
+            "ENUM('none','percent','fixed') NOT NULL DEFAULT 'none'"
+        );
+        await addColumnIfMissing(pool, 'customer_groups', 'discount_value', 'DECIMAL(10,2) NULL');
+        await addColumnIfMissing(pool, 'customer_groups', 'discount_label', 'VARCHAR(100) NULL');
+        await addColumnIfMissing(
+            pool,
+            'customer_groups',
+            'discount_applies_web',
+            'TINYINT(1) NOT NULL DEFAULT 1'
+        );
+        await addColumnIfMissing(
+            pool,
+            'customer_groups',
+            'discount_applies_pos',
+            'TINYINT(1) NOT NULL DEFAULT 1'
+        );
+
         await pool.execute(`
             CREATE TABLE IF NOT EXISTS user_customer_groups (
                 user_id INT NOT NULL,
@@ -44,6 +79,21 @@ async function ensureCustomerGroupSchema(pool) {
                 CONSTRAINT fk_ucg_group FOREIGN KEY (customer_group_id) REFERENCES customer_groups(id) ON DELETE CASCADE
             )
         `);
+
+        if (await tableExists(pool, 'web_promotions')) {
+            await pool.execute(`
+                CREATE TABLE IF NOT EXISTS customer_group_promotions (
+                    customer_group_id INT NOT NULL,
+                    promotion_id INT NOT NULL,
+                    auto_apply TINYINT(1) NOT NULL DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (customer_group_id, promotion_id),
+                    INDEX idx_cgp_promotion (promotion_id),
+                    CONSTRAINT fk_cgp_group FOREIGN KEY (customer_group_id) REFERENCES customer_groups(id) ON DELETE CASCADE,
+                    CONSTRAINT fk_cgp_promotion FOREIGN KEY (promotion_id) REFERENCES web_promotions(id) ON DELETE CASCADE
+                )
+            `);
+        }
     } catch (err) {
         logger.warn(`[customer-groups] schema ensure skipped — ${logger.formatMysqlError(err)}`);
     }

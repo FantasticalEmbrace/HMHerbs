@@ -2,7 +2,7 @@
 
 const logger = require('./logger');
 
-const DENOMINATIONS = [25, 50, 75, 100];
+const DENOMINATIONS = [10, 25, 50, 75, 100];
 const CATEGORY_SLUG = 'gift-cards';
 
 async function tableExists(pool, tableName) {

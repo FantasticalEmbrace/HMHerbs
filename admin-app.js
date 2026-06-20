@@ -1285,6 +1285,11 @@ class AdminApp {
             case 'brands':
                 await this.loadBrands();
                 break;
+            case 'vendors':
+                if (window.AdminVendors) {
+                    window.AdminVendors.init();
+                }
+                break;
             case 'orders':
                 await this.loadOrders();
                 break;
@@ -3352,8 +3357,33 @@ class AdminApp {
         const posUrl = `${window.location.origin.replace(/\/+$/, '')}/pos/${register ? `?register=${encodeURIComponent(register)}` : ''}`;
         const openPos = `<a href="${this.escapeHtml(posUrl)}" target="_blank" rel="noopener noreferrer">Open POS setup</a>`;
         if (apiKey) {
-            msg.innerHTML = `<strong>Copy this key now</strong> (shown once): <code style="user-select:all">${this.escapeHtml(apiKey)}</code><br><span style="font-size:0.9rem;">Paste it into the register setup screen, then ${openPos}.</span>`;
+            msg.innerHTML = `<strong>Copy this key now</strong> (shown once):
+                <span style="display:inline-flex;align-items:center;gap:0.35rem;flex-wrap:wrap;margin:0.25rem 0;">
+                    <code style="user-select:all">${this.escapeHtml(apiKey)}</code>
+                    <button type="button" class="btn btn-secondary btn-sm" data-copy-pos-device-key>Copy</button>
+                </span>
+                <br><span style="font-size:0.9rem;">Paste it into the register setup screen, then ${openPos}.</span>`;
             msg.style.color = 'var(--gray-800)';
+            const copyBtn = msg.querySelector('[data-copy-pos-device-key]');
+            if (copyBtn) {
+                copyBtn.addEventListener('click', async () => {
+                    try {
+                        if (navigator.clipboard?.writeText) {
+                            await navigator.clipboard.writeText(apiKey);
+                        } else {
+                            const ta = document.createElement('textarea');
+                            ta.value = apiKey;
+                            document.body.appendChild(ta);
+                            ta.select();
+                            document.execCommand('copy');
+                            document.body.removeChild(ta);
+                        }
+                        this.showToast('Device key copied', 'success');
+                    } catch {
+                        this.showToast('Could not copy key', 'error');
+                    }
+                });
+            }
         } else {
             msg.innerHTML = `New register key created. ${openPos}`;
             msg.style.color = 'var(--success)';
@@ -6724,7 +6754,7 @@ class AdminApp {
             }
 
             if (!Array.isArray(rows) || rows.length === 0) {
-                container.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--gray-500);"><p>No low stock products. All tracked inventory is above threshold.</p></div>';
+                container.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--gray-500);"><p>No low stock products. All tracked inventory is above threshold.</p><p style="font-size:0.875rem;margin-top:0.5rem;">Only products with inventory tracking enabled appear here.</p></div>';
                 return;
             }
 
@@ -6749,7 +6779,7 @@ class AdminApp {
                                 <td>${this.escapeHtml(p.name || '')}</td>
                                 <td>${this.escapeHtml(p.brand_name || '—')}</td>
                                 <td>${this.escapeHtml(p.category_name || '—')}</td>
-                                <td><span class="badge badge-warning">${Number(p.inventory_quantity) || 0}</span></td>
+                                <td><span class="badge ${Number(p.inventory_quantity) <= 0 ? 'badge-danger' : 'badge-warning'}">${Number(p.inventory_quantity) || 0}</span></td>
                                 <td>${Number(p.low_stock_threshold) || 0}</td>
                                 <td>
                                     <button type="button" class="btn btn-sm btn-secondary" onclick="editProduct(${p.id})">

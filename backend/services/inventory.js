@@ -358,7 +358,6 @@ class InventoryService {
                 LEFT JOIN product_categories pc ON p.category_id = pc.id
                 WHERE p.track_inventory = 1 
                   AND p.is_active = 1
-                  AND p.inventory_quantity > 0
                   AND p.inventory_quantity <= COALESCE(NULLIF(p.low_stock_threshold, 0), ${Number(globalThreshold) || 5})
                 ORDER BY p.inventory_quantity ASC
                 LIMIT ${safeLimit}

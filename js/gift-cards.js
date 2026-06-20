@@ -34,8 +34,41 @@ class GiftCardsPage {
         this.setupCartUi();
         this.setupPersonalizeToggle();
         this.setupRecipientPreview();
+        this.renderCardPreviewFallback();
         await this.loadCatalog();
         this.updateCartDisplay();
+    }
+
+    renderCardPreviewFallback(cardType = this.activeType) {
+        const preview = document.getElementById('gift-card-preview');
+        if (!preview) return;
+        if (window.HmGiftCard?.markup) {
+            this.updateCardPreview();
+            return;
+        }
+        const type = cardType === 'physical' ? 'physical' : 'digital';
+        const typeLabel = type === 'physical' ? 'Physical' : 'Digital';
+        const logoHtml =
+            '<img class="hm-gift-card__logo" src="images/HM%20Herb%20Logo.png" alt="" width="120" height="36" loading="lazy" data-skip-error-handling>';
+        preview.innerHTML = `
+            <div class="hm-gift-card hm-gift-card--${type}" role="img" aria-label="${typeLabel} gift card amount not selected">
+                <div class="hm-gift-card__pattern" aria-hidden="true"></div>
+                <div class="hm-gift-card__shine" aria-hidden="true"></div>
+                <div class="hm-gift-card__inner">
+                    <div class="hm-gift-card__header">
+                        ${logoHtml}
+                        <span class="hm-gift-card__badge">${typeLabel}</span>
+                    </div>
+                    <div class="hm-gift-card__amount-wrap">
+                        <span class="hm-gift-card__amount-label">Gift card value</span>
+                        <span class="hm-gift-card__amount">Select amount</span>
+                    </div>
+                    <div class="hm-gift-card__footer">
+                        <span class="hm-gift-card__brand">H&amp;M Herbs &amp; Vitamins</span>
+                        <span class="hm-gift-card__tagline">Premium natural health since 1995</span>
+                    </div>
+                </div>
+            </div>`;
     }
 
     async loadCatalog() {
@@ -91,13 +124,30 @@ class GiftCardsPage {
 
     updateCardPreview() {
         const preview = document.getElementById('gift-card-preview');
-        if (!preview || !window.HmGiftCard?.markup) return;
+        if (!preview) return;
+        if (!window.HmGiftCard?.markup) {
+            this.renderCardPreviewFallback();
+            if (!this._previewRetryScheduled) {
+                this._previewRetryScheduled = true;
+                window.setTimeout(() => {
+                    this._previewRetryScheduled = false;
+                    this.updateCardPreview();
+                }, 100);
+            }
+            return;
+        }
         const recipientName = document.getElementById('recipient-name')?.value.trim() || '';
         preview.innerHTML = window.HmGiftCard.markup({
             amount: this.selectedAmount,
             cardType: this.activeType,
             recipientName
         });
+        const status = document.getElementById('gift-card-preview-status');
+        if (status) {
+            const typeLabel = this.activeType === 'physical' ? 'Physical' : 'Digital';
+            const amountText = this.selectedAmount ? `$${Number(this.selectedAmount).toFixed(0)}` : 'amount not selected';
+            status.textContent = `${typeLabel} gift card preview updated: ${amountText}`;
+        }
     }
 
     selectType(type) {

@@ -55,8 +55,7 @@ const {
     saveStoreNetworkSettings,
     matchDhcpEntriesToEquipment,
     applyNetworkAssignment,
-    listRegisterNetworkReports,
-    getStandardStoreNetworkTemplate
+    listRegisterNetworkReports
 } = require('../services/posStoreNetwork');
 const {
     buildNetworkSetupAssistant,
@@ -258,8 +257,7 @@ router.delete('/devices/:id', async (req, res) => {
 
 router.get('/equipment/types', (req, res) => {
     res.json({
-        types: listEquipmentTypeCatalog(),
-        catalog: getHardwareCatalogForAdmin()
+        types: listEquipmentTypeCatalog()
     });
 });
 
@@ -323,7 +321,7 @@ router.get('/network', async (req, res) => {
             loadStoreNetworkSettings(req.pool),
             listRegisterNetworkReports(req.pool)
         ]);
-        res.json({ settings, registerReports, standardTemplate: getStandardStoreNetworkTemplate() });
+        res.json({ settings, registerReports });
     } catch (e) {
         logger.error('Load POS network settings error:', e);
         res.status(500).json({ error: 'Failed to load network settings' });

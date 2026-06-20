@@ -25,7 +25,7 @@
     <style>
         /* Admin Panel Styles — brand tokens from css/brand-tokens.css */
         :root {
-            --accent-gold: #d4af37;
+            --accent-gold: #cfad37;
             --admin-sidebar-from: var(--brand-sidebar-from);
             --admin-sidebar-to: var(--brand-sidebar-to);
             --dark-green: var(--brand-primary-dark);
@@ -2871,6 +2871,12 @@
                             Brands
                         </a>
                     </div>
+                    <div class="nav-item">
+                        <a href="#" class="nav-link" data-section="vendors">
+                            <i class="fas fa-truck-loading"></i>
+                            Vendors
+                        </a>
+                    </div>
                 </div>
 
                 <div class="nav-section">
@@ -2929,6 +2935,13 @@
                         <a href="#" class="nav-link" data-section="pos">
                             <i class="fas fa-cash-register"></i>
                             Point of Sale
+                        </a>
+                    </div>
+                    <div class="nav-item">
+                        <a href="/pos/" class="nav-link" target="_blank" rel="noopener noreferrer"
+                            style="background: rgba(255, 255, 255, 0.08);">
+                            <i class="fas fa-external-link-alt"></i>
+                            Open Web POS
                         </a>
                     </div>
                     <div class="nav-item" id="nav-personnel-item">
@@ -3048,7 +3061,7 @@
                 <div class="card">
                     <div class="card-content">
                         <p style="margin: 0 0 1rem; color: var(--gray-600); font-size: 0.875rem;">
-                            Products with tracked inventory at or below their low-stock threshold.
+                            Products with tracked inventory at or below their low-stock threshold (includes out-of-stock at 0).
                         </p>
                         <div id="lowStockTable" class="loading">
                             <div class="spinner"></div>
@@ -3458,7 +3471,7 @@
                 <div class="card card--table-scroll">
                     <div class="card-content">
                         <p style="margin:0 0 1rem;color:var(--gray-600);font-size:0.9rem;">
-                            Organize customers into groups for promotions, pricing, and reporting. Assign groups from each customer’s profile.
+                            Organize customers into groups for promotions, pricing, and reporting. Set standing discounts and link checkout promo codes. Assign groups from each customer’s profile.
                         </p>
                         <div id="customerGroupsTable" class="loading">
                             <div class="spinner"></div>
@@ -3668,6 +3681,126 @@
                         <div id="brandsTable" class="loading">
                             <div class="spinner"></div>
                             Loading brands...
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Vendors Section -->
+            <section id="vendors" class="content-section">
+                <div class="content-header">
+                    <h1 class="page-title">Vendors</h1>
+                    <p class="page-subtitle" style="color: var(--gray-600); font-size: 0.95rem;">
+                        Manage suppliers, connect online catalogs, and enter packing-slip purchase orders for POS receiving.
+                    </p>
+                    <div class="button-group">
+                        <button type="button" class="btn btn-primary" id="vendors-add-btn">
+                            <i class="fas fa-plus"></i>
+                            Add vendor
+                        </button>
+                    </div>
+                </div>
+
+                <div class="admin-section-stack">
+                    <div class="card">
+                        <div class="card-content">
+                            <h3 style="margin: 0 0 0.5rem 0;">Vendor directory</h3>
+                            <p style="margin: 0 0 1rem 0; color: var(--gray-600); font-size: 0.88rem;">
+                                Create and maintain your supplier list. Vendors appear in purchase orders and POS vendor ordering.
+                            </p>
+                            <div id="vendors-directory-table" class="loading">
+                                <div class="spinner"></div>
+                                Loading vendors...
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-content">
+                            <h3 style="margin: 0 0 0.5rem 0;">New purchase order</h3>
+                            <p style="margin: 0 0 1rem 0; color: var(--gray-600); font-size: 0.88rem;">
+                                Match line items on the vendor packing slip. Save and open when ready for staff to scan in POS receiving.
+                            </p>
+                            <div style="display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 1rem;">
+                                <div class="form-group" style="margin: 0;">
+                                    <label for="vendors-po-vendor">Vendor</label>
+                                    <select id="vendors-po-vendor" class="form-input" required></select>
+                                </div>
+                                <div class="form-group" style="margin: 0;">
+                                    <label for="vendors-po-number">PO / order number</label>
+                                    <input id="vendors-po-number" class="form-input" placeholder="e.g. PO-10042">
+                                </div>
+                                <div class="form-group" style="margin: 0;">
+                                    <label for="vendors-po-vendor-ref">Vendor reference</label>
+                                    <input id="vendors-po-vendor-ref" class="form-input" placeholder="Invoice or pack list #">
+                                </div>
+                                <div class="form-group" style="margin: 0;">
+                                    <label for="vendors-po-expected">Expected delivery</label>
+                                    <input id="vendors-po-expected" class="form-input" type="date">
+                                </div>
+                                <div class="form-group" style="margin: 0; grid-column: 1 / -1;">
+                                    <label for="vendors-po-notes">Notes</label>
+                                    <textarea id="vendors-po-notes" class="form-input" rows="2" placeholder="Optional notes for staff"></textarea>
+                                </div>
+                            </div>
+
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                                <h4 style="margin: 0;">Line items</h4>
+                                <button type="button" id="vendors-add-line-btn" class="btn btn-sm btn-secondary">+ Add line</button>
+                            </div>
+                            <div class="table-container">
+                                <table class="table" id="vendors-lines-table">
+                                    <thead>
+                                        <tr>
+                                            <th>SKU</th>
+                                            <th>Vendor SKU</th>
+                                            <th>Description</th>
+                                            <th>Qty</th>
+                                            <th>Unit cost</th>
+                                            <th></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="vendors-lines-body"></tbody>
+                                </table>
+                            </div>
+
+                            <details style="margin: 1rem 0; padding: 0.75rem; background: var(--gray-50); border-radius: 8px;">
+                                <summary style="cursor: pointer; font-weight: 600;">Import lines from CSV</summary>
+                                <p style="margin: 0.75rem 0; color: var(--gray-600); font-size: 0.88rem;">
+                                    Columns: <code>sku</code> or <code>vendor_sku</code>, <code>qty</code>, optional <code>description</code>, <code>cost</code>
+                                </p>
+                                <textarea id="vendors-csv-input" class="form-input" rows="5" placeholder="sku,qty,description&#10;DEMO-VIT-C,12,Vitamin C"></textarea>
+                                <button type="button" id="vendors-import-csv-btn" class="btn btn-sm btn-secondary" style="margin-top: 0.5rem;">Import into lines</button>
+                            </details>
+
+                            <div class="button-group" style="margin-top: 1rem;">
+                                <button type="button" id="vendors-save-draft-btn" class="btn btn-secondary">Save draft</button>
+                                <button type="button" id="vendors-save-open-btn" class="btn btn-primary">Save &amp; open for receiving</button>
+                            </div>
+                            <p id="vendors-form-message" class="form-help" style="min-height: 1.25rem; margin-top: 0.75rem;"></p>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-content">
+                            <div style="display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.75rem;">
+                                <h3 style="margin: 0;">Purchase orders</h3>
+                                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                    <label class="visually-hidden" for="vendors-status-filter">Status</label>
+                                    <select id="vendors-status-filter" class="form-input" style="width: auto; min-width: 180px;">
+                                        <option value="">All statuses</option>
+                                        <option value="draft">Draft</option>
+                                        <option value="open,partial" selected>Open / partial</option>
+                                        <option value="received">Received</option>
+                                        <option value="cancelled">Cancelled</option>
+                                    </select>
+                                    <button type="button" id="vendors-refresh-orders-btn" class="btn btn-sm btn-secondary">Refresh</button>
+                                </div>
+                            </div>
+                            <div id="vendors-orders-table" class="loading">
+                                <div class="spinner"></div>
+                                Loading purchase orders...
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -4251,10 +4384,18 @@
             <!-- Point of Sale Section -->
             <section id="pos" class="content-section">
                 <div class="content-header">
-                    <h1 class="page-title">Point of Sale</h1>
-                    <p style="margin:0.35rem 0 0;color:var(--gray-600);font-size:0.92rem;">
-                        Business One register app — registers, hardware, payments, and receipts. Store name comes from <strong>Settings → Store info</strong>.
-                    </p>
+                    <div style="display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:1rem;width:100%;">
+                        <div>
+                            <h1 class="page-title">Point of Sale</h1>
+                            <p style="margin:0.35rem 0 0;color:var(--gray-600);font-size:0.92rem;">
+                                Business One register app — registers, hardware, payments, and receipts. Store name comes from <strong>Settings → Store info</strong>.
+                            </p>
+                        </div>
+                        <a href="/pos/" class="btn btn-primary" target="_blank" rel="noopener noreferrer">
+                            <i class="fas fa-external-link-alt"></i>
+                            Open Web POS
+                        </a>
+                    </div>
                 </div>
 
                 <div id="pos-troubleshoot-assistant" class="pos-network-assistant pos-troubleshoot-assistant" aria-live="polite">
@@ -4615,18 +4756,17 @@
                                     </form>
                                 </div>
                             </div>
-                            <p style="margin:0 0 1rem 0;color:var(--gray-600);font-size:0.9rem;">Each register, printer, and card reader needs a <strong>fixed network address</strong> so they always find each other. Put the hardware address (MAC) from each device&apos;s sticker on the equipment record, reserve that same address on the store router, then paste the router&apos;s device list below and click <strong>Apply</strong> to sync. Recommended addresses use <code>10.224.16.x</code> so they don&apos;t clash with typical home or modem Wi‑Fi (<code>192.168.x</code>).</p>
-                            <details class="pos-network-setup-guide" open>
+                            <p style="margin:0 0 1rem 0;color:var(--gray-600);font-size:0.9rem;">Each register, printer, and card reader needs a <strong>fixed network address</strong> on your store network. Enter the hardware address (MAC) from each device sticker on the equipment record, reserve that address on your router, then paste the router&apos;s device list below and click <strong>Apply</strong> to sync.</p>
+                            <details class="pos-network-setup-guide">
                                 <summary>How to set up reserved addresses on the router</summary>
                                 <ol>
-                                    <li>In the router&apos;s settings, set the store network address to <strong>10.224.16.1</strong> and subnet mask <strong>255.255.255.0</strong>. Set the pool of automatic addresses to <strong>10.224.16.128–254</strong> (for phones, tablets, and anything not listed in the table below).</li>
+                                    <li>In the router settings, note your store network address and subnet mask.</li>
                                     <li>Plug the router in: internet cable to the modem, store devices to LAN ports or store Wi‑Fi.</li>
-                                    <li>For each POS device, copy the <strong>hardware address (MAC)</strong> from the sticker and tell the router to always give it the IP from the table below (register 1 uses .16–.22).</li>
+                                    <li>For each POS device, copy the <strong>hardware address (MAC)</strong> from the sticker and tell the router to always give it the IP you entered on the equipment record.</li>
                                     <li>Connect registers and card readers to a <strong>store-only Wi‑Fi</strong> network — not guest Wi‑Fi. Write the Wi‑Fi name and password in <strong>Network notes</strong>.</li>
                                     <li>Enter the same MAC on each <strong>Equipment</strong> row. Paste the router&apos;s connected-device list → <strong>Parse &amp; match</strong> → <strong>Apply</strong>.</li>
                                     <li><strong>Backup internet test:</strong> run a sale on normal internet, unplug the modem cable, run a sale again on cellular backup (if the router has it).</li>
                                 </ol>
-                                <div id="pos-network-standard-ip-plan"></div>
                             </details>
                             <form id="pos-network-settings-form" class="pos-network-form">
                                 <div class="pos-network-form-grid">
@@ -4636,13 +4776,13 @@
                                     </div>
                                     <div class="form-group" style="margin:0;">
                                         <label for="pos-network-gateway-ip">Router address</label>
-                                        <input class="form-input" id="pos-network-gateway-ip" name="gatewayIp" maxlength="64" placeholder="10.224.16.1" inputmode="decimal">
+                                        <input class="form-input" id="pos-network-gateway-ip" name="gatewayIp" maxlength="64" placeholder="e.g. 192.168.1.1" inputmode="decimal">
                                     </div>
                                 </div>
                                 <div class="form-group" style="margin:0;">
                                     <label for="pos-network-subnet">Network range</label>
-                                    <input class="form-input" id="pos-network-subnet" name="subnetCidr" maxlength="32" placeholder="10.224.16.0/24">
-                                    <p class="form-help" style="margin:0.35rem 0 0;">Usually shown as something like 10.224.16.0/24 — leave as recommended unless your installer says otherwise.</p>
+                                    <input class="form-input" id="pos-network-subnet" name="subnetCidr" maxlength="32" placeholder="e.g. 192.168.1.0/24">
+                                    <p class="form-help" style="margin:0.35rem 0 0;">Your router&apos;s LAN subnet (often shown as something like 192.168.1.0/24).</p>
                                 </div>
                                 <div class="form-group" style="margin:0;">
                                     <label for="pos-network-notes">Network notes</label>
@@ -4650,7 +4790,6 @@
                                 </div>
                                 <div style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:center;">
                                     <button type="submit" class="btn btn-secondary btn-sm" id="pos-network-save-btn">Save network settings</button>
-                                    <button type="button" class="btn btn-ghost btn-sm" id="pos-network-apply-standard-btn">Load recommended addresses (10.224.16.x)</button>
                                     <span id="pos-network-settings-msg" class="form-help"></span>
                                 </div>
                             </form>
@@ -4659,7 +4798,7 @@
                                     <label for="pos-network-dhcp-paste">Connected devices list <span class="form-optional-hint">(paste from router)</span></label>
                                     <p class="form-help" style="margin:0.35rem 0 0;">After reserved addresses are set on the router, copy its list of connected devices. Each line should include a name, IP address, and hardware (MAC) address.</p>
                                 </div>
-                                <textarea class="form-input" id="pos-network-dhcp-paste" rows="8" placeholder="Register-1        10.224.16.16   AA:BB:CC:DD:EE:01&#10;Card-reader-1     10.224.16.17   AA-BB-CC-DD-EE-02&#10;Receipt-printer   10.224.16.18   CC:DD:EE:FF:00:11"></textarea>
+                                <textarea class="form-input" id="pos-network-dhcp-paste" rows="8" placeholder="Register-1        192.168.1.50   AA:BB:CC:DD:EE:01&#10;Card-reader-1     192.168.1.51   AA-BB-CC-DD-EE-02&#10;Receipt-printer   192.168.1.52   CC:DD:EE:FF:00:11"></textarea>
                                 <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-top:0.75rem;align-items:center;">
                                     <button type="button" class="btn btn-primary btn-sm" id="pos-network-parse-btn"><i class="fas fa-search"></i> Parse &amp; match</button>
                                     <button type="button" class="btn btn-secondary btn-sm" id="pos-network-apply-all-btn" style="display:none;">Apply all matches</button>
@@ -4681,12 +4820,11 @@
                             <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:0.75rem;margin-bottom:1rem;">
                                 <div>
                                     <h3 style="margin:0 0 0.25rem 0;">Store equipment</h3>
-                                    <p style="margin:0;color:var(--gray-600);font-size:0.9rem;">Wire each register station: choose equipment type, brand, and model, then assign pieces to a register. Card terminals, printers, and drawers configured here are what the POS uses at runtime. Store-wide POI ID under <strong>Payments</strong> is only a fallback when a register has no terminal assigned.</p>
+                                    <p style="margin:0;color:var(--gray-600);font-size:0.9rem;">Add each register, printer, terminal, and peripheral manually. Enter manufacturer, model, MAC, and connection settings for your actual hardware.</p>
                                 </div>
                                 <button type="button" class="btn btn-primary btn-sm" id="pos-equipment-add-btn"><i class="fas fa-plus"></i> Add equipment</button>
                             </div>
                             <div id="pos-equipment-register-profiles" class="pos-equipment-profiles-grid" style="display:grid;gap:0.75rem;margin-bottom:1.25rem;"></div>
-                            <p id="pos-equipment-catalog-warning" class="form-help" style="display:none;margin:0 0 1rem 0;color:var(--error);"></p>
                             <div id="pos-equipment-list"></div>
                         </div>
                     </div>
@@ -4700,26 +4838,11 @@
                                     <select class="form-input" id="pos-equipment-type" name="equipmentType" required></select>
                                     <p id="pos-equipment-type-help" class="form-help" style="margin-top:0.35rem;"></p>
                                 </div>
-                                <div id="pos-equipment-cascade-wrap" style="display:grid;gap:0.75rem;">
-                                    <div class="form-group">
-                                        <label for="pos-equipment-brand">Brand <span class="form-required-mark" aria-hidden="true">*</span></label>
-                                        <select class="form-input" id="pos-equipment-brand" name="catalogBrandId" disabled>
-                                            <option value="">— Select type first —</option>
-                                        </select>
-                                    </div>
-                                    <div class="form-group">
-                                        <label for="pos-equipment-catalog-model">Model <span class="form-required-mark" aria-hidden="true">*</span></label>
-                                        <select class="form-input" id="pos-equipment-catalog-model" name="catalogModelId" disabled>
-                                            <option value="">— Select brand first —</option>
-                                        </select>
-                                        <p id="pos-equipment-model-desc" class="form-help" style="margin-top:0.35rem;"></p>
-                                    </div>
-                                </div>
                                 <div class="form-group">
                                     <label for="pos-equipment-label">Name <span class="form-required-mark" aria-hidden="true">*</span></label>
-                                    <input class="form-input" id="pos-equipment-label" name="label" required maxlength="128" placeholder="Front counter A3700">
+                                    <input class="form-input" id="pos-equipment-label" name="label" required maxlength="128" placeholder="Front counter register">
                                 </div>
-                                <div id="pos-equipment-manual-wrap" style="display:none;grid-template-columns:1fr 1fr;gap:0.75rem;">
+                                <div id="pos-equipment-manual-wrap" style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
                                     <div class="form-group"><label for="pos-equipment-manufacturer">Manufacturer</label><input class="form-input" id="pos-equipment-manufacturer" name="manufacturer" maxlength="128"></div>
                                     <div class="form-group"><label for="pos-equipment-model">Model</label><input class="form-input" id="pos-equipment-model" name="model" maxlength="128"></div>
                                 </div>
@@ -5369,16 +5492,240 @@
     <!-- Modal mount point - all customer / gift card modals are injected here -->
     <div id="adminModalRoot"></div>
 
+    <!-- Vendor add/edit modal -->
+    <div id="vendors-edit-modal" class="modal-backdrop hidden" style="position:fixed;inset:0;background:rgba(15,23,42,0.45);z-index:9999;display:none;align-items:center;justify-content:center;padding:1rem;">
+        <div class="card" style="width:min(780px,100%);max-height:92vh;overflow:auto;margin:0;">
+            <div class="card-content">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+                    <h3 id="vendors-edit-title" style="margin:0;">Add vendor</h3>
+                    <button type="button" id="vendors-edit-close-btn" class="btn btn-sm btn-secondary" aria-label="Close">&times;</button>
+                </div>
+                <form id="vendors-edit-form">
+                    <input type="hidden" id="vendors-edit-id" value="">
+                    <h4 class="vendors-form-section-title">Basic information</h4>
+                    <div class="vendors-form-grid">
+                        <div class="form-group" style="margin:0;">
+                            <label for="vendors-edit-name">Vendor name *</label>
+                            <input id="vendors-edit-name" class="form-input" required maxlength="255">
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <label for="vendors-edit-company">Company / legal name</label>
+                            <input id="vendors-edit-company" class="form-input" maxlength="255">
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <label for="vendors-edit-account-number">Account / vendor number</label>
+                            <input id="vendors-edit-account-number" class="form-input" maxlength="100" placeholder="Your account # with this supplier">
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <label for="vendors-edit-status">Status</label>
+                            <select id="vendors-edit-status" class="form-input">
+                                <option value="active">Active</option>
+                                <option value="pending">Pending</option>
+                                <option value="inactive">Inactive</option>
+                                <option value="suspended">Suspended</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <h4 class="vendors-form-section-title">Contact</h4>
+                    <div class="vendors-form-grid">
+                        <div class="form-group" style="margin:0;">
+                            <label for="vendors-edit-contact">Contact person</label>
+                            <input id="vendors-edit-contact" class="form-input" maxlength="255">
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <label for="vendors-edit-email">Email</label>
+                            <input id="vendors-edit-email" class="form-input" type="email" maxlength="255">
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <label for="vendors-edit-phone">Phone</label>
+                            <input id="vendors-edit-phone" class="form-input" type="tel" maxlength="50">
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <label for="vendors-edit-fax">Fax</label>
+                            <input id="vendors-edit-fax" class="form-input" type="tel" maxlength="50">
+                        </div>
+                        <div class="form-group" style="margin:0;grid-column:1/-1;">
+                            <label for="vendors-edit-website">Website</label>
+                            <input id="vendors-edit-website" class="form-input" type="url" maxlength="255">
+                        </div>
+                    </div>
+
+                    <h4 class="vendors-form-section-title">Address</h4>
+                    <div class="vendors-form-grid">
+                        <div class="form-group" style="margin:0;grid-column:1/-1;">
+                            <label for="vendors-edit-address1">Address line 1</label>
+                            <input id="vendors-edit-address1" class="form-input" maxlength="255">
+                        </div>
+                        <div class="form-group" style="margin:0;grid-column:1/-1;">
+                            <label for="vendors-edit-address2">Address line 2</label>
+                            <input id="vendors-edit-address2" class="form-input" maxlength="255">
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <label for="vendors-edit-city">City</label>
+                            <input id="vendors-edit-city" class="form-input" maxlength="100">
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <label for="vendors-edit-state">State / province</label>
+                            <input id="vendors-edit-state" class="form-input" maxlength="100">
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <label for="vendors-edit-postal">Postal code</label>
+                            <input id="vendors-edit-postal" class="form-input" maxlength="20">
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <label for="vendors-edit-country">Country</label>
+                            <input id="vendors-edit-country" class="form-input" maxlength="100" value="United States">
+                        </div>
+                    </div>
+
+                    <h4 class="vendors-form-section-title">Business &amp; billing</h4>
+                    <div class="vendors-form-grid">
+                        <div class="form-group" style="margin:0;">
+                            <label for="vendors-edit-tax-id">Tax ID / EIN</label>
+                            <input id="vendors-edit-tax-id" class="form-input" maxlength="50">
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <label for="vendors-edit-business-license">Business license #</label>
+                            <input id="vendors-edit-business-license" class="form-input" maxlength="100">
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <label for="vendors-edit-payment-terms">Payment terms</label>
+                            <select id="vendors-edit-payment-terms" class="form-input">
+                                <option value="net_15">Net 15</option>
+                                <option value="net_30" selected>Net 30</option>
+                                <option value="net_45">Net 45</option>
+                                <option value="net_60">Net 60</option>
+                                <option value="cod">COD</option>
+                                <option value="prepaid">Prepaid</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <label for="vendors-edit-currency">Currency</label>
+                            <select id="vendors-edit-currency" class="form-input">
+                                <option value="USD" selected>USD</option>
+                                <option value="CAD">CAD</option>
+                                <option value="EUR">EUR</option>
+                                <option value="GBP">GBP</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <h4 class="vendors-form-section-title">Online catalog</h4>
+                    <p class="form-help" style="margin:0 0 0.75rem;">Used by admin import and POS catalog sync. Include auth details if the vendor feed is protected.</p>
+                    <div class="vendors-form-grid">
+                        <div class="form-group" style="margin:0;grid-column:1/-1;">
+                            <label for="vendors-edit-catalog-url">Catalog URL</label>
+                            <input id="vendors-edit-catalog-url" class="form-input" type="url" maxlength="500" placeholder="https://vendor.com/catalog.csv">
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <label for="vendors-edit-catalog-format">Catalog format</label>
+                            <select id="vendors-edit-catalog-format" class="form-input">
+                                <option value="csv">CSV</option>
+                                <option value="xml">XML</option>
+                                <option value="json">JSON</option>
+                                <option value="api">JSON API endpoint</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <label for="vendors-edit-catalog-auth">Catalog authentication</label>
+                            <select id="vendors-edit-catalog-auth" class="form-input">
+                                <option value="none">None</option>
+                                <option value="basic">Basic (username / password)</option>
+                                <option value="bearer">Bearer token</option>
+                                <option value="api_key">API key header</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <label for="vendors-edit-sync-frequency">Sync frequency</label>
+                            <select id="vendors-edit-sync-frequency" class="form-input">
+                                <option value="manual">Manual only</option>
+                                <option value="hourly">Hourly</option>
+                                <option value="daily" selected>Daily</option>
+                                <option value="weekly">Weekly</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin:0;display:flex;align-items:center;gap:0.5rem;padding-top:1.5rem;">
+                            <input id="vendors-edit-auto-sync" type="checkbox">
+                            <label for="vendors-edit-auto-sync" style="margin:0;">Enable automatic catalog sync</label>
+                        </div>
+                        <div class="form-group" style="margin:0;display:flex;align-items:center;gap:0.5rem;padding-top:1.5rem;">
+                            <input id="vendors-edit-pos-ordering" type="checkbox" checked>
+                            <label for="vendors-edit-pos-ordering" style="margin:0;">Allow staff to browse &amp; order from POS</label>
+                        </div>
+                    </div>
+                    <div id="vendors-auth-basic-fields" class="vendors-form-grid hidden">
+                        <div class="form-group" style="margin:0;">
+                            <label for="vendors-edit-auth-username">Catalog username</label>
+                            <input id="vendors-edit-auth-username" class="form-input" autocomplete="off">
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <label for="vendors-edit-auth-password">Catalog password</label>
+                            <input id="vendors-edit-auth-password" class="form-input" type="password" autocomplete="new-password">
+                        </div>
+                    </div>
+                    <div id="vendors-auth-token-field" class="vendors-form-grid hidden">
+                        <div class="form-group" style="margin:0;grid-column:1/-1;">
+                            <label for="vendors-edit-auth-token" id="vendors-edit-auth-token-label">Bearer token</label>
+                            <input id="vendors-edit-auth-token" class="form-input" type="password" autocomplete="new-password">
+                        </div>
+                    </div>
+                    <div id="vendors-auth-api-key-field" class="vendors-form-grid hidden">
+                        <div class="form-group" style="margin:0;grid-column:1/-1;">
+                            <label for="vendors-edit-auth-api-key">API key value</label>
+                            <input id="vendors-edit-auth-api-key" class="form-input" type="password" autocomplete="new-password">
+                        </div>
+                        <div class="form-group" style="margin:0;grid-column:1/-1;">
+                            <label for="vendors-edit-auth-header-name">API key header name</label>
+                            <input id="vendors-edit-auth-header-name" class="form-input" maxlength="120" placeholder="X-API-Key">
+                            <p class="form-help" style="margin:0.35rem 0 0;">HTTP header the vendor expects (defaults to X-API-Key).</p>
+                        </div>
+                    </div>
+
+                    <h4 class="vendors-form-section-title">Internal notes</h4>
+                    <div class="form-group" style="margin:0;">
+                        <label for="vendors-edit-notes">Notes</label>
+                        <textarea id="vendors-edit-notes" class="form-input" rows="3" maxlength="5000" placeholder="Ordering instructions, rep name, minimum order, etc."></textarea>
+                    </div>
+
+                    <div class="button-group" style="margin-top:1rem;">
+                        <button type="submit" class="btn btn-primary">Save vendor</button>
+                        <button type="button" id="vendors-edit-cancel-btn" class="btn btn-secondary">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Vendor PO detail modal -->
+    <div id="vendors-po-detail-modal" class="modal-backdrop hidden" style="position:fixed;inset:0;background:rgba(15,23,42,0.45);z-index:9999;display:none;align-items:center;justify-content:center;padding:1rem;">
+        <div class="card vendors-po-detail-card" style="width:min(640px,100%);max-height:90vh;overflow:auto;margin:0;">
+            <div class="card-content">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+                    <h3 id="vendors-po-detail-title" style="margin:0;">Purchase order</h3>
+                    <button type="button" id="vendors-po-detail-close-btn" class="btn btn-sm btn-secondary" aria-label="Close">&times;</button>
+                </div>
+                <div id="vendors-po-detail-body"></div>
+                <div class="button-group" style="margin-top:1rem;">
+                    <button type="button" id="vendors-po-detail-open-btn" class="btn btn-secondary hidden">Open for receiving</button>
+                    <button type="button" id="vendors-po-detail-print-btn" class="btn btn-primary">Print slip barcode</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- jsPDF for PDF generation -->
     <script src="js/hm-choice-toggles.js"></script>
     <script src="js/phone-us-format.js"></script>
     <link rel="stylesheet" href="css/products.css">
+    <link rel="stylesheet" href="css/admin-vendors.css">
     <script src="js/description-html.js"></script>
     <script src="js/admin-product-variants.js"></script>
     <script src="js/tracking-link.js"></script>
     <script src="js/admin-shipping.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="admin-personnel-pos.js"></script>
+    <script src="js/admin-vendors.js"></script>
     <script src="admin-pos-hub.js"></script>
     <script src="admin-pos-troubleshoot.js"></script>
     <script src="admin-app.js?v=20260617n"></script>
