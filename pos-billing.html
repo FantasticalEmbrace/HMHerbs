@@ -4,7 +4,20 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Business One POS — Billing setup</title>
-  <link rel="stylesheet" href="css/business-one-pos-pages.css?v=2">
+  <style>
+    body { max-width: 40rem; margin: 2rem auto; padding: 0 1rem; font-family: system-ui, sans-serif; }
+    .card { border: 1px solid #e5e7eb; border-radius: 10px; padding: 1.25rem; background: #fff; }
+    .form-group { margin-bottom: 1rem; }
+    label { display: block; font-weight: 600; margin-bottom: 0.35rem; }
+    input[type="text"], input[type="email"], input[type="number"] { width: 100%; padding: 0.55rem; border: 1px solid #d1d5db; border-radius: 6px; }
+    .btn { padding: 0.65rem 1rem; border-radius: 6px; border: none; cursor: pointer; font-weight: 600; }
+    .btn-primary { background: #1f82ff; color: #fff; }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .msg { min-height: 1.25rem; margin-top: 0.75rem; font-size: 0.9rem; }
+    .legal { font-size: 0.85rem; color: #4b5563; margin: 1rem 0; line-height: 1.5; }
+    #collect-mount { min-height: 120px; margin: 0.75rem 0; }
+    .quote { background: #f9fafb; padding: 0.75rem; border-radius: 8px; margin-bottom: 1rem; }
+  </style>
 </head>
 <body>
   <h1>Business One POS billing</h1>
@@ -25,41 +38,18 @@
         <label for="station-count">Licensed stations</label>
         <input id="station-count" name="licensedStationCount" type="number" min="1" max="99" value="1" required>
       </div>
-
-      <div class="pay-tabs" role="tablist" aria-label="Payment method">
-        <button type="button" class="pay-tab" id="pay-tab-card" role="tab" aria-selected="true" aria-controls="pay-panel-card">Credit / debit card</button>
-        <button type="button" class="pay-tab" id="pay-tab-ach" role="tab" aria-selected="false" aria-controls="pay-panel-ach" hidden>Bank account (ACH)</button>
-      </div>
-
-      <div class="ach-meta" id="ach-account-type-wrap">
-        <label for="ach-account-type">Bank account type</label>
-        <select id="ach-account-type" name="achAccountType">
-          <option value="business">Business checking (CCD)</option>
-          <option value="personal">Personal checking (PPD)</option>
-        </select>
-        <p class="legal" style="margin:0.5rem 0 0;">EPI processes ACH debits. Account and routing numbers are entered in secure hosted fields — they never touch our servers.</p>
-      </div>
-
       <div id="collect-mount">
-        <p id="collect-placeholder" class="legal">Payment fields load when platform EPI keys are configured on the server.</p>
+        <p id="collect-placeholder" class="legal">Card fields load when platform EPI keys are configured on the server.</p>
       </div>
-
-      <label class="legal" id="card-authorize-wrap" style="display:flex;gap:0.5rem;align-items:flex-start;">
+      <label class="legal" style="display:flex;gap:0.5rem;align-items:flex-start;">
         <input type="checkbox" id="billing-authorize" name="authorized" required style="margin-top:0.2rem;">
         <span>I authorize Business One to charge my payment method monthly based on my active station count. I understand I can cancel by contacting Business One and that failure to pay may suspend POS sync.</span>
       </label>
-
-      <label class="legal" id="ach-authorize-wrap" style="display:none;gap:0.5rem;align-items:flex-start;">
-        <input type="checkbox" id="billing-ach-authorize" name="achAuthorized" style="margin-top:0.2rem;">
-        <span>I authorize Business One to debit my bank account monthly for POS subscription fees based on my licensed station count. I confirm I am authorized to use this account, understand debits are processed by EPI, and that I may cancel by contacting Business One. Failed debits may suspend POS sync after the grace period.</span>
-      </label>
-
       <button type="submit" class="btn btn-primary" id="billing-submit" disabled>Save payment method</button>
       <p class="msg" id="billing-msg"></p>
     </form>
   </div>
 
-  <script src="js/business-one-collect.js"></script>
   <script src="js/pos-billing.js"></script>
 </body>
 </html>

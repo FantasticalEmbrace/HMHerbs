@@ -7,10 +7,7 @@ const router = express.Router();
 const logger = require('../utils/logger');
 const {
     getPlatformPublicTokenizationKey,
-    isPlatformBillingConfigured,
-    isPlatformAchEnabled,
-    getDefaultAchSecCode,
-    normalizeAchSecCode
+    isPlatformBillingConfigured
 } = require('../utils/platformBillingEnv');
 const {
     getNmiCollectJsUrl,
@@ -81,55 +78,45 @@ router.get('/pricing', (req, res) => {
 /** Collect.js config for Business One platform billing (not store checkout) */
 router.get('/client-config', async (req, res) => {
     const tokenizationKey = getPlatformPublicTokenizationKey();
-    const achEnabled = isPlatformAchEnabled();
-    const basePayload = {
-        requiresSetupAuth: !isOpenBillingSetupAllowed(),
-        achEnabled,
-        achSecCodes: {
-            business: 'CCD',
-            personal: 'PPD'
-        },
-        defaultAchSecCode: getDefaultAchSecCode()
-    };
     if (!tokenizationKey) {
         return res.json({
-            ...basePayload,
             enabled: false,
             configured: false,
-            message: 'Platform billing keys are not configured on the server yet.'
+            message: 'Platform billing keys are not configured on the server yet.',
+            requiresSetupAuth: !isOpenBillingSetupAllowed()
         });
     }
 
     try {
         if (shouldSkipNmiTokenizationPreflight()) {
             return res.json({
-                ...basePayload,
                 enabled: true,
                 configured: true,
                 tokenizationKey,
                 collectJsUrl: getNmiCollectJsUrl(),
                 sandbox: isNmiSandboxHint(),
-                preflightSkipped: true
+                preflightSkipped: true,
+                requiresSetupAuth: !isOpenBillingSetupAllowed()
             });
         }
         const resolved = await nmiResolveTokenizationCollectJs(tokenizationKey);
         return res.json({
-            ...basePayload,
             enabled: resolved.ok,
             configured: isPlatformBillingConfigured(),
             tokenizationKey: resolved.ok ? tokenizationKey : '',
             collectJsUrl: resolved.collectJsUrl || getNmiCollectJsUrl(),
-            sandbox: isNmiSandboxHint()
+            sandbox: isNmiSandboxHint(),
+            requiresSetupAuth: !isOpenBillingSetupAllowed()
         });
     } catch (e) {
         logger.warn('Platform billing client config error', { err: e.message });
         return res.json({
-            ...basePayload,
             enabled: true,
             configured: isPlatformBillingConfigured(),
             tokenizationKey,
             collectJsUrl: getNmiCollectJsUrl(),
-            sandbox: isNmiSandboxHint()
+            sandbox: isNmiSandboxHint(),
+            requiresSetupAuth: !isOpenBillingSetupAllowed()
         });
     }
 });
@@ -150,49 +137,11 @@ router.post('/setup', setupLimiter, async (req, res) => {
                 code: 'AUTHORIZATION_REQUIRED'
             });
         }
-
-        const paymentMethodType = String(req.body.paymentMethodType || req.body.payment_method_type || 'card')
-            .trim()
-            .toLowerCase();
-        const isAch = paymentMethodType === 'ach' || paymentMethodType === 'bank' || paymentMethodType === 'check';
-
-        if (isAch && !isPlatformAchEnabled()) {
-            return res.status(400).json({
-                error: 'Bank account billing is not enabled on this server.',
-                code: 'ACH_DISABLED'
-            });
-        }
-
-        if (isAch && !req.body?.achAuthorized) {
-            return res.status(400).json({
-                error: 'You must authorize recurring ACH debits.',
-                code: 'ACH_AUTHORIZATION_REQUIRED'
-            });
-        }
-
-        const achAccountType = String(req.body.achAccountType || req.body.ach_account_type || 'business')
-            .trim()
-            .toLowerCase();
-        const achSecCode = isAch
-            ? normalizeAchSecCode(
-                  req.body.achSecCode ||
-                      req.body.ach_sec_code ||
-                      (achAccountType === 'personal' ? 'PPD' : 'CCD')
-              )
-            : null;
-
-        const clientIp =
-            String(req.headers['x-forwarded-for'] || '')
-                .split(',')[0]
-                .trim() || req.ip || '';
-
         const license = await saveBillingVault(req.pool, {
             paymentToken: req.body.payment_token,
             billingEmail: req.body.billingEmail || req.body.billing_email,
             businessName: req.body.businessName || req.body.business_name,
-            paymentMethodType: isAch ? 'ach' : 'card',
-            achSecCode,
-            authMeta: isAch ? { ip: clientIp, secCode: achSecCode, accountType: achAccountType } : null
+            paymentMethodType: req.body.paymentMethodType || 'card'
         });
         if (req.body.licensedStationCount != null) {
             const { updateMerchantLicense } = require('../services/posMerchantLicense');

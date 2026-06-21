@@ -100,7 +100,6 @@ function mapLicenseRow(row) {
         businessName: row.business_name || '',
         billingEmail: row.billing_email || '',
         paymentMethodType: row.payment_method_type || 'none',
-        achSecCode: row.ach_sec_code || null,
         hasBillingVault: Boolean(row.epi_customer_vault_id && row.epi_billing_id),
         billingAuthorizedAt: row.billing_authorized_at,
         licenseExpiresAt: row.license_expires_at,
@@ -428,10 +427,7 @@ async function waivePastDuePayment(pool, { note, notify = true } = {}) {
     return updated;
 }
 
-async function saveBillingVault(
-    pool,
-    { paymentToken, billingEmail, businessName, paymentMethodType = 'card', achSecCode = null, authMeta = null }
-) {
+async function saveBillingVault(pool, { paymentToken, billingEmail, businessName, paymentMethodType = 'card' }) {
     const token = String(paymentToken || '').trim();
     if (!token) {
         const err = new Error('payment_token required');
@@ -444,17 +440,11 @@ async function saveBillingVault(
         throw err;
     }
 
-    const isAch = String(paymentMethodType || '').toLowerCase() === 'ach';
-    const { normalizeAchSecCode } = require('../utils/platformBillingEnv');
-    const secCode = isAch ? normalizeAchSecCode(achSecCode) : null;
-
     const { nmiVaultAddCustomer } = require('./nmiGateway');
     const { getPlatformPrivateApiKey } = require('../utils/platformBillingEnv');
     const vault = await nmiVaultAddCustomer({
         securityKey: getPlatformPrivateApiKey(),
-        paymentToken: token,
-        paymentType: isAch ? 'ach' : 'card',
-        secCode: secCode || undefined
+        paymentToken: token
     });
     if (!vault.ok || !vault.customerVaultId || !vault.billingId) {
         const err = new Error(vault.responseText || 'Failed to save payment method');
@@ -463,25 +453,11 @@ async function saveBillingVault(
     }
 
     await ensureLicenseRow(pool);
-    const authNote =
-        authMeta && isAch
-            ? `[${new Date().toISOString().slice(0, 16).replace('T', ' ')}] ACH billing authorized (SEC ${secCode})${
-                  authMeta.ip ? ` from ${authMeta.ip}` : ''
-              }`
-            : null;
-    if (authNote) {
-        const [noteRows] = await pool.execute(`SELECT notes FROM pos_merchant_license WHERE id = ?`, [LICENSE_ID]);
-        const prev = String(noteRows[0]?.notes || '').trim();
-        const newNotes = prev ? `${prev}\n${authNote}` : authNote;
-        await pool.execute(`UPDATE pos_merchant_license SET notes = ? WHERE id = ?`, [newNotes.slice(0, 2000), LICENSE_ID]);
-    }
-
     await pool.execute(
         `UPDATE pos_merchant_license SET
             epi_customer_vault_id = ?,
             epi_billing_id = ?,
             payment_method_type = ?,
-            ach_sec_code = ?,
             billing_email = COALESCE(?, billing_email),
             business_name = COALESCE(?, business_name),
             billing_authorized_at = CURRENT_TIMESTAMP,
@@ -495,8 +471,7 @@ async function saveBillingVault(
         [
             vault.customerVaultId,
             vault.billingId,
-            isAch ? 'ach' : 'card',
-            isAch ? secCode : null,
+            paymentMethodType === 'ach' ? 'ach' : 'card',
             billingEmail ? String(billingEmail).trim().slice(0, 255) : null,
             businessName ? String(businessName).trim().slice(0, 200) : null,
             LICENSE_ID
@@ -594,18 +569,15 @@ async function attemptMerchantCharge(pool, license, { reason = 'monthly' } = {})
     const { nmiVaultSale } = require('./nmiGateway');
     const { getPlatformPrivateApiKey } = require('../utils/platformBillingEnv');
     const [rows] = await pool.execute(
-        `SELECT epi_customer_vault_id, epi_billing_id, payment_method_type, ach_sec_code FROM pos_merchant_license WHERE id = ?`,
+        `SELECT epi_customer_vault_id, epi_billing_id FROM pos_merchant_license WHERE id = ?`,
         [LICENSE_ID]
     );
     const vaultRow = rows[0];
-    const isAch = String(vaultRow?.payment_method_type || license.paymentMethodType || '').toLowerCase() === 'ach';
     const sale = await nmiVaultSale({
         securityKey: getPlatformPrivateApiKey(),
         amount: chargeAmount.toFixed(2),
         customerVaultId: vaultRow.epi_customer_vault_id,
-        billingId: vaultRow.epi_billing_id,
-        paymentType: isAch ? 'ach' : 'card',
-        secCode: isAch ? vaultRow.ach_sec_code || undefined : undefined
+        billingId: vaultRow.epi_billing_id
     });
 
     if (sale.ok) {
