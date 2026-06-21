@@ -28,8 +28,17 @@ function parseNmiBody(raw) {
  * @returns {Promise<{ ok: boolean, fields: Record<string, string>, responseCode: string, responseText: string, transactionId: string | null }>}
  */
 async function nmiSale(opts) {
-    const { securityKey, amount, paymentToken, customerVaultId, billingId, customerVaultAction, transactUrl } =
-        opts;
+    const {
+        securityKey,
+        amount,
+        paymentToken,
+        customerVaultId,
+        billingId,
+        customerVaultAction,
+        transactUrl,
+        paymentType,
+        secCode
+    } = opts;
     const url = transactUrl || getNmiTransactUrl();
 
     const body = new URLSearchParams();
@@ -37,6 +46,10 @@ async function nmiSale(opts) {
     body.set('type', 'sale');
     body.set('amount', amount);
 
+    if (paymentType === 'ach') {
+        body.set('payment', 'check');
+        if (secCode) body.set('sec_code', String(secCode).trim().toUpperCase());
+    }
     if (paymentToken) {
         body.set('payment_token', paymentToken);
     }
@@ -65,12 +78,16 @@ async function nmiSale(opts) {
 
 /** Add payment method to NMI Customer Vault using Collect.js token. */
 async function nmiVaultAddCustomer(opts) {
-    const { securityKey, paymentToken } = opts;
+    const { securityKey, paymentToken, paymentType, secCode } = opts;
     const url = getNmiTransactUrl();
     const body = new URLSearchParams();
     body.set('security_key', securityKey);
     body.set('customer_vault', 'add_customer');
     body.set('payment_token', paymentToken);
+    if (paymentType === 'ach') {
+        body.set('payment', 'check');
+        if (secCode) body.set('sec_code', String(secCode).trim().toUpperCase());
+    }
 
     const res = await axios.post(url, body.toString(), {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -96,7 +113,9 @@ async function nmiVaultSale(opts) {
         securityKey: opts.securityKey,
         amount: opts.amount,
         customerVaultId: opts.customerVaultId,
-        billingId: opts.billingId
+        billingId: opts.billingId,
+        paymentType: opts.paymentType,
+        secCode: opts.secCode
     });
 }
 

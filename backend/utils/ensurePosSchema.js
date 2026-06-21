@@ -470,6 +470,10 @@ async function ensurePosSchema(pool) {
         {
             column: 'grace_ended_email_at',
             sql: `ALTER TABLE pos_merchant_license ADD COLUMN grace_ended_email_at TIMESTAMP NULL`
+        },
+        {
+            column: 'ach_sec_code',
+            sql: `ALTER TABLE pos_merchant_license ADD COLUMN ach_sec_code VARCHAR(8) NULL`
         }
     ];
     await applyColumnPatches(pool, 'pos_merchant_license', LICENSE_PATCHES);

@@ -62,4 +62,6 @@ router.post('/contact', async (req, res) => {
     }
 });
 
+router.use('/pos', require('./business-one-pos'));
+
 module.exports = router;

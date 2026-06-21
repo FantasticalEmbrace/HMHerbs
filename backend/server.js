@@ -1928,6 +1928,13 @@ app.use('/api/*', (req, res) => {
         if (fsSync.existsSync(posAppPath)) {
             console.log(`Business One POS: http://127.0.0.1:${PORT}/pos/`);
         }
+        const { isBusinessOneHubEnabled, getBusinessOneHubPublicUrl } = require('./utils/businessOneHubEnv');
+        if (isBusinessOneHubEnabled()) {
+            const hub = getBusinessOneHubPublicUrl() || `http://127.0.0.1:${PORT}`;
+            console.log(`Business One hub: ${hub}/business-one-menu.html`);
+            console.log(`  POS signup: ${hub}/pos-signup.html`);
+            console.log(`  POS demo:   ${hub}/pos/`);
+        }
         console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
         console.log(`Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:8000'}`);
         if (isSmtpConfigured()) {

@@ -2934,7 +2934,7 @@ class AdminApp {
                     ${pastDueLine}
                     ${compLine}
                     ${graceLine}
-                    <div><strong>Payment on file:</strong> ${license.hasBillingVault ? 'Yes' : 'No'}</div>
+                    <div><strong>Payment on file:</strong> ${license.hasBillingVault ? `Yes (${license.paymentMethodType === 'ach' ? 'ACH' : 'Card'})` : 'No'}</div>
                     <div><strong>Next bill:</strong> ${this.escapeHtml(license.nextBillDate || '—')}</div>
                     <div><strong>Enforcement:</strong> ${flags.enforcementEnabled ? 'On' : 'Off (safe mode)'}</div>
                     <div><strong>Billing dry-run:</strong> ${flags.billingDryRun ? 'On' : 'Off'}</div>

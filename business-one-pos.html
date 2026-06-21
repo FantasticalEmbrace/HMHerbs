@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Business One POS — try the live demo or sign up for in-store registers and integrated payments.">
+  <meta name="theme-color" content="#ff9b1f">
+  <title>Business One POS</title>
+  <link rel="icon" type="image/png" href="images/business-one/favicon.png">
+  <link rel="stylesheet" href="business-one-menu.css">
+  <link rel="stylesheet" href="css/business-one-pos-pages.css">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-content">
+      <a href="business-one-menu.html" class="logo-section logo-section--link">
+        <div class="logo-container">
+          <img src="images/business-one/logo-big.png" alt="Business One" class="logo-image">
+          <h1 class="logo">Business One</h1>
+        </div>
+        <p class="tagline">Point of Sale</p>
+      </a>
+      <a href="pos-signup.html" class="btn btn-primary" style="padding:0.5rem 1rem;font-size:0.9375rem;">Sign up</a>
+    </div>
+  </header>
+
+  <main class="pos-page-main">
+    <section class="hero-section">
+      <div class="hero-content">
+        <h2 class="hero-title">Point of Sale built for your business</h2>
+        <p class="hero-subtitle">Registers, inventory, and payments in one system — backed by Business One support and EPI processing.</p>
+        <div class="hero-buttons">
+          <a href="pos-signup.html" class="btn btn-light"><i class="fas fa-user-plus" aria-hidden="true"></i> Sign up for POS</a>
+          <a href="/pos/" class="btn btn-secondary" target="_blank" rel="noopener"><i class="fas fa-play" aria-hidden="true"></i> Try live demo</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="services-section">
+      <div class="section-header">
+        <h2 class="section-title">Two ways to get started</h2>
+        <p class="section-subtitle">Explore first, or sign up now — either way you stay on the Business One website.</p>
+      </div>
+
+      <div class="pos-pricing-banner">
+        <strong>$100/mo</strong> for 1 register · <strong>+$50/mo</strong> each for registers 2–5 · <strong>+$25/mo</strong> for register 6+
+      </div>
+
+      <div class="pos-product-grid">
+        <article class="pos-product-card">
+          <div class="service-icon"><i class="fas fa-cash-register" aria-hidden="true"></i></div>
+          <h3 class="service-title">Try the live demo</h3>
+          <p>Open our web POS right now — no account, no sales call. See checkout, registers, and the in-store flow.</p>
+          <a href="/pos/" class="btn btn-secondary" target="_blank" rel="noopener">Open demo POS</a>
+        </article>
+
+        <article class="pos-product-card">
+          <div class="service-icon"><i class="fas fa-rocket" aria-hidden="true"></i></div>
+          <h3 class="service-title">Sign up online</h3>
+          <p>Enter your business details and payment method. We provision your store and email you access — takes a few minutes.</p>
+          <a href="pos-signup.html" class="btn btn-primary">Start signup</a>
+        </article>
+
+        <article class="pos-product-card">
+          <div class="service-icon"><i class="fas fa-headset" aria-hidden="true"></i></div>
+          <h3 class="service-title">Talk to us first</h3>
+          <p>Want a guided tour before you commit? Call or send a message — we’ll walk you through POS and pricing.</p>
+          <a href="business-one-menu.html#contact" class="btn btn-light">Contact us</a>
+        </article>
+      </div>
+    </section>
+
+    <section class="cta-section">
+      <div class="cta-content">
+        <h2 class="cta-title">Ready when you are</h2>
+        <p class="cta-text">Demo the POS now, or complete signup and we’ll have your store ready.</p>
+        <div class="hero-buttons">
+          <a href="pos-signup.html" class="btn btn-light">Sign up for POS</a>
+          <a href="/pos/" class="btn btn-secondary" target="_blank" rel="noopener">Open demo</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <div class="footer-inner">
+      <div class="footer-bottom" style="margin:0;padding-top:0;border:none;">
+        <p class="copyright">&copy; <span id="year"></span> Business One. All rights reserved.</p>
+        <div class="footer-legal">
+          <a href="business-one-menu.html">Home</a>
+          <a href="business-one-privacy-policy.html">Privacy</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
+</body>
+</html>

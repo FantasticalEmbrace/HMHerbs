@@ -186,7 +186,14 @@ function openServiceModal(service) {
             </ul>
             <h3>Overview</h3>
             <p>${service.details}</p>
-            <button class="cta-button" onclick="contactUs('${service.id}')">Get Started with ${service.title}</button>
+            ${
+                service.id === 'pos'
+                    ? `<div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin:1.25rem 0 0;">
+                <a href="pos-signup.html" class="cta-button" style="text-decoration:none;display:inline-block;text-align:center;">Sign up for POS</a>
+                <a href="/pos/" class="cta-button" style="text-decoration:none;display:inline-block;text-align:center;background:var(--accent-color);color:#fff;" target="_blank" rel="noopener">Try live demo</a>
+               </div>`
+                    : `<button class="cta-button" onclick="contactUs('${service.id}')">Get Started with ${service.title}</button>`
+            }
         </div>
     `;
 
