@@ -713,6 +713,12 @@ class CustomerAuth {
                 })
             );
 
+            if (response && response.success === false) {
+                const err = new Error(response.error || 'Login failed');
+                err.status = 401;
+                throw err;
+            }
+
             const token = response.token || response.accessToken;
             const user = response.user || response.customer || response.profile;
             if (token && user) {
@@ -725,7 +731,14 @@ class CustomerAuth {
 
             throw new Error('Login failed');
         } catch (error) {
-            console.error('Login error:', error);
+            const st = error && error.status;
+            const msg = (error && error.message) || '';
+            const isExpectedAuthFailure =
+                st === 401 ||
+                /google sign-in|invalid credentials|deactivated|already an account/i.test(msg);
+            if (!isExpectedAuthFailure) {
+                console.error('Login error:', error);
+            }
             throw error;
         }
     }
@@ -1226,6 +1239,18 @@ class CustomerAuth {
         }
     }
 
+    _highlightGoogleSignIn(form) {
+        const btn = form && form.querySelector('.btn-google-oauth');
+        if (!btn) return;
+        btn.classList.add('btn-google-oauth--prompt');
+        try {
+            btn.focus({ preventScroll: true });
+        } catch (_) {
+            /* ignore */
+        }
+        window.setTimeout(() => btn.classList.remove('btn-google-oauth--prompt'), 5000);
+    }
+
     // Show / hide an inline form error. The .auth-error div ships with the
     // global .hidden utility class which is `display: none !important;`, so
     // setting style.display alone never wins — toggle the class instead.
@@ -1332,6 +1357,11 @@ class CustomerAuth {
             const msg = (error && error.message) || 'Login failed. Please try again.';
             this._setAuthError(errorDiv, msg);
             this.showNotification(msg, 'error');
+            if (/google sign-in/i.test(msg)) {
+                void this._setupGoogleSignIn().then(() => {
+                    this._highlightGoogleSignIn(form);
+                });
+            }
         } finally {
             if (submitBtn) {
                 submitBtn.disabled = false;

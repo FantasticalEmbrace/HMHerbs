@@ -3,53 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Business One POS — Billing setup</title>
+  <title>Business One POS — Billing</title>
+  <meta http-equiv="refresh" content="0;url=/admin.html">
   <style>
-    body { max-width: 40rem; margin: 2rem auto; padding: 0 1rem; font-family: system-ui, sans-serif; }
-    .card { border: 1px solid #e5e7eb; border-radius: 10px; padding: 1.25rem; background: #fff; }
-    .form-group { margin-bottom: 1rem; }
-    label { display: block; font-weight: 600; margin-bottom: 0.35rem; }
-    input[type="text"], input[type="email"], input[type="number"] { width: 100%; padding: 0.55rem; border: 1px solid #d1d5db; border-radius: 6px; }
-    .btn { padding: 0.65rem 1rem; border-radius: 6px; border: none; cursor: pointer; font-weight: 600; }
-    .btn-primary { background: #1f82ff; color: #fff; }
-    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
-    .msg { min-height: 1.25rem; margin-top: 0.75rem; font-size: 0.9rem; }
-    .legal { font-size: 0.85rem; color: #4b5563; margin: 1rem 0; line-height: 1.5; }
-    #collect-mount { min-height: 120px; margin: 0.75rem 0; }
-    .quote { background: #f9fafb; padding: 0.75rem; border-radius: 8px; margin-bottom: 1rem; }
+    body { max-width: 36rem; margin: 3rem auto; padding: 0 1rem; font-family: system-ui, sans-serif; line-height: 1.5; }
+    a { color: #1f82ff; }
   </style>
 </head>
 <body>
-  <h1>Business One POS billing</h1>
-  <p>Activate monthly billing for your store registers. Pricing: $100/mo (1 station), +$50/mo stations 2–5, +$25/mo station 6+.</p>
-
-  <div class="card">
-    <div class="quote" id="pricing-quote">Loading quote…</div>
-    <form id="billing-form" novalidate>
-      <div class="form-group">
-        <label for="business-name">Business name</label>
-        <input id="business-name" name="businessName" type="text" maxlength="200" required>
-      </div>
-      <div class="form-group">
-        <label for="billing-email">Billing email</label>
-        <input id="billing-email" name="billingEmail" type="email" maxlength="255" required>
-      </div>
-      <div class="form-group">
-        <label for="station-count">Licensed stations</label>
-        <input id="station-count" name="licensedStationCount" type="number" min="1" max="99" value="1" required>
-      </div>
-      <div id="collect-mount">
-        <p id="collect-placeholder" class="legal">Card fields load when platform EPI keys are configured on the server.</p>
-      </div>
-      <label class="legal" style="display:flex;gap:0.5rem;align-items:flex-start;">
-        <input type="checkbox" id="billing-authorize" name="authorized" required style="margin-top:0.2rem;">
-        <span>I authorize Business One to charge my payment method monthly based on my active station count. I understand I can cancel by contacting Business One and that failure to pay may suspend POS sync.</span>
-      </label>
-      <button type="submit" class="btn btn-primary" id="billing-submit" disabled>Save payment method</button>
-      <p class="msg" id="billing-msg"></p>
-    </form>
-  </div>
-
-  <script src="js/pos-billing.js"></script>
+  <h1>Admin access required</h1>
+  <p>POS billing is managed in the store admin under <strong>Point of Sale → License</strong>. Only Admin and Developer accounts can save a payment method.</p>
+  <p><a href="/admin.html">Go to admin</a></p>
+  <script>window.location.replace('/admin.html');</script>
 </body>
 </html>

@@ -625,11 +625,26 @@ class VisualBugFixer {
     const criticalCSS = document.createElement('style');
     criticalCSS.textContent = `
         /* IMMEDIATE FLICKER FIXES — same exclusions as css/emergency-fixes.css (wishlist modal + dim must stay transform-clean) */
-        *:not(img):not(picture):not(video):not(svg):not(canvas):not(.auth-modal):not(.hm-age-gate):not(.newsletter-popup):not(.cart-sidebar):not(.cart-overlay):not(.auth-icon-svg):not(.header-actions):not(.header-actions *):not(.acct-modal-backdrop):not(.hm-wl-picker-backdrop):not(.acct-modal):not(.wishlist-modal):not(.hm-wl-picker-dim):not(.acct-modal-dim):not(.edsa-modal):not(.edsa-modal *):not(#hm-toast-region):not(#hm-toast-region *):not(.hm-address-autocomplete-wrap):not(.hm-address-autocomplete-wrap *):not(.hm-address-suggest-list):not(.hm-address-suggest-list *) {
+        *:not(html):not(body):not(img):not(picture):not(video):not(svg):not(canvas):not(.auth-modal):not(.hm-age-gate):not(.hm-age-gate *):not(.newsletter-popup):not(.newsletter-popup *):not(.cart-sidebar):not(.cart-overlay):not(.auth-icon-svg):not(.header-actions):not(.header-actions *):not(.acct-modal-backdrop):not(.hm-wl-picker-backdrop):not(.acct-modal):not(.wishlist-modal):not(.hm-wl-picker-dim):not(.acct-modal-dim):not(.edsa-modal):not(.edsa-modal *):not(#hm-toast-region):not(#hm-toast-region *):not(.hm-address-autocomplete-wrap):not(.hm-address-autocomplete-wrap *):not(.hm-address-suggest-list):not(.hm-address-suggest-list *) {
             -webkit-backface-visibility: hidden !important;
             backface-visibility: hidden !important;
             -webkit-transform: translateZ(0) !important;
             transform: translateZ(0) !important;
+        }
+
+        /* Root must stay untransformed or position:fixed overlays (age gate, modals) mis-center. */
+        html,
+        body {
+            -webkit-transform: none !important;
+            transform: none !important;
+            -webkit-backface-visibility: visible !important;
+            backface-visibility: visible !important;
+        }
+
+        .hm-age-gate,
+        .hm-age-gate * {
+            -webkit-transform: none !important;
+            transform: none !important;
         }
         img, picture, video, svg, canvas {
             backface-visibility: visible !important;

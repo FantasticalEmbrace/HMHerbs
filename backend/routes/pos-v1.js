@@ -32,6 +32,7 @@ const { loadMerchantLicense } = require('../services/posMerchantLicense');
 const { requireActivePosLicense } = require('../middleware/posLicenseGate');
 const { listEquipmentForRegister } = require('../services/posEquipment');
 const { buildRegisterHardwareProfile } = require('../services/posRegisterHardware');
+const { printEscposReceipt } = require('../services/posEscposPrint');
 const {
     createCheckoutIntent,
     getCheckoutIntent,
@@ -209,7 +210,8 @@ router.get('/config', async (req, res) => {
                 eodReminderHour: operations.eodReminderHour,
                 eodReminderMinute: operations.eodReminderMinute,
                 supportPhone: operations.supportPhone,
-                helpUrl: operations.helpUrl
+                helpUrl: operations.helpUrl,
+                shiftReportEmailTo: operations.dailySalesEmailTo || ''
             },
             experience: {
                 largeTouchMode: experience.largeTouchMode,
@@ -581,6 +583,49 @@ router.post('/customers/gift-cards/check', authenticatePosEmployee, async (req, 
         res.status(statusMap[code] || 400).json({
             error: error.message || 'Gift card check failed',
             code
+        });
+    }
+});
+
+router.post('/print/receipt', authenticatePosEmployee, async (req, res) => {
+    try {
+        const lines = req.body?.lines;
+        const openDrawer = Boolean(req.body?.openDrawer);
+        const copyCount = Math.min(3, Math.max(0, parseInt(req.body?.copyCount, 10) || 1));
+        if (!openDrawer && (!Array.isArray(lines) || !lines.length)) {
+            return res.status(400).json({ error: 'Receipt lines are required', code: 'PRINT_LINES_REQUIRED' });
+        }
+
+        const [experience, cardCheckout] = await Promise.all([
+            loadPosRegisterExperienceSettings(req.pool),
+            loadPosCardCheckoutSettings(req.pool)
+        ]);
+        const hardware = await buildRegisterHardwareProfile(req.pool, req.posDeviceRecordId, {
+            globalCheckout: cardCheckout,
+            globalPrinter: experience.hardwarePrinter
+        });
+        const runtime = hardware?.runtime || {};
+        const driver = String(runtime.printerDriver || 'browser').toLowerCase();
+        if (driver === 'browser' || driver === 'elo_star') {
+            return res.status(400).json({
+                error: 'This register is not configured for network receipt printing.',
+                code: 'PRINTER_NOT_NETWORK'
+            });
+        }
+
+        const result = await printEscposReceipt({
+            host: runtime.printerAddress,
+            port: runtime.printerPort,
+            lines: Array.isArray(lines) ? lines : [],
+            copyCount: openDrawer && !lines?.length ? 0 : copyCount,
+            openDrawer
+        });
+        res.json({ ok: true, ...result, method: 'network' });
+    } catch (e) {
+        logger.error('POS receipt print error:', e);
+        res.status(502).json({
+            error: e.message || 'Could not print receipt',
+            code: 'PRINT_FAILED'
         });
     }
 });
@@ -988,6 +1033,32 @@ router.get('/reports/z/:id', authenticatePosEmployee, async (req, res) => {
         res.json({ success: true, report });
     } catch (e) {
         res.status(500).json({ error: e.message || 'Failed to build end-of-shift summary' });
+    }
+});
+
+const { sendShiftReportEmail } = require('../services/posShiftReportEmail');
+
+router.post('/reports/z/:id/email', authenticatePosEmployee, async (req, res) => {
+    try {
+        const shiftId = Number(req.params.id);
+        const email = String(req.body?.email || '').trim();
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            return res.status(400).json({ error: 'A valid email address is required', code: 'INVALID_EMAIL' });
+        }
+        const report = await posSalesReports.buildZReport(req.pool, shiftId);
+        if (!report) return res.status(404).json({ error: 'Shift not found' });
+        const result = await sendShiftReportEmail(req.pool, report, email);
+        if (!result.sent) {
+            const code = result.reason === 'smtp_not_configured' ? 'SMTP_NOT_CONFIGURED' : 'EMAIL_FAILED';
+            const message =
+                result.reason === 'smtp_not_configured'
+                    ? 'Email is not configured on this store server (SMTP).'
+                    : 'Could not send email';
+            return res.status(result.reason === 'smtp_not_configured' ? 503 : 400).json({ error: message, code });
+        }
+        res.json({ success: true, sent: true, to: result.to, filename: result.filename });
+    } catch (e) {
+        res.status(500).json({ error: e.message || 'Failed to email shift report' });
     }
 });
 

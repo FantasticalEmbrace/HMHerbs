@@ -1090,14 +1090,13 @@
 
     <!-- CRITICAL: Force cart closed immediately and prevent scroll restoration -->
     <script src="js/page-init.js"></script>
-    <script src="js/age-gate.js" defer></script>
-    <script src="js/site-promo-banner.js" defer></script>
-    <script src="js/site-store-info.js" defer></script>
-
     <!-- Cart / storefront toasts (before visual-bug-fixes — it must not override toast positioning) -->
     <script src="js/hm-notify.js"></script>
-    <!-- CRITICAL: Visual Bug Fixes MUST load first -->
-    <script src="js/visual-bug-fixes.js?v=2"></script>
+    <!-- CRITICAL: Visual Bug Fixes MUST load before age gate (transform on body breaks fixed overlays) -->
+    <script src="js/visual-bug-fixes.js?v=3"></script>
+    <script src="js/age-gate.js"></script>
+    <script src="js/site-promo-banner.js" defer></script>
+    <script src="js/site-store-info.js" defer></script>
 
     <!-- CRITICAL: Store native fetch BEFORE any wrappers run -->
     <!-- Must load synchronously (no defer) to ensure it runs before other scripts -->

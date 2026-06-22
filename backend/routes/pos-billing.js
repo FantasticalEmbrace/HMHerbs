@@ -17,7 +17,6 @@ const {
 } = require('../utils/nmiEnv');
 const { saveBillingVault, loadMerchantLicense } = require('../services/posMerchantLicense');
 const { describeMonthlyPricing } = require('../services/posBillingPricing');
-const { verifySetupToken } = require('../utils/posBillingSetupToken');
 
 function isOpenBillingSetupAllowed() {
     return (
@@ -31,27 +30,23 @@ async function assertBillingSetupAuthorized(req) {
 
     const authHeader = req.headers.authorization || '';
     const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
-    if (bearer && process.env.JWT_SECRET) {
-        try {
-            const decoded = jwt.verify(bearer, process.env.JWT_SECRET);
-            const [rows] = await req.pool.execute(
-                'SELECT id FROM admin_users WHERE id = ? AND is_active = 1',
-                [decoded.adminId]
-            );
-            if (rows.length) return { type: 'admin', adminId: rows[0].id };
-        } catch {
-            /* try setup token */
+    if (!bearer || !process.env.JWT_SECRET) return null;
+
+    try {
+        const decoded = jwt.verify(bearer, process.env.JWT_SECRET);
+        const [rows] = await req.pool.execute(
+            'SELECT id, role FROM admin_users WHERE id = ? AND is_active = 1',
+            [decoded.adminId]
+        );
+        if (!rows.length) return null;
+        const role = String(rows[0].role || '').toLowerCase();
+        if (!['admin', 'developer', 'super_admin'].includes(role)) {
+            return null;
         }
+        return { type: 'admin', adminId: rows[0].id, role };
+    } catch {
+        return null;
     }
-
-    const setupToken =
-        req.body?.setup_token ||
-        req.body?.setupToken ||
-        req.headers['x-pos-billing-setup-token'];
-    const decoded = verifySetupToken(setupToken);
-    if (decoded) return { type: 'setup_token', adminId: decoded.adminId };
-
-    return null;
 }
 
 const setupLimiter = rateLimit({
@@ -83,7 +78,8 @@ router.get('/client-config', async (req, res) => {
             enabled: false,
             configured: false,
             message: 'Platform billing keys are not configured on the server yet.',
-            requiresSetupAuth: !isOpenBillingSetupAllowed()
+            requiresSetupAuth: !isOpenBillingSetupAllowed(),
+            setupHint: 'Save payment in Admin → Point of Sale → License (Admin or Developer login required).'
         });
     }
 
@@ -96,7 +92,8 @@ router.get('/client-config', async (req, res) => {
                 collectJsUrl: getNmiCollectJsUrl(),
                 sandbox: isNmiSandboxHint(),
                 preflightSkipped: true,
-                requiresSetupAuth: !isOpenBillingSetupAllowed()
+                requiresSetupAuth: !isOpenBillingSetupAllowed(),
+            setupHint: 'Save payment in Admin → Point of Sale → License (Admin or Developer login required).'
             });
         }
         const resolved = await nmiResolveTokenizationCollectJs(tokenizationKey);
@@ -106,7 +103,8 @@ router.get('/client-config', async (req, res) => {
             tokenizationKey: resolved.ok ? tokenizationKey : '',
             collectJsUrl: resolved.collectJsUrl || getNmiCollectJsUrl(),
             sandbox: isNmiSandboxHint(),
-            requiresSetupAuth: !isOpenBillingSetupAllowed()
+            requiresSetupAuth: !isOpenBillingSetupAllowed(),
+            setupHint: 'Save payment in Admin → Point of Sale → License (Admin or Developer login required).'
         });
     } catch (e) {
         logger.warn('Platform billing client config error', { err: e.message });
@@ -116,7 +114,8 @@ router.get('/client-config', async (req, res) => {
             tokenizationKey,
             collectJsUrl: getNmiCollectJsUrl(),
             sandbox: isNmiSandboxHint(),
-            requiresSetupAuth: !isOpenBillingSetupAllowed()
+            requiresSetupAuth: !isOpenBillingSetupAllowed(),
+            setupHint: 'Save payment in Admin → Point of Sale → License (Admin or Developer login required).'
         });
     }
 });
@@ -126,8 +125,8 @@ router.post('/setup', setupLimiter, async (req, res) => {
         const auth = await assertBillingSetupAuthorized(req);
         if (!auth) {
             return res.status(401).json({
-                error: 'A valid billing setup link or admin authorization is required.',
-                code: 'SETUP_AUTH_REQUIRED'
+                error: 'Admin login is required to save POS billing.',
+                code: 'ADMIN_AUTH_REQUIRED'
             });
         }
 

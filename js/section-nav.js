@@ -93,6 +93,52 @@
         }
     }
 
+    function isAgeGateOpen() {
+        if (typeof window.hmIsAgeGateOpen === 'function') {
+            return window.hmIsAgeGateOpen();
+        }
+        return !!document.querySelector('.hm-age-gate');
+    }
+
+    function isPageReloadNavigation() {
+        try {
+            const nav = performance.getEntriesByType('navigation')[0];
+            if (nav && nav.type === 'reload') return true;
+        } catch (_) {
+            /* ignore */
+        }
+        return false;
+    }
+
+    function whenSafeToAutoScroll(fn) {
+        if (isPageReloadNavigation()) return;
+
+        function runAfterAge() {
+            if (window.__hmNewsletterPopupDone) {
+                fn();
+                return;
+            }
+            let ran = false;
+            const runOnce = () => {
+                if (ran) return;
+                ran = true;
+                fn();
+            };
+            window.addEventListener('hmherbs:newsletter-popup-done', runOnce, { once: true });
+            window.setTimeout(runOnce, 12000);
+        }
+
+        if (isAgeGateOpen()) {
+            window.addEventListener('hmherbs:age-verified', runAfterAge, { once: true });
+            return;
+        }
+        runAfterAge();
+    }
+
+    function whenAgeGateAllowsScroll(fn) {
+        whenSafeToAutoScroll(fn);
+    }
+
     function releaseScrollLocks() {
         if (!document.body) return;
 
@@ -119,8 +165,10 @@
             cartOverlay.classList.remove('active');
         }
 
-        document.body.style.overflow = '';
-        document.documentElement.style.overflow = '';
+        if (!isAgeGateOpen()) {
+            document.body.style.overflow = '';
+            document.documentElement.style.overflow = '';
+        }
         document.body.classList.remove(
             'auth-modal-open',
             'edsa-modal-open',
@@ -276,11 +324,13 @@
             window.hmApplyNavCurrentPage(hash);
         }
 
-        requestAnimationFrame(() => {
+        whenSafeToAutoScroll(() => {
             requestAnimationFrame(() => {
-                scrollToSection(hash);
-                document.documentElement.classList.remove('hm-await-edsa-scroll');
-                document.documentElement.classList.add('hm-section-scroll-ready');
+                requestAnimationFrame(() => {
+                    scrollToSection(hash);
+                    document.documentElement.classList.remove('hm-await-edsa-scroll');
+                    document.documentElement.classList.add('hm-section-scroll-ready');
+                });
             });
         });
     }
@@ -292,40 +342,46 @@
 
     function initCrossPageSectionLanding() {
         if (!isIndexPage() || !isSectionCrossPagePending()) return;
+        if (isPageReloadNavigation()) return;
 
-        document.documentElement.classList.add('hm-await-edsa-scroll');
+        whenSafeToAutoScroll(() => {
+            document.documentElement.classList.add('hm-await-edsa-scroll');
 
-        const hash = getPendingSectionHash();
+            const hash = getPendingSectionHash();
 
-        if (sectionNeedsSpotlightReady(hash)) {
-            window.addEventListener('hmSpotlightReady', completeCrossPageSectionNav, {
-                once: true
-            });
+            if (sectionNeedsSpotlightReady(hash)) {
+                window.addEventListener('hmSpotlightReady', completeCrossPageSectionNav, {
+                    once: true
+                });
+                window.setTimeout(completeCrossPageSectionNav, 5000);
+                return;
+            }
+
+            window.addEventListener(
+                'load',
+                () => {
+                    window.setTimeout(completeCrossPageSectionNav, 50);
+                },
+                { once: true }
+            );
             window.setTimeout(completeCrossPageSectionNav, 5000);
-            return;
-        }
-
-        window.addEventListener(
-            'load',
-            () => {
-                window.setTimeout(completeCrossPageSectionNav, 50);
-            },
-            { once: true }
-        );
-        window.setTimeout(completeCrossPageSectionNav, 5000);
+        });
     }
 
     function initHashLanding() {
         if (!isIndexPage() || isSectionCrossPagePending()) return;
+        if (isPageReloadNavigation()) return;
 
         const hash = window.location.hash;
         if (!hash || hash.length <= 1) return;
         if (!resolveSectionTarget(hash)) return;
 
         const runScroll = () => {
-            requestAnimationFrame(() => {
+            whenSafeToAutoScroll(() => {
                 requestAnimationFrame(() => {
-                    scrollToSection(hash);
+                    requestAnimationFrame(() => {
+                        scrollToSection(hash);
+                    });
                 });
             });
         };
@@ -344,6 +400,21 @@
             history.scrollRestoration = 'manual';
         }
 
+        if (isPageReloadNavigation() && isIndexPage()) {
+            clearPendingSection();
+            try {
+                if (window.location.hash) {
+                    history.replaceState(
+                        null,
+                        '',
+                        window.location.pathname + window.location.search
+                    );
+                }
+            } catch (_) {
+                /* ignore */
+            }
+        }
+
         window.hmReleaseScrollLocks = releaseScrollLocks;
         window.hmScrollToSection = scrollToSection;
         window.hmScrollToEdsaSection = scrollToEdsaSection;
@@ -351,6 +422,7 @@
         window.hmIsEdsaCrossPagePending = isEdsaCrossPagePending;
         window.hmCompleteCrossPageSectionNav = completeCrossPageSectionNav;
         window.hmCompleteEdsaCrossPageNav = completeEdsaCrossPageNav;
+        window.hmIsPageReloadNavigation = isPageReloadNavigation;
 
         initClickDelegation();
 

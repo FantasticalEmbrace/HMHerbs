@@ -2905,6 +2905,11 @@ class AdminApp {
         return this.savePosSettings(e);
     }
 
+    _canManagePosBilling() {
+        const role = String(this.currentUser?.role || '').toLowerCase();
+        return role === 'admin' || role === 'developer' || role === 'super_admin';
+    }
+
     async loadPosLicense() {
         const summary = document.getElementById('pos-license-summary');
         const form = document.getElementById('pos-license-form');
@@ -2972,6 +2977,15 @@ class AdminApp {
                     : '';
             }
             if (legUpHint) legUpHint.style.display = isPastDue ? 'none' : '';
+
+            const billingCard = document.getElementById('pos-license-billing-card');
+            const billingRunBtn = document.getElementById('pos-license-billing-run-btn');
+            const canBill = this._canManagePosBilling();
+            if (billingCard) billingCard.style.display = canBill ? '' : 'none';
+            if (billingRunBtn) billingRunBtn.hidden = !canBill;
+            if (canBill && window.adminPosBilling?.init) {
+                window.adminPosBilling.init(Boolean(license.hasBillingVault));
+            }
         } catch (err) {
             if (summary) summary.textContent = 'Failed to load license.';
             this.showToast('Failed to load POS license: ' + (err.message || 'error'), 'error');
@@ -3017,22 +3031,6 @@ class AdminApp {
                 msg.style.color = 'var(--error)';
             }
             this.showToast('Could not save POS license: ' + (err.message || 'error'), 'error');
-        }
-    }
-
-    async copyPosBillingSignupLink() {
-        try {
-            const res = await this.apiRequest('/admin/pos/billing/setup-token', { method: 'POST' });
-            const url = res.signupUrl || '';
-            if (!url) throw new Error('No signup URL returned');
-            if (navigator.clipboard?.writeText) {
-                await navigator.clipboard.writeText(url);
-            }
-            const pageLink = document.getElementById('pos-license-billing-page-link');
-            if (pageLink) pageLink.href = url;
-            this.showToast('Billing signup link copied (valid 7 days).', 'success');
-        } catch (err) {
-            this.showToast(err.message || 'Could not create billing signup link', 'error');
         }
     }
 
@@ -12922,10 +12920,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const posLicenseBillingRunBtn = document.getElementById('pos-license-billing-run-btn');
     if (posLicenseBillingRunBtn && window.adminApp) {
         posLicenseBillingRunBtn.addEventListener('click', () => window.adminApp.runPosBillingTest());
-    }
-    const posLicenseBillingLinkBtn = document.getElementById('pos-license-billing-link-btn');
-    if (posLicenseBillingLinkBtn && window.adminApp) {
-        posLicenseBillingLinkBtn.addEventListener('click', () => window.adminApp.copyPosBillingSignupLink());
     }
     const posLicenseWaiveForm = document.getElementById('pos-license-waive-form');
     if (posLicenseWaiveForm && window.adminApp) {

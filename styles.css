@@ -2560,12 +2560,13 @@ select:focus {
   scroll-margin-bottom: 1.25rem;
 }
 
-/* Cross-page EDSA nav: avoid flash of hero before scroll completes */
-html.hm-await-edsa-scroll body {
+/* Cross-page section nav: hide page flash until scroll completes; keep age gate visible */
+html.hm-await-edsa-scroll body > :not(.hm-age-gate) {
   visibility: hidden;
 }
 
-html.hm-edsa-scroll-ready body {
+html.hm-edsa-scroll-ready body > :not(.hm-age-gate),
+html.hm-section-scroll-ready body > :not(.hm-age-gate) {
   visibility: visible;
 }
 

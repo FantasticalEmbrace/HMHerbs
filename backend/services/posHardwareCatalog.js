@@ -176,7 +176,15 @@ function model(id, label, extra = {}) {
 const AIO_PLATFORM_BUILTIN = Object.freeze({
     paypoint_plus: {
         receiptPrinter: 'elo_paypoint_printer',
-        customerDisplay: 'elo_paypoint_customer_display'
+        customerDisplay: 'elo_paypoint_customer_display',
+        cashDrawer: 'elo_paypoint_drawer',
+        barcodeScanner: 'elo_paypoint_scanner'
+    },
+    paypoint_pro: {
+        receiptPrinter: 'elo_paypoint_printer',
+        customerDisplay: 'elo_paypoint_customer_display',
+        cashDrawer: 'elo_paypoint_drawer',
+        barcodeScanner: 'elo_paypoint_scanner'
     },
     sunmi: { receiptPrinter: 'sunmi_builtin_printer' },
     landi: { receiptPrinter: 'landi_builtin_printer' },
@@ -187,6 +195,7 @@ const AIO_PLATFORM_BUILTIN = Object.freeze({
 
 function inferAioPlatformFromRegisterId(id) {
     const x = String(id || '').toLowerCase();
+    if (x.includes('paypoint_pro')) return 'paypoint_pro';
     if (x.includes('paypoint')) return 'paypoint_plus';
     if (x.startsWith('sunmi_')) return 'sunmi';
     if (x.startsWith('landi_reg_')) return 'landi';
@@ -208,13 +217,22 @@ function buildAioBuiltInForRegister(id, extra = {}) {
     if (extra.builtInCustomerDisplay) {
         aioBuiltIn.customerDisplay = extra.builtInCustomerDisplay;
     } else if (extra.builtInCustomerDisplay !== false) {
-        if (platform === 'paypoint_plus' && AIO_PLATFORM_BUILTIN.paypoint_plus.customerDisplay) {
-            aioBuiltIn.customerDisplay = AIO_PLATFORM_BUILTIN.paypoint_plus.customerDisplay;
+        if (
+            (platform === 'paypoint_plus' || platform === 'paypoint_pro') &&
+            AIO_PLATFORM_BUILTIN[platform].customerDisplay
+        ) {
+            aioBuiltIn.customerDisplay = AIO_PLATFORM_BUILTIN[platform].customerDisplay;
         } else if (platform === 'sunmi' && /^sunmi_t2s|^sunmi_t3/.test(id)) {
             aioBuiltIn.customerDisplay = 'sunmi_builtin_customer_display';
         } else if (platform === 'landi' && /^landi_reg_(c20_pro|m20se|a9)/.test(id)) {
             aioBuiltIn.customerDisplay = 'landi_builtin_customer_display';
         }
+    }
+    if (AIO_PLATFORM_BUILTIN[platform].cashDrawer) {
+        aioBuiltIn.cashDrawer = AIO_PLATFORM_BUILTIN[platform].cashDrawer;
+    }
+    if (AIO_PLATFORM_BUILTIN[platform].barcodeScanner) {
+        aioBuiltIn.barcodeScanner = AIO_PLATFORM_BUILTIN[platform].barcodeScanner;
     }
     return aioBuiltIn;
 }
@@ -277,6 +295,16 @@ function durangoMobile(id, label, description) {
 
 function eloPayPoint(id, label, description) {
     const aioBuiltIn = buildAioBuiltInForRegister(id, { aioPlatform: 'paypoint_plus' });
+    return model(id, label, {
+        driver: 'elo_star',
+        description,
+        configFields: [PAYPOINT_DEPLOYMENT, FIELD.paypointAddress, FIELD.paperWidth],
+        aioBuiltIn
+    });
+}
+
+function eloPayPointPro(id, label, description) {
+    const aioBuiltIn = buildAioBuiltInForRegister(id, { aioPlatform: 'paypoint_pro' });
     return model(id, label, {
         driver: 'elo_star',
         description,
@@ -386,6 +414,26 @@ function aioBuiltinCustomerDisplay(id, peripheralLabel, hostPlatform, descriptio
 /** @deprecated use aioBuiltinCustomerDisplay */
 function paypointCustomerDisplay(id, label, description) {
     return aioBuiltinCustomerDisplay(id, label, 'PayPoint Plus', description);
+}
+
+/** Built-in cash drawer on an all-in-one register (PayPoint, etc.). */
+function aioBuiltinCashDrawer(id, peripheralLabel, hostPlatform, description) {
+    return model(id, peripheralLabel, {
+        description:
+            description ||
+            `Built-in ${peripheralLabel.toLowerCase()} on ${hostPlatform} — same physical unit as the register.`,
+        configFields: [AIO_BUILTIN_CONN]
+    });
+}
+
+/** Built-in barcode scanner on an all-in-one register (PayPoint, etc.). */
+function aioBuiltinBarcodeScanner(id, peripheralLabel, hostPlatform, description) {
+    return model(id, peripheralLabel, {
+        description:
+            description ||
+            `Built-in ${peripheralLabel.toLowerCase()} on ${hostPlatform} — same physical unit as the register.`,
+        configFields: [AIO_BUILTIN_CONN, FIELD.keyboardWedge]
+    });
 }
 
 function customerDisplay(id, label, extra = {}) {
@@ -536,6 +584,16 @@ const CATALOG_BY_TYPE = Object.freeze({
                         'elo_paypoint_22ii',
                         'PayPoint Plus 22" II',
                         'Second-generation PayPoint Plus 22" with integrated printer.'
+                    ),
+                    paypoint_pro_13: eloPayPointPro(
+                        'elo_paypoint_pro_13',
+                        'PayPoint Pro 13"',
+                        'Legacy Windows PayPoint Pro — integrated printer, scanner, drawer, and customer display.'
+                    ),
+                    paypoint_pro_15: eloPayPointPro(
+                        'elo_paypoint_pro_15',
+                        'PayPoint Pro 15"',
+                        'PayPoint Pro all-in-one with integrated peripherals for open POS software.'
                     ),
                     x15: eloTouchBrowser('elo_x15', 'X-Series 15"', 'X-Series open-frame touch monitor for POS builds.'),
                     x17: eloTouchBrowser('elo_x17', 'X-Series 17"', '17" X-Series touch display.'),
@@ -840,14 +898,14 @@ const CATALOG_BY_TYPE = Object.freeze({
                 }
             },
             paypoint_plus_builtin: {
-                label: 'PayPoint Plus · Built-in',
+                label: 'PayPoint · Built-in',
                 models: {
                     receipt_printer: aioBuiltinPrinter(
                         'elo_paypoint_printer',
                         'Receipt printer',
                         'elo_star',
-                        'PayPoint Plus',
-                        'Integrated Star printer inside PayPoint Plus — same unit as the register.'
+                        'PayPoint',
+                        'Integrated Star printer inside PayPoint — same unit as the register.'
                     )
                 }
             },
@@ -955,6 +1013,17 @@ const CATALOG_BY_TYPE = Object.freeze({
     },
     barcode_scanner: {
         brands: {
+            paypoint_plus_builtin: {
+                label: 'PayPoint · Built-in',
+                models: {
+                    barcode_scanner: aioBuiltinBarcodeScanner(
+                        'elo_paypoint_scanner',
+                        'Barcode scanner',
+                        'PayPoint',
+                        'Integrated Honeywell 2D imager inside PayPoint — same unit as the register.'
+                    )
+                }
+            },
             zebra: {
                 label: 'Zebra',
                 models: {
@@ -1010,6 +1079,17 @@ const CATALOG_BY_TYPE = Object.freeze({
     },
     cash_drawer: {
         brands: {
+            paypoint_plus_builtin: {
+                label: 'PayPoint · Built-in',
+                models: {
+                    cash_drawer: aioBuiltinCashDrawer(
+                        'elo_paypoint_drawer',
+                        'Cash drawer',
+                        'PayPoint',
+                        'Integrated 16" cash drawer inside PayPoint — same unit as the register.'
+                    )
+                }
+            },
             apg: {
                 label: 'APG',
                 models: {
@@ -1049,13 +1129,13 @@ const CATALOG_BY_TYPE = Object.freeze({
     customer_display: {
         brands: {
             paypoint_plus_builtin: {
-                label: 'PayPoint Plus · Built-in',
+                label: 'PayPoint · Built-in',
                 models: {
                     customer_display: aioBuiltinCustomerDisplay(
                         'elo_paypoint_customer_display',
                         'Customer display',
-                        'PayPoint Plus',
-                        'Built-in front-facing screen on PayPoint Plus — faces the customer at checkout.'
+                        'PayPoint',
+                        'Built-in front-facing screen on PayPoint — faces the customer at checkout.'
                     )
                 }
             },
@@ -1567,6 +1647,8 @@ function collectBuiltinCatalogModelIds() {
     }
     ids.add('elo_paypoint_printer');
     ids.add('elo_paypoint_customer_display');
+    ids.add('elo_paypoint_drawer');
+    ids.add('elo_paypoint_scanner');
     return Object.freeze([...ids]);
 }
 
@@ -1602,6 +1684,20 @@ function filterModelsForStationContext(equipmentType, registerCatalogModelId, mo
     if (equipmentType === 'customer_display') {
         if (profile?.customerDisplay) {
             return list.filter((m) => m.id === profile.customerDisplay);
+        }
+        return list.filter((m) => !isBuiltinCatalogModelId(m.id));
+    }
+
+    if (equipmentType === 'cash_drawer') {
+        if (profile?.cashDrawer) {
+            return list.filter((m) => m.id === profile.cashDrawer);
+        }
+        return list.filter((m) => !isBuiltinCatalogModelId(m.id));
+    }
+
+    if (equipmentType === 'barcode_scanner') {
+        if (profile?.barcodeScanner) {
+            return list.filter((m) => m.id === profile.barcodeScanner);
         }
         return list.filter((m) => !isBuiltinCatalogModelId(m.id));
     }

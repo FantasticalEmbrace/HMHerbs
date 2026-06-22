@@ -766,17 +766,18 @@ app.post('/api/auth/login', authLimiter, userLoginValidation, async (req, res) =
         }
 
         if (users.length === 0) {
-            return res.status(401).json({ error: 'Invalid credentials' });
+            return res.json({ success: false, error: 'Invalid credentials' });
         }
 
         const user = users[0];
 
         if (!user.is_active) {
-            return res.status(401).json({ error: 'Account is deactivated' });
+            return res.json({ success: false, error: 'Account is deactivated' });
         }
 
         if (!user.password_hash) {
-            return res.status(401).json({
+            return res.json({
+                success: false,
                 error: 'This account uses Google sign-in. Click Continue with Google instead.'
             });
         }
@@ -785,7 +786,7 @@ app.post('/api/auth/login', authLimiter, userLoginValidation, async (req, res) =
         const isValidPassword = await bcrypt.compare(password, user.password_hash);
 
         if (!isValidPassword) {
-            return res.status(401).json({ error: 'Invalid credentials' });
+            return res.json({ success: false, error: 'Invalid credentials' });
         }
 
         await provisionWebCustomerProfile(pool, user.id, logger);

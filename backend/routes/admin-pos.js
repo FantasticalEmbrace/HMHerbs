@@ -36,7 +36,6 @@ const {
     getDefaultGraceDays,
     getMaxBillingRetries
 } = require('../services/posMerchantLicense');
-const { createSetupToken } = require('../utils/posBillingSetupToken');
 const { scheduleSupportSessionSync } = require('../services/posPlatformSupportSync');
 const { isPlatformHubEnabled } = require('../utils/platformSupportEnv');
 const {
@@ -121,6 +120,14 @@ function requireManager(req, res, next) {
     const role = req.admin?.role;
     if (!['admin', 'developer', 'manager', 'assistant_manager', 'super_admin'].includes(role)) {
         return res.status(403).json({ error: 'Manager access required' });
+    }
+    next();
+}
+
+function requireAdminOrDeveloper(req, res, next) {
+    const role = String(req.admin?.role || '').toLowerCase();
+    if (!['admin', 'developer', 'super_admin'].includes(role)) {
+        return res.status(403).json({ error: 'Admin or Developer access required for POS billing.' });
     }
     next();
 }
@@ -713,7 +720,7 @@ router.put('/license', async (req, res) => {
     }
 });
 
-router.post('/license/run-billing', async (req, res) => {
+router.post('/license/run-billing', requireAdminOrDeveloper, async (req, res) => {
     try {
         const result = await runMonthlyBillingForMerchant(req.pool, { force: true });
         res.json({ result });
@@ -736,22 +743,12 @@ router.post('/license/waive-past-due', async (req, res) => {
     }
 });
 
+/** @deprecated Public signup links removed — use admin POS License panel. */
 router.post('/billing/setup-token', async (req, res) => {
-    try {
-        const token = createSetupToken({ adminId: req.admin.id });
-        const host = String(req.get('x-forwarded-host') || req.get('host') || '').trim();
-        const proto = String(req.get('x-forwarded-proto') || req.protocol || 'https').split(',')[0].trim();
-        const base = host ? `${proto}://${host}` : '';
-        const signupUrl = `${base}/pos-billing.html?token=${encodeURIComponent(token)}`;
-        res.json({
-            token,
-            signupUrl,
-            expiresIn: '7d'
-        });
-    } catch (e) {
-        logger.error('POS billing setup token error:', e);
-        res.status(500).json({ error: e.message || 'Failed to create billing signup link' });
-    }
+    res.status(410).json({
+        error: 'Billing signup links are disabled. Save payment in Admin → Point of Sale → License.',
+        code: 'SETUP_LINKS_DISABLED'
+    });
 });
 
 /** @deprecated use POST /license/waive-past-due */

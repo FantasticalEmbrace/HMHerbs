@@ -33,6 +33,36 @@
         window.dispatchEvent(new CustomEvent(EVENT_NAME));
     }
 
+    function isAgeGateOpen() {
+        return !!document.querySelector('.hm-age-gate');
+    }
+
+    window.hmIsAgeGateOpen = isAgeGateOpen;
+
+    function lockPageScroll() {
+        document.documentElement.classList.add('hm-age-gate-open');
+        document.body.classList.add('hm-age-gate-open');
+        document.body.style.overflow = 'hidden';
+        document.documentElement.style.overflow = 'hidden';
+    }
+
+    function unlockPageScroll() {
+        document.documentElement.classList.remove('hm-age-gate-open');
+        document.body.classList.remove('hm-age-gate-open');
+        document.body.style.overflow = '';
+        document.documentElement.style.overflow = '';
+    }
+
+    function pinViewportTop() {
+        try {
+            window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+        } catch (_) {
+            window.scrollTo(0, 0);
+        }
+        document.documentElement.scrollTop = 0;
+        document.body.scrollTop = 0;
+    }
+
     /**
      * @param {HTMLElement} root
      * @param {() => void} [afterRemoved]
@@ -43,24 +73,20 @@
             document.removeEventListener('keydown', root._hmAgeKeyEsc);
             root._hmAgeKeyEsc = null;
         }
+        if (root._hmAgeScrollPin) {
+            window.removeEventListener('scroll', root._hmAgeScrollPin);
+            root._hmAgeScrollPin = null;
+        }
         root.classList.add('is-leaving');
         window.setTimeout(() => {
             try {
                 root.parentNode.removeChild(root);
             } catch (_) {}
-            document.body.style.overflow = '';
+            unlockPageScroll();
             if (typeof afterRemoved === 'function') {
                 afterRemoved();
             }
         }, 280);
-    }
-
-    function scrollViewportTop() {
-        try {
-            window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
-        } catch (_) {
-            window.scrollTo(0, 0);
-        }
     }
 
     function showGate() {
@@ -69,6 +95,7 @@
         root.setAttribute('role', 'dialog');
         root.setAttribute('aria-modal', 'true');
         root.setAttribute('aria-labelledby', 'hm-age-gate-title');
+        root.setAttribute('tabindex', '-1');
 
         root.innerHTML =
             '<div class="hm-age-gate__dialog">' +
@@ -81,18 +108,29 @@
             '<button type="button" class="hm-age-gate__exit" id="hm-age-gate-exit">I am under 21 — exit</button>' +
             '</div></div>';
 
+        // Append as direct body child; scroll pin prevents focus from jumping the page.
         document.body.appendChild(root);
-        document.body.style.overflow = 'hidden';
-        scrollViewportTop();
+
+        lockPageScroll();
+        pinViewportTop();
+        root.scrollTop = 0;
+
+        const onGateScrollPin = () => {
+            if (window.scrollY > 0) {
+                pinViewportTop();
+            }
+        };
+        root._hmAgeScrollPin = onGateScrollPin;
+        window.addEventListener('scroll', onGateScrollPin, { passive: true });
 
         const enter = root.querySelector('#hm-age-gate-enter');
         const exit = root.querySelector('#hm-age-gate-exit');
 
         enter.addEventListener('click', () => {
             persistVerified();
-            scrollViewportTop();
+            pinViewportTop();
             removeGate(root, () => {
-                scrollViewportTop();
+                pinViewportTop();
                 notifyAgeVerified();
             });
         });
@@ -113,7 +151,7 @@
             try {
                 enter.focus({ preventScroll: true });
             } catch (_) {
-                enter.focus();
+                /* Skip focus fallback — unfocused scroll was jumping the page */
             }
         });
     }
@@ -125,7 +163,7 @@
             notifyAgeVerified();
             return;
         }
-        scrollViewportTop();
+        pinViewportTop();
         showGate();
     }
 

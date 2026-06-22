@@ -15,6 +15,13 @@
         );
     }
 
+    function isAgeGateOpen() {
+        if (typeof window.hmIsAgeGateOpen === 'function') {
+            return window.hmIsAgeGateOpen();
+        }
+        return !!document.querySelector('.hm-age-gate');
+    }
+
     function resetCartAndScrollLocks() {
         const cartSidebar = document.getElementById('cart-sidebar');
         const cartOverlay = document.getElementById('cart-overlay');
@@ -25,8 +32,10 @@
         if (cartOverlay) {
             cartOverlay.classList.remove('active');
         }
-        document.body.style.overflow = '';
-        document.documentElement.style.overflow = '';
+        if (!isAgeGateOpen()) {
+            document.body.style.overflow = '';
+            document.documentElement.style.overflow = '';
+        }
         document.body.classList.remove(
             'auth-modal-open',
             'edsa-modal-open',
@@ -53,7 +62,26 @@
         }
     }
 
+    function isPageReloadNavigation() {
+        if (typeof window.hmIsPageReloadNavigation === 'function') {
+            return window.hmIsPageReloadNavigation();
+        }
+        try {
+            const nav = performance.getEntriesByType('navigation')[0];
+            return nav && nav.type === 'reload';
+        } catch (_) {
+            return false;
+        }
+    }
+
     function scrollToTopIfNoHash() {
+        if (isAgeGateOpen()) return;
+        if (isPageReloadNavigation()) {
+            window.scrollTo(0, 0);
+            document.documentElement.scrollTop = 0;
+            document.body.scrollTop = 0;
+            return;
+        }
         if (isSectionCrossPagePending()) return;
         if (!window.location.hash) {
             window.scrollTo(0, 0);
@@ -109,6 +137,11 @@
     window.addEventListener('scroll', onScroll, { passive: true });
 
     window.addEventListener('load', function () {
+        if (isAgeGateOpen()) return;
+        if (isPageReloadNavigation()) {
+            window.scrollTo(0, 0);
+            return;
+        }
         if (isSectionCrossPagePending()) return;
         if (!window.location.hash && !hasUserScrolled) {
             window.scrollTo(0, 0);
