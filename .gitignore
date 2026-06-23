@@ -38,6 +38,8 @@ desktop.ini
 
 # Build outputs
 dist/
+__pycache__/
+*.py[cod]
 build/
 *.min.js
 *.min.css
