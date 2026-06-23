@@ -37,7 +37,10 @@ async function recalcUserOrderAggregates(connection, userId) {
  * @param {import('mysql2/promise').Pool} pool
  * @param {{ orderId: number, paymentId: string, paymentStatus: string, skipConfirmationEmail?: boolean }} opts
  */
-async function finalizePaidOrder(pool, { orderId, paymentId, paymentStatus, skipConfirmationEmail = false }) {
+async function finalizePaidOrder(
+    pool,
+    { orderId, paymentId, paymentStatus, skipConfirmationEmail = false, allowOversell = false }
+) {
     const oid = Number(orderId);
     if (!Number.isFinite(oid) || oid < 1) {
         const err = new Error('INVALID_ORDER');
@@ -108,7 +111,8 @@ async function finalizePaidOrder(pool, { orderId, paymentId, paymentStatus, skip
         await inventoryService.deductInventoryForOrder(
             inventoryItems,
             oid,
-            `Order #${oid} completed - Payment ID: ${paymentId}`
+            `Order #${oid} completed - Payment ID: ${paymentId}`,
+            { allowOversell }
         );
 
         if (orderRow.user_id) {

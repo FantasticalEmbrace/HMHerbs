@@ -152,16 +152,21 @@ async function applySaleResult(pool, intentId, deviceId, sale) {
 
     if (!sale.ok) {
         const message = sale.responseText || 'Card declined';
-        await pool.execute(
-            `UPDATE pos_checkout_intents SET status = 'declined', error_message = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-            [message.slice(0, 500), intentId]
-        );
-        const declined = await getCheckoutIntent(pool, intentId);
-        await upsertDisplayCheckout(pool, deviceId, declined, declined?.checkoutMode);
-        const err = new Error(message);
-        err.code = 'CARD_DECLINED';
-        err.data = { intent: declined };
-        throw err;
+        const isDuplicate = /duplicate transaction/i.test(message);
+        if (isDuplicate && sale.transactionId) {
+            sale.ok = true;
+        } else {
+            await pool.execute(
+                `UPDATE pos_checkout_intents SET status = 'declined', error_message = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+                [message.slice(0, 500), intentId]
+            );
+            const declined = await getCheckoutIntent(pool, intentId);
+            await upsertDisplayCheckout(pool, deviceId, declined, declined?.checkoutMode);
+            const err = new Error(message);
+            err.code = 'CARD_DECLINED';
+            err.data = { intent: declined };
+            throw err;
+        }
     }
 
     const authCode = String(sale.fields.authcode || sale.fields.authorizationcode || '').trim();
@@ -309,6 +314,7 @@ async function chargeTerminalCheckoutIntent(pool, intentId, deviceRef) {
             securityKey: creds.privateKey,
             amount: existing.amount.toFixed(2),
             poiDeviceId,
+            orderId: intentId,
             transactUrl: creds.transactUrl
         });
         return await applySaleResult(pool, intentId, existing.deviceId, sale);

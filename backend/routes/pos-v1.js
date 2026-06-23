@@ -568,7 +568,8 @@ router.post('/customers/gift-cards/check', authenticatePosEmployee, async (req, 
             code: body.code,
             pin: body.pin,
             giftCardId: body.giftCardId ?? body.gift_card_id,
-            userId: body.userId ?? body.user_id ?? body.customerId ?? body.customer_id
+            userId: body.userId ?? body.user_id ?? body.customerId ?? body.customer_id,
+            staffLookup: true
         });
         res.json({ success: true, ...result });
     } catch (error) {

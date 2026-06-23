@@ -55,7 +55,7 @@ function resolvePrimaryPaymentMethod(tenders) {
     return only;
 }
 
-function normalizeTenderRow(raw, loyaltySettings) {
+function normalizeTenderRow(raw, loyaltySettings, options = {}) {
     if (!raw || typeof raw !== 'object') return null;
     const type = String(raw.type || raw.tenderType || raw.tender_type || '').trim().toLowerCase();
     if (!TENDER_TYPES.has(type)) return null;
@@ -67,7 +67,9 @@ function normalizeTenderRow(raw, loyaltySettings) {
         const pts = Math.max(0, Math.floor(Number(raw.points ?? raw.loyaltyPoints ?? raw.loyalty_points) || 0));
         if (pts <= 0) return null;
         loyaltyPoints = pts;
-        amount = pointsToDollars(pts, loyaltySettings);
+        if (!options.trustClientAmount || amount <= 0) {
+            amount = pointsToDollars(pts, loyaltySettings);
+        }
     }
 
     if (amount <= 0) return null;
@@ -90,12 +92,12 @@ function normalizeTenderRow(raw, loyaltySettings) {
     };
 }
 
-function normalizeTendersFromPayload(payload, loyaltySettings, saleTotal = null) {
+function normalizeTendersFromPayload(payload, loyaltySettings, saleTotal = null, options = {}) {
     const settings = loyaltySettings || { dollarPerPoint: 0.01 };
 
     if (Array.isArray(payload.paymentTenders) && payload.paymentTenders.length) {
         return payload.paymentTenders
-            .map((t) => normalizeTenderRow(t, settings))
+            .map((t) => normalizeTenderRow(t, settings, options))
             .filter(Boolean);
     }
 
@@ -201,7 +203,12 @@ function validateTendersForSale(tenders, saleTotal, options = {}) {
             const lastFour = String(t.terminalLastFour || '').replace(/\D/g, '');
             const auth = String(t.terminalAuthCode || '').trim();
             const approved = options.cardApprovedConfirmed;
-            if (!options.skipCardTerminalChecks && lastFour.length > 0 && lastFour.length !== 4) {
+            if (
+                !options.skipCardTerminalChecks
+                && !approved
+                && lastFour.length > 0
+                && lastFour.length !== 4
+            ) {
                 const err = new Error('TERMINAL_LAST_FOUR_INVALID');
                 err.code = 'TERMINAL_LAST_FOUR_INVALID';
                 throw err;

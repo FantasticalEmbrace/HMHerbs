@@ -14,7 +14,7 @@ class InventoryService {
      * @param {number} orderId - Order ID for audit trail
      * @param {string} reason - Reason for deduction
      */
-    async deductInventoryForOrder(orderItems, orderId, reason = 'Order completion') {
+    async deductInventoryForOrder(orderItems, orderId, reason = 'Order completion', options = {}) {
         const connection = await this.pool.getConnection();
         
         try {
@@ -31,7 +31,9 @@ class InventoryService {
                     'sale',
                     'order',
                     orderId,
-                    reason
+                    reason,
+                    null,
+                    options
                 );
                 results.push(result);
             }
@@ -150,7 +152,18 @@ class InventoryService {
     /**
      * Internal method to deduct inventory with audit trail
      */
-    async _deductInventory(connection, productId, variantId, quantity, type, referenceType, referenceId, reason, createdBy = null) {
+    async _deductInventory(
+        connection,
+        productId,
+        variantId,
+        quantity,
+        type,
+        referenceType,
+        referenceId,
+        reason,
+        createdBy = null,
+        options = {}
+    ) {
         // Get current inventory
         let currentInventory, tableName, idField;
         
@@ -174,7 +187,9 @@ class InventoryService {
             );
             
             if (products.length === 0) {
-                throw new Error(`Product ${productId} not found`);
+                const err = new Error(`Product ${productId} not found`);
+                err.code = 'PRODUCT_NOT_FOUND';
+                throw err;
             }
             
             const product = products[0];
@@ -190,11 +205,20 @@ class InventoryService {
             
             const inventorySettings = await loadInventorySettings(connection);
             const allowOversell =
-                Boolean(product.allow_backorder) || Boolean(inventorySettings.allowOversell);
+                Boolean(options.allowOversell) ||
+                Boolean(product.allow_backorder) ||
+                Boolean(inventorySettings.allowOversell);
 
             // Check if we have enough inventory (unless oversell allowed)
             if (!allowOversell && currentInventory < quantity) {
-                throw new Error(`Insufficient inventory for product ${productId}. Available: ${currentInventory}, Requested: ${quantity}`);
+                const err = new Error(
+                    `Insufficient inventory for product ${productId}. Available: ${currentInventory}, Requested: ${quantity}`
+                );
+                err.code = 'INSUFFICIENT_INVENTORY';
+                err.productId = productId;
+                err.available = currentInventory;
+                err.requested = quantity;
+                throw err;
             }
         }
         

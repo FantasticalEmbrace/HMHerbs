@@ -261,7 +261,7 @@ async function quickEnrollCustomer(pool, data) {
     return getCustomerForPos(pool, userId);
 }
 
-async function checkGiftCardBalance(pool, { code, pin, giftCardId, userId }) {
+async function checkGiftCardBalance(pool, { code, pin, giftCardId, userId, staffLookup = false }) {
     const id = giftCardId != null ? Number(giftCardId) : null;
     const uid = userId != null ? Number(userId) : null;
 
@@ -296,7 +296,7 @@ async function checkGiftCardBalance(pool, { code, pin, giftCardId, userId }) {
             err.code = 'GIFT_CARD_NOT_FOUND';
             throw err;
         }
-        if (row.pin) {
+        if (row.pin && !staffLookup) {
             const pinTrim = pin != null ? String(pin).trim() : '';
             if (!pinTrim || pinTrim !== String(row.pin).trim()) {
                 const err = new Error('GIFT_CARD_INVALID_PIN');

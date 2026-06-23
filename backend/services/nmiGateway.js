@@ -105,7 +105,7 @@ async function nmiVaultSale(opts) {
  * Durango/NMI controls the payment UI on the terminal — not the POS web app.
  */
 async function nmiPoiSale(opts) {
-    const { securityKey, amount, poiDeviceId, responseMethod = 'synchronous', transactUrl } = opts;
+    const { securityKey, amount, poiDeviceId, orderId, responseMethod = 'synchronous', transactUrl } = opts;
     const url = transactUrl || getNmiTransactUrl();
     const body = new URLSearchParams();
     body.set('security_key', securityKey);
@@ -113,6 +113,9 @@ async function nmiPoiSale(opts) {
     body.set('amount', amount);
     body.set('poi_device_id', String(poiDeviceId || '').trim());
     body.set('response_method', responseMethod);
+    if (orderId) {
+        body.set('orderid', String(orderId).slice(0, 128));
+    }
 
     const res = await axios.post(url, body.toString(), {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },

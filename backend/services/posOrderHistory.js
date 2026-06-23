@@ -1,6 +1,7 @@
 'use strict';
 
 const { normalizeTenderRow } = require('./posSplitTender');
+const { getStoreDayBoundsRfc3339 } = require('../utils/storeTimezone');
 
 const PAYMENT_LABELS = {
     cash: 'Cash',
@@ -164,8 +165,9 @@ async function listInStorePosSales(pool, options = {}) {
     const params = [];
 
     if (date) {
-        where.push('DATE(o.created_at) = ?');
-        params.push(date);
+        const bounds = getStoreDayBoundsRfc3339(date);
+        where.push('o.created_at >= ? AND o.created_at <= ?');
+        params.push(bounds.timeMin, bounds.timeMax);
     }
     if (q) {
         where.push('o.order_number LIKE ?');

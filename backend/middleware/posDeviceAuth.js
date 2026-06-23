@@ -7,7 +7,8 @@ async function authenticatePosDevice(req, res, next) {
         const headerKey = String(req.headers['x-pos-api-key'] || '').trim();
         const authHeader = String(req.headers.authorization || '');
         const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
-        const provided = headerKey || bearer;
+        const bearerLooksLikeJwt = bearer.split('.').length === 3;
+        const provided = headerKey || (bearerLooksLikeJwt ? '' : bearer);
         const deviceLabel = String(req.headers['x-pos-device-id'] || 'register-1').trim().slice(0, 64);
 
         const result = await authenticateDevice(req.pool, deviceLabel, provided);

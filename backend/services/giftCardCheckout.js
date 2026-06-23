@@ -87,7 +87,8 @@ async function applyRedeemAmount(connection, card, value, orderId, customerId, s
  * Lock and load an active gift card by code + optional PIN.
  * @param {import('mysql2/promise').PoolConnection} connection
  */
-async function lockGiftCardByCode(connection, code, pin) {
+async function lockGiftCardByCode(connection, code, pin, options = {}) {
+    const skipPinCheck = Boolean(options.skipPinCheck);
     const cleanCode = normalizeCode(code);
     if (!cleanCode) {
         const err = new Error('GIFT_CARD_CODE_REQUIRED');
@@ -106,7 +107,7 @@ async function lockGiftCardByCode(connection, code, pin) {
         throw err;
     }
 
-    if (card.pin) {
+    if (card.pin && !skipPinCheck) {
         const pinTrim = pin != null ? String(pin).trim() : '';
         if (!pinTrim || pinTrim !== String(card.pin).trim()) {
             const err = new Error('GIFT_CARD_INVALID_PIN');
@@ -167,7 +168,7 @@ async function redeemGiftCardForOrder(connection, { code, pin, amount, orderId, 
         throw err;
     }
 
-    const card = await lockGiftCardByCode(connection, code, pin);
+    const card = await lockGiftCardByCode(connection, code, pin, { skipPinCheck: source === 'pos' });
     return applyRedeemAmount(connection, card, value, orderId, customerId, source);
 }
 

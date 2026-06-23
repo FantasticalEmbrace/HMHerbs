@@ -370,7 +370,7 @@ async function findExistingByClientTx(pool, clientTransactionId) {
     return rows[0] || null;
 }
 
-async function resumePendingPosOrder(pool, existing) {
+async function resumePendingPosOrder(pool, existing, options = {}) {
     const result = {
         duplicate: true,
         orderId: existing.id,
@@ -384,7 +384,8 @@ async function resumePendingPosOrder(pool, existing) {
         orderId: existing.id,
         paymentId: existing.payment_reference || `pos:retry:${existing.id}`,
         paymentStatus: 'paid',
-        skipConfirmationEmail: true
+        skipConfirmationEmail: true,
+        allowOversell: Boolean(options.allowOversell ?? true)
     });
     return {
         ...result,
@@ -444,7 +445,14 @@ async function createInStorePosOrder(pool, payload, deviceId, verifiedEmployeeId
     if (clientTransactionId) {
         const existing = await findExistingByClientTx(pool, clientTransactionId);
         if (existing) {
-            return resumePendingPosOrder(pool, existing);
+            return resumePendingPosOrder(pool, existing, {
+                allowOversell: fromOfflineSync || Boolean(
+                    payload.payment?.terminalApprovedConfirmed ||
+                        payload.payment?.terminal_approved_confirmed ||
+                        payload.terminalApprovedConfirmed ||
+                        payload.terminal_approved_confirmed
+                )
+            });
         }
     }
 
@@ -484,10 +492,12 @@ async function createInStorePosOrder(pool, payload, deviceId, verifiedEmployeeId
         }
     }
 
-    const authorizer = await validateSaleManagerAuth(pool, lineItems, managerPin || null, {
-        deviceId,
-        ip: payload.clientIp
-    }, effectiveCartDiscountPercent);
+    const authorizer = fromOfflineSync
+        ? null
+        : await validateSaleManagerAuth(pool, lineItems, managerPin || null, {
+              deviceId,
+              ip: payload.clientIp
+          }, effectiveCartDiscountPercent);
 
     const paymentMeta = payload.payment || payload;
     let taxExemptInfo = parseTaxExemptSale(payload);
@@ -512,14 +522,49 @@ async function createInStorePosOrder(pool, payload, deviceId, verifiedEmployeeId
     const pricing = computeDualPricing(pricedLines, taxRate, cashSettings.enabled ? cashSettings.percent : 0);
     const cartDiscountAmount = roundMoney(preCartSubtotalFinal - pricing.card.subtotal);
 
-    const draftTenders = normalizeTendersFromPayload(payload, loyaltySettings);
+    const draftTenders = normalizeTendersFromPayload(
+        payload,
+        loyaltySettings,
+        null,
+        fromOfflineSync ? { trustClientAmount: true } : {}
+    );
     const pricingMethod = usesCardPricing(draftTenders) ? 'card_terminal' : 'cash';
-    const totalsFinal = resolveTotalsForPayment(pricing, pricingMethod, cartDiscountAmount);
-    const saleTotal = totalsFinal.totalAmount;
+    let totalsFinal = resolveTotalsForPayment(pricing, pricingMethod, cartDiscountAmount);
+    let saleTotal = totalsFinal.totalAmount;
 
     const tenders = Array.isArray(payload.paymentTenders) && payload.paymentTenders.length
         ? draftTenders
-        : normalizeTendersFromPayload(payload, loyaltySettings, saleTotal);
+        : normalizeTendersFromPayload(
+              payload,
+              loyaltySettings,
+              saleTotal,
+              fromOfflineSync ? { trustClientAmount: true } : {}
+          );
+
+    if (fromOfflineSync && tenders.length) {
+        const snap = payload.offlinePricing || payload.offline_pricing;
+        const tenderSum = roundMoney(tenders.reduce((sum, t) => sum + roundMoney(t.amount), 0));
+        const snapTotal = roundMoney(Number(snap?.totalAmount ?? snap?.total) || 0);
+        let targetTotal = saleTotal;
+        if (snapTotal > 0.005 && tenderSum > 0.005 && Math.abs(snapTotal - tenderSum) <= 0.02) {
+            targetTotal = snapTotal;
+        } else if (tenderSum > 0.005) {
+            targetTotal = tenderSum;
+        } else if (snapTotal > 0.005) {
+            targetTotal = snapTotal;
+        }
+        if (Math.abs(targetTotal - saleTotal) > 0.005) {
+            const ratio = saleTotal > 0.005 ? targetTotal / saleTotal : 1;
+            totalsFinal = {
+                ...totalsFinal,
+                subtotal: roundMoney(totalsFinal.subtotal * ratio),
+                taxAmount: roundMoney(totalsFinal.taxAmount * ratio),
+                totalAmount: targetTotal,
+                discountAmount: roundMoney(totalsFinal.discountAmount * ratio)
+            };
+            saleTotal = targetTotal;
+        }
+    }
 
     if (!tenders.length) {
         const err = new Error('PAYMENT_REQUIRED');
@@ -562,7 +607,9 @@ async function createInStorePosOrder(pool, payload, deviceId, verifiedEmployeeId
     validateTendersForSale(tenders, saleTotal, {
         customerUserId: customerUser?.id || null,
         cardApprovedConfirmed: Boolean(
-            paymentMeta.terminalApprovedConfirmed || paymentMeta.terminal_approved_confirmed
+            paymentMeta.terminalApprovedConfirmed ||
+                paymentMeta.terminal_approved_confirmed ||
+                fromOfflineSync
         ),
         skipCardTerminalChecks: tenders.every((t) => t.type !== 'card_terminal' || t.amount <= 0.005)
     });
@@ -685,11 +732,17 @@ async function createInStorePosOrder(pool, payload, deviceId, verifiedEmployeeId
 
         await connection.commit();
 
+        const paymentCaptured = Boolean(
+            fromOfflineSync ||
+                paymentMeta.terminalApprovedConfirmed ||
+                paymentMeta.terminal_approved_confirmed
+        );
         const finalized = await finalizePaidOrder(pool, {
             orderId,
             paymentId: paymentReference,
             paymentStatus: 'paid',
-            skipConfirmationEmail: true
+            skipConfirmationEmail: true,
+            allowOversell: paymentCaptured
         });
 
         if (shiftSessionId) {
@@ -723,7 +776,7 @@ async function createInStorePosOrder(pool, payload, deviceId, verifiedEmployeeId
         if (e?.code === 'ER_DUP_ENTRY' && clientTransactionId) {
             const existing = await findExistingByClientTx(pool, clientTransactionId);
             if (existing) {
-                return resumePendingPosOrder(pool, existing);
+                return resumePendingPosOrder(pool, existing, { allowOversell: true });
             }
         }
         throw e;
@@ -752,7 +805,7 @@ async function syncPosOrderBatch(pool, sales, deviceId, verifiedEmployeeId = nul
             results.push({
                 clientTransactionId: sale.clientTransactionId || sale.client_transaction_id,
                 success: false,
-                code: error.code || 'SYNC_FAILED',
+                code: error.code || error.errno || 'SYNC_FAILED',
                 error: error.message || 'Failed to sync sale'
             });
         }
