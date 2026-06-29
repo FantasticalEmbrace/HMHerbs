@@ -18,6 +18,7 @@ class AdminApp {
         this.allBrands = []; // Store all brands for filtering
         this.allCategories = []; // Store all categories for filtering
         this.allCategoriesForFilter = []; // Store all categories for category section filtering
+        this.selectedProductIds = new Set();
         this.holidaySchedule = [];
         this.productsPagination = {
             currentPage: 1,
@@ -2932,10 +2933,18 @@ class AdminApp {
                 const graceLine = license.inGracePeriod
                     ? `<div><strong>Grace period:</strong> until ${license.graceEndsAt ? this.escapeHtml(new Date(license.graceEndsAt).toLocaleDateString()) : '—'}</div>`
                     : '';
+                const failoverLine =
+                    Number(license.failoverOverageAmount) > 0
+                        ? `<div><strong>Failover overage:</strong> $${Number(license.failoverOverageAmount).toFixed(2)} (${Number(license.failoverGbUsed).toFixed(1)} GB used)</div>`
+                        : license.failoverGbUsed > 0
+                          ? `<div><strong>Failover data:</strong> ${Number(license.failoverGbUsed).toFixed(1)} GB (within included 2 GB)</div>`
+                          : '';
                 summary.innerHTML = `
                     <div><strong>Status:</strong> ${this.escapeHtml(license.status || 'trial')}</div>
                     <div><strong>Active registers:</strong> ${activeDevices} of ${license.licensedStationCount || 1} licensed</div>
                     <div><strong>Monthly:</strong> ${this.escapeHtml(license.monthlyFormatted || '—')}</div>
+                    <div style="color:var(--gray-600);font-size:0.85rem;">${this.escapeHtml(license.pricingSummary || '')}</div>
+                    ${failoverLine}
                     ${pastDueLine}
                     ${compLine}
                     ${graceLine}
@@ -2964,6 +2973,8 @@ class AdminApp {
             if (emailEl) emailEl.value = license.billingEmail || '';
             const notesEl = form.querySelector('[name="notes"]');
             if (notesEl) notesEl.value = license.notes || '';
+            const failoverEl = form.querySelector('[name="failoverGbUsed"]');
+            if (failoverEl) failoverEl.value = String(license.failoverGbUsed ?? 0);
             this._updatePosLicensePricingHint(Number(license.licensedStationCount) || 1);
 
             const waiveCard = document.getElementById('pos-license-waive-card');
@@ -2996,10 +3007,22 @@ class AdminApp {
         const hint = document.getElementById('pos-license-pricing-hint');
         if (!hint) return;
         const n = Math.max(1, Math.min(99, Number(stations) || 1));
-        let amount = 100;
-        if (n > 1) amount += Math.min(n - 1, 4) * 50;
-        if (n > 5) amount += (n - 5) * 25;
-        hint.textContent = `Estimated monthly: $${amount.toFixed(2)}/mo`;
+        let subscription = 100;
+        if (n > 1) subscription += Math.min(n - 1, 4) * 50;
+        if (n > 5) subscription += (n - 5) * 25;
+
+        const form = document.getElementById('pos-license-form');
+        const gb = Math.max(0, Number(form?.querySelector('[name="failoverGbUsed"]')?.value) || 0);
+        const overGb = Math.max(0, gb - 2);
+        const failoverOverage = overGb > 0 ? Math.ceil(overGb) * 10 : 0;
+        const total = subscription + failoverOverage;
+
+        let text = `Estimated monthly: $${total.toFixed(2)}/mo ($${subscription.toFixed(2)} subscription`;
+        if (failoverOverage > 0) {
+            text += ` + $${failoverOverage.toFixed(2)} failover overage for ${gb.toFixed(1)} GB`;
+        }
+        text += '). First station includes 2 GB failover internet; $10/mo per GB after that.';
+        hint.textContent = text;
     }
 
     async savePosLicense(e) {
@@ -3015,7 +3038,8 @@ class AdminApp {
             billingEmail: form.querySelector('[name="billingEmail"]')?.value || '',
             notes: form.querySelector('[name="notes"]')?.value || '',
             serviceCompedUntil: form.querySelector('[name="serviceCompedUntil"]')?.value || null,
-            graceDaysOverride: form.querySelector('[name="graceDaysOverride"]')?.value || null
+            graceDaysOverride: form.querySelector('[name="graceDaysOverride"]')?.value || null,
+            failoverGbUsed: Number(form.querySelector('[name="failoverGbUsed"]')?.value) || 0
         };
         try {
             await this.apiRequest('/admin/pos/license', { method: 'PUT', body: JSON.stringify(body) });
@@ -3036,7 +3060,12 @@ class AdminApp {
 
     async runPosBillingTest() {
         try {
-            const res = await this.apiRequest('/admin/pos/license/run-billing', { method: 'POST' });
+            const form = document.getElementById('pos-license-form');
+            const failoverGbUsed = Number(form?.querySelector('[name="failoverGbUsed"]')?.value) || 0;
+            const res = await this.apiRequest('/admin/pos/license/run-billing', {
+                method: 'POST',
+                body: JSON.stringify({ failoverGbUsed })
+            });
             const r = res.result || {};
             const text =
                 r.message ||
@@ -7893,6 +7922,7 @@ class AdminApp {
 
         // Render pagination controls
         this.renderProductsPagination();
+        this.setupProductsBulkActions();
     }
 
     renderProductsPagination() {
@@ -8549,6 +8579,9 @@ class AdminApp {
                 });
 
                 container.innerHTML = this.renderProductsTable(filteredProducts);
+                this.setupProductsBulkActions();
+                this.syncProductsSelectAllCheckbox();
+                this.updateProductsBulkBar();
                 // Update pagination after rendering
                 this.renderProductsPagination();
             } else {
@@ -8569,7 +8602,10 @@ class AdminApp {
             const n = typeof v === 'string' ? parseFloat(v) : Number(v);
             return Number.isFinite(n) ? `$${n.toFixed(2)}` : '—';
         };
+        const pageIds = products.map((p) => Number(p.id));
+        const allPageSelected = pageIds.length > 0 && pageIds.every((id) => this.selectedProductIds.has(id));
         const rows = products.map((product) => {
+            const productId = Number(product.id);
             const name = esc(product.name || '');
             const cat = esc(product.category_name || 'No category');
             const brand = esc(product.brand_name || 'Unknown');
@@ -8583,8 +8619,14 @@ class AdminApp {
                 product.show_on_web === 'true' ||
                 product.show_on_web == null;
             const lowStock = product.inventory_quantity <= (product.low_stock_threshold || 10);
+            const isSelected = this.selectedProductIds.has(productId);
             return `
-                <tr>
+                <tr class="${isSelected ? 'admin-row-selected' : ''}">
+                    <td class="col-select">
+                        <input type="checkbox" class="product-row-select"
+                            data-product-id="${productId}" data-hm-choice-skip
+                            aria-label="Select ${name}"${isSelected ? ' checked' : ''}>
+                    </td>
                     <td class="col-sku"><code title="${esc(product.sku)}">${esc(product.sku)}</code></td>
                     <td class="product-name-cell">
                         <span class="product-name-primary" title="${name}">${name}</span>
@@ -8619,21 +8661,27 @@ class AdminApp {
         }).join('');
 
         return `
-            <div class="admin-products-table-wrap table-container" tabindex="0" role="region" aria-label="Product list">
+            <div class="admin-products-table-wrap hm-choice-skip table-container" tabindex="0" role="region" aria-label="Product list"
+                data-hm-choice-skip data-page-product-ids="${esc(pageIds.join(','))}">
                 <table class="table">
                     <colgroup>
-                        <col style="width:7%">
-                        <col style="width:34%">
-                        <col style="width:14%">
-                        <col style="width:8%">
-                        <col style="width:8%">
-                        <col style="width:7%">
+                        <col style="width:3%">
+                        <col style="width:11%">
+                        <col style="width:28%">
                         <col style="width:12%">
-                        <col style="width:10%">
+                        <col style="width:8%">
+                        <col style="width:8%">
+                        <col style="width:7%">
+                        <col style="width:11%">
+                        <col style="width:12%">
                     </colgroup>
                     <thead>
                         <tr>
-                            <th>SKU</th>
+                            <th class="col-select" scope="col">
+                                <input type="checkbox" id="productsSelectAll" data-hm-choice-skip
+                                    title="Select all on this page" aria-label="Select all products on this page"${allPageSelected ? ' checked' : ''}>
+                            </th>
+                            <th class="col-sku" scope="col">SKU</th>
                             <th>Name</th>
                             <th>Brand</th>
                             <th>Price</th>
@@ -8647,6 +8695,282 @@ class AdminApp {
                 </table>
             </div>
         `;
+    }
+
+    setupProductsBulkActions() {
+        if (this._productsBulkBound) return;
+        this._productsBulkBound = true;
+
+        const tableHost = document.getElementById('productsTable');
+
+        tableHost?.addEventListener('change', (e) => {
+            const target = e.target;
+            if (target.classList?.contains('product-row-select')) {
+                const id = Number(target.dataset.productId);
+                if (!Number.isFinite(id)) return;
+                if (target.checked) this.selectedProductIds.add(id);
+                else this.selectedProductIds.delete(id);
+                target.closest('tr')?.classList.toggle('admin-row-selected', target.checked);
+                this.syncProductsSelectAllCheckbox();
+                this.updateProductsBulkBar();
+                return;
+            }
+            if (target.id === 'productsSelectAll') {
+                const wrap = target.closest('.admin-products-table-wrap');
+                const raw = wrap?.dataset.pageProductIds || '';
+                const pageIds = raw.split(',').map((v) => Number(v)).filter((id) => Number.isFinite(id) && id > 0);
+                pageIds.forEach((id) => {
+                    if (target.checked) this.selectedProductIds.add(id);
+                    else this.selectedProductIds.delete(id);
+                });
+                wrap?.querySelectorAll('.product-row-select').forEach((cb) => {
+                    cb.checked = target.checked;
+                    cb.closest('tr')?.classList.toggle('admin-row-selected', target.checked);
+                });
+                this.syncProductsSelectAllCheckbox();
+                this.updateProductsBulkBar();
+            }
+        });
+
+        document.getElementById('productsBulkEditBtn')?.addEventListener('click', () => this.showProductsBulkEditModal());
+        document.getElementById('productsBulkActivate')?.addEventListener('click', () => this.runProductsBulkPreset('activate'));
+        document.getElementById('productsBulkDeactivate')?.addEventListener('click', () => this.runProductsBulkPreset('deactivate'));
+        document.getElementById('productsBulkShowWeb')?.addEventListener('click', () => this.runProductsBulkPreset('show_on_web'));
+        document.getElementById('productsBulkHideWeb')?.addEventListener('click', () => this.runProductsBulkPreset('hide_from_web'));
+        document.getElementById('productsBulkDelete')?.addEventListener('click', () => this.runProductsBulkPreset('delete'));
+        document.getElementById('productsBulkClear')?.addEventListener('click', () => this.clearProductSelection(true));
+    }
+
+    syncProductsSelectAllCheckbox() {
+        const selectAll = document.getElementById('productsSelectAll');
+        const wrap = document.querySelector('#productsTable .admin-products-table-wrap');
+        if (!selectAll || !wrap) return;
+        const raw = wrap.dataset.pageProductIds || '';
+        const pageIds = raw.split(',').map((v) => Number(v)).filter((id) => Number.isFinite(id) && id > 0);
+        if (pageIds.length === 0) {
+            selectAll.checked = false;
+            selectAll.indeterminate = false;
+            return;
+        }
+        const selectedOnPage = pageIds.filter((id) => this.selectedProductIds.has(id)).length;
+        selectAll.checked = selectedOnPage === pageIds.length;
+        selectAll.indeterminate = selectedOnPage > 0 && selectedOnPage < pageIds.length;
+    }
+
+    updateProductsBulkBar() {
+        const bar = document.getElementById('productsBulkBar');
+        const countEl = document.getElementById('productsBulkCount');
+        const count = this.selectedProductIds.size;
+        if (countEl) {
+            countEl.textContent = count === 1 ? '1 product selected' : `${count} products selected`;
+        }
+        if (bar) bar.hidden = count === 0;
+    }
+
+    clearProductSelection(rerender = false) {
+        this.selectedProductIds.clear();
+        this.updateProductsBulkBar();
+        if (rerender) {
+            this.renderFilteredProductsImmediate();
+        } else {
+            document.querySelectorAll('#productsTable .product-row-select').forEach((cb) => {
+                cb.checked = false;
+                cb.closest('tr')?.classList.remove('admin-row-selected');
+            });
+            this.syncProductsSelectAllCheckbox();
+        }
+    }
+
+    async runProductsBulkPreset(action) {
+        const ids = [...this.selectedProductIds];
+        if (!ids.length) {
+            this.showNotification('Select at least one product.', 'error');
+            return;
+        }
+
+        const actionLabels = {
+            activate: 'activate',
+            deactivate: 'deactivate (unavailable)',
+            show_on_web: 'show on the website',
+            hide_from_web: 'hide from the website (store only)',
+            delete: 'permanently delete'
+        };
+
+        const ok = await this.showAdminConfirm({
+            title: 'Apply to selected products?',
+            message: `${actionLabels[action]} ${ids.length} selected product(s)?`,
+            confirmLabel: 'Apply',
+            cancelLabel: 'Cancel',
+            danger: action === 'delete'
+        });
+        if (!ok) return;
+
+        try {
+            const response = await this.apiRequest('/admin/products/bulk', {
+                method: 'POST',
+                body: JSON.stringify({ ids, action })
+            });
+            if (!response) return;
+            this.showNotification(response.message || 'Bulk action completed.', 'success');
+            this.clearProductSelection(false);
+            await this.loadProducts();
+        } catch (error) {
+            this.showNotification('Bulk action failed: ' + (error.message || 'Unknown error'), 'error');
+        }
+    }
+
+    showProductsBulkEditModal() {
+        const ids = [...this.selectedProductIds];
+        if (!ids.length) {
+            this.showNotification('Select at least one product.', 'error');
+            return;
+        }
+
+        const esc = (v) => this.escapeHtml(v);
+        const brandOptions = (this.allBrands || [])
+            .map((b) => `<option value="${b.id}">${esc(b.name)}</option>`)
+            .join('');
+        const categoryOptions = (this.allCategories || this.allCategoriesForFilter || [])
+            .map((c) => `<option value="${c.id}">${esc(c.name)}</option>`)
+            .join('');
+
+        const boolRow = (field, label, defaultOn = true) => `
+            <div class="bulk-edit-row hm-choice-skip">
+                <input type="checkbox" class="bulk-edit-enable" data-field="${field}" id="products-bulk-enable-${field}" data-hm-choice-skip>
+                <label for="products-bulk-enable-${field}">${label}</label>
+                <select class="form-input bulk-edit-value" data-field="${field}" id="products-bulk-value-${field}" disabled data-hm-choice-skip>
+                    <option value="1"${defaultOn ? ' selected' : ''}>Yes</option>
+                    <option value="0"${defaultOn ? '' : ' selected'}>No</option>
+                </select>
+            </div>`;
+
+        const numberRow = (field, label, step = '0.01', placeholder = '') => `
+            <div class="bulk-edit-row hm-choice-skip">
+                <input type="checkbox" class="bulk-edit-enable" data-field="${field}" id="products-bulk-enable-${field}" data-hm-choice-skip>
+                <label for="products-bulk-enable-${field}">${label}</label>
+                <input type="number" class="form-input bulk-edit-value" data-field="${field}" id="products-bulk-value-${field}"
+                    step="${step}" placeholder="${placeholder}" disabled data-hm-choice-skip>
+            </div>`;
+
+        const selectRow = (field, label, optionsHtml) => `
+            <div class="bulk-edit-row hm-choice-skip">
+                <input type="checkbox" class="bulk-edit-enable" data-field="${field}" id="products-bulk-enable-${field}" data-hm-choice-skip>
+                <label for="products-bulk-enable-${field}">${label}</label>
+                <select class="form-input bulk-edit-value" data-field="${field}" id="products-bulk-value-${field}" disabled data-hm-choice-skip>
+                    ${optionsHtml}
+                </select>
+            </div>`;
+
+        const modal = document.createElement('div');
+        modal.className = 'modal products-bulk-edit-modal hm-choice-skip';
+        modal.innerHTML = `
+            <div class="modal-content" style="max-width:42rem;max-height:90vh;display:flex;flex-direction:column;">
+                <div class="modal-header">
+                    <h2>Bulk edit ${ids.length} product(s)</h2>
+                    <button type="button" class="modal-close" aria-label="Close">${HM_CLOSE_ICON_SVG}</button>
+                </div>
+                <div class="modal-body" style="overflow-y:auto;padding:1.25rem 1.5rem;">
+                    <form id="products-bulk-edit-form" class="hm-choice-skip" onsubmit="return false;">
+                    <p class="bulk-edit-hint">Check the fields you want to change. Unchecked fields are left as-is on each product. Names, SKU, and descriptions are not changed here.</p>
+                    <div class="bulk-edit-section">
+                        <h4>Availability &amp; visibility</h4>
+                        ${boolRow('is_active', 'Active (available for sale)', true)}
+                        ${boolRow('show_on_web', 'Show on website', true)}
+                        ${boolRow('is_featured', 'Featured product', false)}
+                        ${boolRow('is_cannabis', 'Cannabis / hemp product', false)}
+                    </div>
+                    <div class="bulk-edit-section">
+                        <h4>Organization</h4>
+                        ${selectRow('brand_id', 'Brand', `<option value="">— Select brand —</option>${brandOptions}`)}
+                        ${selectRow('category_id', 'Category', `<option value="">— Select category —</option>${categoryOptions}`)}
+                    </div>
+                    <div class="bulk-edit-section" style="border-bottom:none;margin-bottom:0;padding-bottom:0;">
+                        <h4>Pricing &amp; inventory</h4>
+                        ${numberRow('price', 'Price ($)', '0.01', 'e.g. 24.99')}
+                        ${numberRow('cost_price', 'Cost ($)', '0.01', 'Leave blank to clear')}
+                        ${numberRow('compare_price', 'Compare at price ($)', '0.01', 'Leave blank to clear')}
+                        ${numberRow('inventory_quantity', 'Stock quantity', '1', 'e.g. 100')}
+                        ${numberRow('low_stock_threshold', 'Low stock alert', '1', 'e.g. 10')}
+                        ${numberRow('weight', 'Weight (oz)', '0.01', 'Leave blank to clear')}
+                    </div>
+                    </form>
+                </div>
+                <div class="form-actions" style="margin:0;padding:1rem 1.5rem;border-top:1px solid var(--gray-200);">
+                    <button type="button" class="btn btn-danger modal-cancel">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="productsBulkEditSubmit">Apply to ${ids.length} product(s)</button>
+                </div>
+            </div>`;
+
+        document.body.appendChild(modal);
+
+        const close = () => modal.remove();
+        modal.querySelector('.modal-close')?.addEventListener('click', close);
+        modal.querySelector('.modal-cancel')?.addEventListener('click', close);
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) close();
+        });
+
+        modal.querySelectorAll('.bulk-edit-enable').forEach((cb) => {
+            cb.addEventListener('change', () => {
+                const field = cb.dataset.field;
+                const valueEl = modal.querySelector(`.bulk-edit-value[data-field="${field}"]`);
+                if (valueEl) valueEl.disabled = !cb.checked;
+            });
+        });
+
+        modal.querySelector('#productsBulkEditSubmit')?.addEventListener('click', async () => {
+            const updates = {};
+            modal.querySelectorAll('.bulk-edit-enable:checked').forEach((cb) => {
+                const field = cb.dataset.field;
+                const valueEl = modal.querySelector(`.bulk-edit-value[data-field="${field}"]`);
+                if (!valueEl) return;
+                let val = valueEl.value;
+                if (['is_active', 'is_featured', 'show_on_web', 'is_cannabis'].includes(field)) {
+                    val = val === '1';
+                } else if (['brand_id', 'category_id', 'inventory_quantity', 'low_stock_threshold'].includes(field)) {
+                    if (val === '' || val == null) return;
+                    val = parseInt(val, 10);
+                } else if (['price', 'cost_price', 'compare_price', 'weight'].includes(field)) {
+                    if (val === '') val = null;
+                    else val = parseFloat(val);
+                }
+                updates[field] = val;
+            });
+
+            if (!Object.keys(updates).length) {
+                this.showNotification('Check at least one field to update.', 'error');
+                return;
+            }
+
+            const fieldCount = Object.keys(updates).length;
+            const ok = await this.showAdminConfirm({
+                title: 'Update selected products?',
+                message: `Change ${fieldCount} setting(s) on ${ids.length} product(s)?`,
+                confirmLabel: 'Update products',
+                cancelLabel: 'Cancel',
+                danger: false
+            });
+            if (!ok) return;
+
+            const submitBtn = modal.querySelector('#productsBulkEditSubmit');
+            if (submitBtn) submitBtn.disabled = true;
+
+            try {
+                const response = await this.apiRequest('/admin/products/bulk', {
+                    method: 'POST',
+                    body: JSON.stringify({ ids, updates })
+                });
+                if (!response) return;
+                this.showNotification(response.message || 'Products updated.', 'success');
+                close();
+                this.clearProductSelection(false);
+                await this.loadProducts();
+            } catch (error) {
+                this.showNotification('Bulk update failed: ' + (error.message || 'Unknown error'), 'error');
+            } finally {
+                if (submitBtn) submitBtn.disabled = false;
+            }
+        });
     }
 
     async loadCategories() {
@@ -11370,6 +11694,7 @@ async function loadProductForEdit(productId) {
 
         if (response.ok) {
             const product = await response.json();
+            const editForm = document.getElementById('edit-product-form');
 
             // Populate form fields
             document.getElementById('edit-sku').value = product.sku || '';
@@ -11441,13 +11766,12 @@ async function loadProductForEdit(productId) {
 
             // Load existing images if available
             if (product.images && Array.isArray(product.images) && product.images.length > 0) {
-                const form = document.getElementById('edit-product-form');
-                if (form && form.selectedImages) {
+                if (editForm && editForm.selectedImages) {
                     // Clear existing images
-                    form.selectedImages.length = 0;
+                    editForm.selectedImages.length = 0;
                     // Add existing images
                     product.images.forEach((img, index) => {
-                        form.selectedImages.push({
+                        editForm.selectedImages.push({
                             url: img.image_url,
                             alt: img.alt_text || '',
                             isPrimary: img.is_primary || index === 0,
@@ -11455,14 +11779,14 @@ async function loadProductForEdit(productId) {
                         });
                     });
                     // Update preview using the stored function
-                    if (form.updateImagePreview) {
-                        form.updateImagePreview();
+                    if (editForm.updateImagePreview) {
+                        editForm.updateImagePreview();
                     }
                 }
             }
 
-            if (form._hmVariantEditor) {
-                form._hmVariantEditor.load(product);
+            if (editForm?._hmVariantEditor) {
+                editForm._hmVariantEditor.load(product);
             }
         } else {
             window.adminApp.showNotification('Failed to load product data', 'error');
@@ -12737,7 +13061,7 @@ async function deleteProduct(productId, productName) {
     }
     const okDel = await app.showAdminConfirm({
         title: 'Delete this product?',
-        message: `Remove “${productName}” from the catalog? This cannot be undone.`,
+        message: `Remove “${name}” from the catalog? This cannot be undone.`,
         confirmLabel: 'Delete product',
         cancelLabel: 'Cancel',
         danger: true,
@@ -12911,6 +13235,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const stationsInput = posLicenseForm.querySelector('[name="licensedStationCount"]');
         if (stationsInput) {
             stationsInput.addEventListener('input', (e) => window.adminApp._updatePosLicensePricingHint(e.target.value));
+        }
+        const failoverInput = posLicenseForm.querySelector('[name="failoverGbUsed"]');
+        if (failoverInput) {
+            failoverInput.addEventListener('input', () => {
+                const stations = Number(stationsInput?.value) || 1;
+                window.adminApp._updatePosLicensePricingHint(stations);
+            });
         }
     }
     const posLicenseReloadBtn = document.getElementById('pos-license-reload-btn');

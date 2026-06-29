@@ -35,6 +35,7 @@ const {
 const { ensureProductVariantSchema } = require('./utils/ensureProductVariantSchema');
 const { ensureShippingSchema } = require('./utils/ensureShippingSchema');
 const { ensurePosSchema } = require('./utils/ensurePosSchema');
+const { ensurePosSignupSchema } = require('./utils/ensurePosSignupSchema');
 const { ensureMenuSchema } = require('./utils/ensureMenuSchema');
 const { ensurePlatformSupportSchema } = require('./utils/ensurePlatformSupportSchema');
 const { ensurePersonnelSchema } = require('./utils/ensurePersonnelSchema');
@@ -79,6 +80,7 @@ const { jsonSafeDeep } = require('./utils/jsonSafeMysql');
 const { buildDbConfig } = require('./utils/dbConfig');
 
 const app = express();
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3001;
 
 // Rate limiting for database error logging (prevent console spam)
@@ -260,7 +262,11 @@ const allowedOrigins = [
     'capacitor://localhost',
     'ionic://localhost',
     'https://businessonecomprehensive.com',
-    'http://businessonecomprehensive.com'
+    'http://businessonecomprehensive.com',
+    'https://www.businessonecomprehensive.com',
+    'http://www.businessonecomprehensive.com',
+    'https://signup.businessonecomprehensive.com',
+    'http://signup.businessonecomprehensive.com'
 ];
 
 // Add production frontend URL if specified
@@ -1849,6 +1855,7 @@ app.use('/api/*', (req, res) => {
     try {
         await ensureShippingSchema(pool);
         await ensurePosSchema(pool);
+        await ensurePosSignupSchema(pool);
         await ensureMenuSchema(pool);
         await ensurePlatformSupportSchema(pool);
         await ensurePersonnelSchema(pool);

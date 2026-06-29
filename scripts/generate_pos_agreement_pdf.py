@@ -29,10 +29,9 @@ PROVIDER_WEBSITE = "https://businessonecomprehensive.com/"
 SINGLE_STATION_RATE = "$100.00"
 ADDITIONAL_STATION_RATE = "$50.00"
 VOLUME_STATION_RATE = "$25.00"
-FAILOVER_BASE_RATE = "$25.00"
 FAILOVER_INCLUDED_DATA = "2 GB"
 FAILOVER_OVERAGE_RATE = "$10.00"
-FAILOVER_OVERAGE_BLOCK = "2 GB"
+FAILOVER_OVERAGE_BLOCK = "1 GB"
 
 DOC_TITLE = "POINT OF SALE (POS) SOFTWARE & SUPPORT AGREEMENT"
 
@@ -80,16 +79,15 @@ def draw_static_value(c, x, y, w, value):
 
 def draw_pricing_box(c, x, y, w):
     draw_label(c, x, y, "Monthly Pricing:")
-    box_h = 68
+    box_h = 57
     draw_field_bg(c, x, y - box_h, w, h=box_h)
     c.setFillColor(colors.black)
     c.setFont("Helvetica", 7.5)
     lines = [
-        f"First station: {SINGLE_STATION_RATE}/month",
+        f"First station: {SINGLE_STATION_RATE}/month (includes {FAILOVER_INCLUDED_DATA} failover internet)",
         f"Stations 2\u20135: {ADDITIONAL_STATION_RATE}/month each",
         f"Station 6 and above: {VOLUME_STATION_RATE}/month each",
-        f"Failover internet: {FAILOVER_BASE_RATE}/month (up to {FAILOVER_INCLUDED_DATA})",
-        f"Failover overage: {FAILOVER_OVERAGE_RATE} per {FAILOVER_OVERAGE_BLOCK} over included",
+        f"After {FAILOVER_INCLUDED_DATA}: {FAILOVER_OVERAGE_RATE}/GB used",
     ]
     ly = y - 13
     for line in lines:
@@ -265,7 +263,7 @@ def page1(c, form):
     c.drawString(
         MARGIN,
         y - 10,
-        f"{PROVIDER_NAME} will provide the following POS software and support services (as selected in your plan):",
+        f"{PROVIDER_NAME} will provide the following POS software and support services:",
     )
     y -= 22
 
@@ -338,11 +336,12 @@ def page2(c, form):
         ),
         (
             "Failover Internet",
-            f"When included in Client's plan, failover internet provides backup connectivity if primary service is "
-            f"unavailable. The base fee is {FAILOVER_BASE_RATE} per month and includes up to {FAILOVER_INCLUDED_DATA} "
-            f"of data. Usage beyond {FAILOVER_INCLUDED_DATA} is billed at {FAILOVER_OVERAGE_RATE} for each additional "
-            f"{FAILOVER_OVERAGE_BLOCK} block (or portion thereof) used during the billing period. Overage charges are "
-            "added to Client's monthly invoice based on measured usage.",
+            f"Failover internet backup connectivity is included with the first station fee and includes "
+            f"{FAILOVER_INCLUDED_DATA} of data per billing period at no extra charge. After the included "
+            f"{FAILOVER_INCLUDED_DATA} is used, each additional {FAILOVER_OVERAGE_BLOCK} is billed at "
+            f"{FAILOVER_OVERAGE_RATE} (or portion thereof). Overage charges are added to Client's monthly "
+            "invoice based on measured usage. Failover internet is a standard part of the first-station "
+            "service and cannot be declined or removed.",
         ),
         (
             "Service Term",
@@ -376,10 +375,11 @@ def page2(c, form):
         f"The first station is {SINGLE_STATION_RATE} per month. Stations 2 through 5 are {ADDITIONAL_STATION_RATE} per month each. "
         f"Each station beyond the fifth is {VOLUME_STATION_RATE} per month "
         "(e.g., 2 stations = $150.00/month; 5 stations = $300.00/month; 6 stations = $325.00/month).",
-        f"Failover internet, when selected, is {FAILOVER_BASE_RATE} per month and includes up to {FAILOVER_INCLUDED_DATA}. "
-        f"Each {FAILOVER_OVERAGE_BLOCK} used beyond the included allowance is billed at {FAILOVER_OVERAGE_RATE} "
-        "(e.g., up to 2 GB = $25.00/month; 3\u20134 GB = $35.00/month; 5\u20136 GB = $45.00/month).",
-        "Fees are billed in advance on the billing cycle selected in Section 2. Failover overages are billed in arrears based on usage.",
+        f"Failover internet is included with the first station fee ({FAILOVER_INCLUDED_DATA} included). "
+        f"After the included {FAILOVER_INCLUDED_DATA} is used, each additional {FAILOVER_OVERAGE_BLOCK} is "
+        f"billed at {FAILOVER_OVERAGE_RATE} "
+        f"(e.g., 3 GB = $10.00; 4 GB = $20.00; 5 GB = $30.00).",
+        "Fees are billed in advance on the billing cycle selected in Section 2. Failover data overages are billed in arrears based on usage.",
         "Monthly fees apply only while services remain active. Client is responsible for charges incurred through the date services end.",
         "Payment is due upon receipt of invoice. Late payments may incur a late fee of 1.5% per month on outstanding balances.",
         "Provider may suspend POS access for accounts more than 15 days past due after written notice to Client.",

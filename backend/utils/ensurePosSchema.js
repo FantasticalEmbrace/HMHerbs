@@ -470,6 +470,10 @@ async function ensurePosSchema(pool) {
         {
             column: 'grace_ended_email_at',
             sql: `ALTER TABLE pos_merchant_license ADD COLUMN grace_ended_email_at TIMESTAMP NULL`
+        },
+        {
+            column: 'failover_gb_used',
+            sql: `ALTER TABLE pos_merchant_license ADD COLUMN failover_gb_used DECIMAL(8,2) NOT NULL DEFAULT 0`
         }
     ];
     await applyColumnPatches(pool, 'pos_merchant_license', LICENSE_PATCHES);

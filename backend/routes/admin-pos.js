@@ -36,6 +36,7 @@ const {
     getDefaultGraceDays,
     getMaxBillingRetries
 } = require('../services/posMerchantLicense');
+const { FAILOVER_INCLUDED_GB, FAILOVER_OVERAGE_PER_GB } = require('../services/posBillingPricing');
 const { scheduleSupportSessionSync } = require('../services/posPlatformSupportSync');
 const { isPlatformHubEnabled } = require('../utils/platformSupportEnv');
 const {
@@ -680,7 +681,10 @@ router.get('/license', async (req, res) => {
                 base: 100,
                 midRate: 50,
                 midThroughStation: 5,
-                volumeRate: 25
+                volumeRate: 25,
+                includesFailoverInternet: true,
+                failoverIncludedGb: FAILOVER_INCLUDED_GB,
+                failoverOveragePerGb: FAILOVER_OVERAGE_PER_GB
             },
             flags: {
                 enforcementEnabled: isLicenseEnforcementEnabled(),
@@ -711,7 +715,8 @@ router.put('/license', async (req, res) => {
             licenseExpiresAt: body.licenseExpiresAt ?? body.license_expires_at,
             nextBillDate: body.nextBillDate ?? body.next_bill_date,
             serviceCompedUntil: body.serviceCompedUntil ?? body.service_comped_until,
-            graceDaysOverride: body.graceDaysOverride ?? body.grace_days_override
+            graceDaysOverride: body.graceDaysOverride ?? body.grace_days_override,
+            failoverGbUsed: body.failoverGbUsed ?? body.failover_gb_used
         });
         res.json({ license });
     } catch (e) {
@@ -722,7 +727,12 @@ router.put('/license', async (req, res) => {
 
 router.post('/license/run-billing', requireAdminOrDeveloper, async (req, res) => {
     try {
-        const result = await runMonthlyBillingForMerchant(req.pool, { force: true });
+        const body = req.body || {};
+        const failoverGbUsed = body.failoverGbUsed ?? body.failover_gb_used;
+        const result = await runMonthlyBillingForMerchant(req.pool, {
+            force: true,
+            ...(failoverGbUsed != null ? { failoverGbUsed } : {})
+        });
         res.json({ result });
     } catch (e) {
         logger.error('POS manual billing run error:', e);

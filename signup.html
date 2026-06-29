@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description"
+        content="Sign up for Business One POS — integrated point of sale for retail and wellness businesses.">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#ff9b1f">
+    <title>Sign up for Business One POS</title>
+    <link rel="icon" type="image/x-icon" href="images/business-one/favicon.ico">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/pos-signup.css">
+</head>
+
+<body>
+    <header class="signup-header">
+        <div class="signup-header__inner">
+            <a class="signup-brand" href="https://businessonecomprehensive.com/" rel="noopener">
+                <img src="images/business-one/logo-big.png" alt="" width="40" height="40">
+                <span>Business One POS</span>
+            </a>
+            <a class="signup-back" href="https://businessonecomprehensive.com/" rel="noopener">← Back to Business One</a>
+        </div>
+    </header>
+
+    <main class="signup-main">
+        <div class="signup-hero">
+            <h1>Get Business One POS</h1>
+            <p>Tell us about your business. We’ll contact you within one business day to finish setup, hardware, and
+                payment processing.</p>
+        </div>
+
+        <div id="signup-form-panel" class="signup-grid">
+            <aside class="signup-pricing" aria-labelledby="pricing-heading">
+                <h2 id="pricing-heading">Simple monthly pricing</h2>
+                <ul>
+                    <li><strong>$100/mo</strong> — 1 register station (includes 2 GB failover internet)</li>
+                    <li><strong>+$50/mo</strong> each for stations 2–5</li>
+                    <li><strong>+$25/mo</strong> each for station 6 and up</li>
+                    <li>After 2 GB: <strong>$10/mo</strong> for each additional GB used</li>
+                </ul>
+                <div class="signup-quote" aria-live="polite">
+                    <div class="signup-quote__label">Your estimate</div>
+                    <div class="signup-quote__amount" id="signup-quote-amount">$100.00/mo</div>
+                    <div class="signup-quote__detail" id="signup-quote-detail">$100 base (1 station, 2 GB failover included)</div>
+                </div>
+                <p class="signup-fineprint">
+                    Payment processing is configured separately with your ISO. This request starts your POS license —
+                    a Business One representative will confirm final pricing and next steps.
+                </p>
+            </aside>
+
+            <div class="signup-form-card">
+                <h2>Request signup</h2>
+                <form id="pos-signup-form" novalidate>
+                    <div class="form-row">
+                        <label for="signup-business">Business name <span aria-hidden="true">*</span></label>
+                        <input type="text" id="signup-business" name="businessName" required maxlength="200"
+                            autocomplete="organization">
+                    </div>
+                    <div class="form-row">
+                        <label for="signup-contact">Contact name <span aria-hidden="true">*</span></label>
+                        <input type="text" id="signup-contact" name="contactName" required maxlength="120"
+                            autocomplete="name">
+                    </div>
+                    <div class="form-row form-row--half">
+                        <div>
+                            <label for="signup-email">Email <span aria-hidden="true">*</span></label>
+                            <input type="email" id="signup-email" name="email" required maxlength="255"
+                                autocomplete="email">
+                        </div>
+                        <div>
+                            <label for="signup-phone">Phone</label>
+                            <input type="tel" id="signup-phone" name="phone" maxlength="40" autocomplete="tel">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <label for="signup-stations">Number of register stations</label>
+                        <select id="signup-stations" name="stationCount" aria-describedby="signup-quote-detail">
+                            <option value="1" selected>1 station</option>
+                            <option value="2">2 stations</option>
+                            <option value="3">3 stations</option>
+                            <option value="4">4 stations</option>
+                            <option value="5">5 stations</option>
+                            <option value="6">6 stations</option>
+                            <option value="8">8 stations</option>
+                            <option value="10">10 stations</option>
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <label for="signup-message">Notes (optional)</label>
+                        <textarea id="signup-message" name="message" rows="3" maxlength="2000"
+                            placeholder="Store location, current processor, timeline…"></textarea>
+                    </div>
+                    <button type="submit" class="signup-submit" id="signup-submit-btn">Submit signup request</button>
+                    <p id="signup-form-msg" class="signup-msg" role="status" aria-live="polite"></p>
+                </form>
+            </div>
+        </div>
+
+        <div id="signup-success-panel" class="signup-success" hidden>
+            <div class="signup-success__icon" aria-hidden="true">✓</div>
+            <h2>Request received</h2>
+            <p id="signup-success-text">Thank you — we’ll be in touch within one business day.</p>
+            <p style="margin-top:1.5rem;">
+                <a href="https://businessonecomprehensive.com/" rel="noopener">Return to Business One</a>
+            </p>
+        </div>
+    </main>
+
+    <footer class="signup-footer">
+        <p>© Business One · <a href="business-one-privacy-policy.html">Privacy Policy</a></p>
+    </footer>
+
+    <script src="js/pos-signup.js" defer></script>
+</body>
+
+</html>

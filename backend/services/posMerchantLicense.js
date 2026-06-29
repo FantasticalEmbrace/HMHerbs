@@ -1,7 +1,7 @@
 'use strict';
 
 const logger = require('../utils/logger');
-const { calculateMonthlyAmount, describeMonthlyPricing } = require('./posBillingPricing');
+const { calculateMonthlyAmount, describeMonthlyPricing, describeBillingBreakdown } = require('./posBillingPricing');
 const { isPlatformBillingConfigured } = require('../utils/platformBillingEnv');
 const { billingPortalUrl, sendPaymentFailedEmail, sendGraceEndedEmail, sendPaymentSucceededEmail, sendPastDueWaivedEmail } = require('./posBillingEmail');
 const { revokeAllDevices } = require('./posDeviceRegistry');
@@ -86,7 +86,8 @@ function getPastDueOwed(license) {
 function mapLicenseRow(row) {
     if (!row) return null;
     const licensedStationCount = Math.max(1, Number(row.licensed_station_count) || 1);
-    const pricing = describeMonthlyPricing(licensedStationCount);
+    const failoverGbUsed = Math.max(0, Number(row.failover_gb_used) || 0);
+    const pricing = describeBillingBreakdown(licensedStationCount, failoverGbUsed);
     const serviceCompedUntil = row.service_comped_until
         ? String(row.service_comped_until).slice(0, 10)
         : null;
@@ -97,6 +98,7 @@ function mapLicenseRow(row) {
         id: row.id,
         status: row.status,
         licensedStationCount,
+        failoverGbUsed,
         businessName: row.business_name || '',
         billingEmail: row.billing_email || '',
         paymentMethodType: row.payment_method_type || 'none',
@@ -116,8 +118,11 @@ function mapLicenseRow(row) {
             : null,
         graceDaysOverride,
         monthlyAmount: pricing.monthlyAmount,
+        subscriptionAmount: pricing.subscriptionAmount,
+        failoverOverageAmount: pricing.failoverOverageAmount,
         pricingSummary: pricing.summary,
         monthlyFormatted: pricing.formatted,
+        failoverIncludedGb: pricing.failover.includedGb,
         enforcementEnabled: isLicenseEnforcementEnabled(),
         platformBillingConfigured: isPlatformBillingConfigured(),
         billingDryRun: isBillingDryRun(),
@@ -361,6 +366,12 @@ async function updateMerchantLicense(pool, patch) {
         fields.push('grace_days_override = ?');
         values.push(g === '' || g == null ? null : Math.max(0, Math.min(30, Math.floor(Number(g) || 0))));
     }
+    if (patch.failoverGbUsed !== undefined || patch.failover_gb_used !== undefined) {
+        const raw = patch.failoverGbUsed ?? patch.failover_gb_used;
+        const gb = Math.max(0, Math.min(9999, Number(raw) || 0));
+        fields.push('failover_gb_used = ?');
+        values.push(Math.round(gb * 100) / 100);
+    }
 
     if (!fields.length) {
         return loadMerchantLicense(pool);
@@ -480,9 +491,20 @@ async function saveBillingVault(pool, { paymentToken, billingEmail, businessName
     return loadMerchantLicense(pool);
 }
 
-function computeChargeBreakdown(license) {
-    const gross = calculateMonthlyAmount(license.licensedStationCount);
-    return { gross, creditApplied: 0, chargeAmount: gross };
+function computeChargeBreakdown(license, { failoverGbUsed } = {}) {
+    const gb =
+        failoverGbUsed != null
+            ? Math.max(0, Number(failoverGbUsed) || 0)
+            : Math.max(0, Number(license.failoverGbUsed) || 0);
+    const breakdown = describeBillingBreakdown(license.licensedStationCount, gb);
+    return {
+        subscription: breakdown.subscriptionAmount,
+        failoverOverage: breakdown.failoverOverageAmount,
+        failoverGbUsed: gb,
+        gross: breakdown.monthlyAmount,
+        creditApplied: 0,
+        chargeAmount: breakdown.monthlyAmount
+    };
 }
 
 async function recordChargeSuccess(pool, { grossAmount }) {
@@ -500,6 +522,7 @@ async function recordChargeSuccess(pool, { grossAmount }) {
             billing_retry_count = 0,
             next_billing_retry_at = NULL,
             grace_ended_email_at = NULL,
+            failover_gb_used = 0,
             updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`,
         [grossAmount, renew, todayDateString(nextBill), LICENSE_ID]
@@ -547,22 +570,37 @@ async function maybeSendPaymentFailedEmail(pool, license, { amount }) {
     );
 }
 
-async function attemptMerchantCharge(pool, license, { reason = 'monthly' } = {}) {
+async function attemptMerchantCharge(pool, license, { reason = 'monthly', failoverGbUsed } = {}) {
     const dryRun = isBillingDryRun();
-    const { gross, chargeAmount } = computeChargeBreakdown(license);
+    const { gross, chargeAmount, subscription, failoverOverage, failoverGbUsed: gbUsed } =
+        computeChargeBreakdown(license, { failoverGbUsed });
 
     if (!license.hasBillingVault) {
-        return { skipped: true, reason: 'no_vault', amount: gross, chargeAmount, dryRun };
+        return {
+            skipped: true,
+            reason: 'no_vault',
+            amount: gross,
+            subscription,
+            failoverOverage,
+            failoverGbUsed: gbUsed,
+            chargeAmount,
+            dryRun
+        };
     }
 
     if (dryRun) {
+        const overageLine =
+            failoverOverage > 0 ? ` + $${failoverOverage.toFixed(2)} failover overage (${gbUsed} GB)` : '';
         return {
             skipped: true,
             reason: 'dry_run',
             amount: gross,
+            subscription,
+            failoverOverage,
+            failoverGbUsed: gbUsed,
             chargeAmount: gross,
             dryRun: true,
-            message: `Would charge $${gross.toFixed(2)} (${reason})`
+            message: `Would charge $${gross.toFixed(2)} ($${subscription.toFixed(2)} subscription${overageLine}) (${reason})`
         };
     }
 
@@ -587,6 +625,9 @@ async function attemptMerchantCharge(pool, license, { reason = 'monthly' } = {})
         return {
             ok: true,
             amount: gross,
+            subscription,
+            failoverOverage,
+            failoverGbUsed: gbUsed,
             chargedAmount: chargeAmount,
             transactionId: sale.transactionId,
             license: updated
@@ -599,6 +640,9 @@ async function attemptMerchantCharge(pool, license, { reason = 'monthly' } = {})
     return {
         ok: false,
         amount: gross,
+        subscription,
+        failoverOverage,
+        failoverGbUsed: gbUsed,
         chargedAmount: chargeAmount,
         responseText: sale.responseText,
         code: 'CHARGE_FAILED',
@@ -606,9 +650,9 @@ async function attemptMerchantCharge(pool, license, { reason = 'monthly' } = {})
     };
 }
 
-async function runMonthlyBillingForMerchant(pool, { force = false } = {}) {
+async function runMonthlyBillingForMerchant(pool, { force = false, failoverGbUsed } = {}) {
     const license = await loadMerchantLicense(pool);
-    const amount = calculateMonthlyAmount(license.licensedStationCount);
+    const { gross: amount, subscription, failoverOverage } = computeChargeBreakdown(license, { failoverGbUsed });
     const dryRun = isBillingDryRun();
 
     if (isCompedActive(license)) {
@@ -616,6 +660,8 @@ async function runMonthlyBillingForMerchant(pool, { force = false } = {}) {
             skipped: true,
             reason: 'comped',
             amount,
+            subscription,
+            failoverOverage,
             compedUntil: license.serviceCompedUntil,
             dryRun
         };
@@ -627,12 +673,17 @@ async function runMonthlyBillingForMerchant(pool, { force = false } = {}) {
             skipped: true,
             reason: 'not_due',
             amount,
+            subscription,
+            failoverOverage,
             nextBillDate: license.nextBillDate,
             dryRun
         };
     }
 
-    return attemptMerchantCharge(pool, license, { reason: force ? 'manual' : 'monthly' });
+    return attemptMerchantCharge(pool, license, {
+        reason: force ? 'manual' : 'monthly',
+        failoverGbUsed
+    });
 }
 
 async function processBillingRetries(pool) {

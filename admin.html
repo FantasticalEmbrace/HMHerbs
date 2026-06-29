@@ -769,11 +769,19 @@
             text-align: center;
         }
 
+        .admin-products-table-wrap .col-sku {
+            white-space: nowrap;
+            min-width: 6.5rem;
+        }
+
         .admin-products-table-wrap .col-sku code {
             font-size: 0.75rem;
-            word-break: break-all;
-            white-space: normal;
-            line-height: 1.2;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: block;
+            max-width: 100%;
+            line-height: 1.3;
         }
 
         .admin-products-table-wrap .status-inline {
@@ -794,6 +802,99 @@
         .admin-products-table-wrap .admin-row-actions .btn-sm {
             min-width: 2rem;
             padding: 0.35rem 0.45rem;
+        }
+
+        .admin-products-table-wrap .col-select {
+            width: 2.5rem;
+            text-align: center;
+            padding-left: 0.35rem;
+            padding-right: 0.35rem;
+        }
+
+        .admin-products-table-wrap .col-select input[type="checkbox"] {
+            width: 1.05rem;
+            height: 1.05rem;
+            margin: 0;
+            cursor: pointer;
+            accent-color: var(--primary-green, #10b981);
+            vertical-align: middle;
+        }
+
+        .admin-products-bulk-bar {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            flex-wrap: wrap;
+            margin-bottom: 1rem;
+            padding: 0.85rem 1rem;
+            background: linear-gradient(180deg, #ecfdf5 0%, #f0fdf4 100%);
+            border: 2px solid var(--primary-green, #10b981);
+            border-radius: var(--border-radius-lg);
+            box-shadow: 0 2px 8px rgba(16, 185, 129, 0.12);
+        }
+
+        .admin-products-bulk-bar[hidden] {
+            display: none !important;
+        }
+
+        .admin-products-bulk-count {
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: var(--primary-green-dark, #047857);
+            white-space: nowrap;
+            margin-right: 0.25rem;
+        }
+
+        .admin-products-bulk-divider {
+            width: 1px;
+            height: 1.5rem;
+            background: rgba(16, 185, 129, 0.35);
+            margin: 0 0.15rem;
+        }
+
+        .products-bulk-edit-modal .bulk-edit-section {
+            margin-bottom: 1.5rem;
+            padding-bottom: 1.25rem;
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        .products-bulk-edit-modal .bulk-edit-section h4 {
+            margin: 0 0 0.75rem;
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--primary-green);
+        }
+
+        .products-bulk-edit-modal .bulk-edit-row {
+            display: grid;
+            grid-template-columns: auto 1fr minmax(8rem, 12rem);
+            gap: 0.65rem 0.75rem;
+            align-items: center;
+            margin-bottom: 0.65rem;
+            font-size: 0.9rem;
+        }
+
+        .products-bulk-edit-modal .bulk-edit-row input[type="checkbox"] {
+            width: 1rem;
+            height: 1rem;
+            margin: 0;
+            accent-color: var(--primary-green, #10b981);
+        }
+
+        .products-bulk-edit-modal .bulk-edit-value:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
+        .products-bulk-edit-modal .bulk-edit-hint {
+            margin: 0 0 1rem;
+            font-size: 0.88rem;
+            color: var(--gray-600);
+            line-height: 1.45;
+        }
+
+        .admin-products-table-wrap tr.admin-row-selected {
+            background: rgba(16, 185, 129, 0.06);
         }
 
         @media (max-width: 900px) {
@@ -3161,6 +3262,19 @@
                                 </button>
                             </div>
                         </div>
+                        <div id="productsBulkBar" class="admin-products-bulk-bar hm-choice-skip" hidden>
+                            <span id="productsBulkCount" class="admin-products-bulk-count">0 selected</span>
+                            <button type="button" id="productsBulkEditBtn" class="btn btn-primary btn-sm">
+                                <i class="fas fa-pen-to-square" aria-hidden="true"></i> Edit settings…
+                            </button>
+                            <span class="admin-products-bulk-divider" aria-hidden="true"></span>
+                            <button type="button" id="productsBulkActivate" class="btn btn-secondary btn-sm">Activate</button>
+                            <button type="button" id="productsBulkDeactivate" class="btn btn-secondary btn-sm">Deactivate</button>
+                            <button type="button" id="productsBulkShowWeb" class="btn btn-secondary btn-sm">Show on website</button>
+                            <button type="button" id="productsBulkHideWeb" class="btn btn-secondary btn-sm">Hide from website</button>
+                            <button type="button" id="productsBulkDelete" class="btn btn-danger btn-sm">Delete</button>
+                            <button type="button" id="productsBulkClear" class="btn btn-ghost btn-sm">Clear selection</button>
+                        </div>
                         <div id="productsTable" class="loading">
                             <div class="spinner"></div>
                             Loading products...
@@ -4293,15 +4407,15 @@
                             <h3 style="margin:0 0 0.25rem 0;">Add register-only staff</h3>
                             <p style="margin:0 0 1rem 0;color:var(--gray-600);font-size:0.9rem;">Cashiers who only need a register PIN (no admin login).</p>
                             <form id="register-only-create-form" style="display:grid;gap:0.75rem;max-width:32rem;">
-                                <div class="form-group"><label>Register employee ID</label>
-                                    <input class="form-input" name="employeeCode" required maxlength="8" placeholder="e.g. 1042"></div>
+                                <div class="form-group"><label for="register-only-employee-code">Register employee ID</label>
+                                    <input class="form-input" id="register-only-employee-code" name="employeeCode" required maxlength="8" placeholder="e.g. 1042"></div>
                                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
-                                    <div class="form-group"><label>First name</label><input class="form-input" name="firstName" required></div>
-                                    <div class="form-group"><label>Last name</label><input class="form-input" name="lastName" required></div>
+                                    <div class="form-group"><label for="register-only-first-name">First name</label><input class="form-input" id="register-only-first-name" name="firstName" required></div>
+                                    <div class="form-group"><label for="register-only-last-name">Last name</label><input class="form-input" id="register-only-last-name" name="lastName" required></div>
                                 </div>
-                                <div class="form-group"><label>Email (optional)</label><input class="form-input" name="email" type="email"></div>
-                                <div class="form-group"><label>4-digit register PIN</label>
-                                    <input class="form-input" name="pin" type="password" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" required placeholder="••••"></div>
+                                <div class="form-group"><label for="register-only-email">Email (optional)</label><input class="form-input" id="register-only-email" name="email" type="email"></div>
+                                <div class="form-group"><label for="register-only-pin">4-digit register PIN</label>
+                                    <input class="form-input" id="register-only-pin" name="pin" type="password" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" required placeholder="••••"></div>
                                 <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;"><input type="checkbox" name="canAuthorize" value="true"> Can approve line and sale discounts (manager PIN)</label>
                                 <label id="register-refund-permission-row" style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;"><input type="checkbox" name="canProcessRefunds" value="true"> Can process refunds <span style="color:var(--gray-600);font-weight:400;">(Admin/Developer only)</span></label>
                                 <button type="submit" class="btn btn-secondary"><i class="fas fa-cash-register"></i> Add register-only employee</button>
@@ -4335,11 +4449,11 @@
                     <div class="card"><div class="card-content">
                         <h3 style="margin:0 0 1rem;">Schedule shift</h3>
                         <form id="pos-schedule-shift-form" style="display:grid;gap:0.75rem;max-width:32rem;">
-                            <div class="form-group"><label>Employee</label>
+                            <div class="form-group"><label for="pos-shift-employee">Employee</label>
                                 <select class="form-input" name="employeeId" id="pos-shift-employee" required></select></div>
-                            <div class="form-group"><label>Starts</label><input class="form-input" name="startsAt" type="datetime-local" required></div>
-                            <div class="form-group"><label>Ends</label><input class="form-input" name="endsAt" type="datetime-local" required></div>
-                            <div class="form-group"><label>Notes</label><input class="form-input" name="notes" maxlength="500"></div>
+                            <div class="form-group"><label for="pos-shift-starts">Starts</label><input class="form-input" id="pos-shift-starts" name="startsAt" type="datetime-local" required></div>
+                            <div class="form-group"><label for="pos-shift-ends">Ends</label><input class="form-input" id="pos-shift-ends" name="endsAt" type="datetime-local" required></div>
+                            <div class="form-group"><label for="pos-shift-notes">Notes</label><input class="form-input" id="pos-shift-notes" name="notes" maxlength="500"></div>
                             <button type="submit" class="btn btn-primary">Schedule shift</button>
                         </form>
                     </div></div>
@@ -4892,7 +5006,7 @@
                         <div class="card-content">
                             <h3 style="margin:0 0 0.35rem 0;">Business One POS license</h3>
                             <p style="margin:0 0 1rem 0;color:var(--gray-600);font-size:0.88rem;">
-                                $100/mo base (1 station) · +$50/mo stations 2–5 · +$25/mo station 6+.
+                                $100/mo first station (includes 2 GB failover internet) · +$50/mo stations 2–5 · +$25/mo station 6+ · $10/mo for each GB used after 2 GB.
                                 Billing via EPI when platform keys are configured. Enforcement is <strong>off</strong> until you set <code>POS_LICENSE_ENFORCE=true</code> on the server.
                             </p>
                             <p style="margin:0 0 1rem 0;color:var(--gray-600);font-size:0.88rem;">
@@ -4913,6 +5027,13 @@
                                     <label for="pos-license-stations">Licensed stations</label>
                                     <input class="form-input" id="pos-license-stations" name="licensedStationCount" type="number" min="1" max="99" step="1" value="1" style="max-width:8rem;">
                                     <p id="pos-license-pricing-hint" style="margin:0.35rem 0 0;color:var(--gray-600);font-size:0.85rem;"></p>
+                                </div>
+                                <div class="form-group">
+                                    <label for="pos-license-failover-gb">Failover data used this period (GB)</label>
+                                    <input class="form-input" id="pos-license-failover-gb" name="failoverGbUsed" type="number" min="0" max="9999" step="0.1" value="0" style="max-width:8rem;">
+                                    <p style="margin:0.35rem 0 0;color:var(--gray-600);font-size:0.85rem;">
+                                        First station includes 2 GB failover internet in the $100/mo fee. Each GB used after that adds $10 to the bill. Clears after a successful charge.
+                                    </p>
                                 </div>
                                 <div class="form-group">
                                     <label for="pos-license-comped">Service comped until</label>
@@ -5013,14 +5134,14 @@
                         <p id="pos-support-connect-machine" style="margin:0 0 0.5rem 0;font-weight:600;"></p>
                         <p style="margin:0 0 0.75rem 0;color:var(--gray-600);font-size:0.88rem;">Open RustDesk on your PC or use the browser link. The customer machine must stay on.</p>
                         <div class="form-group">
-                            <label>Remote ID</label>
+                            <label for="pos-support-rd-id">Remote ID</label>
                             <div style="display:flex;gap:0.5rem;">
                                 <input class="form-input" id="pos-support-rd-id" readonly>
                                 <button type="button" class="btn btn-secondary btn-sm" id="pos-support-copy-id">Copy</button>
                             </div>
                         </div>
                         <div class="form-group">
-                            <label>Password</label>
+                            <label for="pos-support-rd-password">Password</label>
                             <div style="display:flex;gap:0.5rem;">
                                 <input class="form-input" id="pos-support-rd-password" readonly type="password">
                                 <button type="button" class="btn btn-secondary btn-sm" id="pos-support-copy-password">Copy</button>

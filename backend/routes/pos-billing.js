@@ -16,7 +16,8 @@ const {
     shouldSkipNmiTokenizationPreflight
 } = require('../utils/nmiEnv');
 const { saveBillingVault, loadMerchantLicense } = require('../services/posMerchantLicense');
-const { describeMonthlyPricing } = require('../services/posBillingPricing');
+const { describeMonthlyPricing, FAILOVER_INCLUDED_GB, FAILOVER_OVERAGE_PER_GB } = require('../services/posBillingPricing');
+const { createPosSignupRequest } = require('../services/posSignupIntake');
 
 function isOpenBillingSetupAllowed() {
     return (
@@ -57,14 +58,49 @@ const setupLimiter = rateLimit({
     message: { error: 'Too many billing setup attempts. Please try again later.', code: 'RATE_LIMITED' }
 });
 
+const signupIntakeLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: 8,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many signup attempts. Please try again later.', code: 'RATE_LIMITED' }
+});
+
+/** Public merchant signup intake (Business One platform — signup.businessonecomprehensive.com) */
+router.post('/signup-intake', signupIntakeLimiter, async (req, res) => {
+    try {
+        const record = await createPosSignupRequest(req.pool, req.body || {}, {
+            signup_ip: req.ip || req.connection?.remoteAddress,
+            signup_user_agent: req.get('User-Agent'),
+            signup_referrer: req.get('Referer')
+        });
+        res.status(201).json({
+            success: true,
+            requestId: record.id,
+            quote: record.quote,
+            message:
+                'Thank you — your request was received. A Business One representative will contact you within one business day to complete setup and billing.'
+        });
+    } catch (e) {
+        const status = e.code === 'VALIDATION' ? 400 : 500;
+        res.status(status).json({ error: e.message, code: e.code || 'SIGNUP_FAILED' });
+    }
+});
+
 /** Public pricing summary for signup page */
 router.get('/pricing', (req, res) => {
     const stations = Math.max(1, Math.min(99, Number(req.query.stations) || 1));
     res.json({
         tiers: {
-            base: { stations: 1, monthly: 100 },
+            base: { stations: 1, monthly: 100, includesFailoverInternet: true, failoverIncludedGb: FAILOVER_INCLUDED_GB },
             mid: { stations: '2–5', ratePerStation: 50 },
             volume: { stations: '6+', ratePerStation: 25 }
+        },
+        failover: {
+            includedWithFirstStation: true,
+            includedGb: FAILOVER_INCLUDED_GB,
+            overagePerGb: FAILOVER_OVERAGE_PER_GB,
+            description: `The first station includes ${FAILOVER_INCLUDED_GB} GB of failover internet. Each additional GB used after that is $${FAILOVER_OVERAGE_PER_GB}.`
         },
         quote: describeMonthlyPricing(stations)
     });

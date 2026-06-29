@@ -1,6 +1,6 @@
 'use strict';
 
-/** Public billing page disabled — billing is admin-only (Point of Sale → License). */
+/** Legacy URL — public signup lives at /signup.html */
 (function () {
-    window.location.replace('/admin.html');
+    window.location.replace('/signup.html');
 })();
