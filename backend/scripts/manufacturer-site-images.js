@@ -27,7 +27,8 @@ const BRAND_WEBSITE_FALLBACKS = [
     { re: /now\s*foods/i, url: 'https://www.nowfoods.com' },
     { re: /terry\s*naturally/i, url: 'https://www.terrynaturally.com' },
     { re: /buried\s*treasure/i, url: 'https://www.buriedtreasure.com' },
-    { re: /north\s*american\s*herb/i, url: 'https://www.northamericanherbandspice.com' }
+    { re: /north\s*american\s*herb/i, url: 'https://www.northamericanherbandspice.com' },
+    { re: /newton/i, url: 'https://www.newtonlabs.net' }
 ];
 
 function normalizeWebsiteUrl(raw) {

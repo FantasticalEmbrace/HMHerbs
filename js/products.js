@@ -111,6 +111,9 @@ class ProductsPage {
             }
             if (healthCategoryParam) {
                 apiUrl += `&healthCategory=${encodeURIComponent(healthCategoryParam)}`;
+                if (!categoryParam) {
+                    apiUrl += `&category=${encodeURIComponent(healthCategoryParam)}`;
+                }
             }
             if (searchParam) {
                 apiUrl += `&search=${encodeURIComponent(searchParam)}`;
@@ -170,14 +173,10 @@ class ProductsPage {
                         brand: product.brand_slug || product.brand_name || '',
                         brandName: product.brand_name || '',
                         description: product.short_description || product.long_description || '',
-                        inventory: product.track_inventory === false || product.track_inventory === 0
-                            ? undefined
-                            : (product.inventory_quantity ?? 0),
+                        inventory: product.inventory_quantity || 0,
                         featured: product.is_featured || false,
-                        inStock: product.in_stock !== false,
-                        canPurchase: product.can_purchase !== false,
-                        isLowStock: Boolean(product.is_low_stock),
-                        lowStockThreshold: Number(product.low_stock_threshold) || 5,
+                        inStock: (product.inventory_quantity || 0) > 0 || product.inventory_quantity === null,
+                        lowStockThreshold: 5,
                         slug: product.slug || ''
                     }));
                     console.log(`Successfully loaded ${this.products.length} products`);
@@ -425,11 +424,18 @@ class ProductsPage {
                     const name = (product.name || '').toLowerCase();
                     const description = (product.description || '').toLowerCase();
                     const category = (product.category || '').toLowerCase();
-                    const brand = (product.brand || '').toLowerCase();
-                    return searchKeywords.every(keyword =>
-                        name.includes(keyword) || description.includes(keyword) ||
-                        category.includes(keyword) || brand.includes(keyword)
-                    );
+                    const brandSlug = (product.brand || '').toLowerCase();
+                    const brandName = (product.brandName || '').toLowerCase();
+                    const brandNameClean = brandName.replace(/[^a-z0-9]/g, '');
+                    return searchKeywords.every(keyword => {
+                        const keywordClean = keyword.replace(/[^a-z0-9]/g, '');
+                        return name.includes(keyword) ||
+                            description.includes(keyword) ||
+                            category.includes(keyword) ||
+                            brandSlug.includes(keyword) ||
+                            brandName.includes(keyword) ||
+                            (keywordClean.length > 0 && brandNameClean.includes(keywordClean));
+                    });
                 });
             }
         }
@@ -634,8 +640,8 @@ class ProductsPage {
         addToCartBtn.appendChild(cartIcon);
         addToCartBtn.appendChild(buttonText);
 
-        // Disable button if not purchasable (out of stock still visible on grid)
-        if (product.canPurchase === false || product.inventory === 0 || product.inStock === false) {
+        // Disable button if out of stock
+        if (product.inventory === 0 || !product.inStock) {
             addToCartBtn.disabled = true;
             addToCartBtn.textContent = 'Out of Stock';
             addToCartBtn.className = 'btn btn-secondary add-to-cart-btn';
@@ -684,7 +690,7 @@ class ProductsPage {
                 statusDiv.classList.add('out-of-stock');
                 icon.className = 'fas fa-times-circle';
                 text.textContent = ' Out of Stock';
-            } else if (inventoryCount <= (product.lowStockThreshold || 5) || product.isLowStock) {
+            } else if (inventoryCount <= (product.lowStockThreshold || 5)) {
                 statusDiv.classList.add('low-stock');
                 icon.className = 'fas fa-exclamation-triangle';
                 text.textContent = ` Only ${inventoryCount} left`;
@@ -905,10 +911,9 @@ class ProductsPage {
         }
 
         // Check inventory availability
-        const isOutOfStock = product.canPurchase === false
-            || ((typeof product.inventory !== 'undefined')
-                ? product.inventory === 0
-                : !product.inStock);
+        const isOutOfStock = (typeof product.inventory !== 'undefined')
+            ? product.inventory === 0
+            : !product.inStock;
 
         if (isOutOfStock) {
             this.showNotification('Product is out of stock', 'error');
@@ -953,7 +958,7 @@ class ProductsPage {
 
         this.updateCartDisplay();
         this.saveCartToStorage();
-        this.showNotification('Added to cart', 'success');
+        this.showNotification(`${product.name} added to cart`, 'success');
     }
 
     removeFromCart(productId) {
@@ -1270,20 +1275,39 @@ class ProductsPage {
     }
 
     showNotification(message, type = 'info') {
-        if (typeof window.hmShowToast === 'function') {
-            window.hmShowToast(message, type);
-            return;
-        }
-        console.info('[Products]', type, message);
-    }
+        const container = document.getElementById('notification-container');
+        if (!container) return;
 
-    pulseCartBadge() {
-        const cartToggle = document.querySelector('.cart-toggle');
-        if (!cartToggle) return;
-        cartToggle.classList.remove('cart-added-pulse');
-        void cartToggle.offsetWidth;
-        cartToggle.classList.add('cart-added-pulse');
-        window.setTimeout(() => cartToggle.classList.remove('cart-added-pulse'), 900);
+        const notification = document.createElement('div');
+        notification.className = `notification notification-${type}`;
+
+        // Create elements safely to prevent XSS
+        const messageSpan = document.createElement('span');
+        messageSpan.className = 'notification-message';
+        messageSpan.textContent = message; // Use textContent instead of innerHTML
+
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'notification-close';
+        closeBtn.type = 'button';
+        closeBtn.setAttribute('aria-label', 'Close notification');
+        closeBtn.innerHTML =
+            '<svg class="cart-close-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M18.3 5.71a1 1 0 0 0-1.41 0L12 10.59 7.11 5.7A1 1 0 0 0 5.7 7.11L10.59 12 5.7 16.89a1 1 0 1 0 1.41 1.41L12 13.41l4.89 4.89a1 1 0 0 0 1.41-1.41L13.41 12l4.89-4.89a1 1 0 0 0 0-1.4z"/></svg>';
+
+        notification.appendChild(messageSpan);
+        notification.appendChild(closeBtn);
+        container.appendChild(notification);
+
+        // Auto remove after 5 seconds
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.remove();
+            }
+        }, 5000);
+
+        // Manual close
+        closeBtn.addEventListener('click', () => {
+            notification.remove();
+        });
     }
 
     showError(message) {

@@ -15,8 +15,7 @@ set -euo pipefail
 
 REPO_URL="${REPO_URL:-}"
 APP_DIR="${APP_DIR:-/var/www/hmherbs}"
-DEPLOY_USER="${DEPLOY_USER:-$SUDO_USER}"
-DEPLOY_USER="${DEPLOY_USER:-root}"
+DEPLOY_USER="${DEPLOY_USER:-${SUDO_USER:-root}}"
 
 if [[ -z "$REPO_URL" && ! -f "$APP_DIR/package.json" ]]; then
     echo "Set REPO_URL to your git repository, or run this script from an existing clone at APP_DIR."

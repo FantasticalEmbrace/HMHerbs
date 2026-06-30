@@ -71,6 +71,11 @@
             min-height: 100%;
         }
 
+        body.admin-layout-locked {
+            overflow: hidden;
+            height: 100vh;
+        }
+
         /* Layout */
 
         .admin-container {
@@ -177,10 +182,13 @@
             padding: 2rem;
             transition: margin-left 0.3s ease;
             height: 100vh;
+            max-height: 100vh;
+            min-height: 0;
             overflow-y: auto;
             overflow-x: hidden;
             -webkit-overflow-scrolling: touch;
             box-sizing: border-box;
+            overscroll-behavior: contain;
         }
 
         .main-content.sidebar-collapsed {
@@ -788,8 +796,17 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            gap: 0.25rem;
-            flex-wrap: nowrap;
+            gap: 0.3rem;
+            flex-wrap: wrap;
+        }
+
+        .admin-products-table-wrap .status-inline .badge-pos,
+        .admin-products-table-wrap .status-inline .badge-web {
+            font-size: 0.68rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            padding: 0.2rem 0.45rem;
+            white-space: nowrap;
         }
 
         .admin-products-table-wrap .admin-row-actions {
@@ -831,10 +848,29 @@
             border: 2px solid var(--primary-green, #10b981);
             border-radius: var(--border-radius-lg);
             box-shadow: 0 2px 8px rgba(16, 185, 129, 0.12);
+            position: sticky;
+            top: 0;
+            z-index: 6;
+        }
+
+        .admin-products-bulk-bar--empty {
+            background: var(--gray-50);
+            border-color: var(--gray-200);
+            box-shadow: none;
+        }
+
+        .admin-products-bulk-bar--empty .admin-products-bulk-count {
+            color: var(--gray-600);
+            font-weight: 500;
         }
 
         .admin-products-bulk-bar[hidden] {
             display: none !important;
+        }
+
+        .admin-products-bulk-bar button:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
         }
 
         .admin-products-bulk-count {
@@ -850,6 +886,46 @@
             height: 1.5rem;
             background: rgba(16, 185, 129, 0.35);
             margin: 0 0.15rem;
+        }
+
+        .admin-products-bulk-group {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            flex-wrap: wrap;
+        }
+
+        .admin-products-bulk-group-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: var(--primary-green-dark, #047857);
+            white-space: nowrap;
+            padding: 0.2rem 0.55rem;
+            border-radius: 999px;
+            background: rgba(16, 185, 129, 0.14);
+            border: 1px solid rgba(16, 185, 129, 0.28);
+        }
+
+        .admin-products-bulk-group-label i {
+            font-size: 0.7rem;
+            opacity: 0.9;
+        }
+
+        .admin-products-bulk-group--website .admin-products-bulk-group-label {
+            color: var(--gray-700);
+            background: rgba(107, 114, 128, 0.1);
+            border-color: rgba(107, 114, 128, 0.22);
+        }
+
+        .admin-products-bulk-bar--empty .admin-products-bulk-group-label {
+            color: var(--gray-500);
+            background: var(--gray-100);
+            border-color: var(--gray-200);
         }
 
         .products-bulk-edit-modal .bulk-edit-section {
@@ -2325,6 +2401,61 @@
             overflow: visible;
         }
 
+        #marketing.content-section {
+            padding-bottom: 0;
+            margin-bottom: 0;
+        }
+
+        #marketing .admin-section-stack {
+            padding-bottom: 0;
+            margin-bottom: 0;
+        }
+
+        #marketing .admin-section-stack > .card:last-child {
+            margin-bottom: 0;
+        }
+
+        #promo-checkout-card .card-content {
+            padding-bottom: 1.25rem;
+        }
+
+        .modal-backdrop.hidden,
+        .modal-backdrop[hidden] {
+            display: none !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
+        }
+
+        /* Inactive admin sections are parked here — must not affect main scroll height */
+        #admin-section-storage {
+            display: none !important;
+            height: 0 !important;
+            width: 0 !important;
+            overflow: hidden !important;
+            position: fixed !important;
+            left: -10000px !important;
+            top: 0 !important;
+            pointer-events: none !important;
+            visibility: hidden !important;
+        }
+
+        .main-content > .content-section.active {
+            width: 100%;
+        }
+
+        /* Vendors: expanded CSV import <details> must not be clipped by .card overflow:hidden */
+        #vendors .admin-section-stack > .card {
+            overflow: visible;
+        }
+
+        #vendors .admin-section-stack > .card > .card-content {
+            overflow: visible;
+        }
+
+        #vendors details[open] {
+            overflow: visible;
+        }
+
         .personnel-table-wrap {
             overflow-x: auto;
             border: 1px solid var(--gray-200);
@@ -2742,6 +2873,8 @@
         /* Checkout promotion editor — modal */
         .promo-editor-modal[hidden] {
             display: none !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
         }
 
         .promo-editor-modal {
@@ -2753,6 +2886,12 @@
             justify-content: center;
             padding: 1rem;
             box-sizing: border-box;
+            margin: 0;
+            pointer-events: none;
+        }
+
+        .promo-editor-modal:not([hidden]) {
+            pointer-events: auto;
         }
 
         .promo-editor-modal__backdrop {
@@ -2806,6 +2945,7 @@
 </head>
 
 <body>
+    <div id="admin-section-storage" hidden aria-hidden="true"></div>
     <!-- Login Screen -->
     <div id="loginScreen" class="login-container">
         <div class="login-card">
@@ -3181,10 +3321,6 @@
                             <i class="fas fa-file-csv"></i>
                             Download catalog backup
                         </button>
-                        <button type="button" class="btn btn-secondary" onclick="scrapeProducts()">
-                            <i class="fas fa-download"></i>
-                            Scrape HM Herbs
-                        </button>
                         <button type="button" class="btn btn-secondary" onclick="matchProductsToBrands()"
                             id="matchBrandsBtn">
                             <i class="fas fa-link"></i>
@@ -3262,18 +3398,30 @@
                                 </button>
                             </div>
                         </div>
-                        <div id="productsBulkBar" class="admin-products-bulk-bar hm-choice-skip" hidden>
-                            <span id="productsBulkCount" class="admin-products-bulk-count">0 selected</span>
-                            <button type="button" id="productsBulkEditBtn" class="btn btn-primary btn-sm">
+                        <div id="productsBulkBar" class="admin-products-bulk-bar admin-products-bulk-bar--empty hm-choice-skip" role="region" aria-label="Bulk product actions for POS register and website">
+                            <span id="productsBulkCount" class="admin-products-bulk-count">Select products below — bulk actions for POS register and website</span>
+                            <button type="button" id="productsBulkEditBtn" class="btn btn-primary btn-sm" disabled>
                                 <i class="fas fa-pen-to-square" aria-hidden="true"></i> Edit settings…
                             </button>
                             <span class="admin-products-bulk-divider" aria-hidden="true"></span>
-                            <button type="button" id="productsBulkActivate" class="btn btn-secondary btn-sm">Activate</button>
-                            <button type="button" id="productsBulkDeactivate" class="btn btn-secondary btn-sm">Deactivate</button>
-                            <button type="button" id="productsBulkShowWeb" class="btn btn-secondary btn-sm">Show on website</button>
-                            <button type="button" id="productsBulkHideWeb" class="btn btn-secondary btn-sm">Hide from website</button>
-                            <button type="button" id="productsBulkDelete" class="btn btn-danger btn-sm">Delete</button>
-                            <button type="button" id="productsBulkClear" class="btn btn-ghost btn-sm">Clear selection</button>
+                            <div class="admin-products-bulk-group admin-products-bulk-group--pos" role="group" aria-label="POS register">
+                                <span class="admin-products-bulk-group-label" title="Whether the product can be sold at the in-store register">
+                                    <i class="fas fa-cash-register" aria-hidden="true"></i> POS
+                                </span>
+                                <button type="button" id="productsBulkActivate" class="btn btn-secondary btn-sm" disabled title="Enable selected products on the POS register">Activate on POS</button>
+                                <button type="button" id="productsBulkDeactivate" class="btn btn-secondary btn-sm" disabled title="Disable selected products on the POS register">Deactivate on POS</button>
+                            </div>
+                            <span class="admin-products-bulk-divider" aria-hidden="true"></span>
+                            <div class="admin-products-bulk-group admin-products-bulk-group--website" role="group" aria-label="Website storefront">
+                                <span class="admin-products-bulk-group-label" title="Whether the product appears on hmherbs.com">
+                                    <i class="fas fa-globe" aria-hidden="true"></i> Website
+                                </span>
+                                <button type="button" id="productsBulkShowWeb" class="btn btn-secondary btn-sm" disabled title="Show selected products on the website">Show on website</button>
+                                <button type="button" id="productsBulkHideWeb" class="btn btn-secondary btn-sm" disabled title="Hide selected products from the website (in-store only)">Hide from website</button>
+                            </div>
+                            <span class="admin-products-bulk-divider" aria-hidden="true"></span>
+                            <button type="button" id="productsBulkDelete" class="btn btn-danger btn-sm" disabled>Delete</button>
+                            <button type="button" id="productsBulkClear" class="btn btn-ghost btn-sm" disabled>Clear selection</button>
                         </div>
                         <div id="productsTable" class="loading">
                             <div class="spinner"></div>
@@ -3374,10 +3522,19 @@
             <section id="orders" class="content-section">
                 <div class="content-header">
                     <h1 class="page-title">Orders</h1>
+                    <div class="button-group">
+                        <button type="button" class="btn btn-secondary" onclick="window.adminApp.loadOrders()">
+                            <i class="fas fa-sync-alt"></i>
+                            Refresh
+                        </button>
+                    </div>
                 </div>
 
                 <div class="card">
                     <div class="card-content">
+                        <p class="form-help" style="margin:0 0 1rem;color:var(--gray-600);">
+                            Webstore and online checkout orders. POS register sales appear under POS when enabled.
+                        </p>
                         <div id="ordersTable" class="loading">
                             <div class="spinner"></div>
                             Loading orders...
@@ -3708,7 +3865,7 @@
             <section id="categories" class="content-section">
                 <div class="content-header">
                     <h1 class="page-title">Categories</h1>
-                    <div class="button-group">
+                    <div class="button-group" id="categoriesAddButtonGroup">
                         <button type="button" class="btn btn-primary" onclick="showAddCategory()">
                             <i class="fas fa-plus"></i>
                             Add Category
@@ -3718,6 +3875,18 @@
 
                 <div class="card">
                     <div class="card-content">
+                        <div class="category-type-tabs" style="display:flex;gap:0.5rem;margin-bottom:1.25rem;border-bottom:1px solid var(--gray-200);padding-bottom:0.75rem;">
+                            <button type="button" class="btn btn-sm btn-primary" id="categoriesTabShop" data-category-tab="shop">
+                                Shop Categories
+                            </button>
+                            <button type="button" class="btn btn-sm btn-secondary" id="categoriesTabHealth" data-category-tab="health">
+                                Health Categories
+                            </button>
+                        </div>
+                        <p id="healthCategoriesHelp" style="display:none;margin:0 0 1rem;color:var(--gray-600);font-size:0.9rem;">
+                            Health categories appear on the storefront categories page (e.g. Male, Female, Immune). Products can belong to multiple health categories.
+                        </p>
+                        <div id="shopCategoriesPanel">
                         <div
                             style="margin-bottom: 1.5rem; display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-end;">
                             <div style="position: relative; flex: 1; min-width: 250px; max-width: 400px;">
@@ -3773,6 +3942,13 @@
                             Loading categories...
                         </div>
                         <div id="categoriesPagination"></div>
+                        </div>
+                        <div id="healthCategoriesPanel" style="display:none;">
+                            <div id="healthCategoriesTable" class="loading">
+                                <div class="spinner"></div>
+                                Loading health categories...
+                            </div>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -4096,14 +4272,15 @@
                     </div>
                 </div>
 
-                <div class="card" id="promo-checkout-card" style="overflow:visible;">
-                    <div class="card-content" style="overflow:visible;">
+                <div class="card" id="promo-checkout-card">
+                    <div class="card-content">
                         <h3 style="margin: 0 0 1rem 0;">Checkout promotions</h3>
                         <div style="overflow-x: auto;">
                             <table class="data-table" style="width:100%;border-collapse:collapse;">
                                 <thead>
                                     <tr>
                                         <th style="text-align:left;padding:0.5rem;border-bottom:1px solid var(--gray-200)">Code</th>
+                                        <th style="text-align:left;padding:0.5rem;border-bottom:1px solid var(--gray-200)">Channel</th>
                                         <th style="text-align:left;padding:0.5rem;border-bottom:1px solid var(--gray-200)">Active</th>
                                         <th style="text-align:left;padding:0.5rem;border-bottom:1px solid var(--gray-200)">Description</th>
                                         <th style="text-align:left;padding:0.5rem;border-bottom:1px solid var(--gray-200)">&nbsp;</th>
@@ -4120,232 +4297,6 @@
                                 <i class="fas fa-plus" aria-hidden="true"></i> New promotion
                             </button>
                             <span style="font-size:0.85rem;color:var(--gray-600);">Create or use <strong>Edit</strong> on a row to change codes, dates, and rules in a popup.</span>
-                        </div>
-
-                        <div id="promo-editor-modal" class="promo-editor-modal" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="promo-editor-title">
-                            <div class="promo-editor-modal__backdrop" id="promo-editor-modal-backdrop" tabindex="-1"></div>
-                            <div class="promo-editor-modal__dialog card" id="promo-editor-card" style="margin:0;box-shadow:var(--shadow-lg);border:1px solid var(--gray-200);overflow:visible;">
-                                <div class="card-content" style="padding:0;display:flex;flex-direction:column;max-height:calc(100vh - 2rem);min-height:0;overflow:visible;">
-                                    <div style="padding:1rem 1.25rem;border-bottom:1px solid var(--gray-200);flex-shrink:0;background:var(--white);">
-                                        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem;">
-                                            <h3 id="promo-editor-title" style="margin:0;">New checkout promotion</h3>
-                                            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
-                                                <button type="button" class="btn btn-secondary btn-sm" id="promo-editor-reset-btn"><i class="fas fa-eraser" aria-hidden="true"></i> Clear form</button>
-                                                <button type="button" class="btn btn-secondary btn-sm" id="promo-editor-modal-close" aria-label="Close editor"><i class="fas fa-times" aria-hidden="true"></i> Close</button>
-                                            </div>
-                                        </div>
-                                        <p id="promo-form-msg" style="min-height:1.25rem;font-size:0.9rem;margin:0.5rem 0 0 0;"></p>
-                                    </div>
-                                    <div class="promo-editor-modal__scroll" style="padding:0 1.25rem 1.25rem;overflow-y:auto;flex:1;min-height:0;overflow-x:visible;">
-                                <form id="promo-editor-form" style="margin-top:1rem;">
-                                    <input type="hidden" id="promo-edit-id" value="">
-                                    <div class="form-row">
-                                        <div class="form-group">
-                                            <label class="required" for="promo-form-code">Code</label>
-                                            <input class="form-input" id="promo-form-code" required maxlength="64" placeholder="SUMMERSALE">
-                                            <small class="form-help">Case-insensitive for shoppers; saved in uppercase.</small>
-                                        </div>
-                                        <div class="form-group">
-                                            <label for="promo-form-desc">Description (internal)</label>
-                                            <input class="form-input" id="promo-form-desc" maxlength="500" placeholder="Labor Day — standard shipping waived">
-                                        </div>
-                                    </div>
-                                    <label style="margin-bottom: 1rem; display:block;"><input type="checkbox" id="promo-form-active" checked> Active</label>
-
-                                    <div class="form-row">
-                                        <div class="form-group promo-datetime-group">
-                                            <span class="form-label" id="promo-form-starts-legend">Starts (optional)</span>
-                                            <input type="hidden" id="promo-form-starts" value="">
-                                            <input type="date" class="form-input promo-datetime-date" id="promo-form-starts-date" aria-labelledby="promo-form-starts-legend">
-                                            <div class="promo-time-scroll-row" role="group" aria-label="Start time">
-                                                <div>
-                                                    <label class="promo-time-scroll-label" for="promo-form-starts-hour">Hour</label>
-                                                    <select id="promo-form-starts-hour" class="promo-time-scroll-select" size="8" title="Hour (12-hour)" aria-label="Start hour"></select>
-                                                </div>
-                                                <span class="promo-time-colon" aria-hidden="true">:</span>
-                                                <div>
-                                                    <label class="promo-time-scroll-label" for="promo-form-starts-minute">Minute</label>
-                                                    <select id="promo-form-starts-minute" class="promo-time-scroll-select" size="8" aria-label="Start minute"></select>
-                                                </div>
-                                                <div>
-                                                    <label class="promo-time-scroll-label" for="promo-form-starts-ampm">AM/PM</label>
-                                                    <select id="promo-form-starts-ampm" class="promo-time-scroll-select promo-time-ampm-select" size="8" aria-label="Start AM or PM"></select>
-                                                </div>
-                                            </div>
-                                            <small class="form-help">Leave date empty for no start. Saved in 24-hour time; lists scroll like the old picker.</small>
-                                        </div>
-                                        <div class="form-group promo-datetime-group">
-                                            <span class="form-label" id="promo-form-ends-legend">Ends (optional)</span>
-                                            <input type="hidden" id="promo-form-ends" value="">
-                                            <input type="date" class="form-input promo-datetime-date" id="promo-form-ends-date" aria-labelledby="promo-form-ends-legend">
-                                            <div class="promo-time-scroll-row" role="group" aria-label="End time">
-                                                <div>
-                                                    <label class="promo-time-scroll-label" for="promo-form-ends-hour">Hour</label>
-                                                    <select id="promo-form-ends-hour" class="promo-time-scroll-select" size="8" title="Hour (12-hour)"></select>
-                                                </div>
-                                                <span class="promo-time-colon" aria-hidden="true">:</span>
-                                                <div>
-                                                    <label class="promo-time-scroll-label" for="promo-form-ends-minute">Minute</label>
-                                                    <select id="promo-form-ends-minute" class="promo-time-scroll-select" size="8"></select>
-                                                </div>
-                                                <div>
-                                                    <label class="promo-time-scroll-label" for="promo-form-ends-ampm">AM/PM</label>
-                                                    <select id="promo-form-ends-ampm" class="promo-time-scroll-select promo-time-ampm-select" size="8"></select>
-                                                </div>
-                                            </div>
-                                            <small class="form-help">Leave date empty for no end.</small>
-                                        </div>
-                                    </div>
-                                    <div class="form-row">
-                                        <div class="form-group">
-                                            <label for="promo-form-limit-total">Max total uses (blank = unlimited)</label>
-                                            <input class="form-input" id="promo-form-limit-total" type="number" min="0" step="1">
-                                        </div>
-                                        <div class="form-group">
-                                            <label for="promo-form-limit-email">Max uses per email (blank = unlimited)</label>
-                                            <input class="form-input" id="promo-form-limit-email" type="number" min="0" step="1">
-                                        </div>
-                                    </div>
-
-                                    <hr style="border:none;border-top:1px solid var(--gray-200);margin:1.25rem 0;">
-                                    <h4 style="margin:0 0 1rem 0;">Rules builder</h4>
-                                    <div class="form-group">
-                                        <label for="promo-form-scope">Applies to</label>
-                                        <select class="form-input" id="promo-form-scope">
-                                            <option value="all">All products</option>
-                                            <option value="products">Specific product IDs</option>
-                                            <option value="categories">Specific categories</option>
-                                        </select>
-                                    </div>
-                                    <div id="promo-scope-products" style="display:none;">
-                                        <input type="hidden" id="promo-form-product-ids" value="">
-                                        <div class="form-group">
-                                            <label for="promo-form-product-promo-strategy">Product promotion model</label>
-                                            <select class="form-input" id="promo-form-product-promo-strategy" style="max-width:28rem;">
-                                                <option value="trigger_reward">Trigger SKUs → Reward SKUs</option>
-                                                <option value="classic">Classic (eligible cart + optional buy/get)</option>
-                                            </select>
-                                            <small class="form-help">Trigger/Reward applies discounts only after the buyer meets a minimum quantity of trigger SKUs in the cart. Each reward row can target different SKUs with its own discount type (% / $ / set price).</small>
-                                        </div>
-                                        <div id="promo-panel-trigger-reward" style="display:none;">
-                                            <div class="form-group" style="padding:0.75rem;border:1px solid var(--gray-200);border-radius:var(--border-radius);background:var(--gray-50);">
-                                                <strong style="display:block;margin-bottom:0.5rem;">Trigger group</strong>
-                                                <label for="promo-trigger-prod-q">Trigger SKUs</label>
-                                                <div id="promo-trigger-chips" class="promo-prod-chips" aria-live="polite"></div>
-                                                <div class="promo-prod-search-wrap">
-                                                    <input type="text" class="form-input" id="promo-trigger-prod-q" autocomplete="off" placeholder="Products that must be in cart…">
-                                                    <div id="promo-trigger-results" class="promo-prod-results-local promo-product-link-results-panel" role="listbox" aria-label="Matching products" hidden></div>
-                                                </div>
-                                                <div class="form-group" style="margin-top:0.75rem;margin-bottom:0;">
-                                                    <label for="promo-form-trigger-min-qty">Minimum trigger quantity</label>
-                                                    <input class="form-input" type="number" min="1" step="1" id="promo-form-trigger-min-qty" placeholder="e.g. 1" style="max-width:10rem;">
-                                                    <small class="form-help">Total units across all Trigger SKUs in the cart.</small>
-                                                </div>
-                                            </div>
-                                            <div style="margin-top:1rem;">
-                                                <strong style="display:block;margin-bottom:0.35rem;">Reward group</strong>
-                                                <small class="form-help">Add one row per target SKU cluster. Each row is evaluated independently so multiple reward lines can coexist on the same promo code.</small>
-                                                <div id="promo-reward-rules-list" style="margin-top:0.75rem;display:flex;flex-direction:column;gap:1rem;"></div>
-                                                <button type="button" class="btn btn-secondary btn-sm" id="promo-add-reward-rule-btn" style="margin-top:0.65rem;">+ Add reward SKU group</button>
-                                            </div>
-                                        </div>
-                                        <div id="promo-panel-classic-products" style="display:none;">
-                                            <div class="form-group">
-                                                <label for="promo-scope-prod-q">Eligible products — search</label>
-                                                <div id="promo-scope-prod-chips" class="promo-prod-chips" aria-live="polite"></div>
-                                                <div class="promo-prod-search-wrap">
-                                                    <input type="text" class="form-input" id="promo-scope-prod-q" autocomplete="off" placeholder="Type product name or SKU…" aria-autocomplete="list" aria-controls="promo-scope-prod-results">
-                                                    <div id="promo-scope-prod-results" class="promo-prod-results-local promo-product-link-results-panel" role="listbox" aria-label="Matching products" hidden></div>
-                                                </div>
-                                                <small class="form-help">Percent/$ off applies to eligible subtotal. Buy‑get uses these SKUs unless you narrow buy/reward lists below.</small>
-                                            </div>
-                                            <div id="promo-bogo-product-pickers" style="display:none;margin-top:0.75rem;padding-top:0.65rem;border-top:1px dashed var(--gray-200);">
-                                                <p style="font-size:0.85rem;color:var(--gray-600);margin:0 0 0.85rem;">
-                                                    When buy &amp; get quantities are both set — paid vs reward pools.
-                                                </p>
-                                                <div class="form-group">
-                                                    <label for="promo-bogo-buy-q">Paid (buy) products — search</label>
-                                                    <div id="promo-bogo-buy-chips" class="promo-prod-chips" aria-live="polite"></div>
-                                                    <div class="promo-prod-search-wrap">
-                                                        <input type="text" class="form-input" id="promo-bogo-buy-q" autocomplete="off" placeholder="Search product buyers pay for…">
-                                                        <div id="promo-bogo-buy-results" class="promo-prod-results-local promo-product-link-results-panel" role="listbox" hidden></div>
-                                                    </div>
-                                                </div>
-                                                <div class="form-group">
-                                                    <label for="promo-bogo-get-q">Reward (discounted) products — search</label>
-                                                    <div id="promo-bogo-get-chips" class="promo-prod-chips" aria-live="polite"></div>
-                                                    <div class="promo-prod-search-wrap">
-                                                        <input type="text" class="form-input" id="promo-bogo-get-q" autocomplete="off" placeholder="Search discounted item…">
-                                                        <div id="promo-bogo-get-results" class="promo-prod-results-local promo-product-link-results-panel" role="listbox" hidden></div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="form-group" id="promo-scope-categories" style="display:none;">
-                                        <label for="promo-scope-category-add">Categories</label>
-                                        <input type="hidden" id="promo-form-category-ids" value="">
-                                        <select class="form-input" id="promo-scope-category-add" aria-describedby="promo-scope-cat-help" style="max-width:28rem;margin-bottom:0.5rem;">
-                                            <option value="">Choose a category to add…</option>
-                                        </select>
-                                        <div id="promo-scope-cat-chips" class="promo-prod-chips" aria-live="polite"></div>
-                                        <small class="form-help" id="promo-scope-cat-help">Choose one category per selection; add more categories by picking again from the dropdown. Remove with ×.</small>
-                                    </div>
-
-                                    <div id="promo-block-classic-merch-effects">
-                                    <div class="form-row">
-                                        <div class="form-group">
-                                            <label for="promo-form-pct">Percent off eligible subtotal (%)</label>
-                                            <input class="form-input" id="promo-form-pct" type="number" min="0" max="100" step="0.5" placeholder="e.g. 15">
-                                        </div>
-                                        <div class="form-group">
-                                            <label for="promo-form-fixed">Fixed $ off eligible subtotal</label>
-                                            <input class="form-input" id="promo-form-fixed" type="number" min="0" step="0.01" placeholder="e.g. 10">
-                                        </div>
-                                    </div>
-                                    <div class="form-row">
-                                        <div class="form-group">
-                                            <label for="promo-form-buy-qty">Buy quantity (buy-X-get-Y)</label>
-                                            <input class="form-input" id="promo-form-buy-qty" type="number" min="1" step="1" placeholder="2">
-                                        </div>
-                                        <div class="form-group">
-                                            <label for="promo-form-get-qty">Get quantity (reward units)</label>
-                                            <input class="form-input" id="promo-form-get-qty" type="number" min="1" step="1" placeholder="1">
-                                        </div>
-                                    </div>
-                                    <div id="promo-bogo-reward-fields" class="form-group" style="display:none;">
-                                        <label for="promo-form-bogo-reward-type">Discount on get items (per bundle)</label>
-                                        <select class="form-input" id="promo-form-bogo-reward-type" style="max-width:22rem;">
-                                            <option value="free">Free — 100% off the get items</option>
-                                            <option value="percent_off">Percent off the get items</option>
-                                            <option value="fixed_off">Dollar off the get items</option>
-                                        </select>
-                                        <small class="form-help" style="display:block;margin-top:0.35rem;">
-                                            Dollar off is per qualifying bundle (classic buy/get).</small>
-                                    </div>
-                                    <div class="form-row" id="promo-bogo-reward-pct-row" style="display:none;">
-                                        <div class="form-group">
-                                            <label for="promo-form-bogo-get-pct">Percent off reward items (%)</label>
-                                            <input class="form-input" id="promo-form-bogo-get-pct" type="number" min="0" max="100" step="0.5" placeholder="e.g. 50">
-                                        </div>
-                                    </div>
-                                    <div class="form-row" id="promo-bogo-reward-fixed-row" style="display:none;">
-                                        <div class="form-group">
-                                            <label for="promo-form-bogo-get-fixed">Dollar off reward items (per bundle)</label>
-                                            <input class="form-input" id="promo-form-bogo-get-fixed" type="number" min="0" step="0.01" placeholder="e.g. 5">
-                                        </div>
-                                    </div>
-                                    </div>
-                                    <label style="display:block;margin-bottom:1rem;">
-                                        <input type="checkbox" id="promo-form-free-shipping">
-                                        Free shipping.
-                                    </label>
-
-                                    <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save promotion</button>
-                                </form>
-                                    </div>
-                                </div>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -4417,6 +4368,7 @@
                                 <div class="form-group"><label for="register-only-pin">4-digit register PIN</label>
                                     <input class="form-input" id="register-only-pin" name="pin" type="password" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" required placeholder="••••"></div>
                                 <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;"><input type="checkbox" name="canAuthorize" value="true"> Can approve line and sale discounts (manager PIN)</label>
+                                <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;"><input type="checkbox" name="allowManualDiscounts" value="true"> Can apply manual line and sale discounts</label>
                                 <label id="register-refund-permission-row" style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;"><input type="checkbox" name="canProcessRefunds" value="true"> Can process refunds <span style="color:var(--gray-600);font-weight:400;">(Admin/Developer only)</span></label>
                                 <button type="submit" class="btn btn-secondary"><i class="fas fa-cash-register"></i> Add register-only employee</button>
                             </form>
@@ -4640,7 +4592,7 @@
                             <div style="display:grid;gap:0.65rem;margin-top:0.85rem;">
                                 <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;"><input type="checkbox" name="pos_sign_out_after_sale" value="true"> Auto sign-out after each sale (shared registers)</label>
                                 <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;"><input type="checkbox" name="pos_require_manager_pin_discounts" value="true" checked> Manager PIN for line discounts above limit</label>
-                                <p class="form-help" style="margin:0;">Refund permission is granted or revoked per employee under Personnel → edit their profile (Admin/Developer only).</p>
+                                <p class="form-help" style="margin:0;">Manual discount permission is set per employee under Personnel. Refund permission is also granted per profile (Admin/Developer only).</p>
                             </div>
                             <div class="form-group" style="margin-top:0.75rem;">
                                 <label for="pos-max-line-discount">Max line discount without manager (%)</label>
@@ -5127,36 +5079,6 @@
                 </div>
             </section>
 
-            <div id="pos-support-connect-modal" class="modal-backdrop hidden" style="position:fixed;inset:0;background:rgba(15,23,42,0.45);z-index:9999;display:none;align-items:center;justify-content:center;padding:1rem;">
-                <div class="card" style="max-width:28rem;width:100%;margin:0;">
-                    <div class="card-content">
-                        <h3 style="margin:0 0 0.75rem 0;">Connect remote desktop</h3>
-                        <p id="pos-support-connect-machine" style="margin:0 0 0.5rem 0;font-weight:600;"></p>
-                        <p style="margin:0 0 0.75rem 0;color:var(--gray-600);font-size:0.88rem;">Open RustDesk on your PC or use the browser link. The customer machine must stay on.</p>
-                        <div class="form-group">
-                            <label for="pos-support-rd-id">Remote ID</label>
-                            <div style="display:flex;gap:0.5rem;">
-                                <input class="form-input" id="pos-support-rd-id" readonly>
-                                <button type="button" class="btn btn-secondary btn-sm" id="pos-support-copy-id">Copy</button>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label for="pos-support-rd-password">Password</label>
-                            <div style="display:flex;gap:0.5rem;">
-                                <input class="form-input" id="pos-support-rd-password" readonly type="password">
-                                <button type="button" class="btn btn-secondary btn-sm" id="pos-support-copy-password">Copy</button>
-                                <button type="button" class="btn btn-ghost btn-sm" id="pos-support-toggle-password">Show</button>
-                            </div>
-                        </div>
-                        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.75rem;">
-                            <a class="btn btn-primary" id="pos-support-web-connect" href="#" target="_blank" rel="noopener" style="display:none;">Open in browser</a>
-                            <button type="button" class="btn btn-secondary" id="pos-support-open-rustdesk">Open RustDesk</button>
-                            <button type="button" class="btn btn-ghost" id="pos-support-connect-close">Close</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             <!-- Settings Section -->
             <section id="settings" class="content-section">
                 <div class="content-header">
@@ -5630,6 +5552,37 @@
     <!-- Modal mount point - all customer / gift card modals are injected here -->
     <div id="adminModalRoot"></div>
 
+    <!-- POS remote support (must stay outside .main-content so it cannot inflate admin scroll height) -->
+    <div id="pos-support-connect-modal" class="modal-backdrop hidden" style="position:fixed;inset:0;background:rgba(15,23,42,0.45);z-index:9999;display:none;align-items:center;justify-content:center;padding:1rem;">
+        <div class="card" style="max-width:28rem;width:100%;margin:0;">
+            <div class="card-content">
+                <h3 style="margin:0 0 0.75rem 0;">Connect remote desktop</h3>
+                <p id="pos-support-connect-machine" style="margin:0 0 0.5rem 0;font-weight:600;"></p>
+                <p style="margin:0 0 0.75rem 0;color:var(--gray-600);font-size:0.88rem;">Open RustDesk on your PC or use the browser link. The customer machine must stay on.</p>
+                <div class="form-group">
+                    <label for="pos-support-rd-id">Remote ID</label>
+                    <div style="display:flex;gap:0.5rem;">
+                        <input class="form-input" id="pos-support-rd-id" readonly>
+                        <button type="button" class="btn btn-secondary btn-sm" id="pos-support-copy-id">Copy</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="pos-support-rd-password">Password</label>
+                    <div style="display:flex;gap:0.5rem;">
+                        <input class="form-input" id="pos-support-rd-password" readonly type="password">
+                        <button type="button" class="btn btn-secondary btn-sm" id="pos-support-copy-password">Copy</button>
+                        <button type="button" class="btn btn-ghost btn-sm" id="pos-support-toggle-password">Show</button>
+                    </div>
+                </div>
+                <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.75rem;">
+                    <a class="btn btn-primary" id="pos-support-web-connect" href="#" target="_blank" rel="noopener" style="display:none;">Open in browser</a>
+                    <button type="button" class="btn btn-secondary" id="pos-support-open-rustdesk">Open RustDesk</button>
+                    <button type="button" class="btn btn-ghost" id="pos-support-connect-close">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Vendor add/edit modal -->
     <div id="vendors-edit-modal" class="modal-backdrop hidden" style="position:fixed;inset:0;background:rgba(15,23,42,0.45);z-index:9999;display:none;align-items:center;justify-content:center;padding:1rem;">
         <div class="card" style="width:min(780px,100%);max-height:92vh;overflow:auto;margin:0;">
@@ -5852,12 +5805,256 @@
         </div>
     </div>
 
+<div id="promo-editor-modal" class="promo-editor-modal" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="promo-editor-title">
+                            <div class="promo-editor-modal__backdrop" id="promo-editor-modal-backdrop" tabindex="-1"></div>
+                            <div class="promo-editor-modal__dialog card" id="promo-editor-card" style="margin:0;box-shadow:var(--shadow-lg);border:1px solid var(--gray-200);overflow:visible;">
+                                <div class="card-content" style="padding:0;display:flex;flex-direction:column;max-height:calc(100vh - 2rem);min-height:0;overflow:visible;">
+                                    <div style="padding:1rem 1.25rem;border-bottom:1px solid var(--gray-200);flex-shrink:0;background:var(--white);">
+                                        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem;">
+                                            <h3 id="promo-editor-title" style="margin:0;">New checkout promotion</h3>
+                                            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
+                                                <button type="button" class="btn btn-secondary btn-sm" id="promo-editor-reset-btn"><i class="fas fa-eraser" aria-hidden="true"></i> Clear form</button>
+                                                <button type="button" class="btn btn-secondary btn-sm" id="promo-editor-modal-close" aria-label="Close editor"><i class="fas fa-times" aria-hidden="true"></i> Close</button>
+                                            </div>
+                                        </div>
+                                        <p id="promo-form-msg" style="min-height:1.25rem;font-size:0.9rem;margin:0.5rem 0 0 0;"></p>
+                                    </div>
+                                    <div class="promo-editor-modal__scroll" style="padding:0 1.25rem 1.25rem;overflow-y:auto;flex:1;min-height:0;overflow-x:visible;">
+                                <form id="promo-editor-form" style="margin-top:1rem;">
+                                    <input type="hidden" id="promo-edit-id" value="">
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label class="required" for="promo-form-code">Code</label>
+                                            <input class="form-input" id="promo-form-code" required maxlength="64" placeholder="SUMMERSALE">
+                                            <small class="form-help">Case-insensitive for shoppers; saved in uppercase.</small>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="promo-form-desc">Description (internal)</label>
+                                            <input class="form-input" id="promo-form-desc" maxlength="500" placeholder="Labor Day — standard shipping waived">
+                                        </div>
+                                    </div>
+                                    <label style="margin-bottom: 1rem; display:block;"><input type="checkbox" id="promo-form-active" checked> Active</label>
+                                    <div class="form-group" style="margin-bottom:1rem;padding:0.75rem;border:1px solid var(--gray-200);border-radius:8px;">
+                                        <span class="form-label" style="display:block;margin-bottom:0.5rem;font-weight:600;">Where this promotion applies</span>
+                                        <div style="display:grid;gap:0.55rem;">
+                                            <label style="display:flex;align-items:flex-start;gap:0.5rem;cursor:pointer;">
+                                                <input type="radio" name="promo-form-channel" value="both" checked style="margin-top:0.2rem;">
+                                                <span><strong>Website + in-store</strong><br><span class="form-help" style="margin:0;">Code at online checkout; auto-applies at the register when the cart qualifies.</span></span>
+                                            </label>
+                                            <label style="display:flex;align-items:flex-start;gap:0.5rem;cursor:pointer;">
+                                                <input type="radio" name="promo-form-channel" value="web" style="margin-top:0.2rem;">
+                                                <span><strong>Website only</strong><br><span class="form-help" style="margin:0;">Customer enters the code at hmherbs.com checkout. Not used at the register.</span></span>
+                                            </label>
+                                            <label style="display:flex;align-items:flex-start;gap:0.5rem;cursor:pointer;">
+                                                <input type="radio" name="promo-form-channel" value="pos" style="margin-top:0.2rem;">
+                                                <span><strong>In-store only</strong><br><span class="form-help" style="margin:0;">Auto-applies at the POS when items qualify — cashiers never type a code.</span></span>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <div class="form-row">
+                                        <div class="form-group promo-datetime-group">
+                                            <span class="form-label" id="promo-form-starts-legend">Starts (optional)</span>
+                                            <input type="hidden" id="promo-form-starts" value="">
+                                            <input type="date" class="form-input promo-datetime-date" id="promo-form-starts-date" aria-labelledby="promo-form-starts-legend">
+                                            <div class="promo-time-scroll-row" role="group" aria-label="Start time">
+                                                <div>
+                                                    <label class="promo-time-scroll-label" for="promo-form-starts-hour">Hour</label>
+                                                    <select id="promo-form-starts-hour" class="promo-time-scroll-select" size="8" title="Hour (12-hour)" aria-label="Start hour"></select>
+                                                </div>
+                                                <span class="promo-time-colon" aria-hidden="true">:</span>
+                                                <div>
+                                                    <label class="promo-time-scroll-label" for="promo-form-starts-minute">Minute</label>
+                                                    <select id="promo-form-starts-minute" class="promo-time-scroll-select" size="8" aria-label="Start minute"></select>
+                                                </div>
+                                                <div>
+                                                    <label class="promo-time-scroll-label" for="promo-form-starts-ampm">AM/PM</label>
+                                                    <select id="promo-form-starts-ampm" class="promo-time-scroll-select promo-time-ampm-select" size="8" aria-label="Start AM or PM"></select>
+                                                </div>
+                                            </div>
+                                            <small class="form-help">Leave date empty for no start. Saved in 24-hour time; lists scroll like the old picker.</small>
+                                        </div>
+                                        <div class="form-group promo-datetime-group">
+                                            <span class="form-label" id="promo-form-ends-legend">Ends (optional)</span>
+                                            <input type="hidden" id="promo-form-ends" value="">
+                                            <input type="date" class="form-input promo-datetime-date" id="promo-form-ends-date" aria-labelledby="promo-form-ends-legend">
+                                            <div class="promo-time-scroll-row" role="group" aria-label="End time">
+                                                <div>
+                                                    <label class="promo-time-scroll-label" for="promo-form-ends-hour">Hour</label>
+                                                    <select id="promo-form-ends-hour" class="promo-time-scroll-select" size="8" title="Hour (12-hour)"></select>
+                                                </div>
+                                                <span class="promo-time-colon" aria-hidden="true">:</span>
+                                                <div>
+                                                    <label class="promo-time-scroll-label" for="promo-form-ends-minute">Minute</label>
+                                                    <select id="promo-form-ends-minute" class="promo-time-scroll-select" size="8"></select>
+                                                </div>
+                                                <div>
+                                                    <label class="promo-time-scroll-label" for="promo-form-ends-ampm">AM/PM</label>
+                                                    <select id="promo-form-ends-ampm" class="promo-time-scroll-select promo-time-ampm-select" size="8"></select>
+                                                </div>
+                                            </div>
+                                            <small class="form-help">Leave date empty for no end.</small>
+                                        </div>
+                                    </div>
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label for="promo-form-limit-total">Max total uses (blank = unlimited)</label>
+                                            <input class="form-input" id="promo-form-limit-total" type="number" min="0" step="1">
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="promo-form-limit-email">Max uses per email (blank = unlimited)</label>
+                                            <input class="form-input" id="promo-form-limit-email" type="number" min="0" step="1">
+                                        </div>
+                                    </div>
+
+                                    <hr style="border:none;border-top:1px solid var(--gray-200);margin:1.25rem 0;">
+                                    <h4 style="margin:0 0 1rem 0;">Rules builder</h4>
+                                    <div class="form-group">
+                                        <label for="promo-form-scope">Applies to</label>
+                                        <select class="form-input" id="promo-form-scope">
+                                            <option value="all">All products</option>
+                                            <option value="products">Specific product IDs</option>
+                                            <option value="categories">Specific categories</option>
+                                        </select>
+                                    </div>
+                                    <div id="promo-scope-products" style="display:none;">
+                                        <input type="hidden" id="promo-form-product-ids" value="">
+                                        <div class="form-group">
+                                            <label for="promo-form-product-promo-strategy">Product promotion model</label>
+                                            <select class="form-input" id="promo-form-product-promo-strategy" style="max-width:28rem;">
+                                                <option value="trigger_reward">Trigger SKUs → Reward SKUs</option>
+                                                <option value="classic">Classic (eligible cart + optional buy/get)</option>
+                                            </select>
+                                            <small class="form-help">Trigger/Reward applies discounts only after the buyer meets a minimum quantity of trigger SKUs in the cart. Each reward row can target different SKUs with its own discount type (% / $ / set price).</small>
+                                        </div>
+                                        <div id="promo-panel-trigger-reward" style="display:none;">
+                                            <div class="form-group" style="padding:0.75rem;border:1px solid var(--gray-200);border-radius:var(--border-radius);background:var(--gray-50);">
+                                                <strong style="display:block;margin-bottom:0.5rem;">Trigger group</strong>
+                                                <label for="promo-trigger-prod-q">Trigger SKUs</label>
+                                                <div id="promo-trigger-chips" class="promo-prod-chips" aria-live="polite"></div>
+                                                <div class="promo-prod-search-wrap">
+                                                    <input type="text" class="form-input" id="promo-trigger-prod-q" autocomplete="off" placeholder="Products that must be in cart…">
+                                                    <div id="promo-trigger-results" class="promo-prod-results-local promo-product-link-results-panel" role="listbox" aria-label="Matching products" hidden></div>
+                                                </div>
+                                                <div class="form-group" style="margin-top:0.75rem;margin-bottom:0;">
+                                                    <label for="promo-form-trigger-min-qty">Minimum trigger quantity</label>
+                                                    <input class="form-input" type="number" min="1" step="1" id="promo-form-trigger-min-qty" placeholder="e.g. 1" style="max-width:10rem;">
+                                                    <small class="form-help">Total units across all Trigger SKUs in the cart.</small>
+                                                </div>
+                                            </div>
+                                            <div style="margin-top:1rem;">
+                                                <strong style="display:block;margin-bottom:0.35rem;">Reward group</strong>
+                                                <small class="form-help">Add one row per target SKU cluster. Each row is evaluated independently so multiple reward lines can coexist on the same promo code.</small>
+                                                <div id="promo-reward-rules-list" style="margin-top:0.75rem;display:flex;flex-direction:column;gap:1rem;"></div>
+                                                <button type="button" class="btn btn-secondary btn-sm" id="promo-add-reward-rule-btn" style="margin-top:0.65rem;">+ Add reward SKU group</button>
+                                            </div>
+                                        </div>
+                                        <div id="promo-panel-classic-products" style="display:none;">
+                                            <div class="form-group">
+                                                <label for="promo-scope-prod-q">Eligible products — search</label>
+                                                <div id="promo-scope-prod-chips" class="promo-prod-chips" aria-live="polite"></div>
+                                                <div class="promo-prod-search-wrap">
+                                                    <input type="text" class="form-input" id="promo-scope-prod-q" autocomplete="off" placeholder="Type product name or SKU…" aria-autocomplete="list" aria-controls="promo-scope-prod-results">
+                                                    <div id="promo-scope-prod-results" class="promo-prod-results-local promo-product-link-results-panel" role="listbox" aria-label="Matching products" hidden></div>
+                                                </div>
+                                                <small class="form-help">Percent/$ off applies to eligible subtotal. Buy‑get uses these SKUs unless you narrow buy/reward lists below.</small>
+                                            </div>
+                                            <div id="promo-bogo-product-pickers" style="display:none;margin-top:0.75rem;padding-top:0.65rem;border-top:1px dashed var(--gray-200);">
+                                                <p style="font-size:0.85rem;color:var(--gray-600);margin:0 0 0.85rem;">
+                                                    When buy &amp; get quantities are both set — paid vs reward pools.
+                                                </p>
+                                                <div class="form-group">
+                                                    <label for="promo-bogo-buy-q">Paid (buy) products — search</label>
+                                                    <div id="promo-bogo-buy-chips" class="promo-prod-chips" aria-live="polite"></div>
+                                                    <div class="promo-prod-search-wrap">
+                                                        <input type="text" class="form-input" id="promo-bogo-buy-q" autocomplete="off" placeholder="Search product buyers pay for…">
+                                                        <div id="promo-bogo-buy-results" class="promo-prod-results-local promo-product-link-results-panel" role="listbox" hidden></div>
+                                                    </div>
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="promo-bogo-get-q">Reward (discounted) products — search</label>
+                                                    <div id="promo-bogo-get-chips" class="promo-prod-chips" aria-live="polite"></div>
+                                                    <div class="promo-prod-search-wrap">
+                                                        <input type="text" class="form-input" id="promo-bogo-get-q" autocomplete="off" placeholder="Search discounted item…">
+                                                        <div id="promo-bogo-get-results" class="promo-prod-results-local promo-product-link-results-panel" role="listbox" hidden></div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="form-group" id="promo-scope-categories" style="display:none;">
+                                        <label for="promo-scope-category-add">Categories</label>
+                                        <input type="hidden" id="promo-form-category-ids" value="">
+                                        <select class="form-input" id="promo-scope-category-add" aria-describedby="promo-scope-cat-help" style="max-width:28rem;margin-bottom:0.5rem;">
+                                            <option value="">Choose a category to add…</option>
+                                        </select>
+                                        <div id="promo-scope-cat-chips" class="promo-prod-chips" aria-live="polite"></div>
+                                        <small class="form-help" id="promo-scope-cat-help">Choose one category per selection; add more categories by picking again from the dropdown. Remove with ×.</small>
+                                    </div>
+
+                                    <div id="promo-block-classic-merch-effects">
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label for="promo-form-pct">Percent off eligible subtotal (%)</label>
+                                            <input class="form-input" id="promo-form-pct" type="number" min="0" max="100" step="0.5" placeholder="e.g. 15">
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="promo-form-fixed">Fixed $ off eligible subtotal</label>
+                                            <input class="form-input" id="promo-form-fixed" type="number" min="0" step="0.01" placeholder="e.g. 10">
+                                        </div>
+                                    </div>
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label for="promo-form-buy-qty">Buy quantity (buy-X-get-Y)</label>
+                                            <input class="form-input" id="promo-form-buy-qty" type="number" min="1" step="1" placeholder="2">
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="promo-form-get-qty">Get quantity (reward units)</label>
+                                            <input class="form-input" id="promo-form-get-qty" type="number" min="1" step="1" placeholder="1">
+                                        </div>
+                                    </div>
+                                    <div id="promo-bogo-reward-fields" class="form-group" style="display:none;">
+                                        <label for="promo-form-bogo-reward-type">Discount on get items (per bundle)</label>
+                                        <select class="form-input" id="promo-form-bogo-reward-type" style="max-width:22rem;">
+                                            <option value="free">Free — 100% off the get items</option>
+                                            <option value="percent_off">Percent off the get items</option>
+                                            <option value="fixed_off">Dollar off the get items</option>
+                                        </select>
+                                        <small class="form-help" style="display:block;margin-top:0.35rem;">
+                                            Dollar off is per qualifying bundle (classic buy/get).</small>
+                                    </div>
+                                    <div class="form-row" id="promo-bogo-reward-pct-row" style="display:none;">
+                                        <div class="form-group">
+                                            <label for="promo-form-bogo-get-pct">Percent off reward items (%)</label>
+                                            <input class="form-input" id="promo-form-bogo-get-pct" type="number" min="0" max="100" step="0.5" placeholder="e.g. 50">
+                                        </div>
+                                    </div>
+                                    <div class="form-row" id="promo-bogo-reward-fixed-row" style="display:none;">
+                                        <div class="form-group">
+                                            <label for="promo-form-bogo-get-fixed">Dollar off reward items (per bundle)</label>
+                                            <input class="form-input" id="promo-form-bogo-get-fixed" type="number" min="0" step="0.01" placeholder="e.g. 5">
+                                        </div>
+                                    </div>
+                                    </div>
+                                    <label style="display:block;margin-bottom:1rem;">
+                                        <input type="checkbox" id="promo-form-free-shipping">
+                                        Free shipping.
+                                    </label>
+
+                                    <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save promotion</button>
+                                </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
     <!-- jsPDF for PDF generation -->
+    <script src="js/hm-search-input.js?v=search-fix-2"></script>
     <script src="js/hm-choice-toggles.js"></script>
     <script src="js/phone-us-format.js"></script>
     <link rel="stylesheet" href="css/products.css">
     <link rel="stylesheet" href="css/admin-vendors.css">
-    <script src="js/description-html.js"></script>
+    <script src="js/description-html.js?v=desc-plain-1"></script>
     <script src="js/admin-product-variants.js"></script>
     <script src="js/tracking-link.js"></script>
     <script src="js/admin-shipping.js"></script>
@@ -5867,10 +6064,11 @@
     <script src="admin-pos-hub.js"></script>
     <script src="admin-pos-billing.js"></script>
     <script src="admin-pos-troubleshoot.js"></script>
-    <script src="admin-app.js?v=20260617n"></script>
+    <script src="admin-app.js?v=marketing-scroll-2"></script>
     <script src="admin-edsa-calendar.js"></script>
-    <script src="admin-customers.js"></script>
+    <script src="admin-customers.js?v=search-fix-2"></script>
     <script src="admin-customer-groups.js"></script>
+    
 </body>
 
 </html>

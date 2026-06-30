@@ -18,7 +18,8 @@ async function authenticatePosEmployee(req, res, next) {
         req.posEmployee = {
             id: employee.id,
             employeeCode: employee.employee_code,
-            name: `${employee.first_name || ''} ${employee.last_name || ''}`.trim() || decoded.name
+            name: `${employee.first_name || ''} ${employee.last_name || ''}`.trim() || decoded.name,
+            allowManualDiscounts: personnel.employeeAllowManualDiscounts(employee)
         };
         next();
     } catch {

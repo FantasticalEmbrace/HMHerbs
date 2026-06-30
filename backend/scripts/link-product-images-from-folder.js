@@ -72,9 +72,8 @@ function shouldIgnoreRootFile(name) {
 }
 
 function webUrl(subfolder, filename) {
-    const enc = encodeURIComponent(filename);
-    if (subfolder === 'products') return `/images/products/${enc}`;
-    return `/images/${enc}`;
+    if (subfolder === 'products') return `/images/products/${filename}`;
+    return `/images/${filename}`;
 }
 
 async function loadManualMap() {
@@ -117,9 +116,48 @@ async function collectFiles() {
     return list;
 }
 
-function findProductForStem(stem, products, bySku, bySlug, byNameSlug) {
+function productIdFromFilename(stem) {
+    const m = String(stem).match(/-id(\d+)(?:-|$)/i);
+    return m ? parseInt(m[1], 10) : null;
+}
+
+function normalizeImageStem(stem) {
+    return cleanStem(stripTrailingContentHash(String(stem || '')))
+        .replace(/-hmherbs-primary$/i, '')
+        .replace(/-official$/i, '')
+        .trim();
+}
+
+function baseSlugFromFilename(stem) {
+    return normalizeImageStem(stem)
+        .replace(/-id\d+.*$/i, '')
+        .replace(/-hmherbs-primary$/i, '')
+        .replace(/-+$/, '');
+}
+
+function findProductForStem(stem, products, bySku, bySlug, byNameSlug, byId) {
+    const idFromFile = productIdFromFilename(stem);
+    if (idFromFile && byId.has(idFromFile)) {
+        return { product: byId.get(idFromFile), how: 'filename-id' };
+    }
+
     const raw = stem.trim();
-    const cleaned = cleanStem(raw);
+    const cleaned = normalizeImageStem(raw);
+    const baseSlug = baseSlugFromFilename(raw);
+    if (baseSlug.length >= 10) {
+        let best = null;
+        for (const p of products) {
+            const ps = slugify(String(p.slug || ''));
+            if (!ps) continue;
+            if (ps === baseSlug || ps.startsWith(`${baseSlug}-`) || baseSlug.startsWith(ps)) {
+                if (!best || ps.length < slugify(String(best.slug || '')).length) {
+                    best = p;
+                }
+            }
+        }
+        if (best) return { product: best, how: 'slug-prefix' };
+    }
+
     const dehashed = stripTrailingContentHash(cleaned);
     const candidates = [raw, cleaned, dehashed].filter(Boolean);
 
@@ -186,15 +224,17 @@ async function setPrimary(pool, productId, name, url, dryRun) {
     const pool = createPool({ connectionLimit: 5 });
 
     const [rows] = await pool.query(
-        'SELECT id, sku, name, slug FROM products WHERE COALESCE(TRIM(slug), "") <> "" OR COALESCE(TRIM(sku), "") <> ""'
+        "SELECT id, sku, name, slug FROM products WHERE COALESCE(TRIM(slug), '') <> '' OR COALESCE(TRIM(sku), '') <> ''"
     );
     const products = rows;
 
     const bySku = new Map();
     const bySlug = new Map();
     const byNameSlug = new Map();
+    const byId = new Map();
 
     for (const p of products) {
+        byId.set(p.id, p);
         if (p.sku != null && String(p.sku).trim() !== '') {
             bySku.set(String(p.sku).trim().toLowerCase(), p);
         }
@@ -231,7 +271,7 @@ async function setPrimary(pool, productId, name, url, dryRun) {
         }
 
         if (!match) {
-            match = findProductForStem(stem, products, bySku, bySlug, byNameSlug);
+            match = findProductForStem(stem, products, bySku, bySlug, byNameSlug, byId);
         }
 
         if (!match) {

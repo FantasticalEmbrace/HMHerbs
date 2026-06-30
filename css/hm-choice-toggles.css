@@ -12,7 +12,19 @@
     --hm-choice-shadow: 0 2px 6px rgba(15, 23, 42, 0.18);
 }
 
-/* Checkbox rows — switch pill + label text */
+/* Protect toggle visuals from global translateZ / transform hacks in emergency-fixes.css */
+.hm-choice-row,
+.hm-choice-row *,
+.hm-choice-segment,
+.hm-choice-segment *,
+.toggle-switch,
+.toggle-switch * {
+    -webkit-transform: none !important;
+    transform: none !important;
+    -webkit-backface-visibility: visible !important;
+    backface-visibility: visible !important;
+}
+
 .hm-choice-row {
     position: relative;
     display: flex;
@@ -22,8 +34,9 @@
     line-height: 1.45;
 }
 
-.hm-choice-row--sm { gap: 0.6rem; }
-.hm-choice-row--lg { gap: 0.85rem; align-items: center; }
+.hm-choice-row--sm { gap: 0.6rem; --hm-knob-size: 0.95rem; --hm-knob-gap: 0.18rem; --hm-pill-height: 1.65rem; }
+.hm-choice-row--md { gap: 0.75rem; --hm-knob-size: 1.1rem; --hm-knob-gap: 0.2rem; --hm-pill-height: 1.85rem; }
+.hm-choice-row--lg { gap: 0.85rem; align-items: center; --hm-knob-size: 1.3rem; --hm-knob-gap: 0.22rem; --hm-pill-height: 2.1rem; }
 
 .hm-choice-toggle {
     position: relative;
@@ -52,9 +65,8 @@
 .hm-choice-pill {
     position: relative;
     flex-shrink: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: flex-start;
+    display: inline-block;
+    box-sizing: border-box;
     border-radius: 999px;
     background: linear-gradient(180deg, var(--hm-choice-off) 0%, #b91c1c 100%);
     border: 2px solid #991b1b;
@@ -69,20 +81,19 @@
 
 .hm-choice-row--sm .hm-choice-pill {
     width: 2.85rem;
-    height: 1.55rem;
-    padding: 0 0.2rem;
+    height: var(--hm-pill-height);
 }
 
 .hm-choice-row--md .hm-choice-pill {
     width: 3.35rem;
-    height: 1.75rem;
-    padding: 0 0.22rem;
+    height: var(--hm-pill-height);
 }
 
 .hm-choice-row--lg .hm-choice-pill {
     width: 4.5rem;
-    height: 2rem;
-    padding: 0 0.35rem;
+    height: var(--hm-pill-height);
+    display: inline-flex;
+    align-items: center;
     justify-content: center;
     gap: 0.15rem;
 }
@@ -90,27 +101,17 @@
 .hm-choice-knob {
     position: absolute;
     top: 50%;
-    left: 0.18rem;
-    width: 1.05rem;
-    height: 1.05rem;
+    left: var(--hm-knob-gap, 0.18rem);
+    width: var(--hm-knob-size, 1.05rem);
+    height: var(--hm-knob-size, 1.05rem);
+    margin-top: calc(var(--hm-knob-size, 1.05rem) / -2);
     border-radius: 50%;
     background: var(--hm-choice-knob);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.22);
-    transform: translateY(-50%);
-    transition: left 0.2s ease, width 0.2s ease, height 0.2s ease;
+    transform: none !important;
+    -webkit-transform: none !important;
+    transition: left 0.2s ease;
     pointer-events: none;
-}
-
-.hm-choice-row--md .hm-choice-knob {
-    width: 1.2rem;
-    height: 1.2rem;
-    left: 0.2rem;
-}
-
-.hm-choice-row--lg .hm-choice-knob {
-    width: 1.4rem;
-    height: 1.4rem;
-    left: 0.22rem;
 }
 
 .hm-choice-state {
@@ -145,18 +146,9 @@
 }
 
 .hm-choice-row:has(.hm-choice-input:checked) .hm-choice-knob {
-    left: calc(100% - 1.23rem);
-    transform: translateY(-50%);
-}
-
-.hm-choice-row--md:has(.hm-choice-input:checked) .hm-choice-knob {
-    left: calc(100% - 1.4rem);
-    transform: translateY(-50%);
-}
-
-.hm-choice-row--lg:has(.hm-choice-input:checked) .hm-choice-knob {
-    left: calc(100% - 1.62rem);
-    transform: translateY(-50%);
+    left: calc(100% - var(--hm-knob-gap, 0.18rem) - var(--hm-knob-size, 1.05rem));
+    transform: none !important;
+    -webkit-transform: none !important;
 }
 
 .hm-choice-row:has(.hm-choice-input:checked) .hm-choice-state-off { display: none; }

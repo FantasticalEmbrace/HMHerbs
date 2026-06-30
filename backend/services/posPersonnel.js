@@ -63,7 +63,8 @@ function verifyEmployeeToken(token) {
 
 async function findEmployeeByPin(pool, pin) {
     const [rows] = await pool.execute(
-        `SELECT id, employee_code, first_name, last_name, email, pin_hash, is_active, admin_user_id, can_authorize, can_process_refunds, can_open_drawer
+        `SELECT id, employee_code, first_name, last_name, email, pin_hash, is_active, admin_user_id,
+                can_authorize, can_process_refunds, can_open_drawer, allow_manual_discounts
          FROM pos_employees WHERE is_active = 1`
     );
     for (const row of rows) {
@@ -168,9 +169,16 @@ async function verifyRefundPin(pool, pin, context = {}) {
     return mapAuthorizer(employee);
 }
 
+function employeeAllowManualDiscounts(employee) {
+    if (!employee) return false;
+    if (employee.allow_manual_discounts == null || employee.allow_manual_discounts === undefined) return false;
+    return Number(employee.allow_manual_discounts) !== 0;
+}
+
 async function getEmployeeById(pool, id) {
     const [rows] = await pool.execute(
-        `SELECT id, employee_code, first_name, last_name, email, is_active, hourly_rate, admin_user_id, can_authorize, can_process_refunds, can_open_drawer, created_at, updated_at
+        `SELECT id, employee_code, first_name, last_name, email, is_active, hourly_rate, admin_user_id,
+                can_authorize, can_process_refunds, can_open_drawer, allow_manual_discounts, created_at, updated_at
          FROM pos_employees WHERE id = ? LIMIT 1`,
         [id]
     );
@@ -243,7 +251,8 @@ async function loginWithPin(pool, pin, context = {}) {
             name: `${employee.first_name} ${employee.last_name}`.trim(),
             canAuthorize: Boolean(employee.can_authorize),
             canProcessRefunds: Boolean(employee.can_process_refunds),
-            canOpenDrawer: Boolean(employee.can_open_drawer)
+            canOpenDrawer: Boolean(employee.can_open_drawer),
+            allowManualDiscounts: employeeAllowManualDiscounts(employee)
         },
         hasAdminAccess,
         adminEmail,
@@ -269,9 +278,14 @@ async function createEmployee(pool, data, adminId) {
     const canAuthorize = data.canAuthorize || data.can_authorize ? 1 : 0;
     const canProcessRefunds = data.canProcessRefunds || data.can_process_refunds ? 1 : 0;
     const canOpenDrawer = data.canOpenDrawer || data.can_open_drawer ? 1 : 0;
+    const allowManualDiscounts =
+        data.allowManualDiscounts || data.allow_manual_discounts ? 1 : 0;
     const [result] = await pool.execute(
-        `INSERT INTO pos_employees (employee_code, first_name, last_name, email, pin_hash, hourly_rate, admin_user_id, can_authorize, can_process_refunds, can_open_drawer)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO pos_employees (
+            employee_code, first_name, last_name, email, pin_hash, hourly_rate, admin_user_id,
+            can_authorize, can_process_refunds, can_open_drawer, allow_manual_discounts
+         )
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
             code,
             String(data.firstName || data.first_name || '').trim(),
@@ -282,7 +296,8 @@ async function createEmployee(pool, data, adminId) {
             data.adminUserId || adminId || null,
             canAuthorize,
             canProcessRefunds,
-            canOpenDrawer
+            canOpenDrawer,
+            allowManualDiscounts
         ]
     );
     return getEmployeeById(pool, result.insertId);
@@ -342,6 +357,10 @@ async function updateEmployee(pool, id, data) {
         updates.push('can_open_drawer = ?');
         params.push(data.canOpenDrawer || data.can_open_drawer ? 1 : 0);
     }
+    if (data.allowManualDiscounts != null || data.allow_manual_discounts != null) {
+        updates.push('allow_manual_discounts = ?');
+        params.push(data.allowManualDiscounts || data.allow_manual_discounts ? 1 : 0);
+    }
     if (!updates.length) return getEmployeeById(pool, id);
     params.push(id);
     await pool.execute(`UPDATE pos_employees SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, params);
@@ -350,7 +369,8 @@ async function updateEmployee(pool, id, data) {
 
 async function listEmployees(pool) {
     const [rows] = await pool.execute(
-        `SELECT id, employee_code, first_name, last_name, email, is_active, hourly_rate, admin_user_id, can_authorize, can_process_refunds, can_open_drawer, created_at, updated_at
+        `SELECT id, employee_code, first_name, last_name, email, is_active, hourly_rate, admin_user_id,
+                can_authorize, can_process_refunds, can_open_drawer, allow_manual_discounts, created_at, updated_at
          FROM pos_employees ORDER BY last_name, first_name`
     );
     return rows;
@@ -393,6 +413,9 @@ async function upsertRegisterForAdminUser(pool, adminUserId, data) {
     }
     if (data.canOpenDrawer != null || data.can_open_drawer != null) {
         payload.canOpenDrawer = Boolean(data.canOpenDrawer || data.can_open_drawer);
+    }
+    if (data.allowManualDiscounts != null || data.allow_manual_discounts != null) {
+        payload.allowManualDiscounts = Boolean(data.allowManualDiscounts || data.allow_manual_discounts);
     }
 
     if (existing) {
@@ -677,6 +700,7 @@ module.exports = {
     verifyRefundPin,
     employeeCanAuthorize,
     employeeCanProcessRefunds,
+    employeeAllowManualDiscounts,
     verifyEmployeeToken,
     createEmployee,
     updateEmployee,

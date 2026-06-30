@@ -12,13 +12,19 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap" rel="stylesheet">
     
     <!-- Styles -->
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="css/emergency-fixes.css?v=mobile-nav-4">
+    <link rel="stylesheet" href="styles.css?v=mobile-nav-4">
+    <link rel="stylesheet" href="css/hm-accent-links.css">
     <link rel="stylesheet" href="css/accessibility-enhancements.css">
     <link rel="stylesheet" href="css/mobile-enhancements.css">
+    <link rel="stylesheet" href="css/mobile-nav.css?v=mobile-nav-4">
     <link rel="stylesheet" href="css/hm-close-controls.css">
     <link rel="stylesheet" href="css/site-promo-banner.css">
     <link rel="stylesheet" href="css/age-gate.css">
+    <link rel="stylesheet" href="css/hm-popups-brand.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="js/mobile-menu.js?v=mobile-nav-4"></script>
+    <script src="js/nav-current-page.js"></script>
     
     <style>
         .shipping-container {
@@ -162,6 +168,39 @@
     </style>
 </head>
 <body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+    <header class="header" role="banner">
+        <div class="main-header">
+            <div class="container">
+                <nav class="navbar" role="navigation" aria-label="Main navigation">
+                    <div class="logo">
+                        <a href="index.html" aria-label="H&M Herbs & Vitamins - Home">
+                            <img src="images/HM%20Herb%20Logo.png" alt="H&M Herbs & Vitamins" class="logo-wordmark" loading="eager">
+                        </a>
+                    </div>
+                    <button type="button" class="mobile-menu-toggle" aria-expanded="false" aria-controls="nav-menu"
+                        aria-label="Toggle navigation menu">
+                        <span class="hamburger-line"></span>
+                        <span class="hamburger-line"></span>
+                        <span class="hamburger-line"></span>
+                    </button>
+                    <ul class="nav-menu" id="nav-menu" role="menubar" aria-hidden="true">
+                        <li role="none"><a href="index.html" role="menuitem">Home</a></li>
+                        <li role="none"><a href="products.html" role="menuitem">Products</a></li>
+                        <li role="none"><a href="index.html#edsa-service" role="menuitem" class="edsa-nav-link">EDSA Service</a></li>
+                        <li role="none"><a href="about.html" role="menuitem">About</a></li>
+                        <li role="none"><a href="index.html#contact" role="menuitem">Contact</a></li>
+                    </ul>
+                    <div class="header-actions">
+                        <a href="products.html" class="auth-btn" aria-label="Shop products">
+                            <span class="auth-btn-text">Shop</span>
+                        </a>
+                    </div>
+                </nav>
+            </div>
+        </div>
+    </header>
+    <main id="main-content">
     <div class="shipping-container">
         <a href="/" class="back-link">← Back to Home</a>
         
@@ -237,6 +276,7 @@
             </div>
         </div>
     </div>
+    </main>
 
     <!-- Footer -->
     <footer class="footer" role="contentinfo">
@@ -320,10 +360,10 @@
                 </div>
 
                 <!-- Information -->
-                <div class="footer-section">
+                <div class="footer-section footer-info-section">
                     <h4>Information</h4>
                     <ul>
-                        <li><a href="index.html#about">About Us</a></li>
+                        <li><a href="about.html">About Us</a></li>
                         <li><a href="shipping-returns.html">Shipping & Returns</a></li>
                         <li><a href="index.html#contact">Contact Us</a></li>
                     </ul>
@@ -372,7 +412,7 @@
     <script src="js/site-promo-banner.js" defer></script>
     <script src="js/site-store-info.js" defer></script>
     <script src="js/visual-bug-fixes.js"></script>
-    <script src="js/section-nav.js"></script>
+    <script src="js/section-nav.js?v=mobile-nav-4"></script>
     <script src="script.js" defer></script>
     <script src="gdpr-compliance.js?v=20260617a" defer></script>
 </body>

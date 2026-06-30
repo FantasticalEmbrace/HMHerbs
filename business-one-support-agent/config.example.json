@@ -1,6 +1,0 @@
-{
-  "storeUrl": "https://your-store.example.com",
-  "enrollKey": "paste-from-server-env-POS_SUPPORT_ENROLL_KEY",
-  "machineLabel": "Register 1",
-  "registerLabel": "Front counter"
-}

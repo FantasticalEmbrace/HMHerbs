@@ -463,14 +463,14 @@
 
 @media (min-width: 640px) {
     .browse-by-cards {
-        grid-template-columns: repeat(2, auto);
+        grid-template-columns: repeat(3, auto);
         justify-content: center;
     }
 }
 
 @media (min-width: 1024px) {
     .browse-by-cards {
-        grid-template-columns: repeat(4, auto);
+        grid-template-columns: repeat(3, auto);
         justify-content: center;
     }
 }

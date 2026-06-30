@@ -192,6 +192,11 @@ async function ensurePersonnelSchema(pool) {
             sql: `ALTER TABLE pos_employees ADD COLUMN can_open_drawer TINYINT(1) NOT NULL DEFAULT 0
                   COMMENT 'May manually open cash drawer from register'`,
         },
+        {
+            column: 'allow_manual_discounts',
+            sql: `ALTER TABLE pos_employees ADD COLUMN allow_manual_discounts TINYINT(1) NOT NULL DEFAULT 0
+                  COMMENT 'May apply manual line or cart discounts at register'`,
+        },
     ]);
     try {
         if (await tableExists(pool, 'payment_cards')) {

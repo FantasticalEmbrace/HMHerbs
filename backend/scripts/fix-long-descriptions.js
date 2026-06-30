@@ -9,6 +9,7 @@
  *   node scripts/fix-long-descriptions.js
  *   node scripts/fix-long-descriptions.js --only-duplicates   # long === short only
  *   node scripts/fix-long-descriptions.js --refresh-html        # re-fetch plain-text long descriptions as HTML
+ *   node scripts/fix-long-descriptions.js --no-search           # skip slow site search fallback (use scraped URLs only)
  */
 const path = require('path');
 const fs = require('fs').promises;
@@ -17,7 +18,9 @@ const cheerio = require('cheerio');
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 const { createPool } = require('../utils/dbConfig');
-const HMHerbsScraper = require('./scrape-hmherbs');
+const { loadScraper } = require('../utils/businessone-scraper');
+const CatalogScraper = loadScraper();
+const SCRAPE_DOMAIN = process.env.CATALOG_SCRAPE_DOMAIN || 'https://hmherbs.com';
 
 const BASE = 'https://hmherbs.com';
 const DELAY_MS = 350;
@@ -41,6 +44,7 @@ function parseArgs() {
         dryRun: a.includes('--dry-run'),
         onlyDuplicates: a.includes('--only-duplicates'),
         refreshHtml: a.includes('--refresh-html'),
+        noSearch: a.includes('--no-search'),
         limit
     };
 }
@@ -80,6 +84,25 @@ function buildProductPageCandidates(product, scrapedUrl) {
     return out;
 }
 
+function normalizeSku(sku) {
+    return String(sku || '')
+        .trim()
+        .toUpperCase()
+        .replace(/^HM-/, '');
+}
+
+function skuFromProductSlug(slug) {
+    const m = String(slug || '').match(/-sku-([a-z0-9-]+)$/i);
+    return m ? m[1] : '';
+}
+
+function slugBase(slug) {
+    return String(slug || '')
+        .trim()
+        .toLowerCase()
+        .replace(/-sku-[a-z0-9-]+$/i, '');
+}
+
 async function loadScrapedUrlIndex() {
     const paths = [
         path.join(__dirname, '../data/complete-scraped-products.json'),
@@ -95,7 +118,10 @@ async function loadScrapedUrlIndex() {
             for (const pr of j.products || []) {
                 const sku = pr.sku != null ? String(pr.sku).trim() : '';
                 const url = pr.url || '';
-                if (sku && url) bySku.set(sku, url);
+                if (sku && url) {
+                    bySku.set(sku, url);
+                    bySku.set(normalizeSku(sku), url);
+                }
                 const m = (url || '').match(/\/products\/([^/?#]+)/i);
                 if (m) {
                     const key = decodeURIComponent(m[1]).toLowerCase();
@@ -208,7 +234,7 @@ async function findProductPageViaSearch(product) {
     return null;
 }
 
-async function resolveDescriptions(scraper, product, urls) {
+async function resolveDescriptions(scraper, product, urls, noSearch) {
     const tryUrl = async (url) => {
         const html = await fetchProductHtml(url);
         const $ = cheerio.load(html);
@@ -231,21 +257,23 @@ async function resolveDescriptions(scraper, product, urls) {
         }
     }
 
-    try {
-        const searchUrl = await findProductPageViaSearch(product);
-        if (searchUrl && !urls.includes(searchUrl)) {
-            return await tryUrl(searchUrl);
+    if (!noSearch) {
+        try {
+            const searchUrl = await findProductPageViaSearch(product);
+            if (searchUrl && !urls.includes(searchUrl)) {
+                return await tryUrl(searchUrl);
+            }
+        } catch (e) {
+            /* no search hit */
         }
-    } catch (e) {
-        /* no search hit */
     }
 
     return null;
 }
 
 async function main() {
-    const { dryRun, onlyDuplicates, refreshHtml, limit } = parseArgs();
-    const scraper = new HMHerbsScraper();
+    const { dryRun, onlyDuplicates, refreshHtml, noSearch, limit } = parseArgs();
+    const scraper = new CatalogScraper({ domain: SCRAPE_DOMAIN });
     const pool = createPool();
     const urlIndex = await loadScrapedUrlIndex();
 
@@ -287,12 +315,19 @@ async function main() {
         const row = targets[i];
         const slugKey = (row.slug && String(row.slug).trim().toLowerCase()) || '';
         const skuKey = row.sku != null ? String(row.sku).trim() : '';
-        const scrapedUrl = (skuKey && urlIndex.bySku.get(skuKey)) || (slugKey && urlIndex.bySlug.get(slugKey)) || null;
+        const slugSku = normalizeSku(skuFromProductSlug(row.slug));
+        const scrapedUrl =
+            (skuKey && urlIndex.bySku.get(skuKey)) ||
+            (skuKey && urlIndex.bySku.get(normalizeSku(skuKey))) ||
+            (slugSku && urlIndex.bySku.get(slugSku)) ||
+            (slugKey && urlIndex.bySlug.get(slugKey)) ||
+            (slugKey && urlIndex.bySlug.get(slugBase(slugKey))) ||
+            null;
         const urls = buildProductPageCandidates(row, scrapedUrl);
 
         if (i > 0) await sleep(DELAY_MS);
 
-        const resolved = await resolveDescriptions(scraper, row, urls);
+        const resolved = await resolveDescriptions(scraper, row, urls, noSearch);
         if (!resolved) {
             stats.failed++;
             console.log(`[${i + 1}/${targets.length}] FAIL #${row.id} ${row.name} — no PDP`);

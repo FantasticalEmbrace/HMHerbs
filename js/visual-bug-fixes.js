@@ -89,14 +89,24 @@ class VisualBugFixer {
         // Add CSS to prevent flickering during transitions
         const flickerFixCSS = document.createElement('style');
         flickerFixCSS.textContent = `
-            /* Prevent carousel flickering — never translateZ on .product-image (<img> paints blank in some engines) */
+            /* Spotlight cards — tall uniform layout; no GPU layer on cards (breaks photos) */
             .product-spotlight .spotlight-grid,
-            .product-card {
-                backface-visibility: hidden;
-                -webkit-backface-visibility: hidden;
-                transform: translateZ(0);
-                -webkit-transform: translateZ(0);
+            .product-spotlight .product-card {
+                backface-visibility: visible;
+                -webkit-backface-visibility: visible;
+                transform: none;
+                -webkit-transform: none;
                 will-change: auto;
+            }
+
+            .product-spotlight .product-card {
+                min-height: 400px;
+                contain: layout style paint;
+            }
+
+            .product-spotlight .product-card:hover {
+                transform: translateY(-8px);
+                -webkit-transform: translateY(-8px);
             }
             
             /* Keep product photos visible: opacity 0 + waiting for .loaded hid real images (lazy/cached races). */
@@ -113,47 +123,46 @@ class VisualBugFixer {
                 opacity: 1;
             }
             
-            /* Prevent layout shifts */
-            .product-card {
+            /* Catalog grid cards only — spotlight uses rules above */
+            .products-grid .product-card {
                 min-height: 400px;
-                contain: layout style paint;
+                contain: layout style;
             }
             
-            /* Optimize GPU layers */
-            .product-card:hover {
-                transform: translateY(-4px) translateZ(0);
+            /* Optimize GPU layers — catalog only; no translateZ (breaks photos on mobile) */
+            .products-grid .product-card:hover {
                 will-change: transform;
             }
             
-            .product-card:not(:hover) {
+            .products-grid .product-card:not(:hover) {
                 will-change: auto;
             }
             
-            /* Fix scroll bar flickering */
+            /* Fix scroll bar flickering — use site theme tokens (not undefined --color-* vars) */
             ::-webkit-scrollbar {
                 width: 12px;
-                background: var(--color-background);
+                background: var(--gray-100, #f3f4f6);
             }
             
             ::-webkit-scrollbar-track {
-                background: var(--color-background);
+                background: var(--gray-100, #f3f4f6);
                 border-radius: 6px;
             }
             
             ::-webkit-scrollbar-thumb {
-                background: var(--color-primary);
+                background: var(--primary-green, #059669);
                 border-radius: 6px;
-                border: 2px solid var(--color-background);
+                border: 2px solid var(--gray-100, #f3f4f6);
                 transition: background-color 0.2s ease;
             }
             
             ::-webkit-scrollbar-thumb:hover {
-                background: var(--color-primary-dark);
+                background: var(--primary-green-dark, #047857);
             }
             
-            /* Prevent scrollbar flickering */
             html {
                 scrollbar-gutter: stable;
+                scrollbar-color: var(--primary-green, #059669) var(--gray-100, #f3f4f6);
             }
             
             /* Smooth scrolling optimization */
@@ -278,10 +287,17 @@ class VisualBugFixer {
         // Add CSS for scroll optimization
         const scrollOptimizationCSS = document.createElement('style');
         scrollOptimizationCSS.textContent = `
-            /* Prevent scrollbar layout shifts */
+            /* Prevent scrollbar layout shifts — html is the sole vertical scroll container */
             html {
+                overflow-x: clip;
                 overflow-y: scroll;
                 scrollbar-gutter: stable;
+                scrollbar-color: var(--primary-green, #059669) var(--gray-100, #f3f4f6);
+            }
+
+            body {
+                overflow-x: clip;
+                overflow-y: visible;
             }
             
             /* Smooth scrollbar transitions */
@@ -303,13 +319,27 @@ class VisualBugFixer {
                 -moz-osx-font-smoothing: grayscale;
             }
             
-            /* Optimize transform transitions */
-            .product-card,
+            /* Optimize transform transitions — buttons/nav only (not product cards; breaks photos) */
             .btn,
             .nav-menu a {
                 transform: translateZ(0);
                 backface-visibility: hidden;
                 perspective: 1000px;
+            }
+
+            .products-grid .product-card,
+            .products-section .product-card {
+                transform: none !important;
+                -webkit-transform: none !important;
+                backface-visibility: visible !important;
+                -webkit-backface-visibility: visible !important;
+                perspective: none !important;
+            }
+
+            .product-spotlight .product-card {
+                transform: none;
+                backface-visibility: visible;
+                perspective: none;
             }
             
             /* Don't apply transforms to mobile menu links - causes rendering issues */
@@ -321,7 +351,8 @@ class VisualBugFixer {
             /* Modals: .btn rules above break fixed panels + overflow; keep modal trees transform-clean. */
             .wishlist-modal .btn,
             .acct-modal-floating .btn,
-            .edsa-modal .btn {
+            .edsa-modal .btn,
+            #edsa-booking-modal .btn {
                 transform: none !important;
                 -webkit-transform: none !important;
                 backface-visibility: visible !important;
@@ -330,14 +361,19 @@ class VisualBugFixer {
                 will-change: auto !important;
             }
             
-            /* Prevent layout thrashing */
-            .product-card:hover {
-                transform: translateY(-4px) translateZ(0);
+            /* Prevent layout thrashing — catalog grid */
+            .products-grid .product-card:hover {
+                transform: translateY(-4px);
                 will-change: transform;
             }
             
-            .product-card:not(:hover) {
+            .products-grid .product-card:not(:hover) {
                 will-change: auto;
+            }
+
+            .product-spotlight .product-card:hover {
+                transform: translateY(-8px);
+                -webkit-transform: translateY(-8px);
             }
             
             /* Optimize opacity transitions */
@@ -417,8 +453,10 @@ class VisualBugFixer {
             return;
         }
 
-        // Skip EDSA images and other static images that should not be processed
+        // Skip EDSA images, product detail images, and other static images that should not be processed
         if (img.closest('.edsa-image') ||
+            img.closest('.product-main-image') ||
+            img.classList.contains('product-image-main') ||
             img.src.includes('edsa-icon') ||
             img.hasAttribute('data-skip-error-handling')) {
             // Just mark as loaded if it's already complete, but don't apply error handling
@@ -483,12 +521,15 @@ class VisualBugFixer {
     }
 
     optimizeProductCard(card) {
-        // Prevent flickering on new product cards
-        card.style.transform = 'translateZ(0)';
-        card.style.backfaceVisibility = 'hidden';
-
-        // Add to flicker elements set
-        this.flickerElements.add(card);
+        // GPU layers on product cards break <img> painting in WebKit (especially mobile).
+        if (card.closest('.product-spotlight')) {
+            return;
+        }
+        card.style.transform = 'none';
+        card.style.webkitTransform = 'none';
+        card.style.backfaceVisibility = 'visible';
+        card.style.webkitBackfaceVisibility = 'visible';
+        card.style.willChange = 'auto';
     }
 
     // Apply all fixes
@@ -512,6 +553,8 @@ class VisualBugFixer {
         document.querySelectorAll('img').forEach(img => {
             // Skip EDSA images and other static images
             if (img.closest('.edsa-image') ||
+                img.closest('.product-main-image') ||
+                img.classList.contains('product-image-main') ||
                 img.src.includes('edsa-icon') ||
                 img.hasAttribute('data-skip-error-handling')) {
                 // Just ensure EDSA images are marked as loaded if they're complete
@@ -625,7 +668,7 @@ class VisualBugFixer {
     const criticalCSS = document.createElement('style');
     criticalCSS.textContent = `
         /* IMMEDIATE FLICKER FIXES — same exclusions as css/emergency-fixes.css (wishlist modal + dim must stay transform-clean) */
-        *:not(html):not(body):not(img):not(picture):not(video):not(svg):not(canvas):not(.auth-modal):not(.hm-age-gate):not(.hm-age-gate *):not(.newsletter-popup):not(.newsletter-popup *):not(.cart-sidebar):not(.cart-overlay):not(.auth-icon-svg):not(.header-actions):not(.header-actions *):not(.acct-modal-backdrop):not(.hm-wl-picker-backdrop):not(.acct-modal):not(.wishlist-modal):not(.hm-wl-picker-dim):not(.acct-modal-dim):not(.edsa-modal):not(.edsa-modal *):not(#hm-toast-region):not(#hm-toast-region *):not(.hm-address-autocomplete-wrap):not(.hm-address-autocomplete-wrap *):not(.hm-address-suggest-list):not(.hm-address-suggest-list *) {
+        *:not(html):not(body):not(img):not(picture):not(video):not(svg):not(canvas):not(.auth-modal):not(.hm-age-gate):not(.hm-age-gate *):not(.newsletter-popup):not(.newsletter-popup *):not(.cart-sidebar):not(.cart-overlay):not(.auth-icon-svg):not(.header-actions):not(.header-actions *):not(.acct-modal-backdrop):not(.hm-wl-picker-backdrop):not(.acct-modal):not(.wishlist-modal):not(.hm-wl-picker-dim):not(.acct-modal-dim):not(.edsa-modal):not(.edsa-modal *):not(#edsa-booking-modal):not(#edsa-booking-modal *):not(#hm-toast-region):not(#hm-toast-region *):not(.hm-address-autocomplete-wrap):not(.hm-address-autocomplete-wrap *):not(.hm-address-suggest-list):not(.hm-address-suggest-list *) {
             -webkit-backface-visibility: hidden !important;
             backface-visibility: hidden !important;
             -webkit-transform: translateZ(0) !important;
@@ -661,16 +704,32 @@ class VisualBugFixer {
             /* Allow JavaScript to set transform via inline styles */
         }
         
-        .product-card, .spotlight-grid {
+        .products-grid .product-card {
             will-change: transform !important;
             transform: translate3d(0,0,0) !important;
             -webkit-transform: translate3d(0,0,0) !important;
         }
+
+        .product-spotlight .product-card,
+        .product-spotlight .spotlight-grid {
+            will-change: auto !important;
+            transform: none !important;
+            -webkit-transform: none !important;
+            backface-visibility: visible !important;
+            -webkit-backface-visibility: visible !important;
+        }
         
-        /* IMMEDIATE SCROLLBAR FIX */
+        /* IMMEDIATE SCROLLBAR FIX — html scrolls; body must not create a second scrollport */
         html {
             scrollbar-gutter: stable !important;
+            overflow-x: clip !important;
             overflow-y: scroll !important;
+            scrollbar-color: var(--primary-green, #059669) var(--gray-100, #f3f4f6);
+        }
+
+        body {
+            overflow-x: clip !important;
+            overflow-y: visible !important;
         }
         
         /* Images must stay visible: hide-until-.loaded + !important broke every <img> when .loaded

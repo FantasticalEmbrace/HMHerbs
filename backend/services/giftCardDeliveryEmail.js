@@ -12,7 +12,7 @@ const BRAND = {
     headerTo: '#065f46',
     lightGreen: '#ecfdf5',
     sageBorder: '#bbf7d0',
-    accentGold: '#cfad37',
+    accentGold: '#d4af37',
     text: '#111827',
     textMuted: '#4b5563',
     footerMuted: '#6b7280',
@@ -139,12 +139,11 @@ function buildGiftCardBodyHtml({
     const amountStr = `$${Number(amount).toFixed(2)}`;
 
     const messageText = String(personalMessage || '').trim();
-    const messageBlock =
-        styled && messageText
-            ? `<div style="margin:22px 0;padding:20px 22px;background:${BRAND.lightGreen};border:1px solid ${BRAND.sageBorder};border-left:4px solid ${BRAND.primary};border-radius:8px;">
+    const messageBlock = messageText
+        ? `<div style="margin:22px 0;padding:20px 22px;background:${BRAND.lightGreen};border:1px solid ${BRAND.sageBorder};border-left:4px solid ${BRAND.primary};border-radius:8px;">
                     <p style="margin:0;font-family:${BRAND.font};font-size:17px;line-height:1.65;color:#065f46;font-style:italic;">&ldquo;${escapeHtml(messageText)}&rdquo;</p>
                </div>`
-            : '';
+        : '';
 
     const codeBlock = isDigital
         ? `<div style="margin:22px 0;padding:18px 20px;background:${BRAND.lightGreen};border:1px solid ${BRAND.sageBorder};border-radius:8px;">

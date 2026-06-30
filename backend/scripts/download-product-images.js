@@ -48,8 +48,11 @@ class ProductImageDownloader {
         } catch (error) {
             console.log(`⚠️  Could not load scraped products. Starting fresh scrape...\n`);
             // If no scraped data, we'll need to scrape first
-            const EnhancedHMHerbsScraper = require('./scrape-all-products');
-            const scraper = new EnhancedHMHerbsScraper();
+            const { loadScraper } = require('../utils/businessone-scraper');
+            const CatalogScraper = loadScraper();
+            const scraper = new CatalogScraper({
+                domain: process.env.CATALOG_SCRAPE_DOMAIN || 'https://hmherbs.com'
+            });
             await scraper.scrapeAllProducts();
             
             // Try loading again

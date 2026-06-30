@@ -159,6 +159,7 @@
     function run() {
         if (shouldSkipPage()) return;
         if (isVerified()) {
+            unlockPageScroll();
             persistVerified();
             notifyAgeVerified();
             return;

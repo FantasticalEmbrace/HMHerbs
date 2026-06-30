@@ -11,8 +11,12 @@ const {
     createInStorePosOrder,
     syncPosOrderBatch,
     refundInStorePosOrder,
+    loadCatalogLines,
     ALLOWED_PAYMENT_METHODS
 } = require('../services/posStoreOrder');
+const { pricePosCart } = require('../services/posPromotionPricing');
+const { merchandiseSubtotal, applyCartDiscountToEnriched, computeDualPricing } = require('../services/posCashDiscount');
+const { resolveCustomerUser } = require('../services/posCustomerService');
 const { listInStorePosSales, getInStorePosOrderReceipt } = require('../services/posOrderHistory');
 const { loadStoreTaxRate } = require('../utils/storeTaxRate');
 const { loadCashDiscountSettings } = require('../services/posCashDiscount');
@@ -162,6 +166,9 @@ router.get('/config', async (req, res) => {
                 requireManagerPinDiscounts: security.requireManagerPinDiscounts,
                 requireManagerPinVoidRefund: security.requireManagerPinVoidRefund,
                 maxLineDiscountPercent: security.maxLineDiscountPercent
+            },
+            promotions: {
+                autoApplyAtRegister: true
             },
             cashDiscount: {
                 enabled: cashDiscount.enabled,
@@ -511,6 +518,90 @@ router.get('/products/lookup', async (req, res) => {
     }
 });
 
+router.post('/cart/pricing', authenticatePosEmployee, async (req, res) => {
+    try {
+        const body = req.body || {};
+        const lineItems = Array.isArray(body.items) ? body.items : [];
+        if (!lineItems.length) {
+            return res.json({
+                ok: true,
+                lines: [],
+                totals: { subtotal: 0, cartDiscountAmount: 0, taxAmount: 0, total: 0 },
+                appliedPromotions: [],
+                allowManualDiscounts: false
+            });
+        }
+
+        const allowManualDiscounts = Boolean(req.posEmployee?.allowManualDiscounts);
+        const manualCartDiscountPercent = allowManualDiscounts
+            ? Math.min(100, Math.max(0, Number(body.cartDiscountPercent ?? body.cart_discount_percent) || 0))
+            : 0;
+
+        const customerId = Number(body.customerId ?? body.customer_id ?? body.userId ?? body.user_id);
+        const customerUser =
+            Number.isInteger(customerId) && customerId > 0
+                ? await resolveCustomerUser(req.pool, customerId)
+                : null;
+
+        const taxExempt = Boolean(body.taxExempt || body.tax_exempt || customerUser?.tax_exempt);
+        const taxRate = taxExempt ? 0 : await loadStoreTaxRate(req.pool);
+
+        const catalogLines = await loadCatalogLines(req.pool, lineItems);
+        const preCartSubtotal = merchandiseSubtotal(catalogLines);
+        const promoPricing = await pricePosCart(req.pool, {
+            catalogLines,
+            customerUser,
+            taxExempt,
+            taxRate,
+            allowManualDiscounts,
+            manualCartDiscountPercent
+        });
+
+        let effectivePct = 0;
+        if (preCartSubtotal > 0 && promoPricing.cartDiscountAmount > 0) {
+            effectivePct = Math.min(100, (promoPricing.cartDiscountAmount / preCartSubtotal) * 100);
+        }
+
+        const cashSettings = await loadCashDiscountSettings(req.pool);
+        const pricedLines = applyCartDiscountToEnriched(catalogLines, effectivePct);
+        const pricing = computeDualPricing(
+            pricedLines,
+            taxRate,
+            cashSettings.enabled ? cashSettings.percent : 0
+        );
+
+        res.json({
+            ok: true,
+            allowManualDiscounts,
+            appliedPromotions: promoPricing.appliedPromotions || [],
+            discountLabel: promoPricing.cartDiscountLabel || null,
+            promoCode: promoPricing.promotion?.code || null,
+            lines: catalogLines.map((line) => ({
+                productId: line.product_id,
+                variantId: line.variant_id,
+                sku: line.sku,
+                name: line.name,
+                quantity: line.quantity,
+                catalogUnitPrice: line.catalogUnitPrice,
+                unitPrice: line.unitPrice,
+                lineDiscountPercent: line.lineDiscountPercent || 0
+            })),
+            totals: {
+                preCartSubtotal,
+                subtotal: pricing.card.subtotal,
+                cartDiscountPercent: effectivePct,
+                cartDiscountAmount: promoPricing.cartDiscountAmount,
+                taxAmount: pricing.card.taxAmount,
+                total: pricing.card.totalAmount,
+                cashTotal: pricing.cash?.totalAmount ?? pricing.card.totalAmount
+            }
+        });
+    } catch (error) {
+        logger.error('POS cart pricing error:', error);
+        res.status(500).json({ error: error.message || 'Cart pricing failed' });
+    }
+});
+
 // --- Customer profiles (shared with website gift cards & loyalty) ---
 
 router.get('/customers/search', authenticatePosEmployee, async (req, res) => {
@@ -556,6 +647,23 @@ router.post('/customers/quick-enroll', authenticatePosEmployee, async (req, res)
         };
         res.status(statusMap[code] || 400).json({
             error: error.message || 'Could not create customer',
+            code
+        });
+    }
+});
+
+router.patch('/customers/:id/tax-exempt', authenticatePosEmployee, async (req, res) => {
+    try {
+        const customer = await posCustomerService.updateCustomerTaxExempt(req.pool, Number(req.params.id), req.body || {});
+        res.json({ success: true, customer });
+    } catch (error) {
+        const code = error.code || 'TAX_EXEMPT_UPDATE_FAILED';
+        const statusMap = {
+            CUSTOMER_NOT_FOUND: 404,
+            TAX_EXEMPT_ID_REQUIRED: 400
+        };
+        res.status(statusMap[code] || 400).json({
+            error: error.message || 'Could not update tax exempt status',
             code
         });
     }
@@ -652,6 +760,7 @@ router.post('/orders', authenticatePosEmployee, requireActivePosLicense, async (
             PRODUCT_NOT_FOUND: 404,
             INVALID_LINE_QUANTITY: 400,
             TAX_EXEMPT_REASON_REQUIRED: 400,
+            MANUAL_DISCOUNT_DISABLED: 403,
             MANAGER_PIN_REQUIRED: 403,
             INVALID_MANAGER_PIN: 403,
             NOT_AUTHORIZED_MANAGER: 403,
@@ -874,7 +983,8 @@ router.get('/employees/me', authenticatePosEmployee, async (req, res) => {
                 name: `${employee.first_name} ${employee.last_name}`.trim(),
                 canAuthorize: Boolean(employee.can_authorize),
                 canProcessRefunds: Boolean(employee.can_process_refunds),
-                canOpenDrawer: Boolean(employee.can_open_drawer)
+                canOpenDrawer: Boolean(employee.can_open_drawer),
+                allowManualDiscounts: personnel.employeeAllowManualDiscounts(employee)
             }
         });
     } catch (e) {

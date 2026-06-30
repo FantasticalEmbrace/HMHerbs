@@ -262,6 +262,26 @@ async function tryAutoSyncGoogleBusinessHours(req, updatedKeyNames = []) {
     }
 }
 const { parseRules, promotionHasApplicableMerchOrShipping } = require('../services/webPromotionEngine');
+
+function promoChannelFromBody(body) {
+    const channel = String(body.promotion_channel || body.channel || '').trim().toLowerCase();
+    if (channel === 'web' || channel === 'website') {
+        return { applies_web: 1, applies_pos: 0, auto_apply_pos: 0 };
+    }
+    if (channel === 'pos' || channel === 'store' || channel === 'in_store') {
+        return { applies_web: 0, applies_pos: 1, auto_apply_pos: 1 };
+    }
+    if (channel === 'both') {
+        return { applies_web: 1, applies_pos: 1, auto_apply_pos: 1 };
+    }
+    const applies_web = body.applies_web === false || body.applies_web === 0 ? 0 : 1;
+    const applies_pos = body.applies_pos === false || body.applies_pos === 0 ? 0 : 1;
+    const auto_apply_pos = body.auto_apply_pos === false || body.auto_apply_pos === 0 ? 0 : 1;
+    if (!applies_web && !applies_pos) {
+        return { applies_web: 1, applies_pos: 1, auto_apply_pos: 1 };
+    }
+    return { applies_web, applies_pos, auto_apply_pos: applies_pos ? auto_apply_pos : 0 };
+}
 const {
     ADMIN_ROLES,
     ROLE_LABELS,
@@ -822,8 +842,9 @@ router.get('/products', ...adminAuth, async (req, res) => {
         let queryParams = [];
 
         if (search) {
-            whereConditions.push('(p.name LIKE ? OR p.sku LIKE ?)');
-            queryParams.push(`%${search}%`, `%${search}%`);
+            const searchTerm = `%${search}%`;
+            whereConditions.push('(p.name LIKE ? OR p.sku LIKE ? OR b.name LIKE ? OR b.slug LIKE ?)');
+            queryParams.push(searchTerm, searchTerm, searchTerm, searchTerm);
         }
 
         if (brand) {
@@ -3799,7 +3820,8 @@ router.get('/promotions', ...adminAuth, requirePermission('manager'), async (req
     try {
         const [rows] = await req.pool.execute(`
             SELECT id, code, description, is_active, starts_at, ends_at,
-                   usage_limit_total, usage_limit_per_email, rules, created_at, updated_at
+                   usage_limit_total, usage_limit_per_email, rules,
+                   applies_web, applies_pos, auto_apply_pos, created_at, updated_at
               FROM web_promotions
              ORDER BY id DESC`);
         res.json({ promotions: rows });
@@ -3817,7 +3839,8 @@ router.get('/promotions/:id', ...adminAuth, requirePermission('manager'), async 
         }
         const [rows] = await req.pool.execute(
             `SELECT id, code, description, is_active, starts_at, ends_at,
-                    usage_limit_total, usage_limit_per_email, rules, created_at, updated_at
+                    usage_limit_total, usage_limit_per_email, rules,
+                    applies_web, applies_pos, auto_apply_pos, created_at, updated_at
                FROM web_promotions WHERE id = ? LIMIT 1`,
             [id]
         );
@@ -3870,12 +3893,14 @@ router.post('/promotions', ...adminAuth, requirePermission('manager'), async (re
             body.usage_limit_per_email === '' || body.usage_limit_per_email == null
                 ? null
                 : Number(body.usage_limit_per_email);
+        const { applies_web, applies_pos, auto_apply_pos } = promoChannelFromBody(body);
 
         const [ins] = await req.pool.execute(
             `INSERT INTO web_promotions (
                 code, description, is_active, starts_at, ends_at,
-                usage_limit_total, usage_limit_per_email, rules
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                usage_limit_total, usage_limit_per_email, rules,
+                applies_web, applies_pos, auto_apply_pos
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 code,
                 description,
@@ -3884,7 +3909,10 @@ router.post('/promotions', ...adminAuth, requirePermission('manager'), async (re
                 ends_at,
                 Number.isFinite(usage_limit_total) ? usage_limit_total : null,
                 Number.isFinite(usage_limit_per_email) ? usage_limit_per_email : null,
-                validated
+                validated,
+                applies_web,
+                applies_pos,
+                auto_apply_pos
             ]
         );
         res.status(201).json({ id: ins.insertId, code });
@@ -3940,11 +3968,13 @@ router.put('/promotions/:id', ...adminAuth, requirePermission('manager'), async 
             body.usage_limit_per_email === '' || body.usage_limit_per_email == null
                 ? null
                 : Number(body.usage_limit_per_email);
+        const { applies_web, applies_pos, auto_apply_pos } = promoChannelFromBody(body);
 
         const [r] = await req.pool.execute(
             `UPDATE web_promotions SET
                 code = ?, description = ?, is_active = ?, starts_at = ?, ends_at = ?,
-                usage_limit_total = ?, usage_limit_per_email = ?, rules = ?
+                usage_limit_total = ?, usage_limit_per_email = ?, rules = ?,
+                applies_web = ?, applies_pos = ?, auto_apply_pos = ?
              WHERE id = ?`,
             [
                 code,
@@ -3955,6 +3985,9 @@ router.put('/promotions/:id', ...adminAuth, requirePermission('manager'), async 
                 Number.isFinite(usage_limit_total) ? usage_limit_total : null,
                 Number.isFinite(usage_limit_per_email) ? usage_limit_per_email : null,
                 JSON.stringify(validated),
+                applies_web,
+                applies_pos,
+                auto_apply_pos,
                 id
             ]
         );
@@ -4378,6 +4411,7 @@ router.get('/team', ...adminAuth, requirePermission('admin'), async (req, res) =
                 canAuthorize: Boolean(row.can_authorize),
                 canProcessRefunds: Boolean(row.can_process_refunds),
                 canOpenDrawer: Boolean(row.can_open_drawer),
+                allowManualDiscounts: Boolean(row.allow_manual_discounts),
             };
             if (row.admin_user_id) registerByAdmin.set(row.admin_user_id, reg);
             else registerOnlyEmployees.push(reg);
@@ -4469,6 +4503,7 @@ function mapTeamRegisterRow(employee) {
         canAuthorize: Boolean(employee.can_authorize),
         canProcessRefunds: Boolean(employee.can_process_refunds),
         canOpenDrawer: Boolean(employee.can_open_drawer),
+        allowManualDiscounts: Boolean(employee.allow_manual_discounts),
     };
 }
 

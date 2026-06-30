@@ -1,39 +1,40 @@
 'use strict';
 
-/** Tracks the single in-flight HM Herbs scrape (SSE) so admin can cancel it. */
-let activeJob = null;
+/** Tracks one in-flight HM Herbs product scrape for admin cancel + SSE cleanup. */
+let active = null;
 
 function registerScraper(scraper, res) {
-    activeJob = { scraper, res, cancelled: false, startedAt: Date.now() };
-    return activeJob;
-}
-
-function cancelActive(reason = 'Cancelled by user') {
-    if (activeJob) {
-        activeJob.cancelled = true;
-        if (activeJob.scraper && typeof activeJob.scraper.cancel === 'function') {
-            activeJob.scraper.cancel(reason);
-        }
-        return true;
-    }
-    if (global.__hmHerbsActiveScraper && typeof global.__hmHerbsActiveScraper.cancel === 'function') {
-        global.__hmHerbsActiveScraper.cancel(reason);
-        return true;
-    }
-    return false;
+    active = { scraper, res };
 }
 
 function clearActive() {
-    activeJob = null;
+    active = null;
 }
 
-function getActive() {
-    return activeJob;
+function cancelActive(reason = 'Cancelled') {
+    if (!active?.scraper) return false;
+    const { scraper, res } = active;
+    scraper._cancelled = true;
+    scraper._cancelReason = String(reason || 'Cancelled');
+    if (typeof scraper.cancel === 'function') {
+        try {
+            scraper.cancel(reason);
+        } catch {
+            /* ignore */
+        }
+    }
+    if (res && !res.writableEnded && !res.destroyed) {
+        try {
+            res.end();
+        } catch {
+            /* ignore */
+        }
+    }
+    return true;
 }
 
 module.exports = {
     registerScraper,
-    cancelActive,
     clearActive,
-    getActive,
+    cancelActive,
 };

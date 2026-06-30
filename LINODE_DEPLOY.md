@@ -1,6 +1,10 @@
 # HM Herbs — Linode / Akamai Cloud deployment
 
-Deploy the static storefront + Node API on a **Linode**, with **Managed MySQL** for the database. Use a **NodeBalancer** as the public entry point (included in many managed bundles).
+Deploy the static storefront + Node API on a **Linode**, with **Managed MySQL** for the database. Use a **NodeBalancer** as the public entry point.
+
+> **Region (required):** Use a **core** region with **private IP + NodeBalancer backends** — e.g. **Miami, FL (`us-mia`)** or **Washington, DC (`us-east`)**.
+>
+> **Do not use Atlanta** for new HM Herbs stacks: NodeBalancer backends need a private IP or VPC, and Atlanta supports neither. See [deploy/MIAMI-MIGRATION.md](deploy/MIAMI-MIGRATION.md) if you already deployed elsewhere.
 
 ## Architecture
 
@@ -54,11 +58,12 @@ See `database/DEPLOY-DATABASE.md` for bundle contents and rebuild steps.
 
 ## 3. Linode (app server)
 
-1. **Create Linode** — Ubuntu 22.04 LTS, **2 GB RAM** recommended for catalog + API.
-2. **NodeBalancer** (if not created yet):
-   - Same region as the Linode
-   - Add a **configuration** for port **80** (and **443** after SSL) pointing to your Linode’s **private or public IP** on port **80** (Nginx)
-   - Health check: HTTP on `/` or `/api/health`
+1. **Create Linode** — Ubuntu 22.04 LTS, **2 GB RAM**, region **Miami, FL** (or another core region — not Atlanta).
+2. **Private IP** — Linode → Network → **Add IP Address → Private IPv4** (required for NodeBalancer backend).
+3. **NodeBalancer** (same region as Linode):
+   - **No VPC** in Miami unless you deliberately use VPC backends
+   - Backend node = Linode **private IPv4** on port **80** (not public IP — the UI dropdown only lists private IPs)
+   - Health check: HTTP on `/api/health`
 3. **DNS** — Point your domain **A record** to the **NodeBalancer** IP (not the Linode IP directly).
 4. SSH in and install dependencies:
 
@@ -136,11 +141,26 @@ Change admin passwords after first deploy.
 
 ## 5. Staging / temp domain
 
-Use the same steps with a subdomain (e.g. `staging.hmherbs.com`). In `backend/.env`:
+Use the same steps with a subdomain (e.g. `staging.hmherbs.com` or `139-177-204-216.sslip.io`). In `backend/.env`:
 
 ```bash
 STAGING_BLOCK_INDEXING=true
 NMI_SANDBOX=1
+```
+
+### Google OAuth on temp / production hosts
+
+Sign-in is configured on the server via `GBP_CLIENT_ID` / `GBP_CLIENT_SECRET` (`deploy/sync-linode-env.ps1`). You must also register **Authorized redirect URIs** in Google Cloud Console — see **[deploy/GOOGLE_OAUTH_REDIRECT_URIS.md](deploy/GOOGLE_OAUTH_REDIRECT_URIS.md)** for:
+
+- Temp Linode (`172-238-208-164.sslip.io`) — active underwriting URL until `hmherbs.com` DNS
+- Production (`www.hmherbs.com`) — add before DNS cutover
+- Optional `go.hmherbs.com` and local dev URLs
+
+Quick check after adding URIs:
+
+```bash
+curl -s http://172-238-208-164.sslip.io/api/admin/auth/google/status
+# Admin login → Continue with Google → Google account picker (not redirect_uri_mismatch)
 ```
 
 ## 6. Scaling later

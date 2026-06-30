@@ -475,7 +475,7 @@ class CheckoutManager {
                     }
                 })
                 .join(' ');
-            return /PaymentRequestAbstraction|ApplePayRequest|ApplePayField|GooglePayField|Could not create PaymentRequest/i.test(
+            return /PaymentRequestAbstraction|ApplePayRequest|ApplePayField|GooglePayField|Could not create PaymentRequest|Failed to create an Apple Pay button|must allow .* to use Apple Pay/i.test(
                 text
             );
         };
@@ -791,14 +791,15 @@ class CheckoutManager {
             const configureOpts = this.buildNmiCollectConfigureOptions();
             const maybePromise = window.CollectJS.configure(configureOpts);
             const onConfigured = () => {
+                this.nmiScriptReady = true;
                 window.setTimeout(() => {
                     if (!this.verifyNmiHostedFieldsMounted()) {
-                        console.warn(
-                            'Collect.js loaded but hosted card iframes are missing. Check NMI key, CSP, and restart the API server.'
+                        this.teardownNmiCollect(
+                            'Secure card fields could not load. The payment tokenization key on the server may be invalid — check NMI_PUBLIC_TOKENIZATION_KEY in backend/.env (sandbox key + NMI_SANDBOX=1), restart the API, and reload.'
                         );
+                        this.removeNmiRejectionGuard();
                     }
                 }, 1200);
-                this.nmiScriptReady = true;
             };
             if (maybePromise && typeof maybePromise.then === 'function') {
                 maybePromise

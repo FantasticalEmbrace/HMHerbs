@@ -138,11 +138,12 @@
 
         mount.innerHTML = fields
             .filter((f) => fieldVisible(f, cfg))
-            .map((f) => {
+            .map((f, fieldIndex) => {
                 const val = cfg[f.key] ?? f.default ?? '';
                 const help = f.help
                     ? `<p class="form-help" style="margin:0.35rem 0 0;">${esc(f.help)}</p>`
                     : '';
+                const fieldId = `pos-equipment-cfg-${fieldIndex}-${String(f.key).replace(/[^a-zA-Z0-9_-]/g, '-')}`;
 
                 if (f.type === 'equipment_link') {
                     const filterType = f.filterType || 'receipt_printer';
@@ -159,8 +160,8 @@
                         )
                         .join('');
                     return `<div class="form-group">
-                        <label>${configFieldLabel(f, cfg)}</label>
-                        <select class="form-input pos-equipment-config-input" data-config-key="${esc(f.key)}"${fieldRequired(f, cfg) ? ' required' : ''}>
+                        <label for="${fieldId}">${configFieldLabel(f, cfg)}</label>
+                        <select id="${fieldId}" class="form-input pos-equipment-config-input" data-config-key="${esc(f.key)}"${fieldRequired(f, cfg) ? ' required' : ''}>
                             <option value="">— Select printer —</option>
                             ${options}
                         </select>
@@ -177,15 +178,15 @@
                         })
                         .join('');
                     return `<div class="form-group">
-                        <label>${configFieldLabel(f, cfg)}</label>
-                        <select class="form-input pos-equipment-config-input" data-config-key="${esc(f.key)}"${fieldRequired(f, cfg) ? ' required' : ''}>${opts}</select>
+                        <label for="${fieldId}">${configFieldLabel(f, cfg)}</label>
+                        <select id="${fieldId}" class="form-input pos-equipment-config-input" data-config-key="${esc(f.key)}"${fieldRequired(f, cfg) ? ' required' : ''}>${opts}</select>
                         ${help}
                     </div>`;
                 }
 
                 return `<div class="form-group">
-                    <label>${configFieldLabel(f, cfg)}</label>
-                    <input class="form-input pos-equipment-config-input" data-config-key="${esc(f.key)}" type="text" value="${esc(val)}" maxlength="200"${f.placeholder ? ` placeholder="${esc(f.placeholder)}"` : ''}${fieldRequired(f, cfg) ? ' required' : ''}>
+                    <label for="${fieldId}">${configFieldLabel(f, cfg)}</label>
+                    <input id="${fieldId}" class="form-input pos-equipment-config-input" data-config-key="${esc(f.key)}" type="text" value="${esc(val)}" maxlength="200"${f.placeholder ? ` placeholder="${esc(f.placeholder)}"` : ''}${fieldRequired(f, cfg) ? ' required' : ''}>
                     ${help}
                 </div>`;
             })

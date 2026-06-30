@@ -228,7 +228,7 @@ async function pickBestAutoApplyPromotion(pool, benefits, previewOpts) {
             [Number(promo.promotionId)]
         );
         const promotion = rows[0];
-        if (!promotion) continue;
+        if (!promotion || !promotionAppliesWeb(promotion)) continue;
 
         let rulesParsed;
         try {

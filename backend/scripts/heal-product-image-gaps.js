@@ -20,7 +20,9 @@ const path = require('path');
 const mysql = require('mysql2/promise');
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
-const HMHerbsScraper = require('./scrape-hmherbs');
+const { loadScraper } = require('../utils/businessone-scraper');
+const CatalogScraper = loadScraper();
+const SCRAPE_DOMAIN = process.env.CATALOG_SCRAPE_DOMAIN || 'https://hmherbs.com';
 const {
     effectivePrimaryImageUrl,
     catalogPrimaryImageForProduct,
@@ -104,7 +106,7 @@ function scrapedImagesForProduct(index, row) {
     if (!pr && skuKey && skuKey !== skuRaw) pr = index.bySku.get(skuKey);
     if (!pr && slug) pr = index.bySlug.get(slug);
     if (!pr || !Array.isArray(pr.images)) return [];
-    return pr.images.filter((im) => im && im.url && !HMHerbsScraper.isJunkProductImageUrl(im.url));
+    return pr.images.filter((im) => im && im.url && !CatalogScraper.isJunkProductImageUrl(im.url));
 }
 
 function safeSlugSegment(s) {
@@ -238,10 +240,10 @@ function buildPdpUrl(slug) {
             try {
                 const html = await fetchHtml(pdp);
                 const $ = cheerio.load(html);
-                const scraper = new HMHerbsScraper();
+                const scraper = new CatalogScraper({ domain: SCRAPE_DOMAIN });
                 const imgs = scraper.extractImages($);
                 for (const im of imgs) {
-                    if (!im || !im.url || HMHerbsScraper.isJunkProductImageUrl(im.url)) continue;
+                    if (!im || !im.url || CatalogScraper.isJunkProductImageUrl(im.url)) continue;
                     try {
                         const b = await downloadBinary(im.url);
                         if (isValidImageBuffer(b)) {

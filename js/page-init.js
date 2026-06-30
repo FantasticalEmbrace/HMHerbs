@@ -36,13 +36,23 @@
             document.body.style.overflow = '';
             document.documentElement.style.overflow = '';
         }
+        document.documentElement.classList.remove(
+            'hm-age-gate-open',
+            'hm-await-edsa-scroll',
+            'hm-section-scroll-ready',
+            'hm-edsa-scroll-ready',
+            'edsa-ui-scroll-locked'
+        );
         document.body.classList.remove(
+            'hm-age-gate-open',
             'auth-modal-open',
             'edsa-modal-open',
+            'edsa-ui-scroll-locked',
             'modal-open',
             'no-scroll',
             'cart-open',
-            'checkout-nmi-active'
+            'checkout-nmi-active',
+            'hm-mobile-nav-open'
         );
     }
 
@@ -120,6 +130,14 @@
 
     window.addEventListener('resize', syncHmHeaderOffset, { passive: true });
     window.addEventListener('load', syncHmHeaderOffset, { passive: true });
+
+    window.addEventListener('pageshow', function () {
+        releaseAllScrollLocks();
+        syncHmHeaderOffset();
+        if (!isAgeGateOpen() && isPageReloadNavigation()) {
+            scrollToTopIfNoHash();
+        }
+    }, { passive: true });
 
     // Only prevent scroll restoration on initial load, not after real scrolling.
     // Do NOT use { once: true } on scroll: the first event may still be

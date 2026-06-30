@@ -142,6 +142,12 @@ class CustomerAuth {
             } else {
                 form.appendChild(wrap);
             }
+
+            const phoneFields = form.querySelectorAll('#register-phone');
+            for (let i = 1; i < phoneFields.length; i++) {
+                const extra = phoneFields[i];
+                extra.closest('.form-group')?.remove() || extra.remove();
+            }
         });
         if (window.HMHERBS_ADDRESS_AUTOCOMPLETE) {
             window.HMHERBS_ADDRESS_AUTOCOMPLETE.attachStandardForms();

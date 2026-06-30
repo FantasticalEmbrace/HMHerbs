@@ -11,6 +11,9 @@
     "seed": "node scripts/seed.js",
     "match-brands": "node scripts/match-products-to-brands.js",
     "match-categories": "node scripts/match-products-to-categories.js",
+    "backfill-health-categories": "node scripts/backfill-health-categories.js",
+    "strip-brand-from-names": "node scripts/strip-brand-from-product-names.js",
+    "strip-brand-from-names:dry-run": "node scripts/strip-brand-from-product-names.js --dry-run",
     "ensure-images": "node scripts/ensure-product-catalog-images.js",
     "fetch-live-images": "node scripts/fetch-hmherbs-product-images.js",
     "fetch-product-images-json-fast": "node scripts/fetch-hmherbs-product-images.js --json-only",
@@ -23,9 +26,7 @@
     "catalog-health": "node scripts/sync-catalog-primary-images-to-db.js --dry-run && node scripts/report-product-image-gaps.js",
     "test:nmi-connectivity": "node scripts/test-nmi-connectivity.js",
     "verify:nmi-parse": "node scripts/verify-nmi-gateway-parse.js",
-    "set-customer-password": "node scripts/set-customer-password.js",
-    "db:test": "node scripts/test-db-connection.js",
-    "db:check": "node check-credentials.js"
+    "set-customer-password": "node scripts/set-customer-password.js"
   },
   "keywords": [
     "herbs",

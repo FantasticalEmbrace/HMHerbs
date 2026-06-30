@@ -18,7 +18,7 @@
    MOBILE NAVIGATION ENHANCEMENTS
    ============================================ */
 
-@media (max-width: 768px) {
+@media (max-width: 1100px) {
     /* Enhanced mobile menu toggle */
     .mobile-menu-toggle {
         min-width: 48px !important;
@@ -78,7 +78,7 @@
 
 @media (max-width: 768px) {
     /* Minimum touch target size (44x44px recommended by Apple/Google) */
-    button:not(.header-actions button):not(.newsletter-popup-skip),
+    button:not(.header-actions button):not(.newsletter-popup-skip):not(.mobile-menu-toggle),
     .btn,
     a.btn,
     input[type="button"],
@@ -353,6 +353,11 @@
         line-height: 1.6 !important;
     }
 
+    .footer .footer-info-section ul li a,
+    .footer .footer-section:has(> h4 + ul) ul li a {
+        color: var(--white) !important;
+    }
+
     .footer .footer-section ul li a {
         display: inline-block !important;
         padding: 0 !important;
@@ -537,12 +542,14 @@
    LANDSCAPE ORIENTATION
    ============================================ */
 
-@media (max-width: 768px) and (orientation: landscape) {
+@media (max-width: 1100px) and (orientation: landscape) {
     .hero {
         padding: var(--space-6) 0 !important;
     }
 
-    .nav-menu {
+    .nav-menu,
+    #nav-menu,
+    #navbar-menu {
         padding-top: 60px !important;
     }
 }

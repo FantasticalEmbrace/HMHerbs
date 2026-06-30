@@ -14,6 +14,9 @@ const {
     isNmiSandboxHint,
     isNmiWalletsDisabled,
     nmiResolveTokenizationCollectJs,
+    nmiTokenCreatePreflightOnce,
+    NMI_TOKEN_CREATE_URL_SANDBOX,
+    NMI_TOKEN_CREATE_URL_SECURE,
     shouldSkipNmiTokenizationPreflight
 } = require('../utils/nmiEnv');
 const {
@@ -91,21 +94,8 @@ router.get('/nmi-client-config', async (req, res) => {
     try {
         const resolved = await nmiResolveTokenizationCollectJs(tokenizationKey);
         if (!resolved.ok) {
-            if (shouldSkipNmiTokenizationPreflight()) {
-                return res.json({
-                    enabled: true,
-                    processor,
-                    processorLabel,
-                    tokenizationKey,
-                    collectJsUrl: creds.collectJsUrl || getNmiCollectJsUrl(),
-                    variant: 'inline',
-                    sandbox: Boolean(creds.sandbox),
-                    disableWallets: isNmiWalletsDisabled(),
-                    preflightSkipped: true
-                });
-            }
             logger.warn(
-                `${processorLabel} tokenization key rejected by token preflight (401/403). Use the Collect.js public tokenization key from your merchant portal (not the Direct Post security key), set NMI_COLLECT_JS_URL for sandbox, or set NMI_SKIP_TOKENIZATION_PREFLIGHT=1.`
+                `${processorLabel} tokenization key rejected by token preflight (401/403). Use the Collect.js public tokenization key from your merchant portal (not the Direct Post security key), set NMI_COLLECT_JS_URL for sandbox, or fix NMI_PUBLIC_TOKENIZATION_KEY.`
             );
             return res.json({
                 enabled: false,
@@ -119,12 +109,32 @@ router.get('/nmi-client-config', async (req, res) => {
                 preflightRejected: true
             });
         }
+        const collectJsUrl = resolved.collectJsUrl || creds.collectJsUrl || getNmiCollectJsUrl();
+        const probeUrl = String(collectJsUrl).toLowerCase().includes('sandbox')
+            ? NMI_TOKEN_CREATE_URL_SANDBOX
+            : NMI_TOKEN_CREATE_URL_SECURE;
+        if (!(await nmiTokenCreatePreflightOnce(probeUrl, tokenizationKey))) {
+            logger.warn(
+                `${processorLabel} tokenization key rejected at ${probeUrl}. Update NMI_PUBLIC_TOKENIZATION_KEY (Collect.js public key, not the private security key).`
+            );
+            return res.json({
+                enabled: false,
+                processor,
+                processorLabel,
+                tokenizationKey: '',
+                collectJsUrl,
+                variant: 'inline',
+                sandbox: Boolean(creds.sandbox),
+                disableWallets: isNmiWalletsDisabled(),
+                preflightRejected: true
+            });
+        }
         return res.json({
             enabled: true,
             processor,
             processorLabel,
             tokenizationKey,
-            collectJsUrl: resolved.collectJsUrl,
+            collectJsUrl,
             variant: 'inline',
             sandbox: Boolean(creds.sandbox),
             disableWallets: isNmiWalletsDisabled()

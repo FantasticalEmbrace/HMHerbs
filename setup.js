@@ -217,22 +217,6 @@ async function createVSCodeConfig() {
                     "focus": true,
                     "panel": "new"
                 }
-            },
-            {
-                "label": "Run HM Herbs Scraper",
-                "type": "shell",
-                "command": "node",
-                "args": ["scripts/scrape-hmherbs.js"],
-                "options": {
-                    "cwd": "${workspaceFolder}/backend"
-                },
-                "group": "build",
-                "presentation": {
-                    "echo": true,
-                    "reveal": "always",
-                    "focus": false,
-                    "panel": "new"
-                }
             }
         ]
     };
@@ -346,8 +330,7 @@ process.on('SIGINT', () => {
         "start": "node start.js",
         "backend": "cd backend && npm start",
         "setup": "node setup.js",
-        "reset-password": "cd backend && node scripts/reset-admin-password.js",
-        "scrape": "cd backend && node scripts/scrape-hmherbs.js"
+        "reset-password": "cd backend && node scripts/reset-admin-password.js"
     };
     
     fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
@@ -386,8 +369,6 @@ async function main() {
         console.log('\n3. 🌐 Access your website:');
         console.log('   Frontend: http://localhost:8000');
         console.log('   Admin Panel: http://localhost:8000/admin.html');
-        console.log('\n4. 🕷️ Run the scraper (optional):');
-        console.log('   npm run scrape');
         
         const startNow = await question('\n🚀 Would you like to start the server now? (y/n): ');
         

@@ -28,7 +28,9 @@ const path = require('path');
 const mysql = require('mysql2/promise');
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
-const HMHerbsScraper = require('./scrape-hmherbs');
+const { loadScraper } = require('../utils/businessone-scraper');
+const CatalogScraper = loadScraper();
+const SCRAPE_DOMAIN = process.env.CATALOG_SCRAPE_DOMAIN || 'https://hmherbs.com';
 const { getManufacturerImageUrls, resolveBrandWebsite } = require('./manufacturer-site-images');
 
 const BASE = 'https://hmherbs.com';
@@ -237,7 +239,7 @@ function isLikelyIngredientsOrFacts(u, alt) {
 
 function scoreImageCandidate(im) {
     if (!im || !im.url) return -999;
-    if (HMHerbsScraper.isJunkProductImageUrl(im.url)) return -999;
+    if (CatalogScraper.isJunkProductImageUrl(im.url)) return -999;
     let s = 0;
     const u = im.url.toLowerCase();
     if (isLikelyIngredientsOrFacts(im.url, im.alt)) s -= 80;
@@ -257,7 +259,7 @@ function mergeImageCandidates(pageList, jsonList) {
             if (!im || !im.url) continue;
             const u = String(im.url).trim().replace(/&amp;/g, '&');
             if (seen.has(u)) continue;
-            if (HMHerbsScraper.isJunkProductImageUrl(u)) continue;
+            if (CatalogScraper.isJunkProductImageUrl(u)) continue;
             seen.add(u);
             out.push({ url: u, alt: im.alt || '' });
         }
@@ -297,7 +299,7 @@ function lookupScrapedImages(index, product) {
     let pr = sku ? index.bySku.get(sku) : null;
     if (!pr && slug) pr = index.bySlug.get(slug);
     if (!pr || !Array.isArray(pr.images)) return [];
-    return pr.images.filter((im) => im && im.url && !HMHerbsScraper.isJunkProductImageUrl(im.url));
+    return pr.images.filter((im) => im && im.url && !CatalogScraper.isJunkProductImageUrl(im.url));
 }
 
 function extFromUrl(u) {
@@ -451,7 +453,7 @@ async function savePrimaryFromBuffer({
         `Scrape JSON index: ${scrapedIndex.bySku.size} SKU keys, ${scrapedIndex.bySlug.size} slug keys`
     );
 
-    const scraper = new HMHerbsScraper();
+    const scraper = new CatalogScraper({ domain: SCRAPE_DOMAIN });
     await fs.mkdir(IMAGES_DIR, { recursive: true });
 
     const pool = createPool({ connectionLimit: 5 });

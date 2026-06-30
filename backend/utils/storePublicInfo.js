@@ -1,5 +1,10 @@
 'use strict';
 
+const {
+    loadHolidaySchedule,
+    upcomingHolidayLines,
+} = require('./storeHolidaySchedule');
+
 const STORE_HOUR_KEYS = {
     weekdays: 'store_hours_weekdays',
     saturday: 'store_hours_saturday',
@@ -41,8 +46,9 @@ function storeHourFooterLines(hours) {
     return [hours.weekdays, hours.saturday, hours.sunday].filter((line) => String(line || '').trim());
 }
 
-function publicStoreInfoPayload(hours) {
+function publicStoreInfoPayload(hours, { holidaySchedule = [] } = {}) {
     const footerLines = storeHourFooterLines(hours);
+    const upcomingHolidays = upcomingHolidayLines(holidaySchedule);
     return {
         hours: {
             weekdays: hours.weekdays,
@@ -50,13 +56,25 @@ function publicStoreInfoPayload(hours) {
             sunday: hours.sunday,
         },
         footerLines,
+        upcomingHolidays,
+        holidayFooterLines: upcomingHolidays,
     };
+}
+
+async function loadPublicStoreInfo(pool) {
+    const [hours, holidaySchedule] = await Promise.all([
+        loadStoreHours(pool),
+        loadHolidaySchedule(pool),
+    ]);
+    return publicStoreInfoPayload(hours, { holidaySchedule });
 }
 
 module.exports = {
     STORE_HOUR_KEYS,
     DEFAULT_FOOTER_HOURS,
     loadStoreHours,
+    loadHolidaySchedule,
     storeHourFooterLines,
     publicStoreInfoPayload,
+    loadPublicStoreInfo,
 };

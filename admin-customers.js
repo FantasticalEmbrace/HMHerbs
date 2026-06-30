@@ -119,12 +119,38 @@
     AdminApp.prototype.loadCustomers = async function () {
         if (!this._customerListenersBound) {
             this._customerListenersBound = true;
-            const debounce = (fn, ms = 350) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
-            $('customersSearchInput')?.addEventListener('input', debounce(() => {
-                this._customerState().search = $('customersSearchInput').value.trim();
-                this._customerState().page = 1;
-                this.loadCustomers();
-            }));
+            if (!this._customersSearchLoadToken) this._customersSearchLoadToken = 0;
+
+            const bindSearch = typeof window.hmBindSearchInput === 'function'
+                ? window.hmBindSearchInput
+                : null;
+            const debounce = (fn, ms = 350) => {
+                let t;
+                return (...a) => {
+                    clearTimeout(t);
+                    t = setTimeout(() => fn(...a), ms);
+                };
+            };
+
+            const customersInput = $('customersSearchInput');
+            if (customersInput) {
+                const onCustomerSearch = () => {
+                    const input = $('customersSearchInput');
+                    if (!input) return;
+                    this._customerState().search = input.value.trim();
+                    this._customerState().page = 1;
+                    const token = ++this._customersSearchLoadToken;
+                    this.loadCustomers().then(() => {
+                        if (token !== this._customersSearchLoadToken) return;
+                    });
+                };
+                if (bindSearch) {
+                    bindSearch(customersInput, { debounceMs: 350, onSearch: onCustomerSearch });
+                } else {
+                    customersInput.addEventListener('input', debounce(onCustomerSearch));
+                }
+            }
+
             ['customersStatusFilter','customersTypeFilter','customersSortFilter'].forEach(id => {
                 $(id)?.addEventListener('change', () => {
                     const s = this._customerState();
@@ -144,6 +170,10 @@
         container.innerHTML = '<div class="loading"><div class="spinner"></div>Loading customers...</div>';
 
         const s = this._customerState();
+        const customersSearchEl = $('customersSearchInput');
+        if (customersSearchEl && document.activeElement === customersSearchEl) {
+            s.search = customersSearchEl.value.trim();
+        }
         const params = new URLSearchParams({
             page: s.page, limit: s.limit, sort: s.sort
         });
@@ -800,12 +830,38 @@
     AdminApp.prototype.loadGiftCards = async function () {
         if (!this._gcListenersBound) {
             this._gcListenersBound = true;
-            const debounce = (fn, ms = 350) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
-            $('giftCardsSearchInput')?.addEventListener('input', debounce(() => {
-                this._giftCardState().search = $('giftCardsSearchInput').value.trim();
-                this._giftCardState().page = 1;
-                this.loadGiftCards();
-            }));
+            if (!this._giftCardsSearchLoadToken) this._giftCardsSearchLoadToken = 0;
+
+            const bindSearch = typeof window.hmBindSearchInput === 'function'
+                ? window.hmBindSearchInput
+                : null;
+            const debounce = (fn, ms = 350) => {
+                let t;
+                return (...a) => {
+                    clearTimeout(t);
+                    t = setTimeout(() => fn(...a), ms);
+                };
+            };
+
+            const gcInput = $('giftCardsSearchInput');
+            if (gcInput) {
+                const onGiftCardSearch = () => {
+                    const input = $('giftCardsSearchInput');
+                    if (!input) return;
+                    this._giftCardState().search = input.value.trim();
+                    this._giftCardState().page = 1;
+                    const token = ++this._giftCardsSearchLoadToken;
+                    this.loadGiftCards().then(() => {
+                        if (token !== this._giftCardsSearchLoadToken) return;
+                    });
+                };
+                if (bindSearch) {
+                    bindSearch(gcInput, { debounceMs: 350, onSearch: onGiftCardSearch });
+                } else {
+                    gcInput.addEventListener('input', debounce(onGiftCardSearch));
+                }
+            }
+
             ['giftCardsTypeFilter','giftCardsStatusFilter'].forEach(id => {
                 $(id)?.addEventListener('change', () => {
                     const s = this._giftCardState();
@@ -824,6 +880,10 @@
         container.innerHTML = '<div class="loading"><div class="spinner"></div>Loading gift cards...</div>';
 
         const s = this._giftCardState();
+        const giftCardsSearchEl = $('giftCardsSearchInput');
+        if (giftCardsSearchEl && document.activeElement === giftCardsSearchEl) {
+            s.search = giftCardsSearchEl.value.trim();
+        }
         const params = new URLSearchParams({ page: s.page, limit: s.limit });
         if (s.search) params.set('search', s.search);
         if (s.card_type) params.set('card_type', s.card_type);

@@ -145,7 +145,6 @@ async function fulfillGiftCardsForOrder(pool, orderId) {
                         line.purchaser_user_id,
                         giftMeta.recipientName || null,
                         giftMeta.recipientEmail || null,
-                        giftMeta.recipientPhone || null,
                         giftMeta.senderName || purchaserName || null,
                         giftMeta.personalMessage || null,
                         oid,

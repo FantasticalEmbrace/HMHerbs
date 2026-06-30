@@ -10,19 +10,23 @@
     <link rel="icon" type="image/x-icon" href="favicon.ico">
     
     <!-- CSS -->
-    <link rel="stylesheet" href="css/emergency-fixes.css">
+    <link rel="stylesheet" href="css/emergency-fixes.css?v=mobile-nav-4">
     <link rel="stylesheet" href="css/hm-notify.css">
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=mobile-nav-4">
     <link rel="stylesheet" href="css/hm-choice-toggles.css">
     <link rel="stylesheet" href="css/hm-accent-links.css">
     <link rel="stylesheet" href="css/customer-auth.css">
     <link rel="stylesheet" href="css/browser-compatibility.css">
     <link rel="stylesheet" href="css/mobile-enhancements.css">
+    <link rel="stylesheet" href="css/mobile-nav.css?v=mobile-nav-4">
     <link rel="stylesheet" href="css/hm-close-controls.css">
     <link rel="stylesheet" href="css/site-promo-banner.css">
     <link rel="stylesheet" href="css/age-gate.css">
+    <link rel="stylesheet" href="css/hm-popups-brand.css">
     <link rel="stylesheet" href="css/hm-gift-card.css">
     <link rel="stylesheet" href="css/address-autocomplete.css">
+
+    <script src="js/mobile-menu.js?v=mobile-nav-4"></script>
 
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -383,7 +387,7 @@
     </style>
 </head>
 <body>
-    <!-- Header (same as index.html) -->
+    <!-- Header -->
     <header class="header" role="banner">
         <div class="main-header">
             <div class="container">
@@ -393,6 +397,21 @@
                             <img src="images/HM%20Herb%20Logo.png" alt="H&M Herbs & Vitamins" class="logo-wordmark" loading="eager">
                         </a>
                     </div>
+
+                    <button class="mobile-menu-toggle" aria-expanded="false" aria-controls="nav-menu"
+                        aria-label="Toggle navigation menu">
+                        <span class="hamburger-line"></span>
+                        <span class="hamburger-line"></span>
+                        <span class="hamburger-line"></span>
+                    </button>
+
+                    <ul class="nav-menu" id="nav-menu" role="menubar">
+                        <li role="none"><a href="index.html" role="menuitem">Home</a></li>
+                        <li role="none"><a href="products.html" role="menuitem">Products</a></li>
+                        <li role="none"><a href="index.html#edsa-service" role="menuitem" class="edsa-nav-link">EDSA Service</a></li>
+                        <li role="none"><a href="about.html" role="menuitem">About</a></li>
+                        <li role="none"><a href="index.html#contact" role="menuitem">Contact</a></li>
+                    </ul>
 
                     <div class="header-actions">
                         <div class="customer-auth-container">
@@ -654,9 +673,8 @@
     <script src="js/site-promo-banner.js" defer></script>
     <script src="js/site-store-info.js" defer></script>
     <script src="js/visual-bug-fixes.js"></script>
-    <script src="js/mobile-menu.js"></script>
     <script src="js/nav-current-page.js"></script>
-    <script src="js/section-nav.js"></script>
+    <script src="js/section-nav.js?v=mobile-nav-4"></script>
     <script src="js/phone-us-format.js" defer></script>
     <script src="js/address-autocomplete.js" defer></script>
     <script src="js/customer-auth.js" defer></script>

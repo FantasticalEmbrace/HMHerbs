@@ -205,7 +205,8 @@ async function nmiResolveTokenizationCollectJs(tokenizationKey, opts = {}) {
         return { ok: false, collectJsUrl: fallbackCollect };
     }
     if (shouldSkipNmiTokenizationPreflight()) {
-        return { ok: true, collectJsUrl: fallbackCollect };
+        // Still honor explicit NMI_COLLECT_JS_URL; skip only avoids blocking on probe failures.
+        return { ok: true, collectJsUrl: fallbackCollect, preflightSkipped: true };
     }
 
     if (userCollect) {

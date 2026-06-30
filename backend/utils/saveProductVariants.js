@@ -1,5 +1,6 @@
 /**
- * Replace all variants for a product and sync parent price/inventory from variants.
+ * Upsert product variants and sync parent price/inventory from variants.
+ * Avoids DELETE-all, which breaks FK constraints on inventory_transactions / order_items.
  */
 function normalizeOptionGroups(raw) {
     if (!raw) return null;
@@ -47,7 +48,10 @@ function normalizeVariantRow(v, productSku, index) {
         }
     }
 
+    const id = v.id != null && v.id !== '' ? parseInt(v.id, 10) : null;
+
     return {
+        id: Number.isFinite(id) ? id : null,
         sku,
         name,
         price,
@@ -63,6 +67,20 @@ function normalizeVariantRow(v, productSku, index) {
     };
 }
 
+async function variantIsReferenced(connection, variantId) {
+    const [inventory] = await connection.execute(
+        'SELECT 1 FROM inventory_transactions WHERE variant_id = ? LIMIT 1',
+        [variantId]
+    );
+    if (inventory.length > 0) return true;
+
+    const [orders] = await connection.execute(
+        'SELECT 1 FROM order_items WHERE variant_id = ? LIMIT 1',
+        [variantId]
+    );
+    return orders.length > 0;
+}
+
 async function saveProductVariants(connection, productId, productSku, variantOptionGroups, variants) {
     const groupsJson = normalizeOptionGroups(variantOptionGroups);
     const groupsPayload = groupsJson ? JSON.stringify(groupsJson) : null;
@@ -72,30 +90,85 @@ async function saveProductVariants(connection, productId, productSku, variantOpt
         productId,
     ]);
 
-    await connection.execute('DELETE FROM product_variants WHERE product_id = ?', [productId]);
+    const [existingRows] = await connection.execute(
+        'SELECT id, sku FROM product_variants WHERE product_id = ?',
+        [productId]
+    );
+    const existingById = new Map(existingRows.map((r) => [Number(r.id), r]));
+    const existingBySku = new Map(existingRows.map((r) => [String(r.sku), r]));
 
-    const rows = (variants || [])
+    const keptIds = new Set();
+    const rawList = Array.isArray(variants) ? variants : [];
+    const rows = rawList
         .map((v, i) => normalizeVariantRow(v, productSku, i))
         .filter(Boolean);
 
     for (const row of rows) {
-        await connection.execute(
-            `INSERT INTO product_variants
-             (product_id, sku, name, price, compare_price, inventory_quantity, weight, is_active, sort_order, attributes)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-                productId,
-                row.sku,
-                row.name,
-                row.price,
-                row.compare_price,
-                row.inventory_quantity,
-                row.weight,
-                row.is_active,
-                row.sort_order,
-                row.attributes ? JSON.stringify(row.attributes) : null,
-            ]
-        );
+        let targetId = row.id && existingById.has(row.id) ? row.id : null;
+        if (!targetId && row.sku && existingBySku.has(row.sku)) {
+            targetId = Number(existingBySku.get(row.sku).id);
+        }
+
+        const attrsJson = row.attributes ? JSON.stringify(row.attributes) : null;
+
+        if (targetId) {
+            await connection.execute(
+                `UPDATE product_variants
+                 SET sku = ?, name = ?, price = ?, compare_price = ?, inventory_quantity = ?,
+                     weight = ?, is_active = ?, sort_order = ?, attributes = ?
+                 WHERE id = ? AND product_id = ?`,
+                [
+                    row.sku,
+                    row.name,
+                    row.price,
+                    row.compare_price,
+                    row.inventory_quantity,
+                    row.weight,
+                    row.is_active,
+                    row.sort_order,
+                    attrsJson,
+                    targetId,
+                    productId,
+                ]
+            );
+            keptIds.add(targetId);
+        } else {
+            const [insertResult] = await connection.execute(
+                `INSERT INTO product_variants
+                 (product_id, sku, name, price, compare_price, inventory_quantity, weight, is_active, sort_order, attributes)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    productId,
+                    row.sku,
+                    row.name,
+                    row.price,
+                    row.compare_price,
+                    row.inventory_quantity,
+                    row.weight,
+                    row.is_active,
+                    row.sort_order,
+                    attrsJson,
+                ]
+            );
+            keptIds.add(Number(insertResult.insertId));
+        }
+    }
+
+    for (const existing of existingRows) {
+        const existingId = Number(existing.id);
+        if (keptIds.has(existingId)) continue;
+
+        if (await variantIsReferenced(connection, existingId)) {
+            await connection.execute(
+                'UPDATE product_variants SET is_active = 0 WHERE id = ? AND product_id = ?',
+                [existingId, productId]
+            );
+        } else {
+            await connection.execute(
+                'DELETE FROM product_variants WHERE id = ? AND product_id = ?',
+                [existingId, productId]
+            );
+        }
     }
 
     if (rows.length) {

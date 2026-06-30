@@ -2,7 +2,11 @@
 
 html.edsa-modal-open,
 body.edsa-modal-open {
-    overflow: hidden;
+    overflow: hidden !important;
+}
+
+body.edsa-modal-open {
+    width: 100% !important;
 }
 
 .edsa-modal {
@@ -108,9 +112,11 @@ body.edsa-modal-open {
 }
 
 .edsa-booking-container {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--space-8);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    max-width: 520px;
+    margin: 0 auto;
 }
 
 /* Calendar Styles */
@@ -364,8 +370,8 @@ body.edsa-modal-open {
 }
 
 /*
- * Booking modal — region below sticky header; transform-free (see visual-bug-fixes.js).
- * max-height uses shell inset (top/bottom), not 100dvh minus header twice.
+ * Booking modal — centered in the viewport; inner panel scrolls if needed.
+ * Transform-free (see visual-bug-fixes.js).
  */
 #edsa-booking-modal.edsa-modal,
 #edsa-booking-modal.edsa-modal * {
@@ -382,40 +388,50 @@ body.edsa-modal-open {
 }
 
 #edsa-booking-modal.edsa-modal {
-    top: var(--hm-header-offset, 4.75rem);
-    left: 0;
-    right: 0;
-    bottom: 0;
-    width: 100%;
-    height: auto;
-    max-height: none;
-    display: flex;
-    align-items: flex-start;
-    justify-content: center;
-    padding: 1rem;
-    box-sizing: border-box;
-    overflow-x: hidden;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+    position: fixed !important;
+    inset: 0 !important;
+    top: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    max-height: 100dvh !important;
+    margin: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: max(1rem, env(safe-area-inset-top, 0px))
+        max(1rem, env(safe-area-inset-right, 0px))
+        max(1rem, env(safe-area-inset-bottom, 0px))
+        max(1rem, env(safe-area-inset-left, 0px)) !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+    z-index: 10050 !important;
+    -webkit-transform: none !important;
+    transform: none !important;
+    will-change: auto !important;
 }
 
 #edsa-booking-modal .edsa-modal-overlay {
-    position: fixed;
-    inset: 0;
+    position: fixed !important;
+    inset: 0 !important;
 }
 
 #edsa-booking-modal .edsa-modal-content {
-    position: relative;
-    z-index: 1;
-    width: min(920px, 100%);
-    max-height: none;
-    height: auto;
-    margin-bottom: 45rem;
-    flex-shrink: 0;
-    box-sizing: border-box;
-    overflow: visible;
-    display: block;
-    align-self: center;
+    position: relative !important;
+    z-index: 1 !important;
+    width: min(920px, 100%) !important;
+    max-height: min(90vh, 90dvh) !important;
+    height: auto !important;
+    margin: 0 !important;
+    flex: 0 1 auto !important;
+    align-self: center !important;
+    box-sizing: border-box !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    display: block !important;
 }
 
 #edsa-booking-modal.show .edsa-modal-content,
@@ -568,6 +584,103 @@ body.edsa-modal-open {
     color: var(--gray-600);
 }
 
+.edsa-payment-signin-hint {
+    margin: 0 0 var(--space-3);
+    font-size: var(--text-sm);
+    color: var(--gray-700);
+}
+
+.edsa-link-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--primary-green);
+    font: inherit;
+    font-weight: 600;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.edsa-link-btn:hover {
+    color: var(--primary-green-dark, #166534);
+}
+
+.edsa-step-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-6);
+}
+
+.edsa-step-dot {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--text-sm);
+    font-weight: 700;
+    background: var(--gray-200);
+    color: var(--gray-600);
+}
+
+.edsa-step-dot.active {
+    background: var(--primary-green);
+    color: var(--white);
+}
+
+.edsa-step-dot.completed {
+    background: rgba(5, 150, 105, 0.15);
+    color: var(--primary-green-dark);
+}
+
+.edsa-step-line {
+    width: 2.5rem;
+    height: 2px;
+    background: var(--gray-200);
+}
+
+.edsa-step-panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.edsa-step-panel[hidden] {
+    display: none !important;
+}
+
+.edsa-step-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+    flex-wrap: wrap;
+}
+
+.edsa-selected-summary {
+    margin: 0 0 var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    background: rgba(5, 150, 105, 0.08);
+    border-radius: var(--radius-md);
+    color: var(--gray-800);
+    font-weight: 600;
+}
+
+.edsa-saved-cards-block {
+    margin-bottom: var(--space-4);
+}
+
+.edsa-saved-cards-block .form-select {
+    width: 100%;
+    padding: var(--space-3);
+    border: 1px solid var(--gray-300);
+    border-radius: var(--radius-md);
+    font-size: var(--text-base);
+}
+
 .edsa-nmi-collect .form-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -597,9 +710,9 @@ body.edsa-modal-open {
     }
 
     #edsa-booking-modal .edsa-modal-content {
-        width: 95%;
-        max-height: none;
-        margin-bottom: 1rem;
+        width: min(95%, 100%);
+        max-height: min(92vh, 92dvh);
+        margin: 0;
     }
 
     #edsa-booking-modal .edsa-booking-container {

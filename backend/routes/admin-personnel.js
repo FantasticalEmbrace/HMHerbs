@@ -81,6 +81,7 @@ function mapPosEmployeeRow(e) {
         canAuthorize: Boolean(e.can_authorize),
         canProcessRefunds: Boolean(e.can_process_refunds),
         canOpenDrawer: Boolean(e.can_open_drawer),
+        allowManualDiscounts: Boolean(e.allow_manual_discounts),
         createdAt: e.created_at,
         updatedAt: e.updated_at,
     };

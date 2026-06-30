@@ -317,10 +317,20 @@ app.use(cors({
     credentials: true
 }));
 
-// Rate limiting - skip for static files and in development
+// Rate limiting - skip for static files and in development.
+// Override with API_RATE_LIMIT_MAX (integer). Behind a load balancer, client IP must
+// reach Express (trust proxy + X-Forwarded-For or PROXY protocol) or all visitors share one bucket.
+const apiRateLimitMaxEnv = parseInt(process.env.API_RATE_LIMIT_MAX || '', 10);
+const apiRateLimitDefaultMax = process.env.NODE_ENV === 'production' ? 300 : 1000;
+const apiRateLimitMax =
+    Number.isFinite(apiRateLimitMaxEnv) && apiRateLimitMaxEnv > 0
+        ? apiRateLimitMaxEnv
+        : apiRateLimitDefaultMax;
+
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: process.env.NODE_ENV === 'production' ? 100 : 1000, // Higher limit in development
+    max: apiRateLimitMax,
+    validate: { trustProxy: true },
     skip: (req) => {
         // Skip rate limiting for static files (CSS, JS, images, fonts, etc.)
         const staticExtensions = ['.css', '.js', '.jpg', '.jpeg', '.png', '.gif', '.svg', '.ico', '.woff', '.woff2', '.ttf', '.eot', '.json', '.xml', '.txt', '.pdf'];
@@ -351,6 +361,7 @@ const authLimiterMax =
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: authLimiterMax,
+    validate: { trustProxy: true },
     message: {
         error: 'Too many authentication attempts, please try again later.',
         retryAfter: '15 minutes'
@@ -1318,9 +1329,24 @@ app.get('/api/products', async (req, res) => {
         }
 
         if (search) {
-            whereConditions.push('(p.name LIKE ? OR p.short_description LIKE ? OR p.long_description LIKE ?)');
             const searchTerm = `%${search}%`;
-            queryParams.push(searchTerm, searchTerm, searchTerm);
+            const cleanSearch = String(search).toLowerCase().replace(/[^a-z0-9]/g, '');
+            whereConditions.push(`(
+                p.name LIKE ? OR
+                p.short_description LIKE ? OR
+                p.long_description LIKE ? OR
+                b.name LIKE ? OR
+                b.slug LIKE ? OR
+                REPLACE(REPLACE(LOWER(b.slug), '-', ''), ' ', '') LIKE ?
+            )`);
+            queryParams.push(
+                searchTerm,
+                searchTerm,
+                searchTerm,
+                searchTerm,
+                searchTerm,
+                `%${cleanSearch}%`
+            );
         }
 
         if (minPrice) {

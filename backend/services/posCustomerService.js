@@ -346,11 +346,44 @@ async function resolveCustomerUser(pool, userId) {
     return user;
 }
 
+async function updateCustomerTaxExempt(pool, userId, { taxExempt, taxExemptId }) {
+    const uid = Number(userId);
+    if (!Number.isInteger(uid) || uid <= 0) {
+        const err = new Error('CUSTOMER_NOT_FOUND');
+        err.code = 'CUSTOMER_NOT_FOUND';
+        throw err;
+    }
+
+    const exempt = Boolean(taxExempt);
+    const idRaw = taxExemptId != null ? String(taxExemptId).trim() : '';
+    if (exempt && idRaw.length < 3) {
+        const err = new Error('TAX_EXEMPT_ID_REQUIRED');
+        err.code = 'TAX_EXEMPT_ID_REQUIRED';
+        err.message = 'Tax exempt ID is required (at least 3 characters) when tax exempt is enabled.';
+        throw err;
+    }
+
+    const existing = await resolveCustomerUser(pool, uid);
+    if (!existing) {
+        const err = new Error('CUSTOMER_NOT_FOUND');
+        err.code = 'CUSTOMER_NOT_FOUND';
+        throw err;
+    }
+
+    await pool.execute(
+        `UPDATE users SET tax_exempt = ?, tax_exempt_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        [exempt ? 1 : 0, exempt ? idRaw : null, uid]
+    );
+
+    return getCustomerForPos(pool, uid);
+}
+
 module.exports = {
     searchCustomers,
     getCustomerForPos,
     quickEnrollCustomer,
     checkGiftCardBalance,
     resolveCustomerUser,
+    updateCustomerTaxExempt,
     maskGiftCardCode
 };

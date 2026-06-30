@@ -4,7 +4,32 @@
  */
 
 /** Old Concrete CMS thumbnail URLs often 404. Fallback when no override applies. */
-const DEFAULT_FALLBACK_PRODUCT_IMAGE = '/images/products/nature-s-puls-probiotic-mega.jpg';
+const DEFAULT_FALLBACK_PRODUCT_IMAGE = '/images/products/advanced-blood-pressure-support-id1233-hmherbs-primary.jpg';
+
+function skuFromProductSlug(slug) {
+    if (!slug || typeof slug !== 'string') return '';
+    const m = String(slug).match(/-sku-(\d{3,6})$/i);
+    return m ? m[1] : '';
+}
+
+function catalogPrimaryImageForSlug(slug) {
+    if (!slug || typeof slug !== 'string') return null;
+    const s = slug.trim().toLowerCase();
+    if (CATALOG_PRIMARY_IMAGE_BY_SLUG[s]) return CATALOG_PRIMARY_IMAGE_BY_SLUG[s];
+
+    const withoutSkuSuffix = s.replace(/-sku-\d{3,6}$/i, '');
+    if (withoutSkuSuffix && CATALOG_PRIMARY_IMAGE_BY_SLUG[withoutSkuSuffix]) {
+        return CATALOG_PRIMARY_IMAGE_BY_SLUG[withoutSkuSuffix];
+    }
+
+    const keys = Object.keys(CATALOG_PRIMARY_IMAGE_BY_SLUG).sort((a, b) => b.length - a.length);
+    for (const key of keys) {
+        if (s === key || s.startsWith(`${key}-`)) {
+            return CATALOG_PRIMARY_IMAGE_BY_SLUG[key];
+        }
+    }
+    return null;
+}
 
 const CATALOG_PRIMARY_IMAGE_BY_SLUG = {
     'hemp-bombs-cbd-gummies-w-mushroom': '/images/products/hemp-bombs-focus-30ct-cbd-mushroom-gummies-official.jpg',
@@ -101,12 +126,6 @@ const CATALOG_PRICE_BY_SKU = {
     '28709': 14.99
 };
 
-function catalogPrimaryImageForSlug(slug) {
-    if (!slug || typeof slug !== 'string') return null;
-    const s = slug.trim();
-    return CATALOG_PRIMARY_IMAGE_BY_SLUG[s] || null;
-}
-
 function canonicalSkuForCatalog(sku) {
     if (sku === undefined || sku === null) return '';
     const t = String(sku).trim();
@@ -125,6 +144,10 @@ function catalogPrimaryImageForProduct(row) {
     const key = canonicalSkuForCatalog(row.sku);
     if (key && Object.prototype.hasOwnProperty.call(CATALOG_PRIMARY_IMAGE_BY_SKU, key)) {
         return CATALOG_PRIMARY_IMAGE_BY_SKU[key];
+    }
+    const slugSku = skuFromProductSlug(row.slug);
+    if (slugSku && Object.prototype.hasOwnProperty.call(CATALOG_PRIMARY_IMAGE_BY_SKU, slugSku)) {
+        return CATALOG_PRIMARY_IMAGE_BY_SKU[slugSku];
     }
     return catalogPrimaryImageForSlug(row.slug);
 }

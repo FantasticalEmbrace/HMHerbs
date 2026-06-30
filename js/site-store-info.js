@@ -14,10 +14,21 @@
     }
 
     function linesFromPayload(data) {
+        const regular = [];
         if (Array.isArray(data?.footerLines) && data.footerLines.length) {
-            return data.footerLines.map((line) => String(line).trim()).filter(Boolean);
+            regular.push(...data.footerLines.map((line) => String(line).trim()).filter(Boolean));
+        } else {
+            regular.push(...DEFAULT_LINES);
         }
-        return DEFAULT_LINES;
+
+        const holidays = Array.isArray(data?.upcomingHolidays)
+            ? data.upcomingHolidays.map((line) => String(line).trim()).filter(Boolean)
+            : Array.isArray(data?.holidayFooterLines)
+              ? data.holidayFooterLines.map((line) => String(line).trim()).filter(Boolean)
+              : [];
+
+        if (!holidays.length) return regular;
+        return regular.concat(['Holiday hours:'], holidays);
     }
 
     function applyFooterHours(lines) {

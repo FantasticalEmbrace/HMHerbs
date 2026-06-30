@@ -6,7 +6,7 @@
  */
 const HmChoiceToggles = {
     skipSelector:
-        '.payment-processor-option, .toggle-switch, .hm-choice-skip, [data-hm-choice-skip], .hm-choice-row, .hm-choice-segment, .hm-choice-toggle',
+        '.payment-processor-option, .toggle-switch, .hm-choice-skip, [data-hm-choice-skip], .hm-choice-row, .hm-choice-segment, .hm-choice-toggle, .checkout-shipping-option, .checkout-shipping-options',
 
     inferSize(input) {
         const key = `${input.name || ''} ${input.id || ''}`.toLowerCase();

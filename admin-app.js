@@ -1,4 +1,4 @@
-// HM Herbs admin panel
+﻿// HM Herbs admin panel
 
 const HM_CLOSE_ICON_SVG = '<svg class="cart-close-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M18.3 5.71a1 1 0 0 0-1.41 0L12 10.59 7.11 5.7A1 1 0 0 0 5.7 7.11L10.59 12 5.7 16.89a1 1 0 1 0 1.41 1.41L12 13.41l4.89 4.89a1 1 0 0 0 1.41-1.41L13.41 12l4.89-4.89a1 1 0 0 0 0-1.4z"/></svg>';
 
@@ -41,6 +41,8 @@ class AdminApp {
             totalPages: 1,
             totalCategories: 0
         };
+        this.categoriesViewTab = 'shop';
+        this._categoriesTabsReady = false;
         this._edsaBookingsById = new Map();
 
         this.init();
@@ -49,9 +51,9 @@ class AdminApp {
     getApiBaseUrl() {
         // Check if we're using file:// protocol (opened directly)
         if (window.location.protocol === 'file:') {
-            console.warn('⚠️ Admin panel opened via file:// protocol. Please use a web server.');
-            console.warn('💡 Start the backend server: cd backend && npm start');
-            console.warn('💡 Then access: http://localhost:3001/admin.html');
+            console.warn('âš ï¸ Admin panel opened via file:// protocol. Please use a web server.');
+            console.warn('ðŸ’¡ Start the backend server: cd backend && npm start');
+            console.warn('ðŸ’¡ Then access: http://localhost:3001/admin.html');
             // Still return the API URL for when server is running
             return 'http://localhost:3001/api';
         }
@@ -172,9 +174,9 @@ class AdminApp {
     }
 
     formatAdminDateTime(value) {
-        if (!value) return '—';
+        if (!value) return 'â€”';
         const d = new Date(value);
-        return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString();
+        return Number.isNaN(d.getTime()) ? 'â€”' : d.toLocaleString();
     }
 
     _orderStatusBadgeClass(status) {
@@ -202,7 +204,7 @@ class AdminApp {
     _formatFulfillmentStatus(status) {
         const labels = {
             unfulfilled: 'Awaiting fulfillment',
-            partial: 'Label created — awaiting carrier scan',
+            partial: 'Label created â€” awaiting carrier scan',
             fulfilled: 'Fulfilled',
         };
         const key = String(status || '').toLowerCase();
@@ -222,7 +224,7 @@ class AdminApp {
             bank_account: 'Bank account',
             nmi: 'Credit card',
         };
-        return labels[method] || (method ? method.replace(/_/g, ' ') : '—');
+        return labels[method] || (method ? method.replace(/_/g, ' ') : 'â€”');
     }
 
     _formatSalesChannel(order) {
@@ -246,19 +248,19 @@ class AdminApp {
         const hasLabel = !!(order.label_url || order.label_created_at);
         const trackingLink = window.HMTrackingLink
             ? window.HMTrackingLink.renderTrackingLink(order, (s) => this.escapeHtml(s), {
-                empty: '<span style="color:var(--gray-500);">—</span>',
+                empty: '<span style="color:var(--gray-500);">â€”</span>',
             })
             : (order.tracking_url && order.tracking_number
                 ? `<a href="${this.escapeHtml(order.tracking_url)}" target="_blank" rel="noopener" style="color:var(--primary-green);font-weight:600;">${this.escapeHtml(order.tracking_number)}</a>`
-                : '<span style="color:var(--gray-500);">—</span>');
+                : '<span style="color:var(--gray-500);">â€”</span>');
 
         const gridCells = [
             `<div><div style="font-size:0.75rem;color:var(--gray-500);text-transform:uppercase;">Status</div><div style="font-weight:600;">${this.escapeHtml(this._formatOrderStatus(order.status))}</div></div>`,
         ];
         if (hasLabel) {
             gridCells.push(
-                `<div><div style="font-size:0.75rem;color:var(--gray-500);text-transform:uppercase;">Carrier</div><div>${this.escapeHtml(order.shipping_carrier || '—')}</div></div>`,
-                `<div><div style="font-size:0.75rem;color:var(--gray-500);text-transform:uppercase;">Service</div><div>${this.escapeHtml(order.shipping_service || '—')}</div></div>`
+                `<div><div style="font-size:0.75rem;color:var(--gray-500);text-transform:uppercase;">Carrier</div><div>${this.escapeHtml(order.shipping_carrier || 'â€”')}</div></div>`,
+                `<div><div style="font-size:0.75rem;color:var(--gray-500);text-transform:uppercase;">Service</div><div>${this.escapeHtml(order.shipping_service || 'â€”')}</div></div>`
             );
         } else {
             gridCells.push(
@@ -266,7 +268,7 @@ class AdminApp {
             );
         }
         gridCells.push(
-            `<div><div style="font-size:0.75rem;color:var(--gray-500);text-transform:uppercase;">Payment</div><div>${this.escapeHtml(order.payment_status || '—')}${order.payment_method || (order.notes && /Payment method:/i.test(order.notes)) ? ` · ${this.escapeHtml(this._formatPaymentMethod(order))}` : ''}</div></div>`,
+            `<div><div style="font-size:0.75rem;color:var(--gray-500);text-transform:uppercase;">Payment</div><div>${this.escapeHtml(order.payment_status || 'â€”')}${order.payment_method || (order.notes && /Payment method:/i.test(order.notes)) ? ` Â· ${this.escapeHtml(this._formatPaymentMethod(order))}` : ''}</div></div>`,
             `<div><div style="font-size:0.75rem;color:var(--gray-500);text-transform:uppercase;">Tracking</div><div>${trackingLink}</div></div>`
         );
 
@@ -360,7 +362,7 @@ class AdminApp {
         ].filter((line) => line && String(line).trim());
         return lines.length
             ? lines.map((line) => `<div>${this.escapeHtml(line)}</div>`).join('')
-            : '<div style="color:var(--gray-500);">—</div>';
+            : '<div style="color:var(--gray-500);">â€”</div>';
     }
 
     async refreshOrderProgressPanel(orderId, modal) {
@@ -406,7 +408,7 @@ class AdminApp {
             const items = data.items || [];
             const customerName = [order.shipping_first_name, order.shipping_last_name].filter(Boolean).join(' ')
                 || [order.account_first_name, order.account_last_name].filter(Boolean).join(' ')
-                || '—';
+                || 'â€”';
             const closeBtn =
                 `<button type="button" class="modal-close" onclick="this.closest('.modal').remove()" aria-label="Close">${HM_CLOSE_ICON_SVG}</button>`;
 
@@ -666,7 +668,7 @@ class AdminApp {
                 enabled = Boolean(data?.google?.enabled);
             }
         } catch (_) {
-            /* Keep button visible if status check fails — server validates on start */
+            /* Keep button visible if status check fails â€” server validates on start */
         }
 
         if (enabled) {
@@ -989,12 +991,13 @@ class AdminApp {
 
         if (loginScreen) loginScreen.style.display = 'none';
         if (adminDashboard) adminDashboard.style.display = 'flex';
+        document.body.classList.add('admin-layout-locked');
 
         // Update user info
         if (this.currentUser && userName) {
             const label = this.currentUser.roleLabel || this.currentUser.role || '';
             userName.textContent = label
-                ? `${this.currentUser.firstName} ${this.currentUser.lastName} · ${label}`
+                ? `${this.currentUser.firstName} ${this.currentUser.lastName} Â· ${label}`
                 : `${this.currentUser.firstName} ${this.currentUser.lastName}`;
         }
 
@@ -1226,13 +1229,11 @@ class AdminApp {
         const activeNavLink = document.querySelector(`[data-section="${sectionName}"]`);
         if (activeNavLink) activeNavLink.classList.add('active');
 
-        // Show section
-        document.querySelectorAll('.content-section').forEach(section => {
-            section.classList.remove('active');
-        });
+        this._mountOnlyActiveSection(sectionName);
+        this._parkMainContentOrphans();
 
-        const activeSection = document.getElementById(sectionName);
-        if (activeSection) activeSection.classList.add('active');
+        const mainContent = document.querySelector('.main-content');
+        if (mainContent) mainContent.scrollTop = 0;
 
         // Load section data
         if (sectionName === 'products') {
@@ -1250,9 +1251,110 @@ class AdminApp {
             await this.loadSectionData(sectionName);
         }
 
+        this._refreshMainContentScroll();
+
         if (!skipHashUpdate) {
             this.updateAdminUrlHash(sectionName);
         }
+    }
+
+    _ensureSectionStorage() {
+        let storage = document.getElementById('admin-section-storage');
+        if (!storage) {
+            storage = document.createElement('div');
+            storage.id = 'admin-section-storage';
+            storage.hidden = true;
+            storage.setAttribute('aria-hidden', 'true');
+            document.body.insertBefore(storage, document.body.firstChild);
+        }
+        return storage;
+    }
+
+    /** Keep only the active section inside .main-content so hidden sections cannot inflate scroll height. */
+    _mountOnlyActiveSection(sectionName) {
+        const mainContent = document.querySelector('.main-content');
+        const storage = this._ensureSectionStorage();
+        if (!mainContent) return;
+
+        document.querySelectorAll('.content-section').forEach((section) => {
+            const isActive = section.id === sectionName;
+            section.classList.toggle('active', isActive);
+            if (isActive) {
+                if (section.parentElement !== mainContent) {
+                    mainContent.appendChild(section);
+                }
+            } else if (section.parentElement !== storage) {
+                storage.appendChild(section);
+            }
+        });
+
+        this._parkMainContentOrphans();
+    }
+
+    /** Move modals and other non-section nodes out of .main-content (they inflate scroll height). */
+    _parkMainContentOrphans() {
+        const mainContent = document.querySelector('.main-content');
+        if (!mainContent) return;
+
+        const portalIds = new Set([
+            'pos-support-connect-modal',
+            'promo-editor-modal',
+            'vendors-edit-modal',
+            'vendors-po-detail-modal'
+        ]);
+
+        [...mainContent.children].forEach((child) => {
+            if (!(child instanceof HTMLElement)) return;
+            if (child.classList.contains('content-section')) return;
+            if (
+                child.classList.contains('modal-backdrop') ||
+                child.classList.contains('promo-editor-modal') ||
+                portalIds.has(child.id)
+            ) {
+                if (child.parentElement !== document.body) {
+                    document.body.appendChild(child);
+                }
+            }
+        });
+    }
+
+    _refreshMainContentScroll() {
+        const mainContent = document.querySelector('.main-content');
+        if (!mainContent) return;
+
+        const apply = () => {
+            this._parkMainContentOrphans();
+            const active = mainContent.querySelector('.content-section.active');
+            if (!active) {
+                mainContent.scrollTop = 0;
+                return;
+            }
+
+            mainContent.scrollTop = 0;
+            const maxScroll = Math.max(0, mainContent.scrollHeight - mainContent.clientHeight);
+            if (mainContent.scrollTop > maxScroll) {
+                mainContent.scrollTop = maxScroll;
+            }
+
+            const style = window.getComputedStyle(mainContent);
+            const padBottom = parseFloat(style.paddingBottom) || 0;
+            const contentBottom = active.offsetTop + active.offsetHeight + padBottom;
+            if (mainContent.scrollHeight > contentBottom + 12) {
+                [...mainContent.children].forEach((child) => {
+                    if (child instanceof HTMLElement && !child.classList.contains('content-section')) {
+                        if (child.parentElement === mainContent) {
+                            document.body.appendChild(child);
+                        }
+                    }
+                });
+            }
+        };
+
+        apply();
+        requestAnimationFrame(() => {
+            apply();
+            requestAnimationFrame(apply);
+        });
     }
 
     async loadSectionData(sectionName) {
@@ -1352,9 +1454,9 @@ class AdminApp {
         const msg = document.getElementById('dev-tools-migrations-msg');
         if (!backupMeta || !migrationsSummary || !migrationsList) return;
 
-        backupMeta.textContent = 'Loading backup info…';
-        migrationsSummary.textContent = 'Loading migration status…';
-        migrationsList.innerHTML = '<p style="margin:0;color:var(--gray-500);">Loading…</p>';
+        backupMeta.textContent = 'Loading backup infoâ€¦';
+        migrationsSummary.textContent = 'Loading migration statusâ€¦';
+        migrationsList.innerHTML = '<p style="margin:0;color:var(--gray-500);">Loadingâ€¦</p>';
         if (msg) msg.textContent = '';
 
         try {
@@ -1398,7 +1500,7 @@ class AdminApp {
                                         : '';
                                     const appliedAt = m.appliedAt
                                         ? this._escapeHtml(this._formatPersonnelDate(m.appliedAt))
-                                        : '—';
+                                        : 'â€”';
                                     return `<tr>
                                         <td style="font-family:monospace;font-size:0.82rem;">${this._escapeHtml(m.filename)}</td>
                                         <td>${statusLabel}${mismatch}</td>
@@ -1433,7 +1535,7 @@ class AdminApp {
         }
 
         const url = `${this.apiBaseUrl}/admin/dev-tools/backup`;
-        this.showNotification('Building database backup…', 'info');
+        this.showNotification('Building database backupâ€¦', 'info');
         const response = await fetch(url, {
             method: 'GET',
             headers: { Authorization: `Bearer ${this.authToken}` },
@@ -1475,7 +1577,7 @@ class AdminApp {
         const confirmed = await this.showAdminConfirm({
             title: 'Run pending migrations',
             message:
-                'Run all PENDING database migrations?\n\nThis applies schema updates only — it does not delete customers, orders, or sales data.',
+                'Run all PENDING database migrations?\n\nThis applies schema updates only â€” it does not delete customers, orders, or sales data.',
             confirmLabel: 'Continue',
             cancelLabel: 'Cancel',
         });
@@ -1497,7 +1599,7 @@ class AdminApp {
         });
         const typed = typedResult ? typedResult.confirmText : null;
         if (typed !== 'RUN MIGRATIONS') {
-            if (msg) msg.textContent = 'Migration run cancelled — confirmation text did not match.';
+            if (msg) msg.textContent = 'Migration run cancelled â€” confirmation text did not match.';
             return;
         }
 
@@ -1505,9 +1607,9 @@ class AdminApp {
         const original = btn ? btn.innerHTML : '';
         if (btn) {
             btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Running…';
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Runningâ€¦';
         }
-        if (msg) msg.textContent = 'Running pending migrations…';
+        if (msg) msg.textContent = 'Running pending migrationsâ€¦';
 
         try {
             const result = await this.apiRequest('/admin/dev-tools/run-migrations', {
@@ -1537,7 +1639,7 @@ class AdminApp {
     _employeeDiscountSettingMeta() {
         return {
             employee_discount_enabled: 'Enable employee merchandise discount at checkout',
-            employee_discount_percent: 'Employee discount percentage (0–100)',
+            employee_discount_percent: 'Employee discount percentage (0â€“100)',
         };
     }
 
@@ -1563,7 +1665,7 @@ class AdminApp {
             pos_receipt_show_cashier: 'Show cashier name on POS receipts',
             pos_receipt_show_cash_savings: 'Show cash savings line on POS receipts',
             pos_receipt_auto_print: 'Auto-open print dialog after each sale',
-            pos_receipt_copy_count: 'Number of receipt copies to print (1–3)',
+            pos_receipt_copy_count: 'Number of receipt copies to print (1â€“3)',
             pos_receipt_show_order_barcode: 'Show order number as barcode on receipts',
             pos_receipt_return_policy: 'Return policy line printed on POS receipts (text only)',
             pos_session_timeout_minutes: 'Minutes before POS employee must re-enter PIN',
@@ -1916,18 +2018,26 @@ class AdminApp {
             window.addEventListener('resize', this._promoProductLinkReposBound);
         }
 
-        input.addEventListener('input', () => {
-            clearTimeout(this._promoProductLinkSearchTimer);
-            this._promoProductLinkSearchTimer = setTimeout(() => this._promoProductLinkSearchFetch(), 200);
-        });
-        input.addEventListener('focus', () => {
-            if (input.value.trim().length >= 1) this._promoProductLinkSearchFetch();
-            else this._promoProductLinkShowTypingHint();
-        });
         input.addEventListener('keydown', (ev) => this._promoProductLinkSearchKeydown(ev));
         document.addEventListener('click', (e) => {
             if (e.target.closest('.promo-product-link-field')) return;
             this._promoProductLinkHidePanel();
+        });
+
+        if (typeof window.hmBindSearchInput === 'function') {
+            window.hmBindSearchInput(input, {
+                debounceMs: 200,
+                onSearch: () => this._promoProductLinkSearchFetch()
+            });
+        } else {
+            input.addEventListener('input', () => {
+                clearTimeout(this._promoProductLinkSearchTimer);
+                this._promoProductLinkSearchTimer = setTimeout(() => this._promoProductLinkSearchFetch(), 200);
+            });
+        }
+        input.addEventListener('focus', () => {
+            if (input.value.trim().length >= 1) this._promoProductLinkSearchFetch();
+            else this._promoProductLinkShowTypingHint();
         });
     }
 
@@ -1965,7 +2075,7 @@ class AdminApp {
         results.removeAttribute('hidden');
         results.classList.add('prompt');
         results.textContent =
-            'Type a product name or SKU — suggestions appear below; click one or highlight with arrows and press Enter.';
+            'Type a product name or SKU â€” suggestions appear below; click one or highlight with arrows and press Enter.';
         results.style.display = 'block';
         this._promoProductLinkSetAriaExpanded(true);
         this._promoProductLinkSyncPanelPosition();
@@ -2067,13 +2177,13 @@ class AdminApp {
             const cur = labelField.value.trim();
             const name = String(product.name || '').trim();
             if (!cur && name) {
-                labelField.value = name.length > 40 ? `${name.slice(0, 37)}…` : name;
+                labelField.value = name.length > 40 ? `${name.slice(0, 37)}â€¦` : name;
             }
         }
         this._promoProductLinkHidePanel();
         const searchIn = document.getElementById('promo-product-link-search');
         if (searchIn) searchIn.value = '';
-        this.showToast('CTA set to this product — save Settings to publish', 'success');
+        this.showToast('CTA set to this product â€” save Settings to publish', 'success');
     }
 
     async _promoProductLinkSearchFetch() {
@@ -2089,7 +2199,7 @@ class AdminApp {
 
         this._promoProductLinkSearchPending = true;
         results.classList.add('prompt');
-        results.textContent = 'Searching…';
+        results.textContent = 'Searchingâ€¦';
         results.removeAttribute('hidden');
         results.style.display = 'block';
         this._promoProductLinkSetAriaExpanded(true);
@@ -2260,7 +2370,7 @@ class AdminApp {
             });
             const syncNote = this._googleSyncResultMessage(res?.googleBusinessSync);
             this.showToast(
-                syncNote ? `Holiday removed — ${syncNote}` : 'Holiday removed and hours saved',
+                syncNote ? `Holiday removed â€” ${syncNote}` : 'Holiday removed and hours saved',
                 res?.googleBusinessSync?.synced === false ? 'warning' : 'success'
             );
             await this.loadIntegrationLogs();
@@ -2931,7 +3041,7 @@ class AdminApp {
                     ? `<div><strong>Comped until:</strong> ${this.escapeHtml(license.serviceCompedUntil)}</div>`
                     : '';
                 const graceLine = license.inGracePeriod
-                    ? `<div><strong>Grace period:</strong> until ${license.graceEndsAt ? this.escapeHtml(new Date(license.graceEndsAt).toLocaleDateString()) : '—'}</div>`
+                    ? `<div><strong>Grace period:</strong> until ${license.graceEndsAt ? this.escapeHtml(new Date(license.graceEndsAt).toLocaleDateString()) : 'â€”'}</div>`
                     : '';
                 const failoverLine =
                     Number(license.failoverOverageAmount) > 0
@@ -2942,14 +3052,14 @@ class AdminApp {
                 summary.innerHTML = `
                     <div><strong>Status:</strong> ${this.escapeHtml(license.status || 'trial')}</div>
                     <div><strong>Active registers:</strong> ${activeDevices} of ${license.licensedStationCount || 1} licensed</div>
-                    <div><strong>Monthly:</strong> ${this.escapeHtml(license.monthlyFormatted || '—')}</div>
+                    <div><strong>Monthly:</strong> ${this.escapeHtml(license.monthlyFormatted || 'â€”')}</div>
                     <div style="color:var(--gray-600);font-size:0.85rem;">${this.escapeHtml(license.pricingSummary || '')}</div>
                     ${failoverLine}
                     ${pastDueLine}
                     ${compLine}
                     ${graceLine}
                     <div><strong>Payment on file:</strong> ${license.hasBillingVault ? 'Yes' : 'No'}</div>
-                    <div><strong>Next bill:</strong> ${this.escapeHtml(license.nextBillDate || '—')}</div>
+                    <div><strong>Next bill:</strong> ${this.escapeHtml(license.nextBillDate || 'â€”')}</div>
                     <div><strong>Enforcement:</strong> ${flags.enforcementEnabled ? 'On' : 'Off (safe mode)'}</div>
                     <div><strong>Billing dry-run:</strong> ${flags.billingDryRun ? 'On' : 'Off'}</div>
                     <div><strong>Grace days (default):</strong> ${flags.graceDaysDefault ?? 15}</div>`;
@@ -3095,7 +3205,7 @@ class AdminApp {
                 body: JSON.stringify({ note, notify })
             });
             if (msg) {
-                msg.textContent = 'Past due cleared — account restored to active.';
+                msg.textContent = 'Past due cleared â€” account restored to active.';
                 msg.style.color = 'var(--success)';
             }
             form.reset();
@@ -3120,7 +3230,7 @@ class AdminApp {
             const res = await this.apiRequest('/admin/pos/support/registers');
             if (configMsg) {
                 let msg =
-                    '<span style="color:var(--gray-600);">For <strong>Business One staff</strong>: use the central Support Desk at <a href="/support-desk" target="_blank" rel="noopener" style="font-weight:600;">/support-desk</a> — you do not log into each merchant admin.</span>';
+                    '<span style="color:var(--gray-600);">For <strong>Business One staff</strong>: use the central Support Desk at <a href="/support-desk" target="_blank" rel="noopener" style="font-weight:600;">/support-desk</a> â€” you do not log into each merchant admin.</span>';
                 if (res.platformHubEnabled) {
                     msg +=
                         ' <a href="/support-desk" target="_blank" rel="noopener" style="font-weight:600;">Open Support Desk</a>';
@@ -3150,7 +3260,7 @@ class AdminApp {
                         const seen = r.lastSeenAt ? this.formatAdminDateTime(r.lastSeenAt) : 'Never';
                         const plat = r.platform ? this.escapeHtml(r.platform) : 'unknown';
                         const session = r.activeSession?.sessionCode
-                            ? ` · Session ${this.escapeHtml(r.activeSession.sessionCode)}`
+                            ? ` Â· Session ${this.escapeHtml(r.activeSession.sessionCode)}`
                             : '';
                         const screenBtn =
                             r.screenShareSupported && r.online
@@ -3159,7 +3269,7 @@ class AdminApp {
                         return `<div style="display:flex;justify-content:space-between;gap:0.75rem;align-items:center;padding:0.55rem 0;border-bottom:1px solid var(--gray-200);">
                             <div>
                                 <div style="font-weight:600;">${this.escapeHtml(r.deviceLabel)}</div>
-                                <div style="font-size:0.85rem;color:var(--gray-600);">${status} · ${plat}${session}</div>
+                                <div style="font-size:0.85rem;color:var(--gray-600);">${status} Â· ${plat}${session}</div>
                                 <div style="font-size:0.8rem;color:var(--gray-500);">Last seen ${this.escapeHtml(seen)}</div>
                             </div>
                             <div>${screenBtn}</div>
@@ -3178,11 +3288,11 @@ class AdminApp {
                         const status = a.online
                             ? '<span style="color:var(--success);font-weight:600;">Online</span>'
                             : '<span style="color:var(--gray-500);">Offline</span>';
-                        const rd = a.rustdeskId ? this.escapeHtml(a.rustdeskId) : '—';
+                        const rd = a.rustdeskId ? this.escapeHtml(a.rustdeskId) : 'â€”';
                         return `<div style="display:flex;justify-content:space-between;gap:0.75rem;align-items:center;padding:0.55rem 0;border-bottom:1px solid var(--gray-200);">
                             <div>
                                 <div style="font-weight:600;">${this.escapeHtml(a.machineLabel)}</div>
-                                <div style="font-size:0.85rem;color:var(--gray-600);">${status} · RustDesk ${rd}</div>
+                                <div style="font-size:0.85rem;color:var(--gray-600);">${status} Â· RustDesk ${rd}</div>
                             </div>
                             <div style="display:flex;gap:0.35rem;flex-wrap:wrap;">
                                 <button type="button" class="btn btn-secondary btn-sm" data-pos-support-desktop="${a.id}">Full desktop</button>
@@ -3228,7 +3338,7 @@ class AdminApp {
                 url = viewer.toString();
             }
             window.open(url, '_blank', 'noopener,noreferrer,width=1100,height=720');
-            this.showToast('Waiting for cashier to allow screen share on the register…', 'info');
+            this.showToast('Waiting for cashier to allow screen share on the registerâ€¦', 'info');
             await this.loadPosSupport();
         } catch (err) {
             this.showToast(err.message || 'Could not start screen share', 'error');
@@ -3357,7 +3467,7 @@ class AdminApp {
                     return `<div data-pos-device-row="${d.id}" data-device-label="${this.escapeHtml(d.deviceLabel)}" style="display:flex;justify-content:space-between;gap:0.75rem;align-items:center;padding:0.55rem 0.35rem;border-bottom:1px solid var(--gray-200);">
                         <div>
                             <div style="font-weight:600;">${this.escapeHtml(d.deviceLabel)}</div>
-                            <div style="font-size:0.85rem;color:var(--gray-600);">${this.escapeHtml(d.keyPrefix)}… · Last seen ${this.escapeHtml(seen)}</div>
+                            <div style="font-size:0.85rem;color:var(--gray-600);">${this.escapeHtml(d.keyPrefix)}â€¦ Â· Last seen ${this.escapeHtml(seen)}</div>
                         </div>
                         <div style="display:flex;gap:0.35rem;flex-wrap:wrap;justify-content:flex-end;">
                             <button type="button" class="btn btn-secondary btn-sm" data-regenerate-pos-device="${d.id}">New key</button>
@@ -3432,7 +3542,7 @@ class AdminApp {
 
         const msg = document.getElementById('pos-device-create-msg');
         if (msg) {
-            msg.textContent = 'Generating…';
+            msg.textContent = 'Generatingâ€¦';
             msg.style.color = '';
         }
         try {
@@ -3468,7 +3578,7 @@ class AdminApp {
             await this._offerRegenerateExistingPosDevice(existing, label);
             return;
         }
-        if (msg) msg.textContent = 'Generating…';
+        if (msg) msg.textContent = 'Generatingâ€¦';
         if (createBtn) createBtn.disabled = true;
         try {
             const res = await this.apiRequest('/admin/pos/devices', {
@@ -3533,7 +3643,7 @@ class AdminApp {
 
             if (!displays.length) {
                 list.innerHTML =
-                    '<p style="margin:0;color:var(--gray-500);font-size:0.9rem;">No front-facing displays yet. Add a <strong>Customer display</strong> under Point of Sale → Equipment and assign it to a register.</p>';
+                    '<p style="margin:0;color:var(--gray-500);font-size:0.9rem;">No front-facing displays yet. Add a <strong>Customer display</strong> under Point of Sale â†’ Equipment and assign it to a register.</p>';
                 return;
             }
 
@@ -3554,7 +3664,7 @@ class AdminApp {
                               .map((ad) => {
                                   const checked = (d.assignedAdIds || []).includes(ad.id) ? ' checked' : '';
                                   const label =
-                                      [ad.title, ad.sourceLabel].filter(Boolean).join(' · ') || `Ad #${ad.id}`;
+                                      [ad.title, ad.sourceLabel].filter(Boolean).join(' Â· ') || `Ad #${ad.id}`;
                                   const thumb = ad.imageUrl
                                       ? `<img src="${this.escapeHtml(ad.imageUrl)}" alt="" style="width:48px;height:32px;object-fit:cover;border-radius:4px;">`
                                       : '';
@@ -3578,8 +3688,8 @@ class AdminApp {
 
                     return `<div style="border:1px solid var(--gray-200);border-radius:8px;padding:0.85rem 1rem;margin-bottom:0.75rem;">
                         <div style="font-weight:600;">${this.escapeHtml(d.label)}</div>
-                        <div style="font-size:0.85rem;color:var(--gray-600);">${this.escapeHtml(meta)} · Register: ${register}</div>
-                        <div style="font-size:0.85rem;color:var(--gray-600);margin-top:0.25rem;">Playlist: <strong>${modeLabel}</strong> · ${playlistNote}</div>
+                        <div style="font-size:0.85rem;color:var(--gray-600);">${this.escapeHtml(meta)} Â· Register: ${register}</div>
+                        <div style="font-size:0.85rem;color:var(--gray-600);margin-top:0.25rem;">Playlist: <strong>${modeLabel}</strong> Â· ${playlistNote}</div>
                         ${playlistEditor}
                     </div>`;
                 })
@@ -3605,7 +3715,7 @@ class AdminApp {
     async savePosFrontDisplayAds(equipmentId, adIds) {
         const msg = document.getElementById('pos-front-displays-msg');
         if (msg) {
-            msg.textContent = 'Saving…';
+            msg.textContent = 'Savingâ€¦';
             msg.style.color = '';
         }
         try {
@@ -3636,7 +3746,7 @@ class AdminApp {
             const ads = Array.isArray(res?.ads) ? res.ads : [];
             if (!ads.length) {
                 list.innerHTML =
-                    '<p style="margin:0;color:var(--gray-500);font-size:0.9rem;">No display ads yet. Add one below — use the same images from your email campaigns.</p>';
+                    '<p style="margin:0;color:var(--gray-500);font-size:0.9rem;">No display ads yet. Add one below â€” use the same images from your email campaigns.</p>';
                 return;
             }
             list.innerHTML = ads
@@ -3645,12 +3755,12 @@ class AdminApp {
                         ? `<img src="${this.escapeHtml(ad.imageUrl)}" alt="" style="width:72px;height:48px;object-fit:cover;border-radius:6px;border:1px solid var(--gray-200);">`
                         : '';
                     const status = ad.isActive ? 'Active' : 'Hidden';
-                    const meta = [ad.title, ad.sourceLabel].filter(Boolean).join(' · ') || 'Untitled ad';
+                    const meta = [ad.title, ad.sourceLabel].filter(Boolean).join(' Â· ') || 'Untitled ad';
                     return `<div style="display:flex;gap:0.75rem;align-items:center;padding:0.65rem 0;border-bottom:1px solid var(--gray-200);">
                         ${thumb}
                         <div style="flex:1;min-width:0;">
                             <div style="font-weight:600;">${this.escapeHtml(meta)}</div>
-                            <div style="font-size:0.85rem;color:var(--gray-600);">${status} · Order ${ad.sortOrder}</div>
+                            <div style="font-size:0.85rem;color:var(--gray-600);">${status} Â· Order ${ad.sortOrder}</div>
                         </div>
                         <div style="display:flex;gap:0.35rem;flex-wrap:wrap;">
                             <button type="button" class="btn btn-secondary btn-sm" data-toggle-pos-display-ad="${ad.id}" data-active="${ad.isActive ? '1' : '0'}">${ad.isActive ? 'Hide' : 'Show'}</button>
@@ -3697,7 +3807,7 @@ class AdminApp {
         const msg = document.getElementById('pos-display-ad-msg');
         if (!form) return;
         if (msg) {
-            msg.textContent = 'Saving…';
+            msg.textContent = 'Savingâ€¦';
             msg.style.color = '';
         }
         try {
@@ -3976,7 +4086,7 @@ class AdminApp {
             return 'Saved on your website. Connect Google Business Profile above to update Google too.';
         }
         if (googleBusinessSync.error) {
-            return 'Saved on your website, but Google could not be updated. Try “Send hours to Google now” or check your connection above.';
+            return 'Saved on your website, but Google could not be updated. Try â€œSend hours to Google nowâ€ or check your connection above.';
         }
         return '';
     }
@@ -3990,7 +4100,7 @@ class AdminApp {
         if (/access_denied/i.test(text)) {
             return (
                 'Google denied access. If the app is in Testing mode, add hmherbs1@gmail.com under ' +
-                'Google Cloud → OAuth consent screen → Test users. Also confirm the redirect URI ' +
+                'Google Cloud â†’ OAuth consent screen â†’ Test users. Also confirm the redirect URI ' +
                 'http://localhost:3001/api/admin/settings/google-calendar/callback is listed on your OAuth client.'
             );
         }
@@ -4062,7 +4172,7 @@ class AdminApp {
                     const loc = status.locationName
                         ? ' Your store listing on Google is selected.'
                         : ' Choose your store below.';
-                    statusText.textContent = `Connected — your hours can update on Google when you save.${email}${loc}`;
+                    statusText.textContent = `Connected â€” your hours can update on Google when you save.${email}${loc}`;
                 }
             }
             if (locationWrap) locationWrap.style.display = 'block';
@@ -4078,7 +4188,7 @@ class AdminApp {
             this._applyGoogleStatusPanelStyle(statusPanel, 'ready');
             if (statusText) {
                 statusText.textContent =
-                    'Ready to connect. Click “Connect Google Account” below and sign in with the Google account that manages your store.';
+                    'Ready to connect. Click â€œConnect Google Accountâ€ below and sign in with the Google account that manages your store.';
             }
             if (locationWrap) locationWrap.style.display = 'none';
             if (saveLocBtn) saveLocBtn.style.display = 'none';
@@ -4119,10 +4229,10 @@ class AdminApp {
             }
             select.disabled = false;
             select.innerHTML =
-                '<option value="">Select location…</option>' +
+                '<option value="">Select locationâ€¦</option>' +
                 locations
                     .map((loc) => {
-                        const label = `${loc.title || loc.name}${loc.address ? ` — ${loc.address}` : ''}`;
+                        const label = `${loc.title || loc.name}${loc.address ? ` â€” ${loc.address}` : ''}`;
                         return `<option value="${this.escapeHtml(loc.name)}">${this.escapeHtml(label)}</option>`;
                     })
                     .join('');
@@ -4262,7 +4372,7 @@ class AdminApp {
                       ? ' EDSA bookings will go to your main Google calendar.'
                       : ' Choose which calendar should receive EDSA bookings below.';
             if (statusText) {
-                statusText.textContent = `Connected — EDSA appointments will sync to your calendar.${email}${cal}`;
+                statusText.textContent = `Connected â€” EDSA appointments will sync to your calendar.${email}${cal}`;
             }
             if (calendarWrap) calendarWrap.style.display = 'block';
             if (saveBtn) saveBtn.style.display = 'inline-flex';
@@ -4271,7 +4381,7 @@ class AdminApp {
             this._applyGoogleStatusPanelStyle(statusPanel, 'ready');
             if (statusText) {
                 statusText.textContent =
-                    'Ready to connect. Click “Connect Google Calendar” below and sign in with the Google account you use for appointments.';
+                    'Ready to connect. Click â€œConnect Google Calendarâ€ below and sign in with the Google account you use for appointments.';
             }
             if (calendarWrap) calendarWrap.style.display = 'none';
             if (saveBtn) saveBtn.style.display = 'none';
@@ -4467,6 +4577,7 @@ class AdminApp {
             await this.loadPromoBannerSettings();
             await Promise.all([this.loadPosFrontDisplays(), this.loadPosDisplayAds()]);
             await this.loadWebPromotionsTable();
+            this._refreshMainContentScroll();
         } catch (e) {
             console.error('loadMarketingHub', e);
         }
@@ -4510,14 +4621,14 @@ class AdminApp {
     }
 
     _formatPersonnelDate(d) {
-        if (!d) return '—';
+        if (!d) return 'â€”';
         try {
             return new Date(d).toLocaleString(undefined, {
                 dateStyle: 'medium',
                 timeStyle: 'short',
             });
         } catch {
-            return '—';
+            return 'â€”';
         }
     }
 
@@ -4527,7 +4638,7 @@ class AdminApp {
         if (!list || !this.isFullAdmin) return;
 
         list.innerHTML =
-            '<div class="loading" style="padding:2rem;text-align:center;color:var(--gray-500);"><div class="spinner" style="margin:0 auto 0.75rem;"></div>Loading personnel…</div>';
+            '<div class="loading" style="padding:2rem;text-align:center;color:var(--gray-500);"><div class="spinner" style="margin:0 auto 0.75rem;"></div>Loading personnelâ€¦</div>';
         const profileMount = document.getElementById('admin-team-profile');
         if (profileMount) profileMount.style.display = 'none';
 
@@ -4612,11 +4723,11 @@ class AdminApp {
 
             const registerRows = (this._registerOnlyCache || [])
                 .map((r) => `<tr data-register-row="${r.id}">
-                        <td><span style="color:var(--gray-500);">—</span></td>
+                        <td><span style="color:var(--gray-500);">â€”</span></td>
                         <td>${this._escapeHtml(r.firstName)} ${this._escapeHtml(r.lastName)}</td>
                         <td><span class="badge" style="background:#fef3c7;color:#92400e;">Register only</span></td>
                         <td>${r.isActive ? '<span class="badge badge-success">Active</span>' : '<span class="badge" style="background:#f3f4f6;color:#6b7280;">Inactive</span>'}</td>
-                        <td style="font-size:0.85rem;color:var(--gray-600);white-space:nowrap;">—</td>
+                        <td style="font-size:0.85rem;color:var(--gray-600);white-space:nowrap;">â€”</td>
                         <td>
                             <div class="personnel-actions">
                                 <button type="button" class="btn btn-sm btn-secondary btn-icon-edit" title="Edit profile" data-team-action="edit-register" data-register-id="${r.id}" aria-label="Edit ${this._escapeHtml(r.firstName)} ${this._escapeHtml(r.lastName)}">
@@ -4708,6 +4819,7 @@ class AdminApp {
         const canAuthorize = Boolean(reg?.canAuthorize);
         const canProcessRefunds = Boolean(reg?.canProcessRefunds);
         const canOpenDrawer = Boolean(reg?.canOpenDrawer);
+        const allowManualDiscounts = Boolean(reg?.allowManualDiscounts);
         const restrictedBlocks = this.isFullAdmin
             ? `
                 <label style="display:flex;align-items:flex-start;gap:0.5rem;cursor:pointer;margin-bottom:0.65rem;">
@@ -4722,6 +4834,10 @@ class AdminApp {
         return `
             <div style="margin:0.75rem 0 0;padding-top:1rem;border-top:1px solid var(--gray-200);">
                 <h5 style="margin:0 0 0.75rem;font-size:0.95rem;color:var(--gray-700);">Register permissions</h5>
+                <label style="display:flex;align-items:flex-start;gap:0.5rem;cursor:pointer;margin-bottom:0.65rem;">
+                    <input type="checkbox" name="allowManualDiscounts" value="true"${allowManualDiscounts ? ' checked' : ''} style="margin-top:0.2rem;">
+                    <span>Can apply manual line and sale discounts <span style="color:var(--gray-600);font-weight:400;">(off by default — automatic promotions still apply)</span></span>
+                </label>
                 <label style="display:flex;align-items:flex-start;gap:0.5rem;cursor:pointer;margin-bottom:0.65rem;">
                     <input type="checkbox" name="canAuthorize" value="true"${canAuthorize ? ' checked' : ''} style="margin-top:0.2rem;">
                     <span>Can approve line and sale discounts <span style="color:var(--gray-600);font-weight:400;">(manager PIN)</span></span>
@@ -4741,7 +4857,7 @@ class AdminApp {
             <div class="form-group">
                 <label for="profile-register-code">Register employee ID</label>
                 <input class="form-input" id="profile-register-code" name="employeeCode" maxlength="8" value="${this._escapeHtml(reg?.employeeCode || '')}" placeholder="e.g. 1042">
-                <small class="form-help">Shown on shift reports (2–8 characters).</small>
+                <small class="form-help">Shown on shift reports (2â€“8 characters).</small>
             </div>`;
         const rest = `
             <div class="form-group">
@@ -4952,6 +5068,7 @@ class AdminApp {
         const hourlyRaw = String(fd.get('hourlyRate') || '').trim();
         const registerActive = !!form.querySelector('[name="registerActive"]')?.checked;
         const canAuthorize = !!form.querySelector('[name="canAuthorize"]')?.checked;
+        const allowManualDiscounts = !!form.querySelector('[name="allowManualDiscounts"]')?.checked;
         const canProcessRefunds = this.isFullAdmin
             ? !!form.querySelector('[name="canProcessRefunds"]')?.checked
             : undefined;
@@ -4969,7 +5086,7 @@ class AdminApp {
 
         if (employeeCode && employeeCode.length < 2) {
             if (msg) {
-                msg.textContent = 'Register employee ID must be 2–8 characters.';
+                msg.textContent = 'Register employee ID must be 2â€“8 characters.';
                 msg.style.color = 'var(--error)';
             }
             return false;
@@ -4985,6 +5102,7 @@ class AdminApp {
                     isActive: registerActive,
                     hourlyRate: hourlyRaw === '' ? null : Number(hourlyRaw),
                     canAuthorize,
+                    allowManualDiscounts,
                     ...(canProcessRefunds !== undefined ? { canProcessRefunds } : {}),
                     ...(canOpenDrawer !== undefined ? { canOpenDrawer } : {}),
                 };
@@ -5000,7 +5118,7 @@ class AdminApp {
                 if (!existingReg && (pin || employeeCode)) {
                     if (!employeeCode) {
                         if (msg) {
-                            msg.textContent = 'Enter a register employee ID (2–8 characters) when setting up register access.';
+                            msg.textContent = 'Enter a register employee ID (2â€“8 characters) when setting up register access.';
                             msg.style.color = 'var(--error)';
                         }
                         return false;
@@ -5047,6 +5165,7 @@ class AdminApp {
                             isActive: registerActive,
                             hourlyRate: hourlyRaw === '' ? null : Number(hourlyRaw),
                             canAuthorize,
+                            allowManualDiscounts,
                             ...(canProcessRefunds !== undefined ? { canProcessRefunds } : {}),
                             ...(canOpenDrawer !== undefined ? { canOpenDrawer } : {}),
                         }),
@@ -5088,6 +5207,8 @@ class AdminApp {
                     email: fd.get('email'),
                     pin,
                     canAuthorize: fd.get('canAuthorize') === 'on' || fd.get('canAuthorize') === 'true',
+                    allowManualDiscounts:
+                        fd.get('allowManualDiscounts') === 'on' || fd.get('allowManualDiscounts') === 'true',
                     ...(this.isFullAdmin
                         ? {
                               canProcessRefunds:
@@ -5395,7 +5516,7 @@ class AdminApp {
             <label for="promo-reward-q-${id}">Target SKUs</label>
             <div id="promo-reward-chips-${id}" class="promo-prod-chips" aria-live="polite"></div>
             <div class="promo-prod-search-wrap">
-                <input type="text" class="form-input" id="promo-reward-q-${id}" autocomplete="off" placeholder="Products that receive this discount…" data-reward-rule-search="${id}">
+                <input type="text" class="form-input" id="promo-reward-q-${id}" autocomplete="off" placeholder="Products that receive this discountâ€¦" data-reward-rule-search="${id}">
                 <div id="promo-reward-res-${id}" class="promo-prod-results-local promo-product-link-results-panel" role="listbox" hidden></div>
             </div>
             <div class="form-row" style="margin-top:0.65rem;">
@@ -5412,7 +5533,7 @@ class AdminApp {
                     <input class="form-input" id="promo-reward-val-${id}" type="number" step="any" data-reward-val="${id}">
                 </div>
             </div>
-            <small class="form-help">Each group is evaluated on its own. Set price lowers every matching unit toward the amount you enter (use 0 with “Set price” for a free accessory).</small>
+            <small class="form-help">Each group is evaluated on its own. Set price lowers every matching unit toward the amount you enter (use 0 with â€œSet priceâ€ for a free accessory).</small>
         `;
         list.appendChild(wrap);
         const rm = wrap.querySelector(`[data-remove-reward-rule="${id}"]`);
@@ -5623,7 +5744,7 @@ class AdminApp {
         sel.innerHTML = '';
         const loading = document.createElement('option');
         loading.value = '';
-        loading.textContent = 'Loading categories…';
+        loading.textContent = 'Loading categoriesâ€¦';
         sel.appendChild(loading);
         sel.disabled = true;
         await this._promoEnsureCategoriesCache();
@@ -5631,7 +5752,7 @@ class AdminApp {
         sel.innerHTML = '';
         const ph = document.createElement('option');
         ph.value = '';
-        ph.textContent = 'Choose a category to add…';
+        ph.textContent = 'Choose a category to addâ€¦';
         sel.appendChild(ph);
         const rows = [...(this._promoCategoriesCache || [])].sort((a, b) =>
             String(a.name || '').localeCompare(String(b.name || ''))
@@ -5720,7 +5841,7 @@ class AdminApp {
         results.hidden = false;
         results.style.display = 'block';
         results.classList.add('prompt');
-        results.textContent = 'Searching…';
+        results.textContent = 'Searchingâ€¦';
         try {
             const data = await this.apiRequest(
                 `/admin/products?search=${encodeURIComponent(q)}&limit=15&page=1`
@@ -5785,8 +5906,16 @@ class AdminApp {
         if (this._promoProductPickersReady) return;
         const bind = (kind) => {
             const el = this._promoProdPickerElements(kind);
-            if (!el?.q) return;
-            el.q.addEventListener('input', () => this._promoScheduleProdSearch(kind));
+            if (!el?.q || el.q.dataset.hmPromoSearchBound === '1') return;
+            el.q.dataset.hmPromoSearchBound = '1';
+            if (typeof window.hmBindSearchInput === 'function') {
+                window.hmBindSearchInput(el.q, {
+                    debounceMs: 280,
+                    onSearch: (raw) => this._promoRunProdSearch(kind, String(raw || '').trim())
+                });
+            } else {
+                el.q.addEventListener('input', () => this._promoScheduleProdSearch(kind));
+            }
             el.q.addEventListener('keydown', (ev) => {
                 if (ev.key === 'Escape') this._promoHideProdResults(kind);
             });
@@ -6038,6 +6167,7 @@ class AdminApp {
         if (scope) scope.value = 'all';
         const act = document.getElementById('promo-form-active');
         if (act) act.checked = true;
+        this._setPromoFormChannel('both');
         const fs = document.getElementById('promo-form-free-shipping');
         if (fs) fs.checked = false;
         const bogort = document.getElementById('promo-form-bogo-reward-type');
@@ -6056,8 +6186,29 @@ class AdminApp {
         if (msg) msg.textContent = '';
     }
 
-    openPromoEditorModal() {
+    _ensurePromoEditorModalMounted() {
         const m = document.getElementById('promo-editor-modal');
+        if (!m) return null;
+        if (m.parentElement !== document.body) {
+            document.body.appendChild(m);
+        }
+        return m;
+    }
+
+    _ensureAdminPortals() {
+        this._ensureSectionStorage();
+        this._ensurePromoEditorModalMounted();
+        this._parkMainContentOrphans();
+
+        const mainContent = document.querySelector('.main-content');
+        const active = document.querySelector('.content-section.active');
+        if (mainContent && active?.id) {
+            this._mountOnlyActiveSection(active.id);
+        }
+    }
+
+    openPromoEditorModal() {
+        const m = this._ensurePromoEditorModalMounted();
         if (!m) return;
         const prev = document.activeElement;
         this._promoEditorReturnFocus =
@@ -6136,6 +6287,34 @@ class AdminApp {
         }
     }
 
+    _promoChannelFromRow(row) {
+        const web = row.applies_web == null || Number(row.applies_web) !== 0;
+        const pos = row.applies_pos == null || Number(row.applies_pos) !== 0;
+        if (web && pos) return 'both';
+        if (web && !pos) return 'web';
+        if (!web && pos) return 'pos';
+        return 'both';
+    }
+
+    _promoChannelLabel(channel) {
+        if (channel === 'web') return 'Website only';
+        if (channel === 'pos') return 'In-store only';
+        return 'Website + in-store';
+    }
+
+    _setPromoFormChannel(channel) {
+        const val = channel === 'web' || channel === 'pos' ? channel : 'both';
+        document.querySelectorAll('input[name="promo-form-channel"]').forEach((el) => {
+            el.checked = el.value === val;
+        });
+    }
+
+    _getPromoFormChannel() {
+        const checked = document.querySelector('input[name="promo-form-channel"]:checked');
+        const v = checked?.value;
+        return v === 'web' || v === 'pos' ? v : 'both';
+    }
+
     fillPromoEditor(row) {
         if (!row) return;
         const idEl = document.getElementById('promo-edit-id');
@@ -6148,6 +6327,7 @@ class AdminApp {
         if (code) code.value = row.code || '';
         if (desc) desc.value = row.description || '';
         document.getElementById('promo-form-active').checked = Number(row.is_active) === 1;
+        this._setPromoFormChannel(this._promoChannelFromRow(row));
         const startsNorm = row.starts_at
             ? String(row.starts_at).trim().replace(' ', 'T').slice(0, 16)
             : '';
@@ -6344,8 +6524,10 @@ class AdminApp {
             tbody.innerHTML = rows
                 .map((r) => {
                     const active = Number(r.is_active) === 1 ? 'Yes' : 'No';
+                    const channel = this._promoChannelLabel(this._promoChannelFromRow(r));
                     return `<tr data-promo-row="${r.id}">
                         <td><code>${this.escapeHtml(r.code)}</code></td>
+                        <td>${this.escapeHtml(channel)}</td>
                         <td>${this.escapeHtml(active)}</td>
                         <td style="font-size:0.88rem">${this.escapeHtml(r.description || '—')}</td>
                         <td style="white-space:nowrap">
@@ -6356,7 +6538,7 @@ class AdminApp {
                 })
                 .join('');
         } catch (err) {
-            tbody.innerHTML = `<tr><td colspan="4" style="color:var(--error)">Unable to load promotions.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="5" style="color:var(--error)">Unable to load promotions.</td></tr>`;
         }
     }
 
@@ -6378,7 +6560,7 @@ class AdminApp {
         if (!rules.effects.length && !usesTriggerSku) {
             if (msg) {
                 msg.textContent =
-                    'Add a Trigger→Reward SKU setup, cart discount (classic), buy/get, or check Free shipping.';
+                    'Add a Triggerâ†’Reward SKU setup, cart discount (classic), buy/get, or check Free shipping.';
                 msg.style.color = 'var(--error)';
             }
             this.showToast('Add promotion rules first', 'error');
@@ -6390,7 +6572,7 @@ class AdminApp {
 
             const bad = () => {
                 const t =
-                    'Trigger mode: add at least one Trigger SKU, minimum quantity ≥ 1, and one reward SKU group with a valid discount value.';
+                    'Trigger mode: add at least one Trigger SKU, minimum quantity â‰¥ 1, and one reward SKU group with a valid discount value.';
                 if (msg) {
 
                     msg.textContent = t;
@@ -6419,7 +6601,7 @@ class AdminApp {
 
 
         if (rules.scope === 'products' && (!rules.productIds || rules.productIds.length === 0)) {
-            const t = 'Add at least one product to the SKU lists above, or change “Applies to”.';
+            const t = 'Add at least one product to the SKU lists above, or change â€œApplies toâ€.';
             if (msg) {
                 msg.textContent = t;
 
@@ -6429,7 +6611,7 @@ class AdminApp {
             return;
         }
         if (rules.scope === 'categories' && (!rules.categoryIds || rules.categoryIds.length === 0)) {
-            const t = 'Add at least one category, or change “Applies to”.';
+            const t = 'Add at least one category, or change â€œApplies toâ€.';
             if (msg) {
                 msg.textContent = t;
                 msg.style.color = 'var(--error)';
@@ -6446,7 +6628,7 @@ class AdminApp {
                 const p = Number(e.getPercent);
                 if (!Number.isFinite(p) || p <= 0 || p > 100) {
                     const tx =
-                        'Buy/get is set to percent off reward items — enter a percent between 1 and 100, or choose Free.';
+                        'Buy/get is set to percent off reward items â€” enter a percent between 1 and 100, or choose Free.';
                     if (msg) {
                         msg.textContent = tx;
                         msg.style.color = 'var(--error)';
@@ -6458,7 +6640,7 @@ class AdminApp {
                 const f = Number(e.getFixedAmount);
                 if (!Number.isFinite(f) || f <= 0) {
                     const tx =
-                        'Buy/get is set to dollar off reward items — enter an amount greater than zero, or choose Free.';
+                        'Buy/get is set to dollar off reward items â€” enter an amount greater than zero, or choose Free.';
                     if (msg) {
                         msg.textContent = tx;
                         msg.style.color = 'var(--error)';
@@ -6484,6 +6666,7 @@ class AdminApp {
             code: (document.getElementById('promo-form-code')?.value || '').trim(),
             description: (document.getElementById('promo-form-desc')?.value || '').trim(),
             is_active: document.getElementById('promo-form-active')?.checked ? 1 : 0,
+            promotion_channel: this._getPromoFormChannel(),
             starts_at: promoNormDt(document.getElementById('promo-form-starts')?.value),
             ends_at: promoNormDt(document.getElementById('promo-form-ends')?.value),
             usage_limit_total: document.getElementById('promo-form-limit-total')?.value,
@@ -6571,7 +6754,7 @@ class AdminApp {
             if (response.orders && response.orders.length > 0) {
                 container.innerHTML = this.renderOrdersTable(response.orders);
             } else {
-                container.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--gray-500);"><p>No orders found.</p></div>';
+                container.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--gray-500);"><p>No orders yet.</p><p style="font-size:0.875rem;margin-top:0.5rem;">Orders from checkout will appear here once customers place them.</p></div>';
             }
         } catch (error) {
             // Don't show error for authentication issues
@@ -6679,7 +6862,7 @@ class AdminApp {
             return;
         }
 
-        this.showNotification('Building online sales tax reports by state…', 'info');
+        this.showNotification('Building online sales tax reports by stateâ€¦', 'info');
 
         let stateFiles = [];
         try {
@@ -6740,7 +6923,7 @@ class AdminApp {
         if (!ok) return;
 
         try {
-            this.showNotification('Syncing online sales and sending email…', 'info');
+            this.showNotification('Syncing online sales and sending emailâ€¦', 'info');
             const response = await this.apiRequest('/admin/tax-ledger/send-accountant-report', {
                 method: 'POST',
                 body: JSON.stringify({ startDate, endDate, syncBeforeExport: true })
@@ -6804,8 +6987,8 @@ class AdminApp {
                             <tr>
                                 <td><code>${this.escapeHtml(p.sku || '')}</code></td>
                                 <td>${this.escapeHtml(p.name || '')}</td>
-                                <td>${this.escapeHtml(p.brand_name || '—')}</td>
-                                <td>${this.escapeHtml(p.category_name || '—')}</td>
+                                <td>${this.escapeHtml(p.brand_name || 'â€”')}</td>
+                                <td>${this.escapeHtml(p.category_name || 'â€”')}</td>
                                 <td><span class="badge ${Number(p.inventory_quantity) <= 0 ? 'badge-danger' : 'badge-warning'}">${Number(p.inventory_quantity) || 0}</span></td>
                                 <td>${Number(p.low_stock_threshold) || 0}</td>
                                 <td>
@@ -6943,17 +7126,17 @@ class AdminApp {
     renderEdsaCustomerRequest(booking) {
         const type = booking.customer_request_type || 'none';
         if (type === 'none') {
-            return '<span class="text-muted">—</span>';
+            return '<span class="text-muted">â€”</span>';
         }
         let text = type === 'cancel' ? 'Cancel requested' : 'Reschedule requested';
         if (type === 'reschedule' && booking.requested_date) {
             const d = new Date(booking.requested_date);
             const dateStr = Number.isNaN(d.getTime()) ? booking.requested_date : d.toLocaleDateString();
             const timeStr = booking.requested_time ? String(booking.requested_time).slice(0, 5) : '';
-            text += ` → ${dateStr}${timeStr ? ' ' + timeStr : ''}`;
+            text += ` â†’ ${dateStr}${timeStr ? ' ' + timeStr : ''}`;
         }
         if (booking.customer_request_notes) {
-            text += ` — ${this.escapeHtml(String(booking.customer_request_notes).slice(0, 80))}`;
+            text += ` â€” ${this.escapeHtml(String(booking.customer_request_notes).slice(0, 80))}`;
         }
         return `<span class="badge badge-warning">${this.escapeHtml(text)}</span>`;
     }
@@ -7060,7 +7243,7 @@ class AdminApp {
                 <button type="button" class="modal-close" id="edsa-edit-close" aria-label="Close">${HM_CLOSE_ICON_SVG}</button>
             </div>
             <div class="modal-body" style="padding:1.5rem;">
-                <p style="margin:0 0 1rem;color:var(--gray-600);">${this.escapeHtml(name)} · ${this.escapeHtml(booking.email)}</p>
+                <p style="margin:0 0 1rem;color:var(--gray-600);">${this.escapeHtml(name)} Â· ${this.escapeHtml(booking.email)}</p>
                 <div class="form-group">
                     <label for="edsa-edit-status">Status</label>
                     <select id="edsa-edit-status" class="form-control">
@@ -7111,7 +7294,7 @@ class AdminApp {
         modal.querySelector('#edsa-edit-save')?.addEventListener('click', async () => {
             const btn = modal.querySelector('#edsa-edit-save');
             btn.disabled = true;
-            btn.textContent = 'Saving…';
+            btn.textContent = 'Savingâ€¦';
             try {
                 await this.apiRequest(`/admin/edsa/bookings/${booking.id}`, {
                     method: 'PUT',
@@ -7138,7 +7321,7 @@ class AdminApp {
     async loadProducts() {
         // Prevent multiple simultaneous loads
         if (this._loadingProducts) {
-            console.log('⏸️ Products already loading, skipping duplicate request');
+            console.log('â¸ï¸ Products already loading, skipping duplicate request');
             return;
         }
 
@@ -7194,18 +7377,18 @@ class AdminApp {
                 // When filters are active, fetch a large batch for client-side filtering
                 // We'll paginate the filtered results client-side
                 this.productsPagination.useServerPagination = false;
-                console.log('🔍 Filters active, fetching all products for client-side filtering...');
+                console.log('ðŸ” Filters active, fetching all products for client-side filtering...');
                 response = await this.apiRequest(`/admin/products?limit=10000&page=1`);
             } else {
                 // Use server-side pagination when no filters
                 this.productsPagination.useServerPagination = true;
                 const page = this.productsPagination.currentPage;
                 const limit = this.productsPagination.itemsPerPage;
-                console.log('📄 No filters, using server-side pagination:', { page, limit });
+                console.log('ðŸ“„ No filters, using server-side pagination:', { page, limit });
                 response = await this.apiRequest(`/admin/products?limit=${limit}&page=${page}`);
             }
 
-            console.log('📥 API Response received:', {
+            console.log('ðŸ“¥ API Response received:', {
                 hasResponse: !!response,
                 hasProducts: !!(response && response.products),
                 productsCount: response && response.products ? response.products.length : 0,
@@ -7234,7 +7417,7 @@ class AdminApp {
                 // Always replace with fresh products to ensure we have the latest data
                 this.allProducts = response.products || [];
 
-                console.log('✅ Products stored in allProducts:', {
+                console.log('âœ… Products stored in allProducts:', {
                     count: this.allProducts.length,
                     useServerPagination: this.productsPagination.useServerPagination,
                     totalProducts: this.productsPagination.totalProducts,
@@ -7245,7 +7428,7 @@ class AdminApp {
 
                 // Log sample products to verify they have category_id and is_featured
                 if (this.allProducts.length > 0) {
-                    console.log('📦 Sample products after loading:', this.allProducts.slice(0, 5).map(p => ({
+                    console.log('ðŸ“¦ Sample products after loading:', this.allProducts.slice(0, 5).map(p => ({
                         id: p.id,
                         name: p.name,
                         category_id: p.category_id,
@@ -7265,7 +7448,7 @@ class AdminApp {
                         p.is_featured === '1' ||
                         p.is_featured === 'true'
                     );
-                    console.log('⭐ Featured products found:', {
+                    console.log('â­ Featured products found:', {
                         count: featuredProducts.length,
                         products: featuredProducts.map(p => ({
                             id: p.id,
@@ -7289,17 +7472,17 @@ class AdminApp {
                 // Restore preserved filter values after setup and population
                 if (preservedSearchValue) {
                     const currentSearchInput = document.getElementById('productsSearchInput');
-                    if (currentSearchInput) {
-                        currentSearchInput.value = preservedSearchValue;
-                        // Show clear button if search term exists
+                    if (currentSearchInput && document.activeElement !== currentSearchInput) {
+                        this._restoreProductsSearchInput(currentSearchInput, preservedSearchValue);
                         const clearBtn = document.getElementById('clearProductsSearch');
                         if (clearBtn) {
-                            clearBtn.style.display = preservedSearchValue ? 'block' : 'none';
+                            clearBtn.style.display = currentSearchInput.value ? 'block' : 'none';
                         }
-                        // Trigger filtering directly after a short delay to ensure setup is complete
-                        setTimeout(() => {
-                            this.renderFilteredProducts();
-                        }, 150);
+                        if (document.activeElement !== currentSearchInput) {
+                            setTimeout(() => {
+                                this.renderFilteredProducts();
+                            }, 150);
+                        }
                     }
                 }
                 if (preservedBrandValue) {
@@ -7334,11 +7517,11 @@ class AdminApp {
                 requestAnimationFrame(() => {
                     // Double-check products are still loaded before rendering
                     if (this.allProducts.length > 0) {
-                        console.log('🎨 Rendering products via requestAnimationFrame, product count:', this.allProducts.length);
+                        console.log('ðŸŽ¨ Rendering products via requestAnimationFrame, product count:', this.allProducts.length);
                         this.renderFilteredProductsImmediate();
                     } else {
                         // If products disappeared (shouldn't happen), try loading again
-                        console.warn('⚠️ Products were loaded but allProducts is empty, reloading...');
+                        console.warn('âš ï¸ Products were loaded but allProducts is empty, reloading...');
                         setTimeout(() => this.loadProducts(), 200);
                     }
                 });
@@ -7349,7 +7532,7 @@ class AdminApp {
                     // Only render if container is still showing loading or is empty
                     if (container && (container.querySelector('.loading') || container.innerHTML.trim() === '')) {
                         if (this.allProducts.length > 0) {
-                            console.log('🔄 Fallback render triggered, product count:', this.allProducts.length);
+                            console.log('ðŸ”„ Fallback render triggered, product count:', this.allProducts.length);
                             this.renderFilteredProductsImmediate();
                         }
                     }
@@ -7369,7 +7552,9 @@ class AdminApp {
                 // Restore preserved filter values
                 if (preservedSearchValue) {
                     const currentSearchInput = document.getElementById('productsSearchInput');
-                    if (currentSearchInput) currentSearchInput.value = preservedSearchValue;
+                    if (currentSearchInput && document.activeElement !== currentSearchInput) {
+                        this._restoreProductsSearchInput(currentSearchInput, preservedSearchValue);
+                    }
                 }
                 if (preservedBrandValue) {
                     const currentBrandFilter = document.getElementById('productsBrandFilter');
@@ -7407,23 +7592,10 @@ class AdminApp {
                 icon.style.marginBottom = '1rem';
 
                 const message = document.createElement('p');
-                message.textContent = 'No products found. Import products or scrape from HM Herbs website.';
+                message.textContent = 'No products found. Import products from a CSV backup or add products manually.';
 
                 emptyDiv.appendChild(icon);
                 emptyDiv.appendChild(message);
-
-                // Add scrape button
-                const scrapeBtn = document.createElement('button');
-                scrapeBtn.className = 'btn btn-primary';
-                scrapeBtn.onclick = () => scrapeProducts();
-
-                const btnIcon = document.createElement('i');
-                btnIcon.className = 'fas fa-download';
-                const btnText = document.createTextNode(' Scrape HM Herbs Products');
-
-                scrapeBtn.appendChild(btnIcon);
-                scrapeBtn.appendChild(btnText);
-                emptyDiv.appendChild(scrapeBtn);
 
                 if (container) {
                     container.innerHTML = '';
@@ -7431,7 +7603,7 @@ class AdminApp {
                 }
             }
         } catch (error) {
-            console.error('❌ Error loading products:', error);
+            console.error('âŒ Error loading products:', error);
             // Create error message safely
             const errorDiv = document.createElement('div');
             errorDiv.style.textAlign = 'center';
@@ -7476,14 +7648,14 @@ class AdminApp {
     async loadCategoriesForFilters() {
         try {
             if (!this.authToken) {
-                console.warn('⚠️ Cannot load categories: not authenticated');
+                console.warn('âš ï¸ Cannot load categories: not authenticated');
                 return;
             }
 
-            console.log('📥 Loading categories for filter...');
+            console.log('ðŸ“¥ Loading categories for filter...');
             const response = await this.apiRequest('/admin/categories');
 
-            console.log('📦 Categories API response:', {
+            console.log('ðŸ“¦ Categories API response:', {
                 response: response,
                 isArray: Array.isArray(response),
                 length: response ? response.length : 0
@@ -7491,14 +7663,14 @@ class AdminApp {
 
             if (response && Array.isArray(response)) {
                 this.allCategories = response;
-                console.log('✅ Loaded categories:', this.allCategories.length);
+                console.log('âœ… Loaded categories:', this.allCategories.length);
                 this.populateCategoryFilter();
             } else {
-                console.warn('⚠️ Categories response is not an array:', response);
+                console.warn('âš ï¸ Categories response is not an array:', response);
                 this.allCategories = [];
             }
         } catch (error) {
-            console.error('❌ Failed to load categories for filter:', error);
+            console.error('âŒ Failed to load categories for filter:', error);
             this.allCategories = [];
         }
     }
@@ -7538,11 +7710,11 @@ class AdminApp {
     populateCategoryFilter() {
         const categoryFilter = document.getElementById('productsCategoryFilter');
         if (!categoryFilter) {
-            console.warn('⚠️ Category filter dropdown not found');
+            console.warn('âš ï¸ Category filter dropdown not found');
             return;
         }
 
-        console.log('🔄 Populating category filter:', {
+        console.log('ðŸ”„ Populating category filter:', {
             categoriesCount: this.allCategories.length,
             categories: this.allCategories
         });
@@ -7561,16 +7733,76 @@ class AdminApp {
                 option.textContent = category.name || `Category ${category.id}`;
                 categoryFilter.appendChild(option);
             });
-            console.log('✅ Added', this.allCategories.length, 'categories to filter dropdown');
+            console.log('âœ… Added', this.allCategories.length, 'categories to filter dropdown');
         } else {
-            console.warn('⚠️ No categories to add to filter dropdown');
+            console.warn('âš ï¸ No categories to add to filter dropdown');
         }
 
         // Restore the selected value if it still exists
         if (currentValue && this.allCategories.some(c => c.id == currentValue)) {
             categoryFilter.value = currentValue;
-            console.log('✅ Restored selected category:', currentValue);
+            console.log('âœ… Restored selected category:', currentValue);
         }
+    }
+
+    _restoreProductsSearchInput(input, preserved) {
+        if (!input || preserved == null) return;
+        if (typeof window.hmSafeRestoreSearchValue === 'function') {
+            window.hmSafeRestoreSearchValue(input, preserved);
+            return;
+        }
+        if (document.activeElement === input) return;
+        if (input.value !== preserved) {
+            input.value = preserved;
+        }
+    }
+
+    _handleProductsSearchInput(input) {
+        const searchInput = input || document.getElementById('productsSearchInput');
+        if (!searchInput) return;
+
+        const searchTerm = searchInput.value.trim().toLowerCase();
+        const wasUsingServerPagination = this.productsPagination.useServerPagination;
+        const hasPartialProductSet = this.allProducts.length > 0 && this.allProducts.length < 1000;
+
+        if (searchTerm && (wasUsingServerPagination || hasPartialProductSet)) {
+            this.productsPagination.useServerPagination = false;
+            this.productsPagination.currentPage = 1;
+
+            const loadToken = ++this._productsSearchLoadToken;
+
+            searchInput.setAttribute('data-listeners-setup', 'true');
+
+            this.loadProducts().then(() => {
+                if (loadToken !== this._productsSearchLoadToken) {
+                    this.renderFilteredProducts();
+                    return;
+                }
+                this.renderFilteredProducts();
+            });
+            return;
+        }
+
+        if (searchTerm) {
+            this.renderFilteredProducts();
+            return;
+        }
+
+        const brandFilter = document.getElementById('productsBrandFilter');
+        const categoryFilter = document.getElementById('productsCategoryFilter');
+        const featuredFilter = document.getElementById('productsFeaturedFilter');
+        const hasOtherFilters = (brandFilter && brandFilter.value) ||
+            (categoryFilter && categoryFilter.value) ||
+            (featuredFilter && featuredFilter.value);
+
+        if (!hasOtherFilters && !wasUsingServerPagination && this.allProducts.length > 1000) {
+            this.productsPagination.useServerPagination = true;
+            this.productsPagination.currentPage = 1;
+            this.loadProducts();
+            return;
+        }
+
+        this.renderFilteredProducts();
     }
 
     setupProductsSearch() {
@@ -7584,122 +7816,57 @@ class AdminApp {
 
         if (!searchInput || !container) return;
 
-        // Check if search input already has listeners set up
-        // Use a data attribute to track this
         if (searchInput.hasAttribute('data-listeners-setup')) {
-            // Listeners already set up, don't clone again
             return;
         }
 
-        // Mark that listeners are being set up
         searchInput.setAttribute('data-listeners-setup', 'true');
 
-        // Preserve focus state and cursor position
-        const wasFocused = document.activeElement === searchInput;
-        const cursorPosition = searchInput.selectionStart;
-        const inputValue = searchInput.value;
-
-        // Remove existing listeners to prevent duplicates
-        const newSearchInput = searchInput.cloneNode(true);
-        newSearchInput.setAttribute('data-listeners-setup', 'true');
-        searchInput.parentNode.replaceChild(newSearchInput, searchInput);
-
-        // Restore value and focus if it was focused
-        if (inputValue) {
-            newSearchInput.value = inputValue;
+        if (!this._productsSearchDebounceTimer) {
+            this._productsSearchDebounceTimer = null;
         }
-        if (wasFocused) {
-            newSearchInput.focus();
-            // Restore cursor position
-            if (cursorPosition !== null && cursorPosition !== undefined) {
-                newSearchInput.setSelectionRange(cursorPosition, cursorPosition);
-            }
+        if (!this._productsSearchLoadToken) {
+            this._productsSearchLoadToken = 0;
         }
 
-        // Setup search input listener
-        newSearchInput.addEventListener('input', (e) => {
-            const searchTerm = e.target.value.trim().toLowerCase();
-
-            // Show/hide clear button
+        const onProductsSearch = () => {
+            const input = document.getElementById('productsSearchInput');
+            if (!input) return;
+            const searchTerm = input.value.trim();
             if (clearBtn) {
                 clearBtn.style.display = searchTerm ? 'block' : 'none';
             }
-
-            // Update clear filters button visibility
             this.updateClearFiltersButton();
-
-            // If we have a search term and are using server pagination with limited products,
-            // we need to load all products for client-side filtering
-            const wasUsingServerPagination = this.productsPagination.useServerPagination;
-            const hasPartialProductSet = this.allProducts.length > 0 && this.allProducts.length < 1000;
-
-            if (searchTerm && (wasUsingServerPagination || hasPartialProductSet)) {
-                console.log('🔍 Search term entered, loading all products for filtering...', {
-                    searchTerm,
-                    wasUsingServerPagination,
-                    currentProductCount: this.allProducts.length
-                });
-                // Switch to client-side filtering
+            if (searchTerm) {
                 this.productsPagination.useServerPagination = false;
                 this.productsPagination.currentPage = 1;
-                // Store the search term and cursor position to ensure it's preserved through the reload
-                const searchValueToPreserve = e.target.value;
-                const cursorPos = e.target.selectionStart;
-                // Prevent setupProductsSearch from running again during this load
-                const searchInputEl = document.getElementById('productsSearchInput');
-                if (searchInputEl) {
-                    searchInputEl.setAttribute('data-listeners-setup', 'true');
-                }
-                // Reload all products - the search term will be preserved and filtering will happen
-                this.loadProducts().then(() => {
-                    // After products are loaded, ensure the search input still has the value
-                    // and restore focus/cursor position
-                    const currentSearchInput = document.getElementById('productsSearchInput');
-                    if (currentSearchInput) {
-                        if (currentSearchInput.value !== searchValueToPreserve) {
-                            currentSearchInput.value = searchValueToPreserve;
-                        }
-                        // Restore focus and cursor position
-                        currentSearchInput.focus();
-                        if (cursorPos !== null && cursorPos !== undefined) {
-                            currentSearchInput.setSelectionRange(cursorPos, cursorPos);
-                        }
-                    }
-                    // Trigger filtering with the search term
+            }
+            this._handleProductsSearchInput(input);
+        };
+
+        if (typeof window.hmBindSearchInput === 'function') {
+            window.hmBindSearchInput(searchInput, {
+                debounceMs: 350,
+                clearButton: clearBtn,
+                onClear: () => {
+                    this.updateClearFiltersButton();
+                    this.renderFilteredProducts();
+                },
+                onSearch: () => onProductsSearch()
+            });
+        } else {
+            searchInput.addEventListener('input', () => {
+                clearTimeout(this._productsSearchDebounceTimer);
+                this._productsSearchDebounceTimer = setTimeout(onProductsSearch, 350);
+            });
+            if (clearBtn) {
+                clearBtn.addEventListener('click', () => {
+                    searchInput.value = '';
+                    clearBtn.style.display = 'none';
+                    this.updateClearFiltersButton();
                     this.renderFilteredProducts();
                 });
-            } else if (searchTerm) {
-                // We have all products loaded, just filter them
-                this.renderFilteredProducts();
-            } else {
-                // No search term - if we were filtering, switch back to server pagination if no other filters
-                const brandFilter = document.getElementById('productsBrandFilter');
-                const categoryFilter = document.getElementById('productsCategoryFilter');
-                const featuredFilter = document.getElementById('productsFeaturedFilter');
-                const hasOtherFilters = (brandFilter && brandFilter.value) ||
-                    (categoryFilter && categoryFilter.value) ||
-                    (featuredFilter && featuredFilter.value);
-
-                if (!hasOtherFilters && !wasUsingServerPagination && this.allProducts.length > 1000) {
-                    // No filters at all, switch back to server pagination
-                    this.productsPagination.useServerPagination = true;
-                    this.productsPagination.currentPage = 1;
-                    this.loadProducts();
-                } else {
-                    // Filter and render products with existing data
-                    this.renderFilteredProducts();
-                }
             }
-        });
-
-        // Setup clear search button
-        if (clearBtn) {
-            clearBtn.addEventListener('click', () => {
-                newSearchInput.value = '';
-                if (clearBtn) clearBtn.style.display = 'none';
-                this.updateClearFiltersButton();
-                this.renderFilteredProducts();
-            });
         }
 
         // Setup brand filter listener - clone to remove old listeners
@@ -7720,7 +7887,7 @@ class AdminApp {
                     return;
                 }
 
-                console.log('🔄 Brand filter changed:', newBrandFilter.value);
+                console.log('ðŸ”„ Brand filter changed:', newBrandFilter.value);
                 this.updateClearFiltersButton();
 
                 // Check if we need to reload all products BEFORE changing the pagination mode
@@ -7735,14 +7902,14 @@ class AdminApp {
 
                 // Reload if: we were using server pagination, or we have no products, or we have a small subset
                 if (wasUsingServerPagination || this.allProducts.length === 0 || hasPartialProductSet) {
-                    console.log('📥 Loading all products for filtering...', {
+                    console.log('ðŸ“¥ Loading all products for filtering...', {
                         wasUsingServerPagination,
                         currentProductCount: this.allProducts.length,
                         hasPartialProductSet
                     });
                     this.loadProducts(); // Reload to get all products for filtering
                 } else {
-                    console.log('📦 Products already loaded, filtering existing products...', {
+                    console.log('ðŸ“¦ Products already loaded, filtering existing products...', {
                         productCount: this.allProducts.length
                     });
                     this.renderFilteredProducts();
@@ -7755,7 +7922,7 @@ class AdminApp {
             const newCategoryFilter = categoryFilter.cloneNode(true);
             categoryFilter.parentNode.replaceChild(newCategoryFilter, categoryFilter);
             newCategoryFilter.addEventListener('change', () => {
-                console.log('🔄 Category filter changed:', newCategoryFilter.value);
+                console.log('ðŸ”„ Category filter changed:', newCategoryFilter.value);
                 this.updateClearFiltersButton();
 
                 // Check if we need to reload all products BEFORE changing the pagination mode
@@ -7770,14 +7937,14 @@ class AdminApp {
 
                 // Reload if: we were using server pagination, or we have no products, or we have a small subset
                 if (wasUsingServerPagination || this.allProducts.length === 0 || hasPartialProductSet) {
-                    console.log('📥 Loading all products for filtering...', {
+                    console.log('ðŸ“¥ Loading all products for filtering...', {
                         wasUsingServerPagination,
                         currentProductCount: this.allProducts.length,
                         hasPartialProductSet
                     });
                     this.loadProducts(); // Reload to get all products for filtering
                 } else {
-                    console.log('📦 Products already loaded, filtering existing products...', {
+                    console.log('ðŸ“¦ Products already loaded, filtering existing products...', {
                         productCount: this.allProducts.length
                     });
                     this.renderFilteredProducts();
@@ -7809,7 +7976,7 @@ class AdminApp {
                     return;
                 }
 
-                console.log('🔄 Featured filter changed:', newFeaturedFilter.value);
+                console.log('ðŸ”„ Featured filter changed:', newFeaturedFilter.value);
                 this.updateClearFiltersButton();
 
                 // Check if we need to reload all products BEFORE changing the pagination mode
@@ -7822,7 +7989,7 @@ class AdminApp {
 
                 // Reload if: we were using server pagination, or we have no products, or we have a small subset
                 if (wasUsingServerPagination || this.allProducts.length === 0 || hasPartialProductSet) {
-                    console.log('📥 Loading all products for filtering...', {
+                    console.log('ðŸ“¥ Loading all products for filtering...', {
                         wasUsingServerPagination,
                         currentProductCount: this.allProducts.length,
                         hasPartialProductSet,
@@ -7867,7 +8034,7 @@ class AdminApp {
                         this.renderFilteredProducts();
                     });
                 } else {
-                    console.log('📦 Products already loaded, filtering existing products...', {
+                    console.log('ðŸ“¦ Products already loaded, filtering existing products...', {
                         productCount: this.allProducts.length,
                         featuredFilterValue: newFeaturedFilter.value
                     });
@@ -7897,15 +8064,6 @@ class AdminApp {
                 this.loadProducts();
             });
         }
-
-        // When search changes, switch to client-side filtering
-        newSearchInput.addEventListener('input', () => {
-            const hasSearch = newSearchInput.value.trim() !== '';
-            if (hasSearch) {
-                this.productsPagination.useServerPagination = false;
-                this.productsPagination.currentPage = 1;
-            }
-        });
     }
 
     setupProductsPagination() {
@@ -8051,7 +8209,7 @@ class AdminApp {
         // Ensure searchTerm is a string
         searchTerm = searchTerm || '';
 
-        console.log('🔍 filterProducts() called with:', {
+        console.log('ðŸ” filterProducts() called with:', {
             searchTerm: searchTerm,
             searchTermType: typeof searchTerm,
             brandId: brandId,
@@ -8067,7 +8225,7 @@ class AdminApp {
         if (searchTerm && searchTerm.trim()) {
             const searchTerms = searchTerm.toLowerCase().trim().split(/\s+/).filter(word => word.length > 0);
 
-            console.log('🔍 Filtering by search term (FIRST):', {
+            console.log('ðŸ” Filtering by search term (FIRST):', {
                 searchTerm: searchTerm,
                 searchTerms: searchTerms,
                 totalProductsBeforeFilter: filtered.length
@@ -8089,7 +8247,7 @@ class AdminApp {
                     return matches;
                 });
 
-                console.log('✅ After search filter (FIRST):', {
+                console.log('âœ… After search filter (FIRST):', {
                     filteredCount: filtered.length,
                     sampleProducts: filtered.slice(0, 5).map(p => p.name)
                 });
@@ -8100,7 +8258,7 @@ class AdminApp {
         if (brandId) {
             const selectedBrandId = parseInt(brandId, 10);
 
-            console.log('🔍 Filtering by brand:', {
+            console.log('ðŸ” Filtering by brand:', {
                 brandId: brandId,
                 selectedBrandId: selectedBrandId,
                 totalProductsBeforeFilter: filtered.length,
@@ -8142,7 +8300,7 @@ class AdminApp {
                 return false;
             });
 
-            console.log('✅ After brand filter:', {
+            console.log('âœ… After brand filter:', {
                 filteredCount: filtered.length,
                 sampleProducts: filtered.slice(0, 5).map(p => ({
                     id: p.id,
@@ -8158,7 +8316,7 @@ class AdminApp {
             const selectedCategoryId = parseInt(categoryId, 10);
             const selectedCategory = this.allCategories.find(c => c.id == categoryId);
 
-            console.log('🔍 Filtering by category:', {
+            console.log('ðŸ” Filtering by category:', {
                 categoryId: categoryId,
                 selectedCategoryId: selectedCategoryId,
                 totalProductsBeforeFilter: filtered.length,
@@ -8175,10 +8333,10 @@ class AdminApp {
                 category_id_type: typeof p.category_id,
                 category_name: p.category_name
             }));
-            console.log('📦 Sample products before category filter:', sampleProducts);
+            console.log('ðŸ“¦ Sample products before category filter:', sampleProducts);
 
             // Also log what we're trying to match
-            console.log('🎯 Trying to match category:', {
+            console.log('ðŸŽ¯ Trying to match category:', {
                 selectedCategoryId: selectedCategoryId,
                 selectedCategoryIdType: typeof selectedCategoryId,
                 selectedCategoryName: selectedCategory ? selectedCategory.name : 'NOT FOUND',
@@ -8188,7 +8346,7 @@ class AdminApp {
 
             // Check if any products have the matching category_id
             const productsWithMatchingId = filtered.filter(p => p.category_id == selectedCategoryId);
-            console.log('🔍 Products with matching category_id:', {
+            console.log('ðŸ” Products with matching category_id:', {
                 count: productsWithMatchingId.length,
                 sample: productsWithMatchingId.slice(0, 5).map(p => ({
                     id: p.id,
@@ -8212,7 +8370,7 @@ class AdminApp {
             if (nullCategoryCount > 0) {
                 categoryIdDistribution['null/undefined'] = nullCategoryCount;
             }
-            console.log('📊 Category ID distribution (first 50 products):', categoryIdDistribution);
+            console.log('ðŸ“Š Category ID distribution (first 50 products):', categoryIdDistribution);
 
             // Show what categories these IDs correspond to
             const categoryIdNames = {};
@@ -8220,10 +8378,10 @@ class AdminApp {
                 const cat = this.allCategories.find(c => c.id == cid);
                 categoryIdNames[cid] = cat ? cat.name : `Unknown (ID: ${cid})`;
             });
-            console.log('📋 Category names for product category_ids:', categoryIdNames);
+            console.log('ðŸ“‹ Category names for product category_ids:', categoryIdNames);
 
             // Show all available categories in dropdown
-            console.log('📋 All available categories in dropdown:', this.allCategories.map(c => ({
+            console.log('ðŸ“‹ All available categories in dropdown:', this.allCategories.map(c => ({
                 id: c.id,
                 name: c.name
             })));
@@ -8287,7 +8445,7 @@ class AdminApp {
                 fullCategoryDistribution['null/undefined'] = fullNullCount;
             }
 
-            console.log('✅ After category filter:', {
+            console.log('âœ… After category filter:', {
                 filteredCount: filtered.length,
                 matchedByCategoryId: matchedByCategoryId,
                 matchedByCategoryName: matchedByCategoryName,
@@ -8305,7 +8463,7 @@ class AdminApp {
 
             // If no matches, show helpful message
             if (filtered.length === 0 && noMatch > 0) {
-                console.warn('⚠️ No products match this category filter!', {
+                console.warn('âš ï¸ No products match this category filter!', {
                     reason: 'Products have different category_id values',
                     selectedCategoryId: selectedCategoryId,
                     selectedCategoryName: selectedCategory ? selectedCategory.name : 'NOT FOUND',
@@ -8321,7 +8479,7 @@ class AdminApp {
 
         // Debug: Log if featuredStatus was undefined
         if (featuredStatus === undefined) {
-            console.warn('⚠️ filterProducts() called with undefined featuredStatus!', {
+            console.warn('âš ï¸ filterProducts() called with undefined featuredStatus!', {
                 searchTerm,
                 brandId,
                 categoryId,
@@ -8332,7 +8490,7 @@ class AdminApp {
         if (featuredStatusStr !== '') {
             const isFeatured = featuredStatusStr === 'true';
 
-            console.log('🔍 Filtering by featured status:', {
+            console.log('ðŸ” Filtering by featured status:', {
                 featuredStatus: featuredStatusStr,
                 isFeatured: isFeatured,
                 totalProductsBeforeFilter: filtered.length,
@@ -8355,7 +8513,7 @@ class AdminApp {
                 return productIsFeatured === isFeatured;
             });
 
-            console.log('✅ After featured filter:', {
+            console.log('âœ… After featured filter:', {
                 filteredCount: filtered.length,
                 sampleFilteredProducts: filtered.slice(0, 5).map(p => ({
                     id: p.id,
@@ -8395,7 +8553,7 @@ class AdminApp {
     _renderFilteredProductsImpl() {
         const container = document.getElementById('productsTable');
         if (!container) {
-            console.error('❌ Products table container not found!');
+            console.error('âŒ Products table container not found!');
             return;
         }
 
@@ -8408,7 +8566,7 @@ class AdminApp {
         const brandId = brandFilter ? brandFilter.value : '';
         const categoryId = categoryFilter ? categoryFilter.value : '';
 
-        console.log('🎨 _renderFilteredProductsImpl - reading filter values:', {
+        console.log('ðŸŽ¨ _renderFilteredProductsImpl - reading filter values:', {
             searchTerm: searchTerm,
             searchTermLength: searchTerm ? searchTerm.length : 0,
             searchInputExists: !!searchInput,
@@ -8444,7 +8602,7 @@ class AdminApp {
         // Ensure featuredStatus is always a string, never undefined
         featuredStatus = featuredStatus || '';
 
-        console.log('🎨 Rendering filtered products:', {
+        console.log('ðŸŽ¨ Rendering filtered products:', {
             searchTerm: searchTerm,
             brandId: brandId,
             categoryId: categoryId,
@@ -8461,17 +8619,17 @@ class AdminApp {
 
         // If no products are loaded and no filters are active, products may still be loading
         if (this.allProducts.length === 0 && !searchTerm && !brandId && !categoryId && !featuredStatus) {
-            console.log('⏳ Products not loaded yet, showing loading state...');
+            console.log('â³ Products not loaded yet, showing loading state...');
             container.innerHTML = '<div class="loading"><div class="spinner"></div>Loading products...</div>';
             // Try to load products if they haven't been loaded yet
             // Use a longer delay to avoid race conditions
             setTimeout(() => {
                 if (this.allProducts.length === 0) {
-                    console.log('🔄 Retrying product load...');
+                    console.log('ðŸ”„ Retrying product load...');
                     this.loadProducts();
                 } else {
                     // Products loaded in the meantime, render them
-                    console.log('✅ Products loaded, rendering...');
+                    console.log('âœ… Products loaded, rendering...');
                     this._renderFilteredProductsImpl();
                 }
             }, 300);
@@ -8480,7 +8638,7 @@ class AdminApp {
 
         // Ensure categories are loaded if category filter is active
         if (categoryId && this.allCategories.length === 0) {
-            console.warn('⚠️ Category filter active but categories not loaded yet. Loading...');
+            console.warn('âš ï¸ Category filter active but categories not loaded yet. Loading...');
             this.loadCategoriesForFilters().then(() => {
                 // Retry filtering after categories are loaded
                 this.renderFilteredProducts();
@@ -8494,14 +8652,14 @@ class AdminApp {
 
         if (this.productsPagination.useServerPagination && (searchTerm || brandId || categoryId || featuredStatus)) {
             // We have filters but are using server pagination - need to fetch all products for client-side filtering
-            console.log('⚠️ Filters active but using server pagination. Fetching all products for filtering...');
+            console.log('âš ï¸ Filters active but using server pagination. Fetching all products for filtering...');
             // Trigger a reload with filters to switch to client-side filtering
             this.loadProducts();
             return; // Will re-render after products are loaded
         } else if (this.productsPagination.useServerPagination && !searchTerm && !brandId && !categoryId && !featuredStatus) {
             // No filters, using server pagination - use products as-is (already paginated by server)
             filteredProducts = this.allProducts;
-            console.log('📄 Using server-paginated products:', {
+            console.log('ðŸ“„ Using server-paginated products:', {
                 count: filteredProducts.length,
                 totalProducts: this.productsPagination.totalProducts,
                 currentPage: this.productsPagination.currentPage
@@ -8552,7 +8710,7 @@ class AdminApp {
                 container.innerHTML = `
                     <div style="text-align: center; padding: 2rem; color: var(--gray-500);">
                         <i class="fas fa-box-open" style="font-size: 3rem; margin-bottom: 1rem; color: var(--gray-400);"></i>
-                        <p>No products found. Import products or scrape from HM Herbs website.</p>
+                        <p>No products found. Import products from a CSV backup or add products manually.</p>
                     </div>
                 `;
             }
@@ -8560,7 +8718,7 @@ class AdminApp {
             // Ensure we have products to render
             if (filteredProducts.length === 0 && this.allProducts.length > 0) {
                 // This shouldn't happen, but if it does, use allProducts
-                console.warn('⚠️ Filtered products empty but allProducts has data, using allProducts');
+                console.warn('âš ï¸ Filtered products empty but allProducts has data, using allProducts');
                 filteredProducts = this.allProducts.slice(0, this.productsPagination.itemsPerPage);
             }
 
@@ -8572,7 +8730,7 @@ class AdminApp {
                     p.is_featured === '1' ||
                     p.is_featured === 'true'
                 );
-                console.log('🎨 About to render products table:', {
+                console.log('ðŸŽ¨ About to render products table:', {
                     totalProducts: filteredProducts.length,
                     featuredProducts: featuredInFiltered.length,
                     featuredProductIds: featuredInFiltered.map(p => ({ id: p.id, name: p.name, is_featured: p.is_featured }))
@@ -8589,7 +8747,7 @@ class AdminApp {
                 container.innerHTML = `
                     <div style="text-align: center; padding: 2rem; color: var(--gray-500);">
                         <i class="fas fa-box-open" style="font-size: 3rem; margin-bottom: 1rem; color: var(--gray-400);"></i>
-                        <p>No products found. Import products or scrape from HM Herbs website.</p>
+                        <p>No products found. Import products from a CSV backup or add products manually.</p>
                     </div>
                 `;
             }
@@ -8600,7 +8758,7 @@ class AdminApp {
         const esc = (v) => this.escapeHtml(v);
         const money = (v) => {
             const n = typeof v === 'string' ? parseFloat(v) : Number(v);
-            return Number.isFinite(n) ? `$${n.toFixed(2)}` : '—';
+            return Number.isFinite(n) ? `$${n.toFixed(2)}` : 'â€”';
         };
         const pageIds = products.map((p) => Number(p.id));
         const allPageSelected = pageIds.length > 0 && pageIds.every((id) => this.selectedProductIds.has(id));
@@ -8636,15 +8794,15 @@ class AdminApp {
                     <td class="col-money">${money(product.price)}</td>
                     <td class="col-money">${product.cost_price != null && product.cost_price !== ''
                         ? money(product.cost_price)
-                        : '<span style="color:var(--gray-400);">—</span>'}</td>
+                        : '<span style="color:var(--gray-400);">â€”</span>'}</td>
                     <td class="col-stock">
                         <span class="badge ${lowStock ? 'badge-warning' : 'badge-success'}">${product.inventory_quantity}</span>
                     </td>
                     <td class="col-status">
                         <span class="status-inline">
-                            <span class="badge ${product.is_active ? 'badge-success' : 'badge-danger'}">${product.is_active ? 'Active' : 'Off'}</span>
+                            <span class="badge badge-pos ${product.is_active ? 'badge-success' : 'badge-danger'}" title="POS register — ${product.is_active ? 'available at in-store register' : 'hidden from POS register'}">${product.is_active ? 'POS on' : 'POS off'}</span>
+                            <span class="badge badge-web ${showOnWeb ? 'badge-success' : 'badge-secondary'}" title="Website storefront — ${showOnWeb ? 'visible on hmherbs.com' : 'hidden from website (in-store only)'}">${showOnWeb ? 'Web on' : 'Web off'}</span>
                             ${isFeatured ? '<span class="badge badge-info" title="Featured" style="padding:0.2rem 0.4rem;"><i class="fas fa-star" aria-hidden="true"></i></span>' : ''}
-                            ${!showOnWeb ? '<span class="badge badge-secondary" title="In-store only — hidden from website">Store only</span>' : ''}
                         </span>
                     </td>
                     <td class="col-actions">
@@ -8687,7 +8845,7 @@ class AdminApp {
                             <th>Price</th>
                             <th>Cost</th>
                             <th>Stock</th>
-                            <th>Status</th>
+                            <th scope="col" title="POS register and website visibility">POS / Web</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -8699,11 +8857,11 @@ class AdminApp {
 
     setupProductsBulkActions() {
         if (this._productsBulkBound) return;
+        const productsSection = document.getElementById('products');
+        if (!productsSection) return;
         this._productsBulkBound = true;
 
-        const tableHost = document.getElementById('productsTable');
-
-        tableHost?.addEventListener('change', (e) => {
+        productsSection.addEventListener('change', (e) => {
             const target = e.target;
             if (target.classList?.contains('product-row-select')) {
                 const id = Number(target.dataset.productId);
@@ -8739,6 +8897,7 @@ class AdminApp {
         document.getElementById('productsBulkHideWeb')?.addEventListener('click', () => this.runProductsBulkPreset('hide_from_web'));
         document.getElementById('productsBulkDelete')?.addEventListener('click', () => this.runProductsBulkPreset('delete'));
         document.getElementById('productsBulkClear')?.addEventListener('click', () => this.clearProductSelection(true));
+        this.updateProductsBulkBar();
     }
 
     syncProductsSelectAllCheckbox() {
@@ -8761,10 +8920,31 @@ class AdminApp {
         const bar = document.getElementById('productsBulkBar');
         const countEl = document.getElementById('productsBulkCount');
         const count = this.selectedProductIds.size;
+        const buttonIds = [
+            'productsBulkEditBtn',
+            'productsBulkActivate',
+            'productsBulkDeactivate',
+            'productsBulkShowWeb',
+            'productsBulkHideWeb',
+            'productsBulkDelete',
+            'productsBulkClear'
+        ];
         if (countEl) {
-            countEl.textContent = count === 1 ? '1 product selected' : `${count} products selected`;
+            countEl.textContent =
+                count === 0
+                    ? 'Select products below — bulk actions for POS register and website'
+                    : count === 1
+                      ? '1 product selected'
+                      : `${count} products selected`;
         }
-        if (bar) bar.hidden = count === 0;
+        if (bar) {
+            bar.hidden = false;
+            bar.classList.toggle('admin-products-bulk-bar--empty', count === 0);
+        }
+        buttonIds.forEach((id) => {
+            const btn = document.getElementById(id);
+            if (btn) btn.disabled = count === 0;
+        });
     }
 
     clearProductSelection(rerender = false) {
@@ -8789,8 +8969,8 @@ class AdminApp {
         }
 
         const actionLabels = {
-            activate: 'activate',
-            deactivate: 'deactivate (unavailable)',
+            activate: 'activate on the POS register',
+            deactivate: 'deactivate on the POS register (cannot be sold in-store)',
             show_on_web: 'show on the website',
             hide_from_web: 'hide from the website (store only)',
             delete: 'permanently delete'
@@ -8874,15 +9054,15 @@ class AdminApp {
                     <p class="bulk-edit-hint">Check the fields you want to change. Unchecked fields are left as-is on each product. Names, SKU, and descriptions are not changed here.</p>
                     <div class="bulk-edit-section">
                         <h4>Availability &amp; visibility</h4>
-                        ${boolRow('is_active', 'Active (available for sale)', true)}
+                        ${boolRow('is_active', 'Active on POS register', true)}
                         ${boolRow('show_on_web', 'Show on website', true)}
                         ${boolRow('is_featured', 'Featured product', false)}
                         ${boolRow('is_cannabis', 'Cannabis / hemp product', false)}
                     </div>
                     <div class="bulk-edit-section">
                         <h4>Organization</h4>
-                        ${selectRow('brand_id', 'Brand', `<option value="">— Select brand —</option>${brandOptions}`)}
-                        ${selectRow('category_id', 'Category', `<option value="">— Select category —</option>${categoryOptions}`)}
+                        ${selectRow('brand_id', 'Brand', `<option value="">â€” Select brand â€”</option>${brandOptions}`)}
+                        ${selectRow('category_id', 'Category', `<option value="">â€” Select category â€”</option>${categoryOptions}`)}
                     </div>
                     <div class="bulk-edit-section" style="border-bottom:none;margin-bottom:0;padding-bottom:0;">
                         <h4>Pricing &amp; inventory</h4>
@@ -8974,6 +9154,13 @@ class AdminApp {
     }
 
     async loadCategories() {
+        this.setupCategoriesTabs();
+
+        if (this.categoriesViewTab === 'health') {
+            await this.loadHealthCategories();
+            return;
+        }
+
         const container = document.getElementById('categoriesTable');
         if (!container) {
             console.warn('Categories table container not found');
@@ -9015,6 +9202,113 @@ class AdminApp {
         } catch (error) {
             container.innerHTML = `<div style="text-align: center; padding: 2rem; color: var(--error);"><p>Failed to load categories: ${error.message}</p></div>`;
         }
+    }
+
+    setupCategoriesTabs() {
+        if (this._categoriesTabsReady) return;
+        const shopBtn = document.getElementById('categoriesTabShop');
+        const healthBtn = document.getElementById('categoriesTabHealth');
+        if (!shopBtn || !healthBtn) return;
+
+        shopBtn.addEventListener('click', () => this.switchCategoriesTab('shop'));
+        healthBtn.addEventListener('click', () => this.switchCategoriesTab('health'));
+        this._categoriesTabsReady = true;
+    }
+
+    switchCategoriesTab(tab) {
+        this.categoriesViewTab = tab === 'health' ? 'health' : 'shop';
+        const shopBtn = document.getElementById('categoriesTabShop');
+        const healthBtn = document.getElementById('categoriesTabHealth');
+        const shopPanel = document.getElementById('shopCategoriesPanel');
+        const healthPanel = document.getElementById('healthCategoriesPanel');
+        const addGroup = document.getElementById('categoriesAddButtonGroup');
+        const help = document.getElementById('healthCategoriesHelp');
+        const isHealth = this.categoriesViewTab === 'health';
+
+        if (shopBtn && healthBtn) {
+            shopBtn.classList.toggle('btn-primary', !isHealth);
+            shopBtn.classList.toggle('btn-secondary', isHealth);
+            healthBtn.classList.toggle('btn-primary', isHealth);
+            healthBtn.classList.toggle('btn-secondary', !isHealth);
+        }
+        if (shopPanel) shopPanel.style.display = isHealth ? 'none' : 'block';
+        if (healthPanel) healthPanel.style.display = isHealth ? 'block' : 'none';
+        if (addGroup) addGroup.style.display = isHealth ? 'none' : '';
+        if (help) help.style.display = isHealth ? 'block' : 'none';
+
+        if (isHealth) {
+            this.loadHealthCategories();
+        } else {
+            const container = document.getElementById('categoriesTable');
+            if (container && !container.innerHTML.trim()) {
+                this.loadCategories();
+            }
+        }
+    }
+
+    async loadHealthCategories() {
+        const container = document.getElementById('healthCategoriesTable');
+        if (!container) return;
+
+        container.innerHTML = '<div class="loading"><div class="spinner"></div>Loading health categories...</div>';
+
+        if (!this.authToken) {
+            container.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--gray-500);"><p>Please log in to view health categories.</p></div>';
+            return;
+        }
+
+        try {
+            const response = await this.apiRequest('/admin/health-categories');
+            if (!response) {
+                container.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--gray-500);"><p>Please log in to view health categories.</p></div>';
+                return;
+            }
+            if (response.length > 0) {
+                container.innerHTML = this.renderHealthCategoriesTable(response);
+            } else {
+                container.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--gray-500);"><p>No health categories found.</p></div>';
+            }
+        } catch (error) {
+            container.innerHTML = `<div style="text-align: center; padding: 2rem; color: var(--error);"><p>Failed to load health categories: ${error.message}</p></div>`;
+        }
+    }
+
+    renderHealthCategoriesTable(categories) {
+        const sorted = [...categories].sort((a, b) =>
+            String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' })
+        );
+        return `
+            <div class="table-container">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Name</th>
+                            <th>Slug</th>
+                            <th>Products</th>
+                            <th>Description</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${sorted.map((category, index) => `
+                            <tr title="Database ID: ${category.id}">
+                                <td>${index + 1}</td>
+                                <td>${this.escapeHtml(category.name || 'N/A')}</td>
+                                <td><code>${this.escapeHtml(category.slug || 'N/A')}</code></td>
+                                <td>${Number(category.product_count) || 0}</td>
+                                <td>${this.escapeHtml((category.description || '').substring(0, 100))}${category.description && category.description.length > 100 ? '...' : ''}</td>
+                                <td>
+                                    <span class="badge ${category.is_active ? 'badge-success' : 'badge-danger'}">
+                                        ${category.is_active ? 'Active' : 'Inactive'}
+                                    </span>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
     }
 
     renderCategoriesTable(categories, categoryMap, startIndex = 0) {
@@ -9069,32 +9363,51 @@ class AdminApp {
         const clearFiltersBtn = document.getElementById('clearCategoriesFilters');
 
         if (!searchInput) return;
+        if (searchInput.dataset.hmCategoriesSearchBound === '1') return;
+        searchInput.dataset.hmCategoriesSearchBound = '1';
 
-        // Debounce search input
-        let searchTimeout;
-        searchInput.addEventListener('input', (e) => {
-            clearTimeout(searchTimeout);
-            searchTimeout = setTimeout(() => {
-                this.categoriesPagination.currentPage = 1;
-                this.renderFilteredCategories();
-                this.updateClearCategoriesFiltersButton();
-            }, 300);
+        const runSearch = () => {
+            this.categoriesPagination.currentPage = 1;
+            this.renderFilteredCategories();
+            this.updateClearCategoriesFiltersButton();
+        };
 
-            // Show/hide clear search button
-            if (clearSearchBtn) {
-                clearSearchBtn.style.display = e.target.value ? 'block' : 'none';
-            }
-        });
+        const bindSearch = typeof window.hmBindSearchInput === 'function'
+            ? window.hmBindSearchInput
+            : null;
 
-        // Clear search button
-        if (clearSearchBtn) {
-            clearSearchBtn.addEventListener('click', () => {
-                searchInput.value = '';
-                clearSearchBtn.style.display = 'none';
-                this.categoriesPagination.currentPage = 1;
-                this.renderFilteredCategories();
-                this.updateClearCategoriesFiltersButton();
+        if (bindSearch) {
+            bindSearch(searchInput, {
+                debounceMs: 300,
+                clearButton: clearSearchBtn,
+                onSearch: (raw) => {
+                    if (clearSearchBtn) {
+                        clearSearchBtn.style.display = String(raw || '').trim() ? 'block' : 'none';
+                    }
+                    runSearch();
+                },
+                onClear: () => {
+                    if (clearSearchBtn) clearSearchBtn.style.display = 'none';
+                    runSearch();
+                }
             });
+        } else {
+            searchInput.setAttribute('autocomplete', 'off');
+            let searchTimeout;
+            searchInput.addEventListener('input', (e) => {
+                if (clearSearchBtn) {
+                    clearSearchBtn.style.display = e.target.value ? 'block' : 'none';
+                }
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(runSearch, 300);
+            });
+            if (clearSearchBtn) {
+                clearSearchBtn.addEventListener('click', () => {
+                    searchInput.value = '';
+                    clearSearchBtn.style.display = 'none';
+                    runSearch();
+                });
+            }
         }
 
         // Parent filter change
@@ -9515,6 +9828,7 @@ class AdminApp {
 
         if (adminDashboard) adminDashboard.style.display = 'none';
         if (loginScreen) loginScreen.style.display = 'flex';
+        document.body.classList.remove('admin-layout-locked');
 
         // Clear forms
         if (loginForm) loginForm.reset();
@@ -10029,311 +10343,6 @@ class AdminApp {
             document.body.removeChild(modal);
         }
     }
-
-    showScrapingReport(report) {
-        // Remove existing report modal if any
-        const existingModal = document.getElementById('reportModal');
-        if (existingModal) {
-            document.body.removeChild(existingModal);
-        }
-
-        // Create modal overlay
-        const modal = document.createElement('div');
-        modal.id = 'reportModal';
-        modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 10001; display: flex; align-items: center; justify-content: center; overflow-y: auto; padding: 2rem;';
-
-        // Create modal content
-        const content = document.createElement('div');
-        content.id = 'reportContent';
-        content.style.cssText = 'background: white; border-radius: var(--border-radius-lg); padding: 2rem; max-width: 800px; width: 100%; box-shadow: var(--shadow-lg); max-height: 90vh; overflow-y: auto;';
-
-        // Title
-        const titleEl = document.createElement('h2');
-        titleEl.textContent = 'Scraping Report';
-        titleEl.style.cssText = 'margin: 0 0 1.5rem 0; color: var(--primary-green); font-size: 1.75rem; font-weight: 700;';
-        content.appendChild(titleEl);
-
-        // Report date
-        const dateEl = document.createElement('div');
-        dateEl.textContent = `Generated: ${new Date(report.endTime || new Date()).toLocaleString()}`;
-        dateEl.style.cssText = 'margin-bottom: 2rem; color: var(--gray-600); font-size: 0.875rem;';
-        content.appendChild(dateEl);
-
-        // Summary section
-        const summarySection = this.createReportSection('Summary', [
-            { label: 'Total Products Found', value: report.totalProducts || 0, highlight: true },
-            { label: 'Duration', value: report.durationFormatted || '0s' },
-            { label: 'Pages Scanned', value: report.pagesScanned || 0 },
-            { label: 'Success Rate', value: `${report.successRate || 100}%`, highlight: report.successRate >= 90 }
-        ]);
-        content.appendChild(summarySection);
-
-        // Products section
-        const productsSection = this.createReportSection('Products', [
-            { label: 'Total Products', value: report.totalProducts || 0 },
-            { label: 'With Prices', value: report.productsWithPrices || 0 },
-            { label: 'With Images', value: report.productsWithImages || 0 },
-            { label: 'Duplicates Skipped', value: report.duplicatesSkipped || 0 }
-        ]);
-        content.appendChild(productsSection);
-
-        // Categories and Brands
-        const categoriesSection = this.createReportSection('Categories & Brands', [
-            { label: 'Categories Found', value: report.categoriesFound || 0 },
-            { label: 'Brands Found', value: report.brandsFound || 0 }
-        ]);
-        content.appendChild(categoriesSection);
-
-        // Categories list
-        if (report.categoriesList && report.categoriesList.length > 0) {
-            const categoriesListEl = document.createElement('div');
-            categoriesListEl.style.cssText = 'margin-bottom: 1.5rem;';
-            const categoriesTitle = document.createElement('h4');
-            categoriesTitle.textContent = 'Categories:';
-            categoriesTitle.style.cssText = 'margin: 0 0 0.5rem 0; color: var(--gray-700); font-size: 0.875rem; font-weight: 600;';
-            categoriesListEl.appendChild(categoriesTitle);
-            const categoriesText = document.createElement('div');
-            categoriesText.textContent = report.categoriesList.slice(0, 20).join(', ') + (report.categoriesList.length > 20 ? ` ... and ${report.categoriesList.length - 20} more` : '');
-            categoriesText.style.cssText = 'color: var(--gray-600); font-size: 0.8125rem; line-height: 1.5;';
-            categoriesListEl.appendChild(categoriesText);
-            content.appendChild(categoriesListEl);
-        }
-
-        // Brands list
-        if (report.brandsList && report.brandsList.length > 0) {
-            const brandsListEl = document.createElement('div');
-            brandsListEl.style.cssText = 'margin-bottom: 1.5rem;';
-            const brandsTitle = document.createElement('h4');
-            brandsTitle.textContent = 'Brands:';
-            brandsTitle.style.cssText = 'margin: 0 0 0.5rem 0; color: var(--gray-700); font-size: 0.875rem; font-weight: 600;';
-            brandsListEl.appendChild(brandsTitle);
-            const brandsText = document.createElement('div');
-            brandsText.textContent = report.brandsList.slice(0, 20).join(', ') + (report.brandsList.length > 20 ? ` ... and ${report.brandsList.length - 20} more` : '');
-            brandsText.style.cssText = 'color: var(--gray-600); font-size: 0.8125rem; line-height: 1.5;';
-            brandsListEl.appendChild(brandsText);
-            content.appendChild(brandsListEl);
-        }
-
-        // Errors section
-        if (report.errors && report.errors.length > 0) {
-            const errorsSection = this.createReportSection('Errors', [
-                { label: 'Total Errors', value: report.errors.length, highlight: true }
-            ]);
-            content.appendChild(errorsSection);
-
-            const errorsListEl = document.createElement('div');
-            errorsListEl.style.cssText = 'margin-bottom: 1.5rem; max-height: 200px; overflow-y: auto;';
-            const errorsTitle = document.createElement('h4');
-            errorsTitle.textContent = 'Error Details:';
-            errorsTitle.style.cssText = 'margin: 0 0 0.5rem 0; color: var(--error); font-size: 0.875rem; font-weight: 600;';
-            errorsListEl.appendChild(errorsTitle);
-
-            const errorsList = document.createElement('ul');
-            errorsList.style.cssText = 'margin: 0; padding-left: 1.5rem; color: var(--gray-600); font-size: 0.8125rem;';
-            report.errors.slice(0, 10).forEach(error => {
-                const li = document.createElement('li');
-                li.style.cssText = 'margin-bottom: 0.25rem;';
-                li.textContent = `${error.url || 'Unknown'}: ${error.message}`;
-                errorsList.appendChild(li);
-            });
-            if (report.errors.length > 10) {
-                const li = document.createElement('li');
-                li.textContent = `... and ${report.errors.length - 10} more errors`;
-                li.style.cssText = 'margin-top: 0.5rem; font-style: italic;';
-                errorsList.appendChild(li);
-            }
-            errorsListEl.appendChild(errorsList);
-            content.appendChild(errorsListEl);
-        }
-
-        // Action buttons
-        const buttonContainer = document.createElement('div');
-        buttonContainer.style.cssText = 'display: flex; gap: 1rem; margin-top: 2rem;';
-
-        // Download PDF button
-        const downloadBtn = document.createElement('button');
-        downloadBtn.textContent = 'Download PDF';
-        downloadBtn.className = 'btn btn-primary';
-        downloadBtn.style.cssText = 'flex: 1;';
-        downloadBtn.onclick = () => this.downloadReportPDF(report);
-        buttonContainer.appendChild(downloadBtn);
-
-        // Close button
-        const closeBtn = document.createElement('button');
-        closeBtn.textContent = 'Close';
-        closeBtn.className = 'btn btn-secondary';
-        closeBtn.style.cssText = 'flex: 1;';
-        closeBtn.onclick = () => {
-            document.body.removeChild(modal);
-        };
-        buttonContainer.appendChild(closeBtn);
-
-        content.appendChild(buttonContainer);
-        modal.appendChild(content);
-        document.body.appendChild(modal);
-    }
-
-    createReportSection(title, items) {
-        const section = document.createElement('div');
-        section.style.cssText = 'margin-bottom: 1.5rem; padding: 1rem; background: var(--gray-50); border-radius: var(--border-radius);';
-
-        const sectionTitle = document.createElement('h3');
-        sectionTitle.textContent = title;
-        sectionTitle.style.cssText = 'margin: 0 0 1rem 0; color: var(--primary-green); font-size: 1rem; font-weight: 600;';
-        section.appendChild(sectionTitle);
-
-        const grid = document.createElement('div');
-        grid.style.cssText = 'display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem;';
-
-        items.forEach(item => {
-            const itemEl = document.createElement('div');
-            const label = document.createElement('div');
-            label.textContent = item.label;
-            label.style.cssText = 'font-size: 0.75rem; color: var(--gray-600); margin-bottom: 0.25rem;';
-            itemEl.appendChild(label);
-
-            const value = document.createElement('div');
-            value.textContent = item.value;
-            value.style.cssText = `font-size: 1.125rem; font-weight: ${item.highlight ? '700' : '600'}; color: ${item.highlight ? 'var(--primary-green)' : 'var(--gray-800)'};`;
-            itemEl.appendChild(value);
-
-            grid.appendChild(itemEl);
-        });
-
-        section.appendChild(grid);
-        return section;
-    }
-
-    downloadReportPDF(report) {
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF();
-
-        // Set font
-        doc.setFont('helvetica');
-
-        // Title
-        doc.setFontSize(20);
-        doc.setTextColor(45, 90, 39); // Primary green
-        doc.text('Scraping Report', 14, 20);
-
-        // Date
-        doc.setFontSize(10);
-        doc.setTextColor(100, 100, 100);
-        doc.text(`Generated: ${new Date(report.endTime || new Date()).toLocaleString()}`, 14, 30);
-
-        let yPos = 45;
-
-        // Summary
-        doc.setFontSize(14);
-        doc.setTextColor(45, 90, 39);
-        doc.text('Summary', 14, yPos);
-        yPos += 10;
-
-        doc.setFontSize(10);
-        doc.setTextColor(0, 0, 0);
-        doc.text(`Total Products Found: ${report.totalProducts || 0}`, 20, yPos);
-        yPos += 7;
-        doc.text(`Duration: ${report.durationFormatted || '0s'}`, 20, yPos);
-        yPos += 7;
-        doc.text(`Pages Scanned: ${report.pagesScanned || 0}`, 20, yPos);
-        yPos += 7;
-        doc.text(`Success Rate: ${report.successRate || 100}%`, 20, yPos);
-        yPos += 12;
-
-        // Products
-        doc.setFontSize(14);
-        doc.setTextColor(45, 90, 39);
-        doc.text('Products', 14, yPos);
-        yPos += 10;
-
-        doc.setFontSize(10);
-        doc.setTextColor(0, 0, 0);
-        doc.text(`Total Products: ${report.totalProducts || 0}`, 20, yPos);
-        yPos += 7;
-        doc.text(`With Prices: ${report.productsWithPrices || 0}`, 20, yPos);
-        yPos += 7;
-        doc.text(`With Images: ${report.productsWithImages || 0}`, 20, yPos);
-        yPos += 7;
-        doc.text(`Duplicates Skipped: ${report.duplicatesSkipped || 0}`, 20, yPos);
-        yPos += 12;
-
-        // Categories & Brands
-        doc.setFontSize(14);
-        doc.setTextColor(45, 90, 39);
-        doc.text('Categories & Brands', 14, yPos);
-        yPos += 10;
-
-        doc.setFontSize(10);
-        doc.setTextColor(0, 0, 0);
-        doc.text(`Categories Found: ${report.categoriesFound || 0}`, 20, yPos);
-        yPos += 7;
-        doc.text(`Brands Found: ${report.brandsFound || 0}`, 20, yPos);
-        yPos += 12;
-
-        // Categories list
-        if (report.categoriesList && report.categoriesList.length > 0) {
-            doc.setFontSize(12);
-            doc.setTextColor(45, 90, 39);
-            doc.text('Categories:', 14, yPos);
-            yPos += 7;
-
-            doc.setFontSize(9);
-            doc.setTextColor(0, 0, 0);
-            const categoriesText = report.categoriesList.join(', ');
-            const categoriesLines = doc.splitTextToSize(categoriesText, 180);
-            doc.text(categoriesLines, 20, yPos);
-            yPos += categoriesLines.length * 5 + 5;
-        }
-
-        // Brands list
-        if (report.brandsList && report.brandsList.length > 0) {
-            doc.setFontSize(12);
-            doc.setTextColor(45, 90, 39);
-            doc.text('Brands:', 14, yPos);
-            yPos += 7;
-
-            doc.setFontSize(9);
-            doc.setTextColor(0, 0, 0);
-            const brandsText = report.brandsList.join(', ');
-            const brandsLines = doc.splitTextToSize(brandsText, 180);
-            doc.text(brandsLines, 20, yPos);
-            yPos += brandsLines.length * 5 + 5;
-        }
-
-        // Errors
-        if (report.errors && report.errors.length > 0) {
-            if (yPos > 250) {
-                doc.addPage();
-                yPos = 20;
-            }
-
-            doc.setFontSize(14);
-            doc.setTextColor(239, 68, 68); // Error red
-            doc.text('Errors', 14, yPos);
-            yPos += 10;
-
-            doc.setFontSize(10);
-            doc.setTextColor(0, 0, 0);
-            doc.text(`Total Errors: ${report.errors.length}`, 20, yPos);
-            yPos += 10;
-
-            doc.setFontSize(9);
-            report.errors.slice(0, 20).forEach((error, index) => {
-                if (yPos > 270) {
-                    doc.addPage();
-                    yPos = 20;
-                }
-                const errorText = `${index + 1}. ${error.url || 'Unknown'}: ${error.message}`;
-                const errorLines = doc.splitTextToSize(errorText, 180);
-                doc.text(errorLines, 20, yPos);
-                yPos += errorLines.length * 5 + 3;
-            });
-        }
-
-        // Save PDF
-        const fileName = `scraping-report-${new Date(report.endTime || new Date()).toISOString().split('T')[0]}.pdf`;
-        doc.save(fileName);
-    }
 }
 
 // Global functions for button clicks
@@ -10402,118 +10411,10 @@ async function matchProductsToBrands() {
     }
 }
 
-async function scrapeProducts() {
-    const app = window.adminApp;
-    const abortController = new AbortController();
-
-    try {
-        app.showNotification('Starting product scraping from HM Herbs website...', 'info');
-        app.showProgressModal('Scraping Products', 'Initializing and scanning website structure...');
-        app.registerActiveLongTask({
-            type: 'scrape',
-            abortController,
-            cancelUrl: `${app.apiBaseUrl}/admin/scrape-products/cancel`
-        });
-
-        const response = await fetch(`${app.apiBaseUrl}/admin/scrape-products?progress=true`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${app.authToken}`,
-                'Content-Type': 'application/json',
-                'Accept': 'text/event-stream'
-            },
-            signal: abortController.signal
-        });
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || '';
-
-            for (const line of lines) {
-                if (!line.trim() || line.startsWith(':')) continue;
-
-                if (line.startsWith('data: ')) {
-                    try {
-                        const jsonStr = line.slice(6).trim();
-                        if (!jsonStr) continue;
-
-                        const data = JSON.parse(jsonStr);
-
-                        if (data.type === 'complete') {
-                            const productsFound = data.productsFound || 0;
-                            const report = data.report || null;
-                            app.updateProgressModal(100, `Scraping complete! Found ${productsFound} products.`, productsFound, 'complete');
-                            app.showNotification(`Successfully scraped ${productsFound} products!`, 'success');
-                            app.loadProducts();
-                            setTimeout(() => {
-                                app.closeProgressModal();
-                                if (report) {
-                                    app.showScrapingReport(report);
-                                }
-                            }, 2000);
-                            return;
-                        }
-                        if (data.type === 'cancelled') {
-                            const productsFound = data.productsFound || 0;
-                            app.updateProgressModal(
-                                productsFound > 0 ? 50 : 0,
-                                data.message || 'Scraping cancelled',
-                                productsFound,
-                                'cancelled'
-                            );
-                            app.showNotification(data.message || 'Scraping cancelled', 'info');
-                            setTimeout(() => app.closeProgressModal(), 1500);
-                            return;
-                        }
-                        if (data.type === 'error') {
-                            app.updateProgressModal(0, `Error: ${data.error || 'Scraping failed'}`, 0, 'error');
-                            throw new Error(data.error || 'Scraping failed');
-                        }
-
-                        const percentage = data.percentage ?? 0;
-                        const message = data.message || 'Working...';
-                        const productsFound = data.productsFound || 0;
-                        const stage = data.stage || null;
-                        app.updateProgressModal(percentage, message, productsFound, stage);
-                    } catch (e) {
-                        if (e.name === 'AbortError') throw e;
-                        console.error('Error parsing SSE data:', e);
-                    }
-                }
-            }
-        }
-    } catch (error) {
-        if (error.name === 'AbortError') {
-            app.updateProgressModal(0, 'Scraping cancelled', 0, 'cancelled');
-            app.showNotification('Scraping cancelled', 'info');
-            setTimeout(() => app.closeProgressModal(), 1500);
-            return;
-        }
-        console.error('Scraping error:', error);
-        app.updateProgressModal(0, `Error: ${error.message}`, 0, 'error');
-        app.showNotification(`Scraping failed: ${error.message}`, 'error');
-        setTimeout(() => app.closeProgressModal(), 5000);
-    } finally {
-        app.clearActiveLongTask();
-    }
-}
-
 async function downloadProductCatalogBackup() {
     const app = window.adminApp;
     try {
-        app.showNotification('Preparing product catalog backup…', 'info');
+        app.showNotification('Preparing product catalog backupâ€¦', 'info');
         const response = await fetch(`${app.apiBaseUrl}/admin/products/export`, {
             headers: { Authorization: `Bearer ${app.authToken}` }
         });
@@ -10533,7 +10434,7 @@ async function downloadProductCatalogBackup() {
         link.remove();
         URL.revokeObjectURL(url);
         const n = count ? `${count} products` : 'Catalog';
-        app.showNotification(`${n} downloaded — store this file somewhere safe`, 'success');
+        app.showNotification(`${n} downloaded â€” store this file somewhere safe`, 'success');
     } catch (error) {
         app.showNotification(error.message || 'Catalog backup failed', 'error');
     }
@@ -10568,7 +10469,7 @@ function renderImportResults(container, data) {
     const errors = Array.isArray(data.errorDetails) ? data.errorDetails : [];
     const errorList = errors.length
         ? `<ul style="margin:0.5rem 0 0;padding-left:1.25rem;">${errors
-              .map((e) => `<li>Row ${e.row}: ${e.name || e.sku || 'Item'} — ${e.message}</li>`)
+              .map((e) => `<li>Row ${e.row}: ${e.name || e.sku || 'Item'} â€” ${e.message}</li>`)
               .join('')}</ul>`
         : '';
     container.innerHTML = `
@@ -10577,8 +10478,8 @@ function renderImportResults(container, data) {
             <p style="margin:0.35rem 0 0;">
                 ${data.imported || 0} of ${data.total || 0} rows imported
                 (${data.created || 0} created, ${data.updated || 0} updated)
-                ${data.errors ? ` · ${data.errors} error(s)` : ''}
-                ${data.skipped ? ` · ${data.skipped} skipped` : ''}
+                ${data.errors ? ` Â· ${data.errors} error(s)` : ''}
+                ${data.skipped ? ` Â· ${data.skipped} skipped` : ''}
             </p>
             ${errorList}
         </div>`;
@@ -10832,8 +10733,15 @@ function createProductModal(title, formId, isEdit = false) {
             formGroup.appendChild(textarea);
 
             if (field.name === 'long_description') {
+                const hint = document.createElement('div');
+                hint.textContent = 'Plain text only — headings and paragraphs are formatted automatically on the storefront.';
+                hint.style.fontSize = '0.8rem';
+                hint.style.color = 'var(--gray-500)';
+                hint.style.marginTop = '0.35rem';
+                formGroup.appendChild(hint);
+
                 const previewLabel = document.createElement('div');
-                previewLabel.textContent = 'Long description preview (as on storefront)';
+                previewLabel.textContent = 'Storefront preview';
                 previewLabel.style.fontSize = '0.8rem';
                 previewLabel.style.color = 'var(--gray-500)';
                 previewLabel.style.marginTop = '0.75rem';
@@ -10859,6 +10767,7 @@ function createProductModal(title, formId, isEdit = false) {
                         preview.textContent = raw;
                     }
                 };
+                textarea.setAttribute('placeholder', 'Describe the product in plain text. Use blank lines between paragraphs.');
                 textarea.addEventListener('input', syncPreview);
                 textarea._hmSyncLongDescPreview = syncPreview;
             }
@@ -11066,7 +10975,7 @@ function createProductModal(title, formId, isEdit = false) {
             // Upload each file
             for (const file of files) {
                 if (!file.type.startsWith('image/')) {
-                    app.showNotification(`${file.name} is not an image file — skipped.`, 'error');
+                    app.showNotification(`${file.name} is not an image file â€” skipped.`, 'error');
                     continue;
                 }
 
@@ -11273,7 +11182,7 @@ function createProductModal(title, formId, isEdit = false) {
 
     form.appendChild(imageSection);
 
-    // Cannabis / hemp — Certificate of Analysis (COA)
+    // Cannabis / hemp â€” Certificate of Analysis (COA)
     const cannabisSection = document.createElement('div');
     cannabisSection.style.marginBottom = '2.5rem';
     cannabisSection.style.paddingBottom = '2rem';
@@ -11328,7 +11237,7 @@ function createProductModal(title, formId, isEdit = false) {
     coaUrlInput.type = 'text';
     coaUrlInput.id = `${isEdit ? 'edit' : 'add'}-coa-url`;
     coaUrlInput.name = 'coa_url';
-    coaUrlInput.placeholder = 'Set automatically after upload, or paste https://… or /uploads/coa/…';
+    coaUrlInput.placeholder = 'Set automatically after upload, or paste https://â€¦ or /uploads/coa/â€¦';
     coaUrlInput.className = 'form-input';
     coaUrlGroup.appendChild(coaUrlLabel);
     coaUrlGroup.appendChild(coaUrlInput);
@@ -11374,7 +11283,7 @@ function createProductModal(title, formId, isEdit = false) {
             coaUploadStatus.style.color = '#b91c1c';
             return;
         }
-        coaUploadStatus.textContent = 'Uploading…';
+        coaUploadStatus.textContent = 'Uploadingâ€¦';
         try {
             const fd = new FormData();
             fd.append('coa', file);
@@ -11392,7 +11301,7 @@ function createProductModal(title, formId, isEdit = false) {
                 if (dateEl && !dateEl.value) {
                     dateEl.value = new Date().toISOString().slice(0, 10);
                 }
-                coaUploadStatus.textContent = 'Uploaded — URL filled below. Save the product to keep changes.';
+                coaUploadStatus.textContent = 'Uploaded â€” URL filled below. Save the product to keep changes.';
                 coaUploadStatus.style.color = 'var(--primary-green, #059669)';
             } else {
                 coaUploadStatus.textContent = data.error || 'Upload failed.';
@@ -11472,7 +11381,7 @@ function createProductModal(title, formId, isEdit = false) {
     activeCheckbox.style.width = '1.25rem';
     activeCheckbox.style.height = '1.25rem';
     activeLabel.appendChild(activeCheckbox);
-    activeLabel.appendChild(document.createTextNode(' Active Product'));
+    activeLabel.appendChild(document.createTextNode(' Active on POS register'));
     activeGroup.appendChild(activeLabel);
 
     const featuredGroup = document.createElement('div');
@@ -11702,7 +11611,10 @@ async function loadProductForEdit(productId) {
             document.getElementById('edit-short-description').value = product.short_description || '';
             const longDescEl = document.getElementById('edit-long-description');
             if (longDescEl) {
-                longDescEl.value = product.long_description || '';
+                const storedLong = product.long_description || '';
+                longDescEl.value = typeof HMDescriptionHtml !== 'undefined'
+                    ? HMDescriptionHtml.htmlToPlainText(storedLong)
+                    : storedLong;
                 if (typeof longDescEl._hmSyncLongDescPreview === 'function') {
                     longDescEl._hmSyncLongDescPreview();
                 }
@@ -11816,8 +11728,12 @@ async function updateProduct(productId, formData, formElement) {
         if (!formData.has('is_cannabis')) productData.is_cannabis = false;
         if (!formData.has('show_on_web')) productData.show_on_web = false;
 
+        if (productData.long_description != null && typeof HMDescriptionHtml !== 'undefined') {
+            productData.long_description = HMDescriptionHtml.prepareLongDescriptionForSave(productData.long_description);
+        }
+
         // Log featured status for debugging
-        console.log('📝 Product update data:', {
+        console.log('ðŸ“ Product update data:', {
             productId: productId,
             is_featured: productData.is_featured,
             is_featured_type: typeof productData.is_featured,
@@ -11906,6 +11822,10 @@ async function createProduct(formData, formElement) {
         if (!formData.has('is_featured')) productData.is_featured = false;
         if (!formData.has('is_cannabis')) productData.is_cannabis = false;
         if (!formData.has('show_on_web')) productData.show_on_web = false;
+
+        if (productData.long_description != null && typeof HMDescriptionHtml !== 'undefined') {
+            productData.long_description = HMDescriptionHtml.prepareLongDescriptionForSave(productData.long_description);
+        }
 
         // Get images from form element
         if (formElement && typeof formElement.getImages === 'function') {
@@ -12515,7 +12435,7 @@ async function deleteBrand(brandId, brandName) {
     }
     const ok = await app.showAdminConfirm({
         title: 'Delete this brand?',
-        message: `Remove “${name}” from the catalog? This cannot be undone.`,
+        message: `Remove â€œ${name}â€ from the catalog? This cannot be undone.`,
         confirmLabel: 'Delete brand',
         cancelLabel: 'Cancel',
         danger: true,
@@ -13019,7 +12939,7 @@ async function deleteCategory(categoryId, categoryName) {
     }
     const okCat = await app.showAdminConfirm({
         title: 'Delete this category?',
-        message: `Remove “${name}”? This cannot be undone.`,
+        message: `Remove â€œ${name}â€? This cannot be undone.`,
         confirmLabel: 'Delete category',
         cancelLabel: 'Cancel',
         danger: true,
@@ -13061,7 +12981,7 @@ async function deleteProduct(productId, productName) {
     }
     const okDel = await app.showAdminConfirm({
         title: 'Delete this product?',
-        message: `Remove “${name}” from the catalog? This cannot be undone.`,
+        message: `Remove â€œ${name}â€ from the catalog? This cannot be undone.`,
         confirmLabel: 'Delete product',
         cancelLabel: 'Cancel',
         danger: true,
@@ -13102,7 +13022,6 @@ window.deleteCategory = deleteCategory;
 window.deleteProduct = deleteProduct;
 window.editProduct = editProduct;
 window.showAddProduct = showAddProduct;
-window.scrapeProducts = scrapeProducts;
 window.matchProductsToBrands = matchProductsToBrands;
 
 async function matchProductsToCategories() {
@@ -13148,7 +13067,7 @@ async function matchProductsToCategories() {
 
             // Log category assignments to console
             if (results.categoryAssignments && Object.keys(results.categoryAssignments).length > 0) {
-                console.log('📋 Category Assignments:');
+                console.log('ðŸ“‹ Category Assignments:');
                 Object.entries(results.categoryAssignments).forEach(([category, count]) => {
                     console.log(`   ${category}: ${count} products`);
                 });
@@ -13188,6 +13107,7 @@ window.editEDSABooking = editEDSABooking;
 // Initialize the admin app when the page loads
 document.addEventListener('DOMContentLoaded', () => {
     window.adminApp = new AdminApp();
+    window.adminApp._ensureAdminPortals();
 
     const marketingHubForm = document.getElementById('marketing-hub-form');
     if (marketingHubForm && window.adminApp) {
@@ -13449,6 +13369,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const promoEditorModalClose = document.getElementById('promo-editor-modal-close');
     if (promoEditorModalClose && window.adminApp) {
         promoEditorModalClose.addEventListener('click', () => window.adminApp.closePromoEditorModal());
+    }
+    const promoEditorModalBackdrop = document.getElementById('promo-editor-modal-backdrop');
+    if (promoEditorModalBackdrop && window.adminApp) {
+        promoEditorModalBackdrop.addEventListener('click', () => window.adminApp.closePromoEditorModal());
     }
     document.addEventListener('keydown', (ev) => {
         if (ev.key !== 'Escape') return;

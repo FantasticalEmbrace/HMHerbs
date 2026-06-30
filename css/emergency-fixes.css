@@ -4,7 +4,34 @@
 /* FLICKER PREVENTION - Hardware acceleration for smooth rendering */
 /* Exclude overlays: translateZ on them breaks viewport-fixed positioning
    (dialog centers in document height instead of the visible viewport). */
-*:not(html):not(body):not(img):not(picture):not(video):not(svg):not(canvas):not(.auth-modal):not(.hm-age-gate):not(.hm-age-gate *):not(.newsletter-popup):not(.cookie-popup):not(.cookie-popup *):not(.cart-sidebar):not(.cart-overlay):not(.header-actions):not(.header-actions *):not(.acct-modal-backdrop):not(.hm-wl-picker-backdrop):not(.acct-modal):not(.wishlist-modal):not(.hm-wl-picker-dim):not(.acct-modal-dim):not(.edsa-modal):not(.edsa-modal *):not(#hm-toast-region):not(#hm-toast-region *):not(.hm-address-autocomplete-wrap):not(.hm-address-autocomplete-wrap *):not(.hm-address-suggest-list):not(.hm-address-suggest-list *):not(.gift-card-preview-wrap):not(.gift-card-preview-wrap *):not(.hm-gift-card):not(.hm-gift-card *):not(.hm-choice-row):not(.hm-choice-row *) {
+/* EDSA booking modal — must stay transform-free and viewport-fixed */
+#edsa-booking-modal,
+#edsa-booking-modal * {
+    -webkit-transform: none !important;
+    transform: none !important;
+    -webkit-backface-visibility: visible !important;
+    backface-visibility: visible !important;
+}
+
+#edsa-booking-modal {
+    will-change: auto !important;
+}
+
+/* Header chain must stay transform-free or mobile nav position:fixed anchors to navbar, not viewport */
+.header,
+.main-header,
+.navbar,
+.top-bar,
+.header-content,
+.header .container,
+.main-header .container {
+    transform: none !important;
+    -webkit-transform: none !important;
+    backface-visibility: visible !important;
+    -webkit-backface-visibility: visible !important;
+}
+
+*:not(html):not(body):not(img):not(picture):not(video):not(svg):not(canvas):not(.auth-modal):not(.hm-age-gate):not(.hm-age-gate *):not(.newsletter-popup):not(.cookie-popup):not(.cookie-popup *):not(.cart-sidebar):not(.cart-overlay):not(.header-actions):not(.header-actions *):not(.acct-modal-backdrop):not(.hm-wl-picker-backdrop):not(.acct-modal):not(.wishlist-modal):not(.hm-wl-picker-dim):not(.acct-modal-dim):not(.edsa-modal):not(.edsa-modal *):not(#edsa-booking-modal):not(#edsa-booking-modal *):not(#hm-toast-region):not(#hm-toast-region *):not(.hm-address-autocomplete-wrap):not(.hm-address-autocomplete-wrap *):not(.hm-address-suggest-list):not(.hm-address-suggest-list *):not(.gift-card-preview-wrap):not(.gift-card-preview-wrap *):not(.hm-gift-card):not(.hm-gift-card *):not(.hm-choice-row):not(.hm-choice-row *):not(.header):not(.main-header):not(.navbar):not(.top-bar):not(.header-content):not(.nav-menu):not(#nav-menu):not(#navbar-menu) {
     -webkit-backface-visibility: hidden;
     backface-visibility: hidden;
     -webkit-transform: translateZ(0);
@@ -71,6 +98,30 @@ canvas {
     -webkit-backface-visibility: visible !important;
 }
 
+/* Mobile off-canvas nav — keep slide transform on the menu panel itself */
+@media (max-width: 1100px) {
+
+    #nav-menu,
+    .nav-menu,
+    #navbar-menu,
+    #nav-menu.hm-mobile-nav-portal,
+    .nav-menu.hm-mobile-nav-portal {
+        transform: translateX(-100%) !important;
+        -webkit-transform: translateX(-100%) !important;
+        backface-visibility: visible !important;
+        -webkit-backface-visibility: visible !important;
+    }
+
+    #nav-menu.show,
+    .nav-menu.show,
+    #navbar-menu.show,
+    #nav-menu.hm-mobile-nav-portal.show,
+    .nav-menu.hm-mobile-nav-portal.show {
+        transform: translateX(0) !important;
+        -webkit-transform: translateX(0) !important;
+    }
+}
+
 /* EXCEPTION: Testimonials carousel track - must allow translateX transforms */
 /* Don't apply the global translateZ(0) transform to the carousel track */
 .testimonials-track {
@@ -79,19 +130,30 @@ canvas {
     /* Allow JavaScript to set transform via inline styles */
 }
 
-/* Do not put translate3d on .product-image — it's an <img> and can render blank */
-.product-card,
-.spotlight-grid,
-.product-spotlight {
+/* Do not put translate3d on spotlight cards or product photos — breaks <img> painting */
+.products-grid .product-card {
     will-change: transform;
     transform: translate3d(0, 0, 0);
     -webkit-transform: translate3d(0, 0, 0);
 }
 
-/* SCROLLBAR STABILITY - Prevent layout shifts */
+.product-spotlight .product-card,
+.product-spotlight .spotlight-grid {
+    will-change: auto;
+    transform: none;
+    -webkit-transform: none;
+}
+
+/* SCROLLBAR STABILITY - Prevent layout shifts; html is the sole vertical scroll container */
 html {
     scrollbar-gutter: stable;
+    overflow-x: clip;
     overflow-y: scroll;
+}
+
+body {
+    overflow-x: clip;
+    overflow-y: visible;
 }
 
 /* IMAGE LOADING — keep visible; hide-until-.loaded left carousel/catalog empty when .loaded lagged */
@@ -114,7 +176,7 @@ img[data-skip-error-handling] {
 }
 
 /* CLS Prevention - Reserve space for images without explicit dimensions */
-img:not([width]):not([height]):not([style*="aspect-ratio"]):not(.logo-wordmark):not(.footer-card-logo):not(.brand-card-image):not(.hm-gift-card__logo) {
+img:not([width]):not([height]):not([style*="aspect-ratio"]):not(.logo-wordmark):not(.footer-card-logo):not(.brand-card-image):not(.hm-gift-card__logo):not(.product-image):not(.product-image-main):not(.gallery-thumbnail img) {
     /* Use a safe default aspect ratio to prevent layout shift */
     aspect-ratio: 16 / 9;
     object-fit: cover;
@@ -130,13 +192,18 @@ img[alt*="unavailable"] {
 }
 
 .footer-contact a,
-.contact-links a {
+.contact-links a,
+.footer .footer-info-section ul li a,
+.footer .footer-section:has(> h4 + ul) ul li a {
     color: var(--white) !important;
     text-decoration: none;
 }
 
 .footer-contact a:hover,
-.contact-links a:hover {
+.contact-links a:hover,
+.footer .footer-info-section ul li a:hover,
+.footer .footer-section:has(> h4 + ul) ul li a:hover {
+    color: var(--white) !important;
     text-decoration: underline;
 }
 

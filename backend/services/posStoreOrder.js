@@ -3,7 +3,7 @@
 const { finalizePaidOrder, recalcUserOrderAggregates } = require('./finalizePaidOrder');
 const { reverseOrderFinancials } = require('./orderTenderReversal');
 const { normalizeSalesChannel } = require('../utils/orderChannel');
-const { verifyManagerPin, verifyRefundPin } = require('./posPersonnel');
+const { verifyManagerPin, verifyRefundPin, getEmployeeById, employeeAllowManualDiscounts } = require('./posPersonnel');
 const {
     loadCashDiscountSettings,
     applyCartDiscountToEnriched,
@@ -19,7 +19,8 @@ const {
 } = require('./posSecuritySettings');
 const InventoryService = require('./inventory');
 const { resolveCustomerUser } = require('./posCustomerService');
-const groupDiscount = require('./customerGroupDiscount');
+const { pricePosCart } = require('./posPromotionPricing');
+const promoEngine = require('./webPromotionEngine');
 const { loadLoyaltyProgramSettings } = require('./customerLoyalty');
 const {
     normalizeTendersFromPayload,
@@ -226,7 +227,7 @@ function buildOrderNotes(method, paymentMeta = {}, discountAmount = 0, taxExempt
         parts.push(`Tax exempt: ${taxExemptInfo.reason || 'no reason recorded'}`);
     }
     if (cartDiscountAmount > 0) {
-        const label = groupDiscountLabel ? `Group discount (${groupDiscountLabel})` : 'Sale discount';
+        const label = groupDiscountLabel || 'Automatic discount';
         parts.push(`${label}: -$${cartDiscountAmount.toFixed(2)}`);
     }
     const cashDiscountAmount = roundMoney(Number(discountAmount) - Number(cartDiscountAmount));
@@ -415,6 +416,26 @@ function parseCartDiscountPercent(payload) {
     return Math.min(100, Math.max(0, pct));
 }
 
+function assertManualDiscountsAllowed(allowManual, lineItems, cartDiscountPercent) {
+    if (allowManual) return;
+    const cartPct = Number(cartDiscountPercent) || 0;
+    if (cartPct > 0) {
+        const err = new Error('MANUAL_DISCOUNT_DISABLED');
+        err.code = 'MANUAL_DISCOUNT_DISABLED';
+        err.message = 'Manual sale discounts are disabled for this employee.';
+        throw err;
+    }
+    for (const raw of lineItems || []) {
+        const linePct = Number(raw.lineDiscountPercent || raw.line_discount_percent) || 0;
+        if (linePct > 0) {
+            const err = new Error('MANUAL_DISCOUNT_DISABLED');
+            err.code = 'MANUAL_DISCOUNT_DISABLED';
+            err.message = 'Manual line discounts are disabled for this employee.';
+            throw err;
+        }
+    }
+}
+
 /**
  * Create and finalize an in-store POS order (PCI-safe: no card PAN/CVV).
  */
@@ -464,7 +485,11 @@ async function createInStorePosOrder(pool, payload, deviceId, verifiedEmployeeId
     }
 
     const managerPin = String(payload.managerPin || payload.manager_pin || '').replace(/\D/g, '').slice(0, 4);
+    const securitySettings = await loadPosSecuritySettings(pool);
+    const employee = await getEmployeeById(pool, employeeId);
+    const allowManualDiscounts = employeeAllowManualDiscounts(employee);
     const clientCartDiscountPercent = parseCartDiscountPercent(payload);
+    assertManualDiscountsAllowed(allowManualDiscounts, lineItems, clientCartDiscountPercent);
 
     const paymentSettings = await loadPosPaymentMethodsSettings(pool);
     const loyaltySettings = await loadLoyaltyProgramSettings(pool);
@@ -479,25 +504,6 @@ async function createInStorePosOrder(pool, payload, deviceId, verifiedEmployeeId
 
     const enrichedPreview = await loadCatalogLines(pool, lineItems);
     const preCartSubtotal = merchandiseSubtotal(enrichedPreview);
-
-    let effectiveCartDiscountPercent = clientCartDiscountPercent;
-    let groupDiscountLabel = null;
-    if (customerUser) {
-        const benefits = await groupDiscount.loadUserGroupBenefits(pool, customerUser.id, 'pos');
-        const resolved = groupDiscount.resolvePosStandingDiscount(benefits, preCartSubtotal);
-        const merged = groupDiscount.mergePosCartDiscount(clientCartDiscountPercent, resolved);
-        effectiveCartDiscountPercent = merged.percent;
-        if (merged.fromGroup) {
-            groupDiscountLabel = merged.label || merged.groupName;
-        }
-    }
-
-    const authorizer = fromOfflineSync
-        ? null
-        : await validateSaleManagerAuth(pool, lineItems, managerPin || null, {
-              deviceId,
-              ip: payload.clientIp
-          }, effectiveCartDiscountPercent);
 
     const paymentMeta = payload.payment || payload;
     let taxExemptInfo = parseTaxExemptSale(payload);
@@ -515,6 +521,32 @@ async function createInStorePosOrder(pool, payload, deviceId, verifiedEmployeeId
     }
     const storeTaxRate = await loadStoreTaxRate(pool);
     const taxRate = taxExemptInfo.exempt ? 0 : storeTaxRate;
+
+    const promoPricing = await pricePosCart(pool, {
+        catalogLines: enrichedPreview,
+        customerUser,
+        taxExempt: taxExemptInfo.exempt,
+        taxRate,
+        allowManualDiscounts,
+        manualCartDiscountPercent: clientCartDiscountPercent
+    });
+
+    let effectiveCartDiscountPercent = 0;
+    let groupDiscountLabel = promoPricing.cartDiscountLabel || null;
+    if (preCartSubtotal > 0 && promoPricing.cartDiscountAmount > 0) {
+        effectiveCartDiscountPercent = Math.min(
+            100,
+            (promoPricing.cartDiscountAmount / preCartSubtotal) * 100
+        );
+    }
+
+    const authorizer = fromOfflineSync
+        ? null
+        : await validateSaleManagerAuth(pool, lineItems, managerPin || null, {
+              deviceId,
+              ip: payload.clientIp
+          }, allowManualDiscounts ? effectiveCartDiscountPercent : 0);
+
     const enriched = enrichedPreview;
     const preCartSubtotalFinal = preCartSubtotal;
     const pricedLines = applyCartDiscountToEnriched(enriched, effectiveCartDiscountPercent);
@@ -678,6 +710,27 @@ async function createInStorePosOrder(pool, payload, deviceId, verifiedEmployeeId
         );
 
         const orderId = orderResult.insertId;
+
+        if (promoPricing.promotion?.id) {
+            try {
+                await connection.execute(
+                    'UPDATE orders SET web_promotion_id = ?, promo_code = ? WHERE id = ?',
+                    [promoPricing.promotion.id, promoPricing.promotion.code, orderId]
+                );
+                await promoEngine.insertRedemptionRow(connection, {
+                    promotionId: promoPricing.promotion.id,
+                    orderId,
+                    email: orderEmail,
+                    userId: customerUser?.id || null,
+                    merchandiseDisc: promoPricing.promoDiscountAmount,
+                    shippingDisc: 0
+                });
+            } catch (promoErr) {
+                if (promoErr.code !== 'ER_BAD_FIELD_ERROR' && promoErr.errno !== 1054) {
+                    throw promoErr;
+                }
+            }
+        }
 
         const redemptionTypes = new Set(['loyalty_cash', 'loyalty_points', 'gift_card']);
         const redeemTenders = tenders.filter((t) => redemptionTypes.has(t.type));
@@ -922,5 +975,6 @@ module.exports = {
     syncPosOrderBatch,
     refundInStorePosOrder,
     assertCompliantPaymentPayload,
+    loadCatalogLines,
     ALLOWED_PAYMENT_METHODS
 };

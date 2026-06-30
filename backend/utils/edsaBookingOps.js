@@ -3,20 +3,20 @@
 const logger = require('./logger');
 const googleCalendar = require('../services/google-calendar');
 const { normalizeDateYmd } = require('./storeTimezone');
+const { withTimeout } = require('./withTimeout');
 
-/** HH:MM times held by pending/confirmed website bookings. */
+/** HH:MM times held by paid, confirmed website bookings only. */
 async function getActiveBookedTimesForDate(pool, dateStr, excludeBookingId = null) {
     const excludeId = Number(excludeBookingId);
     const hasExclude = Number.isFinite(excludeId) && excludeId > 0;
     const excludeSql = hasExclude ? ' AND id <> ?' : '';
     const paramsA = hasExclude ? [dateStr, excludeId] : [dateStr];
-    const paramsB = hasExclude ? [dateStr, excludeId] : [dateStr];
 
     const [rows] = await pool.execute(
         `SELECT preferred_time AS slot_time
            FROM edsa_bookings
           WHERE preferred_date = ?
-            AND status IN ('pending', 'confirmed')${excludeSql}`,
+            AND status = 'confirmed'${excludeSql}`,
         paramsA
     );
     const times = new Set();
@@ -34,7 +34,7 @@ async function loadBookingRowById(pool, bookingId) {
     const [rows] = await pool.execute(
         `SELECT id, first_name, last_name, email, phone,
                 preferred_date, preferred_time, status, notes, admin_notes,
-                google_calendar_event_id, confirmed_date, confirmed_time
+                google_calendar_event_id, confirmed_date, confirmed_time, payment_status
            FROM edsa_bookings WHERE id = ? LIMIT 1`,
         [id]
     );
@@ -50,10 +50,20 @@ async function isSlotAvailable(pool, dateStr, timeHm, excludeBookingId = null) {
 
     await googleCalendar.ensureInitialized(pool);
     if (googleCalendar.isAvailable()) {
-        const slots = await googleCalendar.getAvailableSlots(dateStr, pool);
-        const match = slots.find((s) => s.time === normalizedTime);
-        if (match && !match.available) {
-            return false;
+        try {
+            const slots = await withTimeout(
+                googleCalendar.getAvailableSlots(dateStr, pool),
+                8000,
+                'Google Calendar slot check'
+            );
+            const match = slots.find((s) => s.time === normalizedTime);
+            if (match && !match.available) {
+                return false;
+            }
+        } catch (err) {
+            logger.warn('EDSA slot check: Google Calendar unavailable, using database only', {
+                error: err.message
+            });
         }
     }
     return true;
@@ -81,8 +91,15 @@ async function clearBookingCalendarLink(pool, bookingId) {
     );
 }
 
+function isEdsaBookingFinalized(row) {
+    if (!row) return false;
+    if (String(row.status || '').toLowerCase() !== 'confirmed') return false;
+    const pay = String(row.payment_status || 'paid').toLowerCase();
+    return pay === 'paid';
+}
+
 async function syncBookingCalendarEvent(pool, row) {
-    if (!row || String(row.status).toLowerCase() === 'cancelled') {
+    if (!isEdsaBookingFinalized(row)) {
         return;
     }
 
@@ -145,6 +162,7 @@ module.exports = {
     deleteBookingCalendarEvent,
     clearBookingCalendarLink,
     syncBookingCalendarEvent,
+    isEdsaBookingFinalized,
     bookingEmailPayload,
     appointmentSnapshot,
     normalizeDateYmd

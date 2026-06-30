@@ -7,6 +7,7 @@ const EDSA_NATIVE_FETCH = (() => {
 
 class EDSABookingSystem {
     static modalReady = false;
+    static MODAL_VERSION = 4;
 
     constructor() {
         this.apiBaseUrl = this.getApiBaseUrl();
@@ -24,6 +25,12 @@ class EDSABookingSystem {
         this.nmiEnabled = false;
         this.nmiScriptReady = false;
         this._pendingBookingData = null;
+        this._step = 'schedule';
+        this.savedCards = [];
+        this.selectedSavedCardId = null;
+        this._paymentConfig = null;
+        this._scrollLocked = false;
+        this._lockedScrollY = 0;
         this.businessHours = {
             start: '10:00',
             end: '17:00',
@@ -53,6 +60,17 @@ class EDSABookingSystem {
     getApiBaseUrl() {
         const origin = this.hmHerbsApiOrigin();
         return origin ? `${origin}/api/edsa` : '/api/edsa';
+    }
+
+    getCustomerAuthHeaders(extra = {}) {
+        const headers = { Accept: 'application/json', ...extra };
+        const customerToken = localStorage.getItem('hmherbs_customer_token');
+        if (customerToken) headers.Authorization = `Bearer ${customerToken}`;
+        return headers;
+    }
+
+    isCustomerLoggedIn() {
+        return Boolean(localStorage.getItem('hmherbs_customer_token'));
     }
 
     formatLocalDate(date) {
@@ -110,9 +128,21 @@ class EDSABookingSystem {
     }
 
     setupModal() {
-        if (document.getElementById('edsa-booking-modal')) {
+        const existing = document.getElementById('edsa-booking-modal');
+        const version = existing?.getAttribute('data-edsa-modal-version');
+        const isCurrentModal =
+            existing &&
+            version === String(EDSABookingSystem.MODAL_VERSION) &&
+            existing.querySelector('#edsa-step-schedule');
+
+        if (isCurrentModal) {
             EDSABookingSystem.modalReady = true;
             return;
+        }
+
+        if (existing) {
+            existing.remove();
+            this._listenersBound = false;
         }
 
         const prevIcon =
@@ -121,7 +151,7 @@ class EDSABookingSystem {
             '<svg class="edsa-calendar-nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>';
 
         const modalHTML = `
-            <div id="edsa-booking-modal" class="edsa-modal" aria-hidden="true" role="dialog" aria-labelledby="edsa-modal-title">
+            <div id="edsa-booking-modal" class="edsa-modal" data-edsa-modal-version="${EDSABookingSystem.MODAL_VERSION}" aria-hidden="true" role="dialog" aria-labelledby="edsa-modal-title">
                 <div class="edsa-modal-overlay"></div>
                 <div class="edsa-modal-content">
                     <div class="edsa-modal-header">
@@ -132,17 +162,31 @@ class EDSABookingSystem {
                     </div>
                     <div class="edsa-modal-body">
                         <div id="edsa-form-message" class="edsa-form-message" role="alert" hidden></div>
+                        <div class="edsa-step-indicator" id="edsa-step-indicator" aria-hidden="true">
+                            <span class="edsa-step-dot active" data-step="schedule">1</span>
+                            <span class="edsa-step-line"></span>
+                            <span class="edsa-step-dot" data-step="details">2</span>
+                            <span class="edsa-step-line" id="edsa-step-payment-line"></span>
+                            <span class="edsa-step-dot" data-step="payment" id="edsa-step-payment-dot">3</span>
+                        </div>
                         <div class="edsa-booking-container">
-                            <div class="edsa-calendar-section">
-                                <div class="edsa-calendar-header">
-                                    <button type="button" class="edsa-calendar-nav" id="prev-month" aria-label="Previous month">${prevIcon}</button>
-                                    <h3 id="calendar-month-year"></h3>
-                                    <button type="button" class="edsa-calendar-nav" id="next-month" aria-label="Next month">${nextIcon}</button>
+                            <div id="edsa-step-schedule" class="edsa-step-panel">
+                                <div class="edsa-calendar-section">
+                                    <div class="edsa-calendar-header">
+                                        <button type="button" class="edsa-calendar-nav" id="prev-month" aria-label="Previous month">${prevIcon}</button>
+                                        <h3 id="calendar-month-year"></h3>
+                                        <button type="button" class="edsa-calendar-nav" id="next-month" aria-label="Next month">${nextIcon}</button>
+                                    </div>
+                                    <div class="edsa-calendar-grid" id="calendar-grid"></div>
+                                    <div class="edsa-time-slots" id="time-slots"></div>
                                 </div>
-                                <div class="edsa-calendar-grid" id="calendar-grid"></div>
-                                <div class="edsa-time-slots" id="time-slots"></div>
+                                <div class="edsa-step-actions">
+                                    <button type="button" class="btn btn-secondary" id="edsa-cancel-btn">Cancel</button>
+                                    <button type="button" class="btn btn-primary" id="edsa-schedule-continue" disabled>Continue</button>
+                                </div>
                             </div>
-                            <div class="edsa-form-section">
+                            <div id="edsa-step-details" class="edsa-step-panel" hidden>
+                                <p class="edsa-selected-summary" id="edsa-selected-summary"></p>
                                 <form id="edsa-booking-form" novalidate>
                                     <div class="form-group">
                                         <label for="edsa-first-name">First Name *</label>
@@ -165,34 +209,52 @@ class EDSABookingSystem {
                                         <label for="edsa-notes">Additional Notes</label>
                                         <textarea id="edsa-notes" name="notes" rows="2" autocomplete="off"></textarea>
                                     </div>
-                                    <div class="edsa-payment-section" id="edsa-payment-section" hidden>
-                                        <div class="edsa-payment-summary">
-                                            <span class="edsa-payment-label">Session fee</span>
-                                            <span class="edsa-payment-amount" id="edsa-payment-amount">$75.00</span>
-                                        </div>
-                                        <p class="edsa-payment-note">Your card is charged when you confirm the appointment.</p>
-                                        <div id="edsa-nmi-collect-fields" class="edsa-nmi-collect" style="display: none;">
-                                            <div class="form-group">
-                                                <label for="edsa-ccnumber">Card number *</label>
-                                                <div id="edsa-ccnumber" class="nmi-field-host" aria-label="Card number"></div>
-                                            </div>
-                                            <div class="form-row">
-                                                <div class="form-group">
-                                                    <label for="edsa-ccexp">Expiration *</label>
-                                                    <div id="edsa-ccexp" class="nmi-field-host" aria-label="Expiration"></div>
-                                                </div>
-                                                <div class="form-group">
-                                                    <label for="edsa-cvv">CVV *</label>
-                                                    <div id="edsa-cvv" class="nmi-field-host" aria-label="CVV"></div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="form-actions">
-                                        <button type="button" class="btn btn-secondary" id="edsa-cancel-btn">Cancel</button>
-                                        <button type="submit" class="btn btn-primary" id="edsa-submit-btn">Book Appointment</button>
+                                    <div class="edsa-step-actions">
+                                        <button type="button" class="btn btn-secondary" id="edsa-details-back">Back</button>
+                                        <button type="submit" class="btn btn-primary" id="edsa-details-continue">Continue</button>
                                     </div>
                                 </form>
+                            </div>
+                            <div id="edsa-step-payment" class="edsa-step-panel" hidden>
+                                <p class="edsa-selected-summary" id="edsa-payment-summary"></p>
+                                <div class="edsa-payment-section" id="edsa-payment-section">
+                                    <div class="edsa-payment-summary">
+                                        <span class="edsa-payment-label">Session fee</span>
+                                        <span class="edsa-payment-amount" id="edsa-payment-amount">$75.00</span>
+                                    </div>
+                                    <p class="edsa-payment-note">You chose your appointment time on step 1. Your card is charged here — the calendar invite is sent only after payment succeeds.</p>
+                                    <p id="edsa-payment-signin-hint" class="edsa-payment-signin-hint" hidden>
+                                        Have an account with a saved card?
+                                        <button type="button" class="edsa-link-btn" id="edsa-payment-signin-btn">Sign in</button>
+                                        to use it instead of re-entering your card.
+                                    </p>
+                                    <div id="edsa-saved-cards-block" class="edsa-saved-cards-block" hidden>
+                                        <label for="edsa-saved-card-select" class="form-label">Payment method</label>
+                                        <select id="edsa-saved-card-select" class="form-select">
+                                            <option value="">Use a new card</option>
+                                        </select>
+                                    </div>
+                                    <div id="edsa-nmi-collect-fields" class="edsa-nmi-collect" style="display: none;">
+                                        <div class="form-group">
+                                            <span id="edsa-ccnumber-label" class="form-label">Card number *</span>
+                                            <div id="edsa-ccnumber" class="nmi-field-host" role="group" aria-labelledby="edsa-ccnumber-label"></div>
+                                        </div>
+                                        <div class="form-row">
+                                            <div class="form-group">
+                                                <span id="edsa-ccexp-label" class="form-label">Expiration *</span>
+                                                <div id="edsa-ccexp" class="nmi-field-host" role="group" aria-labelledby="edsa-ccexp-label"></div>
+                                            </div>
+                                            <div class="form-group">
+                                                <span id="edsa-cvv-label" class="form-label">CVV *</span>
+                                                <div id="edsa-cvv" class="nmi-field-host" role="group" aria-labelledby="edsa-cvv-label"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="edsa-step-actions">
+                                    <button type="button" class="btn btn-secondary" id="edsa-payment-back">Back</button>
+                                    <button type="button" class="btn btn-primary" id="edsa-pay-btn">Pay &amp; Book Appointment</button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -213,6 +275,21 @@ class EDSABookingSystem {
             document.body.appendChild(stub);
         }
         EDSABookingSystem.modalReady = true;
+    }
+
+    mountBookingModal() {
+        const modal = document.getElementById('edsa-booking-modal');
+        if (!modal) return null;
+
+        document.body.appendChild(modal);
+
+        modal.scrollTop = 0;
+        const panel = modal.querySelector('.edsa-modal-content');
+        const body = modal.querySelector('.edsa-modal-body');
+        if (panel) panel.scrollTop = 0;
+        if (body) body.scrollTop = 0;
+
+        return modal;
     }
 
     fixFormAttributes() {
@@ -236,6 +313,11 @@ class EDSABookingSystem {
         const prevMonth = document.getElementById('prev-month');
         const nextMonth = document.getElementById('next-month');
         const bookBtn = document.getElementById('edsa-book-btn');
+        const scheduleContinue = document.getElementById('edsa-schedule-continue');
+        const detailsBack = document.getElementById('edsa-details-back');
+        const paymentBack = document.getElementById('edsa-payment-back');
+        const payBtn = document.getElementById('edsa-pay-btn');
+        const savedCardSelect = document.getElementById('edsa-saved-card-select');
 
         [closeBtn, overlay, cancelBtn].forEach((el) => {
             if (el) el.addEventListener('click', () => this.closeModal());
@@ -243,6 +325,28 @@ class EDSABookingSystem {
 
         if (prevMonth) prevMonth.addEventListener('click', () => this.navigateMonth(-1));
         if (nextMonth) nextMonth.addEventListener('click', () => this.navigateMonth(1));
+
+        if (scheduleContinue) {
+            scheduleContinue.addEventListener('click', () => this.goToDetailsStep());
+        }
+        if (detailsBack) detailsBack.addEventListener('click', () => this.showStep('schedule'));
+        if (paymentBack) paymentBack.addEventListener('click', () => this.showStep('details'));
+        if (payBtn) payBtn.addEventListener('click', () => this.handlePaymentSubmit());
+
+        if (savedCardSelect) {
+            savedCardSelect.addEventListener('change', async () => {
+                this.selectedSavedCardId = savedCardSelect.value ? Number(savedCardSelect.value) : null;
+                const collect = document.getElementById('edsa-nmi-collect-fields');
+                if (collect) {
+                    const useNew = !this.selectedSavedCardId;
+                    collect.style.display = useNew ? 'block' : 'none';
+                    collect.style.opacity = '1';
+                }
+                if (!this.selectedSavedCardId && this._paymentConfig) {
+                    await this.initNmiPayment(this._paymentConfig);
+                }
+            });
+        }
 
         if (bookBtn) {
             bookBtn.addEventListener('click', (e) => {
@@ -257,17 +361,59 @@ class EDSABookingSystem {
             }
         });
 
+        document.addEventListener('hmherbs:customer-profile-updated', () => {
+            if (this._step === 'payment') {
+                void this.loadBookingContext(this._displayYear, this._displayMonth).then(() => {
+                    this.renderSavedCardsSelect();
+                    this.updatePaymentSignInHint();
+                    if (!this.selectedSavedCardId && this._paymentConfig) {
+                        void this.initNmiPayment(this._paymentConfig);
+                    }
+                });
+            }
+        });
+
+        const signInBtn = document.getElementById('edsa-payment-signin-btn');
+        if (signInBtn) {
+            signInBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (window.customerAuth?.openLoginModal) {
+                    window.customerAuth.openLoginModal();
+                } else {
+                    this.showFormMessage('Please sign in from the site menu, then return to payment.', 'warning');
+                }
+            });
+        }
+
         this._listenersBound = true;
     }
 
     lockPageScroll() {
+        if (this._scrollLocked) return;
+        this._scrollLocked = true;
+        this._lockedScrollY = window.scrollY || document.documentElement.scrollTop || 0;
         document.documentElement.classList.add('edsa-modal-open');
         document.body.classList.add('edsa-modal-open');
+        document.body.style.position = 'fixed';
+        document.body.style.top = `-${this._lockedScrollY}px`;
+        document.body.style.left = '0';
+        document.body.style.right = '0';
+        document.body.style.width = '100%';
     }
 
     unlockPageScroll() {
+        if (!this._scrollLocked) return;
+        const restoreY = this._lockedScrollY || 0;
+        this._scrollLocked = false;
+        this._lockedScrollY = 0;
+        document.body.style.position = '';
+        document.body.style.top = '';
+        document.body.style.left = '';
+        document.body.style.right = '';
+        document.body.style.width = '';
         document.documentElement.classList.remove('edsa-modal-open');
         document.body.classList.remove('edsa-modal-open');
+        window.scrollTo(0, restoreY);
     }
 
     showFormMessage(message, type = 'error') {
@@ -290,6 +436,27 @@ class EDSABookingSystem {
         }
     }
 
+    async refreshBookingContextForSubmit() {
+        if (window.location.protocol === 'file:') return true;
+
+        try {
+            await Promise.race([
+                this.loadBookingContext(this._displayYear, this._displayMonth),
+                new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('context_timeout')), 10000)
+                )
+            ]);
+            return true;
+        } catch (error) {
+            console.error('EDSA booking context refresh failed:', error);
+            this.showFormMessage(
+                'Could not reach the booking server. Please try again in a moment.',
+                'error'
+            );
+            return false;
+        }
+    }
+
     async loadBookingContext(year, month) {
         if (window.location.protocol === 'file:') return;
 
@@ -301,7 +468,10 @@ class EDSABookingSystem {
         try {
             const nativeFetch = window.__nativeFetch || window.fetch;
             const url = `${this.apiBaseUrl}/booking-context?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}&_=${Date.now()}`;
-            const response = await nativeFetch(url, { cache: 'no-store', headers: { Accept: 'application/json' } });
+            const response = await nativeFetch(url, {
+                cache: 'no-store',
+                headers: this.getCustomerAuthHeaders()
+            });
             if (!response.ok) return;
 
             const data = await response.json();
@@ -310,19 +480,192 @@ class EDSABookingSystem {
             if (Number.isFinite(Number(data.price))) this.servicePrice = Number(data.price);
             this.paymentRequired = Boolean(data.paymentRequired);
             this.blockedDates = new Set((data.blockedDates || []).map((d) => String(d).slice(0, 10)));
+            this.savedCards = Array.isArray(data.savedCards) ? data.savedCards : [];
+            if (data.paymentConfig) this._paymentConfig = data.paymentConfig;
 
             const amountEl = document.getElementById('edsa-payment-amount');
             if (amountEl) amountEl.textContent = `$${this.servicePrice.toFixed(2)}`;
 
-            const paySection = document.getElementById('edsa-payment-section');
-            if (paySection) paySection.hidden = !this.paymentRequired;
+            const payDot = document.getElementById('edsa-step-payment-dot');
+            const payLine = document.getElementById('edsa-step-payment-line');
+            if (payDot) payDot.hidden = !this.paymentRequired;
+            if (payLine) payLine.hidden = !this.paymentRequired;
 
-            if (this.paymentRequired && data.paymentConfig) {
-                await this.initNmiPayment(data.paymentConfig);
-            }
+            this.renderSavedCardsSelect();
+            this.updatePaymentSignInHint();
         } catch {
             /* keep defaults */
         }
+    }
+
+    updatePaymentSignInHint() {
+        const hint = document.getElementById('edsa-payment-signin-hint');
+        if (!hint) return;
+        const show = this.paymentRequired && !this.isCustomerLoggedIn() && !this.savedCards.length;
+        hint.hidden = !show;
+    }
+
+    renderSavedCardsSelect() {
+        const block = document.getElementById('edsa-saved-cards-block');
+        const select = document.getElementById('edsa-saved-card-select');
+        if (!block || !select) return;
+
+        if (!this.savedCards.length) {
+            block.hidden = true;
+            this.selectedSavedCardId = null;
+            this.updatePaymentSignInHint();
+            return;
+        }
+
+        block.hidden = false;
+        this.updatePaymentSignInHint();
+        select.innerHTML =
+            '<option value="">Use a new card</option>' +
+            this.savedCards
+                .map(
+                    (c) =>
+                        `<option value="${c.id}"${c.isDefault ? ' selected' : ''}>${(c.brand || 'Card').toUpperCase()} •••• ${c.last4}</option>`
+                )
+                .join('');
+
+        const defaultCard = this.savedCards.find((c) => c.isDefault) || this.savedCards[0];
+        this.selectedSavedCardId = defaultCard ? defaultCard.id : null;
+        if (defaultCard) select.value = String(defaultCard.id);
+    }
+
+    formatSelectedAppointmentSummary() {
+        if (!this.selectedDate || !this.selectedTime) return '';
+        const dateStr = this.selectedDate.toLocaleDateString(undefined, {
+            weekday: 'long',
+            month: 'long',
+            day: 'numeric',
+            year: 'numeric'
+        });
+        return `${dateStr} at ${this.formatTime(this.selectedTime)}`;
+    }
+
+    updateSelectedSummary() {
+        const summary = this.formatSelectedAppointmentSummary();
+        const detailsEl = document.getElementById('edsa-selected-summary');
+        const paymentEl = document.getElementById('edsa-payment-summary');
+        if (detailsEl) detailsEl.textContent = summary ? `Selected: ${summary}` : '';
+        if (paymentEl) paymentEl.textContent = summary ? `Appointment: ${summary}` : '';
+    }
+
+    showStep(step) {
+        this._step = step;
+        const schedule = document.getElementById('edsa-step-schedule');
+        const details = document.getElementById('edsa-step-details');
+        const payment = document.getElementById('edsa-step-payment');
+        if (schedule) schedule.hidden = step !== 'schedule';
+        if (details) details.hidden = step !== 'details';
+        if (payment) payment.hidden = step !== 'payment';
+
+        document.querySelectorAll('#edsa-step-indicator .edsa-step-dot').forEach((dot) => {
+            const dotStep = dot.getAttribute('data-step');
+            if (dotStep === 'payment' && !this.paymentRequired) return;
+            dot.classList.toggle('active', dotStep === step);
+            dot.classList.toggle('completed', this.isStepBefore(dotStep, step));
+        });
+
+        const title = document.getElementById('edsa-modal-title');
+        if (title) {
+            if (step === 'schedule') title.textContent = 'Choose your EDSA date & time';
+            else if (step === 'details') title.textContent = 'Your contact information';
+            else title.textContent = 'Payment';
+        }
+
+        this.clearFormMessage();
+        this.updateSelectedSummary();
+        this.updateScheduleContinueButton();
+    }
+
+    isStepBefore(a, b) {
+        const order = this.paymentRequired
+            ? ['schedule', 'details', 'payment']
+            : ['schedule', 'details'];
+        return order.indexOf(a) < order.indexOf(b);
+    }
+
+    updateScheduleContinueButton() {
+        const btn = document.getElementById('edsa-schedule-continue');
+        if (btn) btn.disabled = !(this.selectedDate && this.selectedTime);
+    }
+
+    prefillFromLoggedInUser() {
+        const auth = window.customerAuth;
+        const user = auth?.user;
+        if (!user) return;
+
+        const setVal = (id, val) => {
+            const el = document.getElementById(id);
+            if (el && val && !String(el.value || '').trim()) el.value = val;
+        };
+
+        setVal('edsa-first-name', user.firstName || user.first_name);
+        setVal('edsa-last-name', user.lastName || user.last_name);
+        setVal('edsa-email', user.email);
+        setVal('edsa-phone', user.phone);
+    }
+
+    goToDetailsStep() {
+        if (!this.selectedDate || !this.selectedTime) {
+            this.showFormMessage('Please select a date and time for your appointment.', 'warning');
+            return;
+        }
+        this.prefillFromLoggedInUser();
+        this.showStep('details');
+        const detailsBtn = document.getElementById('edsa-details-continue');
+        if (detailsBtn) {
+            detailsBtn.textContent = this.paymentRequired ? 'Continue to payment' : 'Book Appointment';
+        }
+    }
+
+    async goToPaymentStep(bookingData) {
+        this._pendingBookingData = bookingData;
+        this.showStep('payment');
+        this.resetSubmitButton();
+
+        try {
+            await this.loadBookingContext(this._displayYear, this._displayMonth);
+            this.renderSavedCardsSelect();
+            this.updatePaymentSignInHint();
+
+            const collect = document.getElementById('edsa-nmi-collect-fields');
+            if (this.selectedSavedCardId && collect) {
+                collect.style.display = 'none';
+            } else if (collect && this.paymentRequired) {
+                collect.style.display = 'block';
+            }
+
+            if (this.paymentRequired && this._paymentConfig && !this.selectedSavedCardId) {
+                await this.initNmiPayment(this._paymentConfig);
+            } else if (this.paymentRequired && !this._paymentConfig) {
+                this.showFormMessage(
+                    'Payment is not available right now. Please call the store to complete your booking.',
+                    'warning'
+                );
+            }
+        } catch (err) {
+            console.error('EDSA payment step error:', err);
+            this.showFormMessage(
+                'Could not load payment options. Please try again or call the store.',
+                'error'
+            );
+        }
+    }
+
+    collectBookingDataFromForm(form) {
+        const formData = new FormData(form);
+        return {
+            firstName: formData.get('firstName'),
+            lastName: formData.get('lastName'),
+            email: formData.get('email'),
+            phone: formData.get('phone'),
+            preferredDate: this.formatLocalDate(this.selectedDate),
+            preferredTime: this.selectedTime,
+            notes: formData.get('notes') || ''
+        };
     }
 
     getNmiPaymentAmountString() {
@@ -439,10 +782,15 @@ class EDSABookingSystem {
     }
 
     resetSubmitButton() {
-        const submitBtn = document.getElementById('edsa-submit-btn');
-        if (submitBtn && !this._redirecting) {
-            submitBtn.disabled = false;
-            submitBtn.textContent = this.paymentRequired ? 'Pay & Book Appointment' : 'Book Appointment';
+        const detailsBtn = document.getElementById('edsa-details-continue');
+        const payBtn = document.getElementById('edsa-pay-btn');
+        if (detailsBtn && !this._redirecting) {
+            detailsBtn.disabled = false;
+            detailsBtn.textContent = this.paymentRequired ? 'Continue to payment' : 'Book Appointment';
+        }
+        if (payBtn && !this._redirecting) {
+            payBtn.disabled = false;
+            payBtn.textContent = 'Pay & Book Appointment';
         }
     }
 
@@ -596,6 +944,7 @@ class EDSABookingSystem {
         this.renderCalendar(this.selectedDate.getFullYear(), this.selectedDate.getMonth());
         await this.loadAvailableSlots(this.selectedDate);
         this.renderTimeSlots();
+        this.updateScheduleContinueButton();
     }
 
     renderTimeSlots() {
@@ -642,6 +991,7 @@ class EDSABookingSystem {
         this.selectedTime = time;
         this.clearFormMessage();
         this.renderTimeSlots();
+        this.updateScheduleContinueButton();
     }
 
     formatTime(timeStr) {
@@ -708,12 +1058,15 @@ class EDSABookingSystem {
     }
 
     async submitBooking(bookingData) {
-        const submitBtn = document.getElementById('edsa-submit-btn');
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 45000);
+
         try {
             const response = await EDSA_NATIVE_FETCH(`${this.apiBaseUrl}/book`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(bookingData)
+                headers: this.getCustomerAuthHeaders({ 'Content-Type': 'application/json' }),
+                body: JSON.stringify(bookingData),
+                signal: controller.signal
             });
 
             let result = {};
@@ -744,8 +1097,13 @@ class EDSABookingSystem {
             this.showFormMessage(msg, response.status === 409 || response.status === 402 ? 'warning' : 'error');
         } catch (error) {
             console.error('Booking error:', error);
-            this.showFormMessage('An error occurred while booking. Please try again.', 'error');
+            const msg =
+                error?.name === 'AbortError'
+                    ? 'Booking is taking too long. Please try again or call the store.'
+                    : 'An error occurred while booking. Please try again.';
+            this.showFormMessage(msg, 'error');
         } finally {
+            clearTimeout(timeoutId);
             if (!this._redirecting) {
                 this.resetSubmitButton();
             }
@@ -791,51 +1149,86 @@ class EDSABookingSystem {
             return;
         }
 
-        const bookingData = {
-            firstName: formData.get('firstName'),
-            lastName: formData.get('lastName'),
-            email: formData.get('email'),
-            phone: formData.get('phone'),
-            preferredDate: this.formatLocalDate(this.selectedDate),
-            preferredTime: this.selectedTime,
-            notes: formData.get('notes') || ''
-        };
+        const bookingData = this.collectBookingDataFromForm(form);
 
-        const submitBtn = document.getElementById('edsa-submit-btn');
-        if (!submitBtn) return;
-        submitBtn.disabled = true;
-        submitBtn.textContent = this.paymentRequired ? 'Processing payment...' : 'Booking...';
+        const detailsBtn = document.getElementById('edsa-details-continue');
+        if (detailsBtn) {
+            detailsBtn.disabled = true;
+            detailsBtn.textContent = 'Please wait...';
+        }
 
-        if (this.paymentRequired) {
-            if (!this.nmiEnabled || !this.nmiScriptReady || typeof window.CollectJS === 'undefined') {
-                this.showFormMessage(
-                    'Secure card fields are not ready yet. Please wait a moment and try again.',
-                    'warning'
-                );
-                this.resetSubmitButton();
+        try {
+            if (!(await this.refreshBookingContextForSubmit())) {
                 return;
             }
-            this._pendingBookingData = bookingData;
-            try {
-                window.CollectJS.startPaymentRequest();
-            } catch (error) {
-                console.error('NMI startPaymentRequest error:', error);
-                this._pendingBookingData = null;
-                this.showFormMessage(error.message || 'Could not start payment', 'error');
+
+            if (this.paymentRequired) {
+                await this.goToPaymentStep(bookingData);
+                return;
+            }
+
+            await this.submitBooking(bookingData);
+        } catch (error) {
+            console.error('EDSA form submit error:', error);
+            this.showFormMessage('Something went wrong. Please try again.', 'error');
+        } finally {
+            if (!this._redirecting && this._step !== 'payment') {
                 this.resetSubmitButton();
+            }
+        }
+    }
+
+    async handlePaymentSubmit() {
+        this.clearFormMessage();
+
+        if (!this._pendingBookingData) {
+            this.showFormMessage('Booking details were lost. Please go back and try again.', 'error');
+            return;
+        }
+
+        const payBtn = document.getElementById('edsa-pay-btn');
+        if (payBtn) {
+            payBtn.disabled = true;
+            payBtn.textContent = 'Processing payment...';
+        }
+
+        if (this.selectedSavedCardId) {
+            try {
+                await this.submitBooking({
+                    ...this._pendingBookingData,
+                    savedCardId: this.selectedSavedCardId
+                });
+            } finally {
+                this._pendingBookingData = null;
             }
             return;
         }
 
-        await this.submitBooking(bookingData);
+        if (!this.nmiEnabled || !this.nmiScriptReady || typeof window.CollectJS === 'undefined') {
+            this.showFormMessage(
+                'Secure card fields are not ready yet. Please wait a moment and try again.',
+                'warning'
+            );
+            this.resetSubmitButton();
+            return;
+        }
+
+        try {
+            window.CollectJS.startPaymentRequest();
+        } catch (error) {
+            console.error('NMI startPaymentRequest error:', error);
+            this.showFormMessage(error.message || 'Could not start payment', 'error');
+            this.resetSubmitButton();
+        }
     }
 
     openModal() {
-        const modal = document.getElementById('edsa-booking-modal');
+        this.setupModal();
+        this.ensureEventListeners();
+        const modal = this.mountBookingModal();
         if (!modal) return;
 
         this.fixFormAttributes();
-        this.ensureEventListeners();
         this.clearFormMessage();
         this.lockPageScroll();
 
@@ -847,20 +1240,19 @@ class EDSABookingSystem {
         this.selectedTime = null;
         this.availableSlots = [];
         this._pendingBookingData = null;
+        this._step = 'schedule';
+        this.selectedSavedCardId = null;
+        this.showStep('schedule');
         void this.loadBookingContext(now.getFullYear(), now.getMonth()).then(() => {
             this.renderCalendar(now.getFullYear(), now.getMonth());
         });
         this.renderCalendar(now.getFullYear(), now.getMonth());
 
-        const submitBtn = document.getElementById('edsa-submit-btn');
-        if (submitBtn) {
-            submitBtn.textContent = this.paymentRequired ? 'Pay & Book Appointment' : 'Book Appointment';
-        }
-
         const timeSlotsContainer = document.getElementById('time-slots');
         if (timeSlotsContainer) {
             timeSlotsContainer.innerHTML = '<p class="no-date-selected">Please select a date first</p>';
         }
+        this.updateScheduleContinueButton();
     }
 
     closeModal() {
@@ -876,6 +1268,8 @@ class EDSABookingSystem {
 
         this.selectedDate = null;
         this.selectedTime = null;
+        this._pendingBookingData = null;
+        this._step = 'schedule';
         this.clearFormMessage();
     }
 }
@@ -889,6 +1283,7 @@ function openEDSABooking(e) {
     if (!edsaBookingSystem) {
         edsaBookingSystem = new EDSABookingSystem();
     }
+    edsaBookingSystem.setupModal();
     edsaBookingSystem.openModal();
 }
 

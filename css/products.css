@@ -537,8 +537,12 @@ a.browse-card:focus-visible {
     transition: transform var(--transition-normal);
     background-color: var(--gray-100);
     display: block;
-    /* Ensure images load properly */
     opacity: 1;
+    transform: none !important;
+    -webkit-transform: none !important;
+    backface-visibility: visible !important;
+    -webkit-backface-visibility: visible !important;
+    content-visibility: visible;
 }
 
 .products-section .product-image:not([src]),
@@ -1088,16 +1092,26 @@ a.browse-card:focus-visible {
     border-radius: var(--radius-lg);
     overflow: hidden;
     background-color: var(--gray-100);
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    position: relative;
+    min-height: 240px;
 }
 
 .product-image-main {
+    position: absolute;
+    inset: 0;
+    display: block;
     width: 100%;
     height: 100%;
+    max-width: 100%;
+    max-height: 100%;
     object-fit: contain;
-    display: block;
+    object-position: center;
+    transform: none !important;
+    -webkit-transform: none !important;
+    backface-visibility: visible !important;
+    -webkit-backface-visibility: visible !important;
+    opacity: 1 !important;
+    content-visibility: visible;
 }
 
 .product-image-gallery {
@@ -1130,6 +1144,11 @@ a.browse-card:focus-visible {
     width: 100%;
     height: 100%;
     object-fit: cover;
+    display: block;
+    transform: none !important;
+    -webkit-transform: none !important;
+    backface-visibility: visible !important;
+    opacity: 1 !important;
 }
 
 /* Product Info */
@@ -1541,6 +1560,15 @@ a.browse-card:focus-visible {
         width: 100%;
         justify-content: center;
     }
+
+    .product-main-image {
+        min-height: min(calc(100vw - 2rem), 360px);
+    }
+
+    .gallery-thumbnail {
+        width: 64px;
+        height: 64px;
+    }
 }
 
 /* Animation for notifications */
@@ -1633,6 +1661,43 @@ a.browse-card:focus-visible {
 
     .pagination-nav {
         gap: var(--space-4);
+    }
+}
+
+/* Catalog + detail product photos — keep visible at every breakpoint (WebKit mobile paint) */
+.products-grid .product-card,
+.products-section .product-card {
+    transform: none !important;
+    -webkit-transform: none !important;
+    backface-visibility: visible !important;
+    -webkit-backface-visibility: visible !important;
+    contain: layout style;
+}
+
+.products-grid .product-card .product-image,
+.products-section .product-card .product-image,
+.product-link .product-image {
+    transform: none !important;
+    -webkit-transform: none !important;
+    opacity: 1 !important;
+    content-visibility: visible !important;
+}
+
+@media (min-width: 768px) {
+    .product-main-image {
+        min-height: 320px;
+    }
+}
+
+@media (min-width: 1024px) {
+    .product-main-image {
+        min-height: 400px;
+    }
+}
+
+@media (min-width: 480px) and (max-width: 767px) {
+    .products-section .product-image {
+        height: 200px;
     }
 }
 

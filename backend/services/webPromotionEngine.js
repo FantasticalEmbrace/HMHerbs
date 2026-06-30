@@ -532,7 +532,19 @@ async function enrichCartLines(pool, normalizedItems) {
     return enriched;
 }
 
-async function loadActivePromotionByCode(pool, rawCode) {
+function promotionAppliesWeb(promotion) {
+    if (!promotion) return false;
+    if (promotion.applies_web == null || promotion.applies_web === undefined) return true;
+    return Number(promotion.applies_web) !== 0;
+}
+
+function promotionAppliesPos(promotion) {
+    if (!promotion) return false;
+    if (promotion.applies_pos == null || promotion.applies_pos === undefined) return true;
+    return Number(promotion.applies_pos) !== 0;
+}
+
+async function loadActivePromotionByCode(pool, rawCode, { channel = 'web' } = {}) {
     const trimmed = String(rawCode || '').trim();
     if (!trimmed) return null;
     const [rows] = await pool.execute(
@@ -544,7 +556,11 @@ async function loadActivePromotionByCode(pool, rawCode) {
          LIMIT 1`,
         [trimmed]
     );
-    return rows[0] || null;
+    const promotion = rows[0] || null;
+    if (!promotion) return null;
+    if (channel === 'web' && !promotionAppliesWeb(promotion)) return null;
+    if (channel === 'pos' && !promotionAppliesPos(promotion)) return null;
+    return promotion;
 }
 
 async function promotionUsageExceeded(pool, promotion, email) {
@@ -613,7 +629,7 @@ async function previewOrApplyTotals(pool, {
     }
 
     if (trimmedCode) {
-        promotion = await loadActivePromotionByCode(pool, trimmedCode);
+        promotion = await loadActivePromotionByCode(pool, trimmedCode, { channel: 'web' });
         if (!promotion) {
             const err = new Error('INVALID_PROMO_CODE');
             err.code = 'INVALID_PROMO_CODE';
@@ -765,5 +781,7 @@ module.exports = {
     evaluateTotals,
     previewOrApplyTotals,
     calculateTotal,
-    insertRedemptionRow
+    insertRedemptionRow,
+    promotionAppliesWeb,
+    promotionAppliesPos
 };

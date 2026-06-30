@@ -166,6 +166,15 @@ class InventoryService {
     ) {
         // Get current inventory
         let currentInventory, tableName, idField;
+
+        const [parentProducts] = await connection.execute(
+            'SELECT track_inventory, allow_backorder FROM products WHERE id = ?',
+            [productId]
+        );
+        const parentProduct = parentProducts[0];
+        if (parentProduct && !parentProduct.track_inventory) {
+            return { productId, variantId, skipped: true, reason: 'Inventory tracking disabled' };
+        }
         
         if (variantId) {
             const [variants] = await connection.execute(

@@ -1,8 +1,8 @@
 // H&M Herbs & Vitamins - Service Worker
 // Progressive Web App functionality with offline support
 
-const STATIC_CACHE = 'hmherbs-static-v1.0.45';
-const DYNAMIC_CACHE = 'hmherbs-dynamic-v1.0.45';
+const STATIC_CACHE = 'hmherbs-static-v1.0.48';
+const DYNAMIC_CACHE = 'hmherbs-dynamic-v1.0.48';
 
 // Files to cache for offline functionality
 const STATIC_FILES = [
@@ -119,6 +119,11 @@ self.addEventListener('fetch', event => {
     return;
   }
 
+  // Business One POS is a separate PWA under /pos/ — never intercept it with the HM Herbs SW.
+  if (url.pathname === '/pos' || url.pathname.startsWith('/pos/')) {
+    return;
+  }
+
   // Full document navigations: never use handleNavigationRequest (offline 503 HTML confused DevTools + broke product.html)
   if (request.mode === 'navigate') {
     return;
@@ -152,6 +157,9 @@ self.addEventListener('fetch', event => {
     url.pathname === '/gdpr-compliance.js' ||
     url.pathname === '/js/edsa-ui.js' ||
     url.pathname === '/js/edsa-booking.js' ||
+    url.pathname === '/css/edsa-booking.css' ||
+    url.pathname === '/js/products.js' ||
+    url.pathname === '/products.html' ||
     url.pathname === '/js/edsa-confirmation.js' ||
     url.pathname === '/js/edsa-manage-appointment.js' ||
     url.pathname === '/edsa-confirmation.html' ||

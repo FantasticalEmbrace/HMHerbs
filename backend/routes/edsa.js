@@ -1,6 +1,7 @@
 // EDSA (Electro Dermal Stress Analysis) Service Routes
 const express = require('express');
 const router = express.Router();
+const jwt = require('jsonwebtoken');
 const logger = require('../utils/logger');
 const {
     edsaBookingValidation,
@@ -30,7 +31,8 @@ const {
     slotsForBlockedDay
 } = require('../utils/edsaAvailability');
 const { listBlockedDates, blockedDateSet } = require('../services/edsaBlockedDates');
-const { nmiSale } = require('../services/nmiGateway');
+const { nmiSale, nmiVoid } = require('../services/nmiGateway');
+const nmiVaultCards = require('../services/nmiVaultCards');
 const {
     getNmiPrivateApiKey,
     getNmiPublicTokenizationKey,
@@ -38,9 +40,30 @@ const {
     isNmiSandboxHint,
     isNmiWalletsDisabled
 } = require('../utils/nmiEnv');
+const { withTimeout } = require('../utils/withTimeout');
 
 function isEdsaPaymentConfigured() {
     return Boolean(getNmiPrivateApiKey() && getNmiPublicTokenizationKey());
+}
+
+async function getAuthenticatedUserFromRequest(req) {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    if (!token || !process.env.JWT_SECRET) return null;
+
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const userId = Number(decoded?.userId ?? decoded?.id ?? decoded?.sub);
+        if (!Number.isInteger(userId) || userId <= 0) return null;
+
+        const [rows] = await req.pool.execute(
+            'SELECT id, email, first_name, last_name, phone FROM users WHERE id = ? AND is_active = 1 LIMIT 1',
+            [userId]
+        );
+        return rows[0] || null;
+    } catch {
+        return null;
+    }
 }
 
 async function getEdsaServicePrice(pool) {
@@ -58,7 +81,7 @@ function finalizeSlotAvailability(dateYmd, slots, blockedSet) {
     return applyPastTimeFilter(dateYmd, slots);
 }
 
-/** HH:MM times held by pending/confirmed website bookings (not Google Calendar alone). */
+/** HH:MM times held by paid, confirmed website bookings only (unpaid attempts do not reserve slots). */
 async function getActiveBookedTimesForDate(pool, dateStr, excludeBookingId = null) {
     const excludeId = Number(excludeBookingId);
     const hasExclude = Number.isFinite(excludeId) && excludeId > 0;
@@ -69,7 +92,7 @@ async function getActiveBookedTimesForDate(pool, dateStr, excludeBookingId = nul
         `SELECT preferred_time AS slot_time
            FROM edsa_bookings
           WHERE preferred_date = ?
-            AND status IN ('pending', 'confirmed')${excludeSql}`,
+            AND status = 'confirmed'${excludeSql}`,
         params
     );
     const times = new Set();
@@ -170,10 +193,20 @@ async function isSlotAvailable(pool, dateStr, timeHm, excludeBookingId = null) {
 
     await googleCalendar.ensureInitialized(pool);
     if (googleCalendar.isAvailable()) {
-        const slots = await googleCalendar.getAvailableSlots(dateYmd, pool);
-        const match = slots.find((s) => s.time === normalizedTime);
-        if (match && !match.available) {
-            return false;
+        try {
+            const slots = await withTimeout(
+                googleCalendar.getAvailableSlots(dateYmd, pool),
+                8000,
+                'Google Calendar slot check'
+            );
+            const match = slots.find((s) => s.time === normalizedTime);
+            if (match && !match.available) {
+                return false;
+            }
+        } catch (err) {
+            logger.warn('EDSA slot check: Google Calendar unavailable, using database only', {
+                error: err.message
+            });
         }
     }
     return true;
@@ -192,6 +225,10 @@ async function deleteBookingCalendarEvent(pool, eventId) {
 }
 
 async function syncBookingCalendarEvent(pool, row) {
+    if (!isEdsaBookingFinalized(row)) {
+        return;
+    }
+
     const bookingId = row.id;
     const payload = {
         firstName: row.first_name,
@@ -221,6 +258,102 @@ async function syncBookingCalendarEvent(pool, row) {
         }
     } catch (err) {
         logger.error('Google Calendar sync error:', err.message);
+    }
+}
+
+function isEdsaBookingFinalized(row) {
+    if (!row) return false;
+    if (String(row.status || '').toLowerCase() !== 'confirmed') return false;
+    const pay = String(row.payment_status || 'paid').toLowerCase();
+    return pay === 'paid';
+}
+
+async function finalizeEdsaBookingAfterInsert(pool, bookingId, payload) {
+    const {
+        firstName,
+        lastName,
+        email,
+        phone,
+        preferredDate,
+        preferredTime,
+        notes
+    } = payload;
+
+    try {
+        await googleCalendar.ensureInitialized(pool);
+        if (googleCalendar.isAvailable()) {
+            const calendarEvent = await withTimeout(
+                googleCalendar.createEvent(
+                    {
+                        firstName,
+                        lastName,
+                        email,
+                        phone,
+                        preferredDate,
+                        preferredTime,
+                        notes: notes || null,
+                        bookingId
+                    },
+                    pool
+                ),
+                12000,
+                'Google Calendar create event'
+            );
+
+            if (calendarEvent?.eventId) {
+                try {
+                    await pool.execute(
+                        'UPDATE edsa_bookings SET google_calendar_event_id = ? WHERE id = ?',
+                        [calendarEvent.eventId, bookingId]
+                    );
+                } catch (dbError) {
+                    logger.warn(
+                        'Could not store calendar event ID (column may not exist):',
+                        dbError.message
+                    );
+                }
+            }
+        }
+    } catch (calendarError) {
+        logger.error('Google Calendar sync error (booking still saved):', calendarError);
+    }
+
+    try {
+        await withTimeout(
+            sendEdsaBookingConfirmations(bookingId, {
+                firstName,
+                lastName,
+                email,
+                phone,
+                preferredDate,
+                preferredTime,
+                notes: notes || null
+            }),
+            15000,
+            'EDSA confirmation email'
+        );
+    } catch (emailErr) {
+        logger.error('EDSA booking notification email error (booking saved):', emailErr);
+    }
+}
+
+async function sendEdsaBookingConfirmations(bookingId, emailFields) {
+    const emailPayload = {
+        bookingId,
+        firstName: emailFields.firstName,
+        lastName: emailFields.lastName,
+        email: emailFields.email,
+        phone: emailFields.phone,
+        preferredDate: emailFields.preferredDate,
+        preferredTime: emailFields.preferredTime
+    };
+    try {
+        await Promise.all([
+            sendBookingReceivedEmail(emailPayload),
+            sendBookingReceivedStoreEmail(emailPayload)
+        ]);
+    } catch (emailErr) {
+        logger.error('EDSA booking notification email error (booking saved):', emailErr);
     }
 }
 
@@ -302,6 +435,15 @@ router.get('/booking-context', async (req, res) => {
         const blocked = await listBlockedDates(req.pool, from, to);
         const price = await getEdsaServicePrice(req.pool);
         const paymentConfigured = isEdsaPaymentConfigured();
+        const authUser = await getAuthenticatedUserFromRequest(req);
+        let savedCards = [];
+        if (authUser) {
+            try {
+                savedCards = await nmiVaultCards.listUserVaultCards(req.pool, authUser.id);
+            } catch (cardErr) {
+                logger.warn('EDSA booking-context saved cards:', cardErr.message);
+            }
+        }
 
         res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
         res.json({
@@ -311,6 +453,8 @@ router.get('/booking-context', async (req, res) => {
             price,
             paymentRequired: paymentConfigured,
             paymentEnabled: paymentConfigured,
+            isLoggedIn: Boolean(authUser),
+            savedCards,
             paymentConfig: paymentConfigured
                 ? {
                       tokenizationKey: getNmiPublicTokenizationKey(),
@@ -389,16 +533,30 @@ router.post('/book', edsaBookingValidation, async (req, res) => {
             alternativeDate,
             alternativeTime,
             notes,
-            payment_token: paymentTokenRaw
+            payment_token: paymentTokenRaw,
+            savedCardId: savedCardIdRaw
         } = req.body;
 
         const paymentRequired = isEdsaPaymentConfigured();
         const payment_token = String(paymentTokenRaw || '').trim();
-        if (paymentRequired && !payment_token) {
-            return res.status(400).json({
-                error: 'Payment is required to book your EDSA session.',
-                code: 'PAYMENT_REQUIRED'
-            });
+        const savedCardId =
+            savedCardIdRaw != null && savedCardIdRaw !== '' ? Number(savedCardIdRaw) : null;
+        const authUser = await getAuthenticatedUserFromRequest(req);
+
+        if (paymentRequired) {
+            const hasSavedCard = Number.isFinite(savedCardId) && savedCardId > 0;
+            if (!payment_token && !hasSavedCard) {
+                return res.status(400).json({
+                    error: 'Payment is required to book your EDSA session.',
+                    code: 'PAYMENT_REQUIRED'
+                });
+            }
+            if (hasSavedCard && !authUser) {
+                return res.status(401).json({
+                    error: 'Sign in to use your saved payment method.',
+                    code: 'AUTH_REQUIRED'
+                });
+            }
         }
 
         // Validate required fields
@@ -457,18 +615,69 @@ router.post('/book', edsaBookingValidation, async (req, res) => {
 
         const servicePrice = await getEdsaServicePrice(req.pool);
         const amountStr = servicePrice.toFixed(2);
-        const initialStatus = paymentRequired ? 'pending' : 'confirmed';
-        const initialPaymentStatus = paymentRequired ? 'pending' : 'paid';
+        let paymentReference = null;
+        let amountCharged = servicePrice;
 
-        // Create booking (pending until payment succeeds when NMI is configured)
+        if (paymentRequired) {
+            let pay;
+            if (Number.isFinite(savedCardId) && savedCardId > 0) {
+                pay = await nmiVaultCards.chargeVaultCard(
+                    req.pool,
+                    authUser.id,
+                    savedCardId,
+                    amountStr
+                );
+            } else {
+                pay = await nmiSale({
+                    securityKey: getNmiPrivateApiKey(),
+                    amount: amountStr,
+                    paymentToken: payment_token
+                });
+            }
+
+            if (!pay.ok) {
+                return res.status(402).json({
+                    error: pay.responseText || 'Payment was declined. Your appointment was not booked.',
+                    code: 'PAYMENT_FAILED'
+                });
+            }
+
+            paymentReference = pay.transactionId || null;
+
+            if (!(await isSlotAvailable(req.pool, preferredDate, normalizedTime))) {
+                if (paymentReference) {
+                    const voidResult = await nmiVoid({
+                        securityKey: getNmiPrivateApiKey(),
+                        transactionId: paymentReference
+                    });
+                    if (!voidResult.ok) {
+                        logger.error('EDSA void failed after slot conflict', {
+                            bookingAttempt: { preferredDate, normalizedTime, paymentReference },
+                            voidResult
+                        });
+                        return res.status(409).json({
+                            error:
+                                'That time was just booked by someone else. Please contact the store — your payment may need a manual refund.',
+                            code: 'SLOT_TAKEN'
+                        });
+                    }
+                }
+                return res.status(409).json({
+                    error:
+                        'That time was just booked by someone else. Your card was not charged — please choose another slot.',
+                    code: 'SLOT_TAKEN'
+                });
+            }
+        }
+
         const [result] = await req.pool.execute(`
             INSERT INTO edsa_bookings (
                 user_id, first_name, last_name, email, phone,
                 preferred_date, preferred_time, alternative_date, alternative_time, notes,
-                status, confirmed_date, confirmed_time, payment_status, amount_charged
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                status, confirmed_date, confirmed_time, payment_status, amount_charged, payment_reference
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
-            req.user?.id || null,
+            authUser?.id || null,
             firstName,
             lastName,
             email,
@@ -478,121 +687,48 @@ router.post('/book', edsaBookingValidation, async (req, res) => {
             alternativeDate || null,
             alternativeTime || null,
             notes || null,
-            initialStatus,
-            paymentRequired ? null : preferredDate,
-            paymentRequired ? null : preferredTime,
-            initialPaymentStatus,
-            paymentRequired ? null : servicePrice
+            'confirmed',
+            preferredDate,
+            normalizedTime,
+            'paid',
+            amountCharged,
+            paymentReference
         ]);
 
         const bookingId = Number(result.insertId);
 
-        if (paymentRequired) {
-            const pay = await nmiSale({
-                securityKey: getNmiPrivateApiKey(),
-                amount: amountStr,
-                paymentToken: payment_token
-            });
-
-            if (!pay.ok) {
-                await req.pool.execute(
-                    'DELETE FROM edsa_bookings WHERE id = ? AND status = ?',
-                    [bookingId, 'pending']
-                );
-                return res.status(402).json({
-                    error: pay.responseText || 'Payment was declined. Your appointment was not booked.',
-                    code: 'PAYMENT_FAILED'
-                });
-            }
-
-            await req.pool.execute(
-                `UPDATE edsa_bookings
-                    SET status = 'confirmed',
-                        confirmed_date = ?,
-                        confirmed_time = ?,
-                        payment_status = 'paid',
-                        payment_reference = ?,
-                        amount_charged = ?,
-                        updated_at = CURRENT_TIMESTAMP
-                  WHERE id = ?`,
-                [preferredDate, normalizedTime, pay.transactionId, servicePrice, bookingId]
-            );
-        }
-
-        // Create Google Calendar event for HM Herbs
-        let calendarEvent = null;
-        await googleCalendar.ensureInitialized(req.pool);
-        if (googleCalendar.isAvailable()) {
-            try {
-                calendarEvent = await googleCalendar.createEvent(
-                    {
-                        firstName,
-                        lastName,
-                        email,
-                        phone,
-                        preferredDate,
-                        preferredTime,
-                        notes: notes || null,
-                        bookingId,
-                    },
-                    req.pool
-                );
-
-                // Store Google Calendar event ID in database (if column exists)
-                if (calendarEvent && calendarEvent.eventId) {
-                    try {
-                        await req.pool.execute(
-                            'UPDATE edsa_bookings SET google_calendar_event_id = ? WHERE id = ?',
-                            [calendarEvent.eventId, bookingId]
-                        );
-                    } catch (dbError) {
-                        // Column might not exist yet - that's okay
-                        logger.warn('Could not store calendar event ID (column may not exist):', dbError.message);
-                    }
-                }
-            } catch (calendarError) {
-                logger.error('Google Calendar sync error (booking still saved):', calendarError);
-                // Don't fail the booking if calendar sync fails
-            }
-        }
-
-        const emailPayload = {
-            bookingId: Number.isFinite(bookingId) ? bookingId : result.insertId,
-            firstName,
-            lastName,
-            email,
-            phone,
-            preferredDate,
-            preferredTime
-        };
-        try {
-            await Promise.all([
-                sendBookingReceivedEmail(emailPayload),
-                sendBookingReceivedStoreEmail(emailPayload)
-            ]);
-        } catch (emailErr) {
-            logger.error('EDSA booking notification email error (booking saved):', emailErr);
-        }
+        const shouldFinalize = !paymentRequired || Boolean(paymentReference);
 
         res.status(201).json({
             message: 'EDSA appointment booking submitted successfully',
             bookingId: Number.isFinite(bookingId) ? bookingId : result.insertId,
             status: 'confirmed',
-            paymentStatus: paymentRequired ? 'paid' : 'paid',
-            amountCharged: paymentRequired ? servicePrice : servicePrice,
+            paymentStatus: 'paid',
+            amountCharged,
             firstName,
             lastName,
             email,
             preferredDate,
-            preferredTime,
-            calendarEvent: calendarEvent ? {
-                created: true,
-                link: calendarEvent.htmlLink
-            } : {
+            preferredTime: normalizedTime,
+            calendarEvent: {
                 created: false,
-                message: 'Calendar sync not available'
+                message: shouldFinalize
+                    ? 'Calendar and confirmation emails are being sent'
+                    : 'Calendar sync not available'
             }
         });
+
+        if (shouldFinalize) {
+            void finalizeEdsaBookingAfterInsert(req.pool, bookingId, {
+                firstName,
+                lastName,
+                email,
+                phone,
+                preferredDate,
+                preferredTime: normalizedTime,
+                notes: notes || null
+            });
+        }
     } catch (error) {
         logger.error('EDSA booking error:', error);
         res.status(500).json({ error: 'Internal server error' });
@@ -884,13 +1020,28 @@ router.put('/bookings/:id/cancel', async (req, res) => {
     }
 });
 
-// Create calendar event endpoint (for frontend use)
+// Create calendar event endpoint (admin/legacy — only for paid, confirmed bookings)
 router.post('/create-calendar-event', async (req, res) => {
     try {
         const { bookingId, eventDetails } = req.body;
 
         if (!bookingId || !eventDetails) {
             return res.status(400).json({ error: 'bookingId and eventDetails are required' });
+        }
+
+        const [rows] = await req.pool.execute(
+            `SELECT id, status, payment_status, google_calendar_event_id
+               FROM edsa_bookings WHERE id = ? LIMIT 1`,
+            [bookingId]
+        );
+        if (!rows.length) {
+            return res.status(404).json({ error: 'Booking not found' });
+        }
+        if (!isEdsaBookingFinalized(rows[0])) {
+            return res.status(402).json({
+                error: 'Calendar events are only created after payment is complete.',
+                code: 'PAYMENT_REQUIRED'
+            });
         }
 
         await googleCalendar.ensureInitialized(req.pool);

@@ -8,6 +8,11 @@ backend/.env
 .env.local
 .env.*.local
 deploy/db-connection.env
+deploy/miami-provision.state.json
+deploy/miami-mysql.state.json
+deploy/hmherbs-miami-ca-certificate.crt
+deploy/.linode-token
+deploy/db-connection-miami.server.env
 
 # Google Calendar credentials
 backend/config/google-credentials.json
@@ -67,3 +72,14 @@ coverage/
 
 # Generated SEO migration exports (re-run npm scripts to recreate)
 scripts/seo-migration/output/
+
+# Separate project — lives at ../rankin-remodeling with its own repo
+rankin-remodeling/
+
+# Business One marketing — separate repo at ../businessone-marketing
+
+# One-off local debug scripts (not part of the product)
+backend/scripts/_*.js
+
+# POS register app — separate repo at ../business-one-pos
+business-one-pos/

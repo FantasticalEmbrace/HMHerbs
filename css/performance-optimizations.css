@@ -16,13 +16,22 @@
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
-/* GPU acceleration for smooth animations — exclude .navbar (breaks header toolbar clicks) */
+/* GPU acceleration — exclude product cards (translateZ breaks <img> painting on mobile WebKit) */
 .btn,
-.product-card,
 .modal {
   will-change: transform;
   transform: translateZ(0);
   /* Force GPU layer */
+}
+
+/* EDSA booking modal must stay transform-free or fixed centering breaks */
+#edsa-booking-modal,
+#edsa-booking-modal *,
+.edsa-modal,
+.edsa-modal * {
+  will-change: auto !important;
+  transform: none !important;
+  -webkit-transform: none !important;
 }
 
 /* Optimize expensive CSS properties */
@@ -41,20 +50,12 @@
   contain: layout;
 }
 
-/* Optimize images for performance */
+/* Optimize images for performance — avoid content-visibility:auto (skips paint on mobile) */
 .product-image,
 .hero-image,
 .logo {
-  /* Prevent layout shift during image loading */
-  aspect-ratio: attr(width) / attr(height);
   object-fit: cover;
-
-  /* Optimize image rendering */
-  image-rendering: -webkit-optimize-contrast;
-  image-rendering: crisp-edges;
-
-  /* Lazy loading hint */
-  content-visibility: auto;
+  image-rendering: auto;
 }
 
 /* Critical path CSS - inline these styles */

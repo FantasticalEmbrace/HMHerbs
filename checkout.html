@@ -20,17 +20,21 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <!-- Stylesheets -->
-    <link rel="stylesheet" href="css/emergency-fixes.css">
+    <link rel="stylesheet" href="css/emergency-fixes.css?v=mobile-nav-4">
     <link rel="stylesheet" href="css/hm-notify.css">
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=mobile-nav-4">
     <link rel="stylesheet" href="css/hm-accent-links.css">
     <link rel="stylesheet" href="css/mobile-enhancements.css">
+    <link rel="stylesheet" href="css/mobile-nav.css?v=mobile-nav-4">
     <link rel="stylesheet" href="css/customer-auth.css">
     <link rel="stylesheet" href="css/hm-close-controls.css">
     <link rel="stylesheet" href="css/site-promo-banner.css">
     <link rel="stylesheet" href="css/age-gate.css">
+    <link rel="stylesheet" href="css/hm-popups-brand.css">
     <link rel="stylesheet" href="css/hm-gift-card.css">
     <link rel="stylesheet" href="css/hm-choice-toggles.css">
+
+    <script src="js/mobile-menu.js?v=mobile-nav-4"></script>
 
     <style>
         .checkout-container {
@@ -284,6 +288,19 @@
         .checkbox-group input[type="checkbox"]:not(.hm-choice-input) {
             width: auto;
             margin-right: var(--space-2);
+        }
+
+        .checkout-shipping-option input[type="radio"] {
+            width: 1.125rem;
+            height: 1.125rem;
+            margin-top: 0.2rem;
+            accent-color: var(--primary-green);
+            flex-shrink: 0;
+        }
+
+        .checkout-shipping-option:has(input:checked) {
+            border-color: var(--primary-green);
+            background: rgba(45, 90, 39, 0.04);
         }
 
         .order-summary {
@@ -594,20 +611,30 @@
 
 <body>
     <!-- Header -->
-    <header class="header">
-        <div class="container">
-            <div class="header-content">
-                <a href="index.html" class="logo">
-                    <img src="images/HM%20Herb%20Logo.png" alt="H&M Herbs & Vitamins" class="logo-wordmark" loading="eager">
-                </a>
-                <nav class="nav-menu" id="nav-menu">
-                    <a href="index.html" class="nav-link">Home</a>
-                    <a href="products.html" class="nav-link">Products</a>
-                    <a href="index.html#edsa-service" class="nav-link edsa-nav-link">EDSA Service</a>
-                    <a href="index.html#about" class="nav-link">About</a>
-                    <a href="index.html#contact" class="nav-link">Contact</a>
-                </nav>
-                <div class="header-actions">
+    <header class="header" role="banner">
+        <div class="main-header">
+            <div class="container">
+                <nav class="navbar" role="navigation" aria-label="Main navigation">
+                    <a href="index.html" class="logo" aria-label="H&M Herbs & Vitamins - Home">
+                        <img src="images/HM%20Herb%20Logo.png" alt="H&M Herbs & Vitamins" class="logo-wordmark" loading="eager">
+                    </a>
+
+                    <button class="mobile-menu-toggle" aria-expanded="false" aria-controls="nav-menu"
+                        aria-label="Toggle navigation menu">
+                        <span class="hamburger-line"></span>
+                        <span class="hamburger-line"></span>
+                        <span class="hamburger-line"></span>
+                    </button>
+
+                    <ul class="nav-menu" id="nav-menu" role="menubar">
+                        <li role="none"><a href="index.html" class="nav-link" role="menuitem">Home</a></li>
+                        <li role="none"><a href="products.html" class="nav-link" role="menuitem">Products</a></li>
+                        <li role="none"><a href="index.html#edsa-service" class="nav-link edsa-nav-link" role="menuitem">EDSA Service</a></li>
+                        <li role="none"><a href="index.html#about" class="nav-link" role="menuitem">About</a></li>
+                        <li role="none"><a href="index.html#contact" class="nav-link" role="menuitem">Contact</a></li>
+                    </ul>
+
+                    <div class="header-actions">
                     <!-- Customer Account/Login -->
                     <div class="customer-auth-container">
                         <div id="customer-auth-guest" class="auth-state-panel">
@@ -635,12 +662,7 @@
                         </div>
                     </div>
                 </div>
-                <button class="mobile-menu-toggle" id="mobile-menu-toggle" aria-label="Toggle menu"
-                    aria-expanded="false">
-                    <span></span>
-                    <span></span>
-                    <span></span>
-                </button>
+                </nav>
             </div>
         </div>
     </header>
@@ -856,19 +878,19 @@
                                     </label>
                                 </div>
                                 <div class="form-group">
-                                    <label for="ccnumber">Card number <span class="required">*</span></label>
-                                    <div id="ccnumber" class="nmi-field-host" aria-label="Card number"></div>
+                                    <span id="ccnumber-label" class="form-label">Card number <span class="required">*</span></span>
+                                    <div id="ccnumber" class="nmi-field-host" role="group" aria-labelledby="ccnumber-label"></div>
                                     <span class="error-message">Card number is required</span>
                                 </div>
                                 <div class="form-row">
                                     <div class="form-group">
-                                        <label for="ccexp">Expiry <span class="required">*</span></label>
-                                        <div id="ccexp" class="nmi-field-host" aria-label="Expiry"></div>
+                                        <span id="ccexp-label" class="form-label">Expiry <span class="required">*</span></span>
+                                        <div id="ccexp" class="nmi-field-host" role="group" aria-labelledby="ccexp-label"></div>
                                         <span class="error-message">Expiry is required</span>
                                     </div>
                                     <div class="form-group">
-                                        <label for="cvv">CVV <span class="required">*</span></label>
-                                        <div id="cvv" class="nmi-field-host" aria-label="CVV"></div>
+                                        <span id="cvv-label" class="form-label">CVV <span class="required">*</span></span>
+                                        <div id="cvv" class="nmi-field-host" role="group" aria-labelledby="cvv-label"></div>
                                         <span class="error-message">CVV is required</span>
                                     </div>
                                 </div>
@@ -1149,10 +1171,10 @@
                 </div>
 
                 <!-- Information -->
-                <div class="footer-section">
+                <div class="footer-section footer-info-section">
                     <h4>Information</h4>
                     <ul>
-                        <li><a href="index.html#about">About Us</a></li>
+                        <li><a href="about.html">About Us</a></li>
                         <li><a href="shipping-returns.html">Shipping & Returns</a></li>
                         <li><a href="index.html#contact">Contact Us</a></li>
                     </ul>
@@ -1282,16 +1304,58 @@
                             autocomplete="email">
                     </div>
                     <div class="form-group">
-                        <input type="tel" id="register-phone" class="form-input" placeholder="(555) 555-0100 (optional)"
-                            maxlength="14" inputmode="numeric" autocomplete="tel">
-                    </div>
-                    <div class="form-group">
                         <label for="register-date-of-birth">Date of birth <span class="text-required"
                                 aria-hidden="true">*</span></label>
-                        <input type="date" id="register-date-of-birth" class="form-input" autocomplete="off" required
+                        <input type="date" id="register-date-of-birth" class="form-input" autocomplete="bday" required
                             title="Required. You must be 21 or older."
                             aria-describedby="register-dob-help">
                         <small id="register-dob-help" class="form-help">Required — must match our 21+ age policy.</small>
+                    </div>
+                    <div class="register-optional-contact" id="register-optional-contact">
+                        <button type="button" class="register-optional-toggle" id="register-contact-toggle"
+                            aria-expanded="false" aria-controls="register-contact-panel">
+                            <span class="register-optional-toggle-label">Add phone &amp; mailing address</span>
+                            <span class="register-optional-toggle-hint">(optional)</span>
+                        </button>
+                        <div id="register-contact-panel" class="register-optional-panel" hidden>
+                            <div class="form-group">
+                                <label for="register-phone">Phone</label>
+                                <input type="tel" id="register-phone" class="form-input"
+                                    placeholder="(555) 555-0100" maxlength="14" inputmode="numeric"
+                                    autocomplete="tel">
+                            </div>
+                            <p class="form-help register-address-intro">Start typing your street address for suggestions, or enter it manually.</p>
+                            <div class="form-group">
+                                <label for="register-address-line1">Street address</label>
+                                <input type="text" id="register-address-line1" class="form-input"
+                                    placeholder="123 Main St" autocomplete="address-line1">
+                            </div>
+                            <div class="form-group">
+                                <label for="register-address-line2">Apt / suite <span class="form-optional">(optional)</span></label>
+                                <input type="text" id="register-address-line2" class="form-input"
+                                    placeholder="Apt 4B" autocomplete="address-line2">
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="register-address-city">City</label>
+                                    <input type="text" id="register-address-city" class="form-input"
+                                        placeholder="Hattiesburg" autocomplete="address-level2">
+                                </div>
+                                <div class="form-group">
+                                    <label for="register-address-state">State</label>
+                                    <input type="text" id="register-address-state" class="form-input"
+                                        placeholder="MS" maxlength="2" autocapitalize="characters"
+                                        autocomplete="address-level1" aria-describedby="register-state-help">
+                                    <small id="register-state-help" class="form-help">2-letter code</small>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="register-address-zip">ZIP code</label>
+                                <input type="text" id="register-address-zip" class="form-input"
+                                    placeholder="39401" inputmode="numeric" maxlength="10"
+                                    autocomplete="postal-code">
+                            </div>
+                        </div>
                     </div>
                     <div class="form-group">
                         <input type="password" id="register-password" class="form-input" placeholder="Password" required
@@ -1317,9 +1381,8 @@
     <script src="js/age-gate.js" defer></script>
     <script src="js/site-promo-banner.js" defer></script>
     <script src="js/site-store-info.js" defer></script>
-    <script src="js/mobile-menu.js"></script>
     <script src="js/nav-current-page.js"></script>
-    <script src="js/section-nav.js"></script>
+    <script src="js/section-nav.js?v=mobile-nav-4"></script>
     <script src="js/hm-notify.js"></script>
     <script src="js/visual-bug-fixes.js"></script>
     <script src="js/phone-us-format.js"></script>
@@ -1328,7 +1391,7 @@
     <!-- Optional NMI public key fallback (see file header). Primary: backend .env → /api/payments/nmi-client-config -->
     <script src="js/nmi-public-token.js" defer></script>
     <script src="js/hm-gift-card.js"></script>
-    <script src="js/checkout.js?v=20260522-wallets" defer></script>
+    <script src="js/checkout.js?v=20260629c" defer></script>
     <script src="script.js" defer></script>
     <script src="js/hm-choice-toggles.js"></script>
     <script src="gdpr-compliance.js?v=20260617a" defer></script>

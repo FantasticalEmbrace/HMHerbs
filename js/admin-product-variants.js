@@ -110,6 +110,9 @@
 
         function addVariantRow(data = {}) {
             const tr = document.createElement('tr');
+            if (data.id != null && data.id !== '') {
+                tr.dataset.variantId = String(data.id);
+            }
             tr.innerHTML = `
                 <td style="padding:0.35rem;"><input type="text" class="form-input hm-v-name" value="${escapeHtml(data.name || '')}" placeholder="1 - Tube #19954 - $19.99" style="width:100%;min-width:160px;"></td>
                 <td style="padding:0.35rem;"><input type="text" class="form-input hm-v-sku" value="${escapeHtml(data.sku || '')}" placeholder="Auto" style="width:100%;min-width:100px;"></td>
@@ -171,6 +174,7 @@
                 const variants = product.variants || [];
                 variants.forEach((v) => {
                     addVariantRow({
+                        id: v.id,
                         name: v.name,
                         sku: v.sku,
                         price: v.price,
@@ -184,6 +188,8 @@
                 const variants = [...rowsEl.querySelectorAll('tr')].map((tr, idx) => {
                     const name = tr.querySelector('.hm-v-name').value.trim();
                     if (!name) return null;
+                    const idRaw = tr.dataset.variantId;
+                    const id = idRaw ? parseInt(idRaw, 10) : undefined;
                     const sku = tr.querySelector('.hm-v-sku').value.trim();
                     const price = parseFloat(tr.querySelector('.hm-v-price').value);
                     const inventory_quantity = parseInt(tr.querySelector('.hm-v-inventory').value, 10) || 0;
@@ -197,6 +203,7 @@
                         }
                     }
                     return {
+                        ...(Number.isFinite(id) ? { id } : {}),
                         name,
                         sku: sku || undefined,
                         price,

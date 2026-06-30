@@ -142,18 +142,22 @@
     function releaseScrollLocks() {
         if (!document.body) return;
 
-        document
-            .querySelectorAll('.nav-menu.show, #nav-menu.show, #navbar-menu.show')
-            .forEach((menu) => {
-                menu.classList.remove('show');
-                menu.style.cssText = '';
-                menu.querySelectorAll('li, a').forEach((el) => {
-                    el.style.cssText = '';
+        if (typeof window.hmCloseMobileMenus === 'function') {
+            window.hmCloseMobileMenus();
+        } else {
+            document
+                .querySelectorAll('.nav-menu.show, #nav-menu.show, #navbar-menu.show')
+                .forEach((menu) => {
+                    menu.classList.remove('show');
+                    menu.style.cssText = '';
+                    menu.querySelectorAll('li, a').forEach((el) => {
+                        el.style.cssText = '';
+                    });
                 });
+            document.querySelectorAll('.mobile-menu-toggle').forEach((toggle) => {
+                toggle.setAttribute('aria-expanded', 'false');
             });
-        document.querySelectorAll('.mobile-menu-toggle').forEach((toggle) => {
-            toggle.setAttribute('aria-expanded', 'false');
-        });
+        }
 
         const cartSidebar = document.getElementById('cart-sidebar');
         const cartOverlay = document.getElementById('cart-overlay');
@@ -169,13 +173,23 @@
             document.body.style.overflow = '';
             document.documentElement.style.overflow = '';
         }
+        document.documentElement.classList.remove(
+            'hm-age-gate-open',
+            'hm-await-edsa-scroll',
+            'hm-section-scroll-ready',
+            'hm-edsa-scroll-ready',
+            'edsa-ui-scroll-locked'
+        );
         document.body.classList.remove(
+            'hm-age-gate-open',
             'auth-modal-open',
             'edsa-modal-open',
+            'edsa-ui-scroll-locked',
             'modal-open',
             'no-scroll',
             'cart-open',
-            'checkout-nmi-active'
+            'checkout-nmi-active',
+            'hm-mobile-nav-open'
         );
     }
 
@@ -402,6 +416,11 @@
 
         if (isPageReloadNavigation() && isIndexPage()) {
             clearPendingSection();
+            document.documentElement.classList.remove(
+                'hm-await-edsa-scroll',
+                'hm-section-scroll-ready',
+                'hm-edsa-scroll-ready'
+            );
             try {
                 if (window.location.hash) {
                     history.replaceState(

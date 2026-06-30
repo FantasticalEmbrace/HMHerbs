@@ -12,13 +12,19 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap" rel="stylesheet">
     
     <!-- Styles -->
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="css/emergency-fixes.css?v=mobile-nav-4">
+    <link rel="stylesheet" href="styles.css?v=mobile-nav-4">
+    <link rel="stylesheet" href="css/hm-accent-links.css">
     <link rel="stylesheet" href="css/accessibility-enhancements.css">
     <link rel="stylesheet" href="css/mobile-enhancements.css">
+    <link rel="stylesheet" href="css/mobile-nav.css?v=mobile-nav-4">
     <link rel="stylesheet" href="css/hm-close-controls.css">
     <link rel="stylesheet" href="css/site-promo-banner.css">
     <link rel="stylesheet" href="css/age-gate.css">
+    <link rel="stylesheet" href="css/hm-popups-brand.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="js/mobile-menu.js?v=mobile-nav-4"></script>
+    <script src="js/nav-current-page.js"></script>
     
     <style>
         .privacy-container {
@@ -35,6 +41,7 @@
         
         .privacy-section {
             margin-bottom: var(--space-6);
+            scroll-margin-top: var(--space-6);
         }
         
         .privacy-section h2 {
@@ -84,6 +91,39 @@
     </style>
 </head>
 <body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+    <header class="header" role="banner">
+        <div class="main-header">
+            <div class="container">
+                <nav class="navbar" role="navigation" aria-label="Main navigation">
+                    <div class="logo">
+                        <a href="index.html" aria-label="H&M Herbs & Vitamins - Home">
+                            <img src="images/HM%20Herb%20Logo.png" alt="H&M Herbs & Vitamins" class="logo-wordmark" loading="eager">
+                        </a>
+                    </div>
+                    <button type="button" class="mobile-menu-toggle" aria-expanded="false" aria-controls="nav-menu"
+                        aria-label="Toggle navigation menu">
+                        <span class="hamburger-line"></span>
+                        <span class="hamburger-line"></span>
+                        <span class="hamburger-line"></span>
+                    </button>
+                    <ul class="nav-menu" id="nav-menu" role="menubar" aria-hidden="true">
+                        <li role="none"><a href="index.html" role="menuitem">Home</a></li>
+                        <li role="none"><a href="products.html" role="menuitem">Products</a></li>
+                        <li role="none"><a href="index.html#edsa-service" role="menuitem" class="edsa-nav-link">EDSA Service</a></li>
+                        <li role="none"><a href="about.html" role="menuitem">About</a></li>
+                        <li role="none"><a href="index.html#contact" role="menuitem">Contact</a></li>
+                    </ul>
+                    <div class="header-actions">
+                        <a href="products.html" class="auth-btn" aria-label="Shop products">
+                            <span class="auth-btn-text">Shop</span>
+                        </a>
+                    </div>
+                </nav>
+            </div>
+        </div>
+    </header>
+    <main id="main-content">
     <div class="privacy-container">
         <a href="/" class="back-link">← Back to Home</a>
         
@@ -179,8 +219,31 @@
             <p>We may update this privacy policy from time to time. We will notify you of any material changes by posting the new policy on this page and updating the "Last updated" date.</p>
         </div>
 
+        <div class="privacy-section" id="accessibility">
+            <h2>10. Accessibility</h2>
+            <p>H&amp;M Herbs &amp; Vitamins is committed to making our website usable for as many people as possible, including customers who use assistive technology or keyboard-only navigation.</p>
+            <h3>What we provide</h3>
+            <ul>
+                <li>Skip links on key pages so you can jump directly to main content</li>
+                <li>Visible keyboard focus indicators on interactive elements</li>
+                <li>Text alternatives for meaningful images where applicable</li>
+                <li>Semantic page structure with headings, landmarks, and labels for forms and navigation</li>
+                <li>Support for reduced motion and high-contrast preferences where possible</li>
+            </ul>
+            <h3>Ongoing improvements</h3>
+            <p>We continue to review our site against widely recognized accessibility guidelines (WCAG 2.1 Level AA) and improve pages, products, and checkout flows over time.</p>
+            <h3>Need help or found a barrier?</h3>
+            <p>If you have trouble using any part of this website, or need product information in an alternative format, please contact us and we will try to help you promptly:</p>
+            <div class="privacy-contact-box">
+                <p>
+                    Email: <a href="mailto:hmherbs1@gmail.com">hmherbs1@gmail.com</a><br>
+                    Phone: <a href="tel:+17068619454">706-861-9454</a>
+                </p>
+            </div>
+        </div>
+
         <div class="privacy-section">
-            <h2>10. Contact Us</h2>
+            <h2>11. Contact Us</h2>
             <div class="privacy-contact-box">
                 <p>If you have any questions about this privacy policy or our privacy practices, please contact us at:</p>
                 <p>
@@ -192,6 +255,7 @@
             </div>
         </div>
     </div>
+    </main>
 
     <!-- Footer -->
     <footer class="footer" role="contentinfo">
@@ -275,10 +339,10 @@
                 </div>
 
                 <!-- Information -->
-                <div class="footer-section">
+                <div class="footer-section footer-info-section">
                     <h4>Information</h4>
                     <ul>
-                        <li><a href="index.html#about">About Us</a></li>
+                        <li><a href="about.html">About Us</a></li>
                         <li><a href="shipping-returns.html">Shipping & Returns</a></li>
                         <li><a href="index.html#contact">Contact Us</a></li>
                     </ul>
@@ -326,7 +390,7 @@
     <script src="js/site-promo-banner.js" defer></script>
     <script src="js/site-store-info.js" defer></script>
     <script src="js/visual-bug-fixes.js"></script>
-    <script src="js/section-nav.js"></script>
+    <script src="js/section-nav.js?v=mobile-nav-4"></script>
     <script src="script.js" defer></script>
     <script src="gdpr-compliance.js?v=20260617a" defer></script>
 </body>
