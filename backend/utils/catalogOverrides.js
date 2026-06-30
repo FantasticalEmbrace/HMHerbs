@@ -8,8 +8,8 @@ const DEFAULT_FALLBACK_PRODUCT_IMAGE = '/images/products/advanced-blood-pressure
 
 function skuFromProductSlug(slug) {
     if (!slug || typeof slug !== 'string') return '';
-    const m = String(slug).match(/-sku-(\d{3,6})$/i);
-    return m ? m[1] : '';
+    const m = String(slug).match(/-sku-([a-z0-9-]+)$/i);
+    return m ? m[1].toUpperCase() : '';
 }
 
 function catalogPrimaryImageForSlug(slug) {

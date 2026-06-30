@@ -22,13 +22,20 @@ const BRAND_WEBSITE_FALLBACKS = [
     { re: /life\s*extension/i, url: 'https://www.lifeextension.com' },
     { re: /life[- ]?flo/i, url: 'https://www.lifeflo.com' },
     { re: /nature'?s\s+plus/i, url: 'https://www.naturesplus.com' },
+    { re: /nature'?s\s+sunshine/i, url: 'https://www.naturessunshine.com' },
     { re: /irwin/i, url: 'https://www.irwinnaturals.com' },
     { re: /hemp\s*bombs/i, url: 'https://hempbombs.com' },
     { re: /now\s*foods/i, url: 'https://www.nowfoods.com' },
     { re: /terry\s*naturally/i, url: 'https://www.terrynaturally.com' },
     { re: /buried\s*treasure/i, url: 'https://www.buriedtreasure.com' },
     { re: /north\s*american\s*herb/i, url: 'https://www.northamericanherbandspice.com' },
-    { re: /newton/i, url: 'https://www.newtonlabs.net' }
+    { re: /newton/i, url: 'https://www.newtonlabs.net' },
+    { re: /standard\s*enzyme/i, url: 'https://www.standardprocess.com' },
+    { re: /regal\s*labs/i, url: 'https://www.regalabs.com' },
+    { re: /perrin/i, url: 'https://www.perrinsnaturals.com' },
+    { re: /our\s*father'?s\s*healing/i, url: 'https://www.ourfathershealingherbs.com' },
+    { re: /cardio\s*amaze/i, url: 'https://www.cardioamaze.com' },
+    { re: /doctor'?s\s*blend/i, url: 'https://www.doctorsblend.com' },
 ];
 
 function normalizeWebsiteUrl(raw) {
