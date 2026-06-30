@@ -4,6 +4,32 @@
 (function () {
     'use strict';
 
+    const QUICK_PRESETS = [
+        {
+            label: 'Dropper + Pill',
+            hint: 'Two forms — customer picks at checkout',
+            groups: [{ name: 'Form', values: ['Dropper', 'Pill'] }],
+        },
+        {
+            label: 'Liquid + Pellets',
+            hint: 'Newton-style homeopathics',
+            groups: [{ name: 'Form', values: ['1oz Liquid', '1oz Pellets'] }],
+        },
+        {
+            label: 'Sizes',
+            hint: '1oz, 2oz, 4oz bottles',
+            groups: [{ name: 'Size', values: ['1oz', '2oz', '4oz'] }],
+        },
+        {
+            label: 'Form + Size',
+            hint: 'Dropper or pill in multiple sizes',
+            groups: [
+                { name: 'Form', values: ['Dropper', 'Pill'] },
+                { name: 'Size', values: ['1oz', '2oz'] },
+            ],
+        },
+    ];
+
     function escapeHtml(str) {
         return String(str || '')
             .replace(/&/g, '&amp;')
@@ -34,7 +60,7 @@
 
     function buildVariantName(attrs, groups) {
         const parts = groups.map((g) => attrs[g.name]).filter(Boolean);
-        return parts.length ? parts.join(' / ') : Object.values(attrs).join(' / ');
+        return parts.length ? parts.join(' — ') : Object.values(attrs).join(' — ');
     }
 
     function mountVariantEditor(form, prefix) {
@@ -45,43 +71,51 @@
         section.style.borderBottom = '1px solid var(--gray-200)';
 
         section.innerHTML = `
-            <h3 style="font-size:1.1rem;font-weight:600;color:var(--primary-green);margin-bottom:0.5rem;">Variants &amp; Options</h3>
-            <p style="font-size:0.85rem;color:var(--gray-500);margin-bottom:1.25rem;">
-                Add option groups (Size, Form, Pack, etc.) and variant rows — like hmherbs.com pack dropdowns or size matrices.
+            <h3 style="font-size:1.1rem;font-weight:600;color:var(--primary-green);margin-bottom:0.35rem;">Product variants</h3>
+            <p style="font-size:0.85rem;color:var(--gray-500);margin-bottom:1rem;line-height:1.45;">
+                Use variants when a product comes in different forms (dropper vs pill), sizes, or packs.
+                Shoppers pick one option on the product page before adding to cart.
             </p>
+            <div style="margin-bottom:1.25rem;padding:0.85rem 1rem;background:var(--gray-50);border-radius:8px;border:1px solid var(--gray-200);">
+                <div style="font-weight:600;font-size:0.8rem;color:var(--gray-600);margin-bottom:0.5rem;">Quick start</div>
+                <div id="${prefix}-variant-presets" style="display:flex;flex-wrap:wrap;gap:0.5rem;"></div>
+            </div>
             <div class="hm-variant-groups-wrap" id="${prefix}-variant-groups-wrap">
-                <label style="display:block;font-weight:500;margin-bottom:0.5rem;font-size:0.875rem;">Option groups (for matrix)</label>
+                <label style="display:block;font-weight:500;margin-bottom:0.5rem;font-size:0.875rem;">Option groups</label>
+                <p style="font-size:0.8rem;color:var(--gray-500);margin:0 0 0.75rem;">Example: group <strong>Form</strong> with values <strong>Dropper, Pill</strong></p>
                 <div id="${prefix}-variant-groups"></div>
                 <button type="button" class="btn btn-secondary btn-sm" id="${prefix}-add-option-group" style="margin-top:0.5rem;">
                     <i class="fas fa-plus"></i> Add option group
                 </button>
             </div>
-            <div style="margin:1.25rem 0;display:flex;gap:0.5rem;flex-wrap:wrap;">
-                <button type="button" class="btn btn-secondary btn-sm" id="${prefix}-generate-matrix">
-                    <i class="fas fa-th"></i> Generate matrix from groups
+            <div style="margin:1.25rem 0;display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
+                <button type="button" class="btn btn-primary btn-sm" id="${prefix}-generate-matrix">
+                    <i class="fas fa-th"></i> Build variants from groups
                 </button>
                 <button type="button" class="btn btn-secondary btn-sm" id="${prefix}-add-variant-row">
-                    <i class="fas fa-plus"></i> Add variant row
+                    <i class="fas fa-plus"></i> Add variant manually
                 </button>
+                <span id="${prefix}-variant-count" style="font-size:0.8rem;color:var(--gray-500);margin-left:0.25rem;"></span>
             </div>
             <div style="overflow-x:auto;">
                 <table class="hm-variant-table" id="${prefix}-variant-table" style="width:100%;border-collapse:collapse;font-size:0.875rem;">
                     <thead>
                         <tr style="background:var(--gray-50);text-align:left;">
-                            <th style="padding:0.5rem;border-bottom:1px solid var(--gray-200);">Display name</th>
+                            <th style="padding:0.5rem;border-bottom:1px solid var(--gray-200);">What shopper sees</th>
                             <th style="padding:0.5rem;border-bottom:1px solid var(--gray-200);">SKU</th>
                             <th style="padding:0.5rem;border-bottom:1px solid var(--gray-200);">Price</th>
-                            <th style="padding:0.5rem;border-bottom:1px solid var(--gray-200);">Inventory</th>
-                            <th style="padding:0.5rem;border-bottom:1px solid var(--gray-200);">Attributes (JSON)</th>
+                            <th style="padding:0.5rem;border-bottom:1px solid var(--gray-200);">Stock</th>
                             <th style="padding:0.5rem;border-bottom:1px solid var(--gray-200);"></th>
                         </tr>
                     </thead>
                     <tbody id="${prefix}-variant-rows"></tbody>
                 </table>
             </div>
+            <p style="font-size:0.75rem;color:var(--gray-400);margin-top:0.75rem;">
+                Tip: set each variant's price and stock separately. Leave SKU blank to auto-generate on save.
+            </p>
         `;
 
-        const statusSection = form.querySelector('.hm-variant-editor-section') || form.querySelector('[id$="-is-active"]')?.closest('div')?.parentElement;
         const insertBefore = form.querySelector('.form-actions');
         if (insertBefore) {
             form.insertBefore(section, insertBefore);
@@ -91,6 +125,15 @@
 
         const groupsEl = section.querySelector(`#${prefix}-variant-groups`);
         const rowsEl = section.querySelector(`#${prefix}-variant-rows`);
+        const countEl = section.querySelector(`#${prefix}-variant-count`);
+        const presetsEl = section.querySelector(`#${prefix}-variant-presets`);
+
+        function updateVariantCount() {
+            const n = rowsEl.querySelectorAll('tr').length;
+            if (countEl) {
+                countEl.textContent = n ? `${n} variant${n === 1 ? '' : 's'}` : 'No variants yet';
+            }
+        }
 
         function addOptionGroup(name = '', values = '') {
             const row = document.createElement('div');
@@ -100,8 +143,8 @@
             row.style.marginBottom = '0.5rem';
             row.style.alignItems = 'center';
             row.innerHTML = `
-                <input type="text" class="form-input hm-group-name" placeholder="Group name (e.g. Size)" value="${escapeHtml(name)}" style="flex:1;min-width:120px;">
-                <input type="text" class="form-input hm-group-values" placeholder="Values: 2oz, 4oz, 8oz" value="${escapeHtml(values)}" style="flex:2;min-width:180px;">
+                <input type="text" class="form-input hm-group-name" placeholder="Group name (e.g. Form)" value="${escapeHtml(name)}" style="flex:1;min-width:120px;">
+                <input type="text" class="form-input hm-group-values" placeholder="Dropper, Pill" value="${escapeHtml(values)}" style="flex:2;min-width:180px;">
                 <button type="button" class="btn btn-danger btn-sm hm-remove-group" title="Remove group">&times;</button>
             `;
             row.querySelector('.hm-remove-group').addEventListener('click', () => row.remove());
@@ -113,16 +156,22 @@
             if (data.id != null && data.id !== '') {
                 tr.dataset.variantId = String(data.id);
             }
+            if (data.attributesJson) {
+                tr.dataset.attributesJson = data.attributesJson;
+            }
             tr.innerHTML = `
-                <td style="padding:0.35rem;"><input type="text" class="form-input hm-v-name" value="${escapeHtml(data.name || '')}" placeholder="1 - Tube #19954 - $19.99" style="width:100%;min-width:160px;"></td>
-                <td style="padding:0.35rem;"><input type="text" class="form-input hm-v-sku" value="${escapeHtml(data.sku || '')}" placeholder="Auto" style="width:100%;min-width:100px;"></td>
+                <td style="padding:0.35rem;"><input type="text" class="form-input hm-v-name" value="${escapeHtml(data.name || '')}" placeholder="Dropper — 1oz" style="width:100%;min-width:160px;"></td>
+                <td style="padding:0.35rem;"><input type="text" class="form-input hm-v-sku" value="${escapeHtml(data.sku || '')}" placeholder="Optional" style="width:100%;min-width:100px;"></td>
                 <td style="padding:0.35rem;"><input type="number" class="form-input hm-v-price" step="0.01" min="0" value="${data.price != null ? escapeHtml(data.price) : ''}" style="width:90px;"></td>
                 <td style="padding:0.35rem;"><input type="number" class="form-input hm-v-inventory" min="0" value="${data.inventory_quantity != null ? escapeHtml(data.inventory_quantity) : '100'}" style="width:70px;"></td>
-                <td style="padding:0.35rem;"><input type="text" class="form-input hm-v-attrs" value="${escapeHtml(data.attributesJson || '')}" placeholder='{"Size":"4oz"}' style="width:100%;min-width:120px;font-size:0.8rem;"></td>
-                <td style="padding:0.35rem;"><button type="button" class="btn btn-danger btn-sm hm-remove-variant">&times;</button></td>
+                <td style="padding:0.35rem;"><button type="button" class="btn btn-danger btn-sm hm-remove-variant" title="Remove variant">&times;</button></td>
             `;
-            tr.querySelector('.hm-remove-variant').addEventListener('click', () => tr.remove());
+            tr.querySelector('.hm-remove-variant').addEventListener('click', () => {
+                tr.remove();
+                updateVariantCount();
+            });
             rowsEl.appendChild(tr);
+            updateVariantCount();
         }
 
         function readOptionGroups() {
@@ -133,20 +182,17 @@
             }).filter(Boolean);
         }
 
-        section.querySelector(`#${prefix}-add-option-group`).addEventListener('click', () => addOptionGroup());
-        section.querySelector(`#${prefix}-add-variant-row`).addEventListener('click', () => addVariantRow());
-
-        section.querySelector(`#${prefix}-generate-matrix`).addEventListener('click', () => {
+        function generateMatrixFromGroups() {
             const groups = readOptionGroups();
             if (!groups.length) {
-                window.adminApp?.showNotification?.('Add at least one option group with values first.', 'error');
+                window.adminApp?.showNotification?.('Add an option group first (e.g. Form: Dropper, Pill).', 'error');
                 return;
             }
             const basePriceEl = form.querySelector(`#${prefix}-price`);
             const basePrice = basePriceEl ? parseFloat(basePriceEl.value) : NaN;
             const combos = cartesian(groups);
             rowsEl.innerHTML = '';
-            combos.forEach((attrs, idx) => {
+            combos.forEach((attrs) => {
                 addVariantRow({
                     name: buildVariantName(attrs, groups),
                     price: Number.isFinite(basePrice) ? basePrice : '',
@@ -154,7 +200,28 @@
                     attributesJson: JSON.stringify(attrs),
                 });
             });
+        }
+
+        function applyPreset(preset) {
+            groupsEl.innerHTML = '';
+            preset.groups.forEach((g) => addOptionGroup(g.name, g.values.join(', ')));
+            generateMatrixFromGroups();
+            window.adminApp?.showNotification?.(`Added ${preset.label} template — set price and stock for each row, then save.`, 'success');
+        }
+
+        QUICK_PRESETS.forEach((preset) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn btn-secondary btn-sm';
+            btn.title = preset.hint;
+            btn.textContent = preset.label;
+            btn.addEventListener('click', () => applyPreset(preset));
+            presetsEl.appendChild(btn);
         });
+
+        section.querySelector(`#${prefix}-add-option-group`).addEventListener('click', () => addOptionGroup());
+        section.querySelector(`#${prefix}-add-variant-row`).addEventListener('click', () => addVariantRow());
+        section.querySelector(`#${prefix}-generate-matrix`).addEventListener('click', generateMatrixFromGroups);
 
         form._hmVariantEditor = {
             prefix,
@@ -164,6 +231,7 @@
             clear() {
                 groupsEl.innerHTML = '';
                 rowsEl.innerHTML = '';
+                updateVariantCount();
             },
             load(product) {
                 this.clear();
@@ -194,7 +262,7 @@
                     const price = parseFloat(tr.querySelector('.hm-v-price').value);
                     const inventory_quantity = parseInt(tr.querySelector('.hm-v-inventory').value, 10) || 0;
                     let attributes = null;
-                    const attrsRaw = tr.querySelector('.hm-v-attrs').value.trim();
+                    const attrsRaw = tr.dataset.attributesJson || '';
                     if (attrsRaw) {
                         try {
                             attributes = JSON.parse(attrsRaw);
@@ -220,6 +288,7 @@
             },
         };
 
+        updateVariantCount();
         return form._hmVariantEditor;
     }
 

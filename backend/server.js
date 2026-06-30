@@ -459,7 +459,7 @@ if (process.env.STAGING_BLOCK_INDEXING === 'true') {
 // Permanent SEO redirects from repo-root redirects-301.csv (see file header).
 app.use(createSeoRedirectMiddleware({ rootPath, logger }));
 
-// Business One POS (sibling repo) — same origin as store so /images/... loads correctly
+// Business One POS (separate repo at ../business-one-pos — not copied into hmherbs files)
 const posAppPath = path.join(rootPath, '..', 'business-one-pos');
 if (fsSync.existsSync(posAppPath)) {
     app.use('/pos', express.static(posAppPath));

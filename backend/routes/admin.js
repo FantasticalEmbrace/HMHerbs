@@ -870,7 +870,8 @@ router.get('/products', ...adminAuth, async (req, res) => {
             'p.id, p.sku, p.name, p.slug, p.price, p.cost_price, p.inventory_quantity, ' +
             'p.low_stock_threshold, p.is_active, p.is_featured, p.show_on_web, p.created_at, ' +
             'p.brand_id, p.category_id, ' +
-            'b.name as brand_name, pc.name as category_name ' +
+            'b.name as brand_name, pc.name as category_name, ' +
+            '(SELECT COUNT(*) FROM product_variants pv WHERE pv.product_id = p.id AND pv.is_active = 1) AS variant_count ' +
             'FROM products p ' +
             'LEFT JOIN brands b ON p.brand_id = b.id ' +
             'LEFT JOIN product_categories pc ON p.category_id = pc.id';

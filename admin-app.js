@@ -8777,6 +8777,10 @@ class AdminApp {
                 product.show_on_web === 'true' ||
                 product.show_on_web == null;
             const lowStock = product.inventory_quantity <= (product.low_stock_threshold || 10);
+            const variantCount = Number(product.variant_count) || 0;
+            const variantBadge = variantCount > 0
+                ? `<span class="badge badge-info" title="${variantCount} purchasable option${variantCount === 1 ? '' : 's'}">${variantCount} variant${variantCount === 1 ? '' : 's'}</span>`
+                : '';
             const isSelected = this.selectedProductIds.has(productId);
             return `
                 <tr class="${isSelected ? 'admin-row-selected' : ''}">
@@ -8788,7 +8792,7 @@ class AdminApp {
                     <td class="col-sku"><code title="${esc(product.sku)}">${esc(product.sku)}</code></td>
                     <td class="product-name-cell">
                         <span class="product-name-primary" title="${name}">${name}</span>
-                        <span class="product-name-meta" title="${cat}">${cat}</span>
+                        <span class="product-name-meta" title="${cat}">${cat}${variantBadge ? ` · ${variantBadge}` : ''}</span>
                     </td>
                     <td><span class="cell-ellipsis" title="${brand}">${brand}</span></td>
                     <td class="col-money">${money(product.price)}</td>

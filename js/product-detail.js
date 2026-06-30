@@ -723,6 +723,7 @@ class ProductDetailPage {
                 id: this.product.id,
                 product_id: this.product.id,
                 variant_id: this.selectedVariant?.id || null,
+                variant_name: this.selectedVariant?.name || null,
                 name: this.product.name,
                 price: this.selectedVariant?.price || this.product.price,
                 quantity: this.quantity,
@@ -761,10 +762,15 @@ class ProductDetailPage {
                 cart.push({
                     id: cartItem.id || cartItem.product_id,
                     product_id: cartItem.product_id,
-                    name: cartItem.name,
+                    variant_id: cartItem.variant_id || null,
+                    variant_name: cartItem.variant_name || null,
+                    name: cartItem.variant_name
+                        ? `${cartItem.name} — ${cartItem.variant_name}`
+                        : cartItem.name,
                     price: cartItem.price,
                     image: cartItem.image,
-                    quantity: cartItem.quantity
+                    quantity: cartItem.quantity,
+                    inventory_quantity: cartItem.inventory_quantity,
                 });
             }
 

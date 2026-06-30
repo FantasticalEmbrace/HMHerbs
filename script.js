@@ -972,6 +972,17 @@ class HMHerbsApp {
         this.announceToScreenReader(`${product.name} added to cart`);
     }
 
+    _cartMatchesLine(item, productId, variantId = null) {
+        const sameProduct = String(item.id) === String(productId);
+        const itemVariant = item.variant_id != null && item.variant_id !== '' ? String(item.variant_id) : '';
+        const targetVariant = variantId != null && variantId !== '' ? String(variantId) : '';
+        return sameProduct && itemVariant === targetVariant;
+    }
+
+    _findCartLine(productId, variantId = null) {
+        return this.cart.find((item) => this._cartMatchesLine(item, productId, variantId));
+    }
+
     addProductToCart(productData, quantity = 1) {
         // Add a product directly to cart using product data object
         // This is useful for product detail pages where the product isn't in this.products array
@@ -981,7 +992,12 @@ class HMHerbsApp {
         }
 
         const productId = productData.product_id || productData.id;
-        const productName = productData.name || 'Product';
+        const variantId = productData.variant_id || null;
+        const variantName = productData.variant_name || productData.variantName || '';
+        let productName = productData.name || 'Product';
+        if (variantName && !productName.includes(variantName)) {
+            productName = `${productName} — ${variantName}`;
+        }
         const productPrice = productData.price || 0;
         const productImage = productData.image || '';
         const productQuantity = quantity || productData.quantity || 1;
@@ -1000,10 +1016,7 @@ class HMHerbsApp {
             return;
         }
 
-        // Check if adding this quantity would exceed available inventory
-        const existingItem = this.cart.find(item => {
-            return String(item.id) === String(productId);
-        });
+        const existingItem = this._findCartLine(productId, variantId);
         const currentCartQuantity = existingItem ? existingItem.quantity : 0;
         const totalRequestedQuantity = currentCartQuantity + productQuantity;
 
@@ -1014,16 +1027,18 @@ class HMHerbsApp {
                 return;
             } else {
                 this.showNotification(`Only ${availableQuantity} more available. Added ${availableQuantity} to cart.`, 'warning');
-                // Add the available quantity
                 if (existingItem) {
                     existingItem.quantity += availableQuantity;
                 } else {
                     this.cart.push({
                         id: productId,
+                        variant_id: variantId,
+                        variant_name: variantName || null,
                         name: productName,
                         price: productPrice,
                         image: productImage,
-                        quantity: availableQuantity
+                        quantity: availableQuantity,
+                        inventory_quantity: inventory,
                     });
                 }
                 this.updateCartDisplay();
@@ -1034,16 +1049,20 @@ class HMHerbsApp {
             }
         }
 
-        // Add or update cart item
         if (existingItem) {
             existingItem.quantity += productQuantity;
+            existingItem.price = productPrice;
+            if (variantName) existingItem.variant_name = variantName;
         } else {
             this.cart.push({
                 id: productId,
+                variant_id: variantId,
+                variant_name: variantName || null,
                 name: productName,
                 price: productPrice,
                 image: productImage,
-                quantity: productQuantity
+                quantity: productQuantity,
+                inventory_quantity: inventory,
             });
         }
 
@@ -1146,8 +1165,8 @@ class HMHerbsApp {
         this.announceToScreenReader(`${product.name} added to cart`);
     }
 
-    removeFromCart(productId) {
-        this.cart = this.cart.filter(item => String(item.id) !== String(productId));
+    removeFromCart(productId, variantId = null) {
+        this.cart = this.cart.filter((item) => !this._cartMatchesLine(item, productId, variantId));
         this.updateCartDisplay();
         this.saveCartToStorage();
         this.showNotification('Item removed from cart', 'success');
@@ -1208,9 +1227,8 @@ class HMHerbsApp {
         return true;
     }
 
-    updateCartQuantity(productId, newQuantity) {
-        // Debounce cart quantity updates to prevent race conditions
-        const operationKey = `update-${productId}`;
+    updateCartQuantity(productId, newQuantity, variantId = null) {
+        const operationKey = `update-${productId}-${variantId || 'base'}`;
 
         // Clear existing timeout for this operation
         if (this.cartOperationTimeouts.has(operationKey)) {
@@ -1219,31 +1237,26 @@ class HMHerbsApp {
 
         // Set new timeout
         const timeoutId = setTimeout(() => {
-            this._performUpdateCartQuantity(productId, newQuantity);
+            this._performUpdateCartQuantity(productId, newQuantity, variantId);
             this.cartOperationTimeouts.delete(operationKey);
         }, this.cartOperationDelay);
 
         this.cartOperationTimeouts.set(operationKey, timeoutId);
     }
 
-    _performUpdateCartQuantity(productId, newQuantity) {
-        const item = this.cart.find(item => String(item.id) === String(productId));
+    _performUpdateCartQuantity(productId, newQuantity, variantId = null) {
+        const item = this._findCartLine(productId, variantId);
 
         if (item) {
             if (newQuantity <= 0) {
-                this.removeFromCart(productId);
+                this.removeFromCart(productId, variantId);
             } else {
-                // Find the product to check inventory limits
                 const product = this.products.find(p => String(p.id) === String(productId));
-
-                // Check inventory limits before updating quantity
-                if (product && typeof product.inventory !== 'undefined') {
-                    if (newQuantity > product.inventory) {
-                        this.showNotification(`Only ${product.inventory} items available in stock`, 'error');
-                        return;
-                    }
+                const inventoryLimit = item.inventory_quantity ?? product?.inventory;
+                if (inventoryLimit !== undefined && newQuantity > inventoryLimit) {
+                    this.showNotification(`Only ${inventoryLimit} items available in stock`, 'error');
+                    return;
                 }
-
                 item.quantity = newQuantity;
                 this.updateCartDisplay();
                 this.saveCartToStorage();
@@ -1303,6 +1316,9 @@ class HMHerbsApp {
         const cartItem = document.createElement('div');
         cartItem.className = 'cart-item';
         cartItem.setAttribute('data-product-id', item.id);
+        if (item.variant_id) {
+            cartItem.setAttribute('data-variant-id', item.variant_id);
+        }
 
         // Create elements safely to prevent XSS
         const img = document.createElement('img');
@@ -1364,23 +1380,27 @@ class HMHerbsApp {
 
         // Add event listeners (using the elements we created above)
         decreaseBtn.addEventListener('click', () => {
-            this.updateCartQuantity(item.id, item.quantity - 1);
+            this.updateCartQuantity(item.id, item.quantity - 1, item.variant_id || null);
         });
 
         increaseBtn.addEventListener('click', () => {
-            // Check inventory before increasing
+            const inventoryLimit = item.inventory_quantity;
+            if (inventoryLimit !== undefined && item.quantity >= inventoryLimit) {
+                this.showNotification(`Only ${inventoryLimit} items available in stock`, 'error');
+                return;
+            }
             const product = this.products.find(p => String(p.id) === String(item.id));
-            if (product && typeof product.inventory !== 'undefined') {
+            if (product && typeof product.inventory !== 'undefined' && !item.variant_id) {
                 if (item.quantity >= product.inventory) {
                     this.showNotification(`Only ${product.inventory} items available in stock`, 'error');
                     return;
                 }
             }
-            this.updateCartQuantity(item.id, item.quantity + 1);
+            this.updateCartQuantity(item.id, item.quantity + 1, item.variant_id || null);
         });
 
         removeBtn.addEventListener('click', () => {
-            this.removeFromCart(item.id);
+            this.removeFromCart(item.id, item.variant_id || null);
         });
 
         return cartItem;
