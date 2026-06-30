@@ -11,6 +11,7 @@ const path = require('path');
 const fs = require('fs').promises;
 const logger = require('../utils/logger');
 const { saveProductVariants } = require('../utils/saveProductVariants');
+const { normalizeScannedSku, generateUniqueProductSku, skuExists } = require('../utils/generateProductSku');
 
 function parseJsonField(value, fallback = null) {
     if (value == null || value === '') return fallback;
@@ -1017,18 +1018,17 @@ router.post('/products', ...adminAuth, requirePermission('manager'), productVali
             health_categories, images, variants, variant_option_groups
         } = req.body;
 
-        // Validate required fields
-        if (!sku || !name || !brand_id || !category_id || !price) {
+        // Validate required fields (SKU may be auto-generated)
+        if (!name || !brand_id || !category_id || price === undefined || price === null || price === '') {
             return res.status(400).json({ error: 'Missing required fields' });
         }
 
-        // Check if SKU already exists
-        const [existing] = await req.pool.execute(
-            'SELECT id FROM products WHERE sku = ?',
-            [sku]
-        );
+        let finalSku = normalizeScannedSku(sku);
+        if (!finalSku) {
+            finalSku = await generateUniqueProductSku(req.pool, { name });
+        }
 
-        if (existing.length > 0) {
+        if (await skuExists(req.pool, finalSku)) {
             return res.status(400).json({ error: 'SKU already exists' });
         }
 
@@ -1081,7 +1081,7 @@ router.post('/products', ...adminAuth, requirePermission('manager'), productVali
                     is_cannabis, coa_url, coa_updated_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `, [
-                sku,
+                finalSku,
                 name,
                 slug,
                 short_description || null,
@@ -1495,10 +1495,21 @@ router.put('/products/:id', ...adminAuth, requirePermission('manager'), async (r
             const updateValues = [];
 
             const allowedFields = [
-                'name', 'short_description', 'long_description', 'brand_id', 'category_id',
+                'sku', 'name', 'short_description', 'long_description', 'brand_id', 'category_id',
                 'price', 'compare_price', 'cost_price', 'weight', 'inventory_quantity', 'low_stock_threshold',
                 'is_active', 'is_featured', 'show_on_web', 'is_cannabis', 'coa_url', 'coa_updated_at'
             ];
+
+            if (updateData.sku !== undefined) {
+                const newSku = normalizeScannedSku(updateData.sku);
+                if (!newSku) {
+                    return res.status(400).json({ error: 'SKU cannot be empty' });
+                }
+                if (await skuExists(req.pool, newSku, id)) {
+                    return res.status(400).json({ error: 'SKU already exists' });
+                }
+                updateData.sku = newSku;
+            }
 
             // Fields that should be numeric (decimal or integer)
             const numericFields = ['price', 'compare_price', 'cost_price', 'weight', 'inventory_quantity', 'low_stock_threshold'];

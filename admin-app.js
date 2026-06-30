@@ -10585,7 +10585,7 @@ function createProductModal(title, formId, isEdit = false) {
 
     // Create form fields
     const fields = [
-        { type: 'input', label: 'SKU *', id: `${isEdit ? 'edit' : 'add'}-sku`, name: 'sku', inputType: 'text', required: true },
+        { type: 'input', label: 'SKU / Barcode', id: `${isEdit ? 'edit' : 'add'}-sku`, name: 'sku', inputType: 'text', required: false },
         { type: 'input', label: 'Product Name *', id: `${isEdit ? 'edit' : 'add'}-name`, name: 'name', inputType: 'text', required: true },
         { type: 'textarea', label: 'Short Description', id: `${isEdit ? 'edit' : 'add'}-short-description`, name: 'short_description', rows: 2 },
         { type: 'textarea', label: 'Long Description', id: `${isEdit ? 'edit' : 'add'}-long-description`, name: 'long_description', rows: 4 }
@@ -11348,6 +11348,10 @@ function createProductModal(title, formId, isEdit = false) {
     // Variants & option matrix editor
     if (window.HMProductVariantsEditor) {
         window.HMProductVariantsEditor.mountVariantEditor(form, isEdit ? 'edit' : 'add');
+    }
+
+    if (window.HMProductSkuField) {
+        window.HMProductSkuField.enhanceProductForm(form, isEdit ? 'edit' : 'add', modal);
     }
 
     // Add status section
