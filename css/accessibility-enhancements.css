@@ -266,7 +266,7 @@ a:focus-visible:not(:is(
 }
 
 .success-message::before {
-  content: "✓";
+  content: "\2713";
   font-weight: bold;
 }
 
