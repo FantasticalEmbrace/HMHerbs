@@ -20,7 +20,9 @@ const {
     computeMonthlyTotal,
     chargeAccount,
     purchaseHardware,
-    waivePastDue
+    payPrincipalBuildBalance,
+    waivePastDue,
+    isBillingDryRun
 } = require('../services/platformBillingRunner');
 const {
     describeMonthlyPricing,
@@ -29,6 +31,7 @@ const {
     HARDWARE_MIN_INSTALLMENT,
     HARDWARE_MAX_INSTALLMENT_MONTHS
 } = require('../services/platformBillingPricing');
+const { getPrincipalDashboard } = require('../services/principalBilling');
 const { billingPortalUrl } = require('../services/platformBillingEmail');
 
 async function assertBillingAuth(req) {
@@ -82,6 +85,40 @@ router.get('/account', async (req, res) => {
     } catch (e) {
         logger.error('Platform billing account fetch', { err: e.message });
         res.status(500).json({ error: 'Failed to load billing account' });
+    }
+});
+
+router.get('/principal', async (req, res) => {
+    try {
+        const auth = await assertBillingAuth(req);
+        if (!auth) return res.status(401).json({ error: 'Admin login required' });
+        const account = await ensureDefaultAccount(req.pool);
+        const dashboard = await getPrincipalDashboard(req.pool, account);
+        res.json({
+            ...dashboard,
+            billingDryRun: isBillingDryRun()
+        });
+    } catch (e) {
+        const status = e.code === 'NOT_PRINCIPAL_ACCOUNT' ? 403 : 500;
+        res.status(status).json({ error: e.message, code: e.code });
+    }
+});
+
+router.post('/principal/build-balance', setupLimiter, async (req, res) => {
+    try {
+        const auth = await assertBillingAuth(req);
+        if (!auth) return res.status(401).json({ error: 'Admin login required' });
+        const account = await ensureDefaultAccount(req.pool);
+        const result = await payPrincipalBuildBalance(req.pool, account.id, {
+            mode: req.body.mode === 'installment' ? 'installment' : 'full',
+            installmentMonths: req.body.installmentMonths,
+            cardPayload: req.body.card
+        });
+        const dashboard = await getPrincipalDashboard(req.pool, account.id);
+        res.json({ result, ...dashboard });
+    } catch (e) {
+        const status = e.code === 'NOT_PRINCIPAL_ACCOUNT' ? 403 : e.code ? 400 : 500;
+        res.status(status).json({ error: e.message, code: e.code });
     }
 });
 
@@ -217,7 +254,8 @@ router.post('/hardware/purchase', setupLimiter, async (req, res) => {
             sku: req.body.sku,
             quantity: req.body.quantity,
             installmentMonths: req.body.installmentMonths,
-            cardPayload: req.body.card
+            cardPayload: req.body.card,
+            shipTo: req.body.shipTo
         });
         res.json(result);
     } catch (e) {

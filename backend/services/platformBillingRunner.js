@@ -392,11 +392,104 @@ async function waivePastDue(pool, accountId, { note, notify = true } = {}) {
     return updated;
 }
 
+async function payPrincipalBuildBalance(pool, accountId, { mode = 'full', installmentMonths, cardPayload } = {}) {
+    const {
+        getPrincipalMeta,
+        updatePrincipalMeta,
+        assertPrincipalAccount
+    } = require('./principalBilling');
+    const { createInstallmentPlan } = require('./platformBillingAccount');
+    const { computeInstallmentSchedule } = require('./platformBillingPricing');
+
+    const account = await getAccountById(pool, accountId);
+    await assertPrincipalAccount(pool, account);
+
+    const meta = await getPrincipalMeta(pool, accountId);
+    const remaining = Number(meta.buildBalanceRemaining) || 0;
+    if (remaining <= 0) {
+        const err = new Error('Build balance already paid');
+        err.code = 'BUILD_BALANCE_PAID';
+        throw err;
+    }
+
+    const label = meta.buildLabel || 'Website build balance';
+
+    if (mode === 'installment') {
+        const months = Math.min(12, Math.max(3, Math.floor(Number(installmentMonths) || 6)));
+        const schedule = computeInstallmentSchedule(remaining, months);
+        const planId = await createInstallmentPlan(pool, accountId, {
+            sku: 'principal-build-balance',
+            description: label,
+            totalAmount: remaining,
+            months: schedule.months
+        });
+        await updatePrincipalMeta(pool, accountId, {
+            buildBalanceRemaining: 0,
+            buildPaidOffAt: todayDateString(),
+            buildPayMode: 'installment',
+            buildInstallmentPlanId: planId
+        });
+        return { type: 'installment', planId, schedule, total: remaining };
+    }
+
+    if (isBillingDryRun()) {
+        return {
+            type: 'onetime',
+            dryRun: true,
+            total: remaining,
+            message: `Would charge $${remaining.toFixed(2)} for build balance`
+        };
+    }
+
+    let sale;
+    if (account?.hasBillingVault) {
+        sale = await executeProchargeCharge(account, remaining, {
+            orderNumber: `BUILD-${accountId}-${Date.now()}`,
+            description: label
+        });
+    } else if (cardPayload?.cardNumber) {
+        sale = await chargeCard({
+            amount: remaining,
+            ...cardPayload,
+            orderNumber: `BUILD-${accountId}-${Date.now()}`,
+            description: label
+        });
+    } else {
+        const err = new Error('Payment method required for build balance');
+        err.code = 'PAYMENT_REQUIRED';
+        throw err;
+    }
+
+    if (!sale.ok) {
+        const err = new Error(sale.responseText || 'Build balance charge failed');
+        err.code = 'CHARGE_FAILED';
+        throw err;
+    }
+
+    await recordCharge(pool, accountId, {
+        amount: remaining,
+        chargeType: 'principal_build_balance',
+        lineItems: [{ code: 'build_balance', label, amount: remaining }],
+        status: 'paid',
+        transactionId: sale.transactionId
+    });
+
+    await updatePrincipalMeta(pool, accountId, {
+        buildBalanceRemaining: 0,
+        buildPaidOffAt: todayDateString(),
+        buildPayMode: 'full',
+        buildTransactionId: sale.transactionId
+    });
+
+    return { type: 'onetime', ok: true, total: remaining, transactionId: sale.transactionId };
+}
+
 module.exports = {
     isBillingDryRun,
     computeMonthlyTotal,
     chargeAccount,
     purchaseHardware,
+    payPrincipalBuildBalance,
     processAllAccountsMaintenance,
     waivePastDue
 };

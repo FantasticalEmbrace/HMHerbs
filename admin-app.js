@@ -3109,7 +3109,10 @@ class AdminApp {
             if (billingCard) billingCard.style.display = canBill ? '' : 'none';
             if (billingRunBtn) billingRunBtn.hidden = !canBill;
             if (canBill && window.adminPosBilling?.init) {
-                window.adminPosBilling.init(Boolean(license.hasBillingVault));
+                window.adminPosBilling.init({
+                    hasVault: Boolean(license.hasBillingVault),
+                    adminApp: this
+                });
             }
         } catch (err) {
             if (summary) summary.textContent = 'Failed to load license.';

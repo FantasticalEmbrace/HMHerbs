@@ -64,6 +64,25 @@ BILLING_PRINCIPAL_HOSTING_MONTHLY=200
 
 Applied on server startup via `syncPrincipalAccountRates`. Admins can also set `monthlyAmountOverride` with `PUT /api/platform/billing/subscriptions/:type` (JWT required).
 
+### HM Herbs in-admin billing
+
+The principal merchant (HM Herbs) manages billing on the **POS License** tab in store admin — not the public portal:
+
+- Monthly statement (custom $100 POS + $200 hosting overrides)
+- Save ProCharge card inline (`POST /api/platform/billing/setup` with admin JWT)
+- Order WTI modem with ship-to (`POST /api/platform/billing/hardware/purchase`)
+- Optional website build balance — pay in full or 3–12 month installments (`GET/POST /api/platform/billing/principal*`)
+
+Build balance defaults (env, seeded once into `billing_accounts.principal_meta_json`):
+
+```env
+BILLING_PRINCIPAL_BUILD_FULL=10000
+BILLING_PRINCIPAL_BUILD_PAID=5000
+BILLING_PRINCIPAL_BUILD_REMAINING=5000
+```
+
+Everyone else uses `business-one-webpage/billing-portal.html`.
+
 ## WTI hardware
 
 **Required with every POS signup** — customer chooses standard or premium; card charged once at signup (subtotal + sales tax).

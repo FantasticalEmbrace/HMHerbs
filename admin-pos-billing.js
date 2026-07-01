@@ -1,59 +1,435 @@
 /**
- * POS License tab — billing lives on businessonecomprehensive.com (ProCharge), not HM Herbs admin UI.
+ * HM Herbs admin — in-panel platform billing (principal merchant only).
+ * Public merchants continue to use businessonecomprehensive.com/billing-portal.html.
  */
 (function () {
     'use strict';
 
-    function billingPortalUrl() {
-        if (window.BusinessOneUrls?.billingPortalUrl) {
-            return window.BusinessOneUrls.billingPortalUrl();
-        }
-        return 'https://businessonecomprehensive.com/billing-portal.html';
+    let adminApp = null;
+    let dashboard = null;
+    let selectedSku = '';
+
+    function $(id) {
+        return document.getElementById(id);
+    }
+
+    function money(n) {
+        return `$${Number(n || 0).toFixed(2)}`;
     }
 
     function setMsg(text, tone) {
-        const el = document.getElementById('pos-license-billing-msg');
+        const el = $('pos-license-billing-msg');
         if (!el) return;
         el.textContent = text || '';
         el.style.color =
             tone === 'ok' ? 'var(--success, #15803d)' : tone === 'err' ? 'var(--error, #b91c1c)' : '';
     }
 
-    function setStatus(hasVault) {
-        const el = document.getElementById('pos-license-billing-status');
-        if (!el) return;
-        const portal = billingPortalUrl();
-        el.innerHTML = hasVault
-            ? `<strong>Status:</strong> Payment method on file (ProCharge). Update it on the <a href="${portal}" target="_blank" rel="noopener noreferrer">Business One billing portal</a>.`
-            : `<strong>Status:</strong> No payment method saved. <a href="${portal}" target="_blank" rel="noopener noreferrer" class="btn btn-primary" style="display:inline-block;margin-top:0.5rem;text-decoration:none;">Open Business One billing</a>`;
+    function cardPayloadFromForm() {
+        const cardNumber = $('principal-billing-card-number')?.value?.replace(/\s+/g, '') || '';
+        if (!cardNumber) return null;
+        return {
+            cardNumber,
+            ccExpMonth: $('principal-billing-card-exp-month')?.value?.trim(),
+            ccExpYear: $('principal-billing-card-exp-year')?.value?.trim(),
+            cvv: $('principal-billing-card-cvv')?.value?.trim(),
+            cardholderName: $('principal-billing-card-name')?.value?.trim(),
+            postalCode: $('principal-billing-card-zip')?.value?.trim(),
+            billingEmail: $('principal-billing-card-email')?.value?.trim()
+        };
     }
 
-    async function init(hasBillingVault) {
-        const card = document.getElementById('pos-license-billing-card');
-        if (!card || card.style.display === 'none') return;
+    function shipToFromForm() {
+        return {
+            name: $('principal-ship-name')?.value?.trim(),
+            street1: $('principal-ship-street')?.value?.trim(),
+            city: $('principal-ship-city')?.value?.trim(),
+            state: $('principal-ship-state')?.value?.trim(),
+            postalCode: $('principal-ship-zip')?.value?.trim()
+        };
+    }
 
-        setStatus(Boolean(hasBillingVault));
-        setMsg('', '');
-
-        const mount = document.getElementById('pos-license-collect-mount');
-        const placeholder = document.getElementById('pos-license-collect-placeholder');
-        const saveBtn = document.getElementById('pos-license-billing-save-btn');
-        const authorize = document.getElementById('pos-license-billing-authorize');
-
-        if (mount) mount.innerHTML = '';
-        if (placeholder) {
-            placeholder.textContent =
-                'Platform billing (POS, hosting, internet, hardware) is managed on businessonecomprehensive.com — not on this store admin skin.';
+    function validateShipTo(shipTo) {
+        if (!shipTo.name || !shipTo.street1 || !shipTo.city || !shipTo.state || !shipTo.postalCode) {
+            return 'Complete all ship-to fields for modem orders.';
         }
+        return '';
+    }
+
+    function renderCardForm(hasVault) {
+        const mount = $('pos-license-collect-mount');
+        const placeholder = $('pos-license-collect-placeholder');
+        if (!mount) return;
+
+        const vaultNote = hasVault
+            ? `<p style="margin:0 0 0.5rem;font-size:0.88rem;color:var(--gray-600);">
+                    Card on file. Enter new card details below only if you want to replace it.
+                </p>`
+            : '';
+
+        mount.innerHTML =
+            vaultNote +
+            `
+            <div class="form-group" style="margin:0;">
+                <label for="principal-billing-card-number">Card number</label>
+                <input class="form-input" id="principal-billing-card-number" inputmode="numeric" autocomplete="cc-number" placeholder="4111…">
+            </div>
+            <div style="display:grid;grid-template-columns:5rem 5rem 5rem;gap:0.5rem;">
+                <div class="form-group" style="margin:0;">
+                    <label for="principal-billing-card-exp-month">MM</label>
+                    <input class="form-input" id="principal-billing-card-exp-month" inputmode="numeric" maxlength="2" autocomplete="cc-exp-month" placeholder="12">
+                </div>
+                <div class="form-group" style="margin:0;">
+                    <label for="principal-billing-card-exp-year">YY</label>
+                    <input class="form-input" id="principal-billing-card-exp-year" inputmode="numeric" maxlength="4" autocomplete="cc-exp-year" placeholder="28">
+                </div>
+                <div class="form-group" style="margin:0;">
+                    <label for="principal-billing-card-cvv">CVV</label>
+                    <input class="form-input" id="principal-billing-card-cvv" inputmode="numeric" maxlength="4" autocomplete="cc-csc">
+                </div>
+            </div>
+            <div class="form-group" style="margin:0;">
+                <label for="principal-billing-card-name">Name on card</label>
+                <input class="form-input" id="principal-billing-card-name" autocomplete="cc-name">
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 8rem;gap:0.5rem;">
+                <div class="form-group" style="margin:0;">
+                    <label for="principal-billing-card-email">Billing email</label>
+                    <input class="form-input" id="principal-billing-card-email" type="email" autocomplete="email">
+                </div>
+                <div class="form-group" style="margin:0;">
+                    <label for="principal-billing-card-zip">Billing ZIP</label>
+                    <input class="form-input" id="principal-billing-card-zip" inputmode="numeric" autocomplete="postal-code">
+                </div>
+            </div>`;
+
+        if (placeholder) {
+            placeholder.textContent = hasVault
+                ? ''
+                : 'Add a card so monthly billing and modem orders can run automatically.';
+        }
+
+        const emailEl = $('principal-billing-card-email');
+        const licenseEmail = document.querySelector('#pos-license-email')?.value?.trim();
+        if (emailEl && licenseEmail && !emailEl.value) emailEl.value = licenseEmail;
+
+        const nameEl = $('principal-billing-card-name');
+        const business = document.querySelector('#pos-license-business')?.value?.trim();
+        if (nameEl && business && !nameEl.value) nameEl.value = business;
+
+        const shipName = $('principal-ship-name');
+        if (shipName && business && !shipName.value) shipName.value = business;
+    }
+
+    function renderStatement(data) {
+        const linesEl = $('principal-billing-statement-lines');
+        const totalEl = $('principal-billing-statement-total');
+        const statusEl = $('pos-license-billing-status');
+        const warnEl = $('principal-billing-config-warn');
+
+        const account = data.account || {};
+        const statement = data.statement || {};
+
+        if (statusEl) {
+            const dry = data.billingDryRun ? ' · billing dry-run on' : '';
+            const sandbox = data.sandbox ? ' · sandbox' : '';
+            statusEl.innerHTML = account.hasBillingVault
+                ? `<strong>Payment method:</strong> on file (ProCharge)${dry}${sandbox}`
+                : `<strong>Payment method:</strong> not saved yet${dry}${sandbox}`;
+        }
+
+        if (warnEl) {
+            if (!data.configured) {
+                warnEl.style.display = '';
+                warnEl.textContent =
+                    'ProCharge is not configured on the server yet. You can still review pricing; charges will not run until PROCHARGE_* keys are set.';
+            } else {
+                warnEl.style.display = 'none';
+            }
+        }
+
+        if (linesEl) {
+            const lines = statement.lines || [];
+            linesEl.innerHTML = lines.length
+                ? lines
+                      .map(
+                          (l) =>
+                              `<div style="display:flex;justify-content:space-between;gap:1rem;padding:0.2rem 0;"><span>${l.label}</span><span>${money(l.amount)}</span></div>`
+                      )
+                      .join('')
+                : '<span style="color:var(--gray-600);">No active subscriptions.</span>';
+        }
+        if (totalEl) {
+            totalEl.textContent = `Estimated monthly total: ${money(statement.subtotal)}`;
+        }
+    }
+
+    function renderBuildBalance(data) {
+        const section = $('principal-build-balance-section');
+        const desc = $('principal-build-balance-desc');
+        const amount = $('principal-build-balance-amount');
+        const paid = $('principal-build-balance-paid');
+        const fullBtn = $('principal-build-pay-full-btn');
+        const instBtn = $('principal-build-pay-installment-btn');
+        const monthsSel = $('principal-build-installment-months');
+        if (!section) return;
+
+        const bb = data.buildBalance || {};
+        const remaining = Number(bb.remaining) || 0;
+
+        if (remaining <= 0) {
+            section.style.display = bb.paidOffAt ? '' : 'none';
+            if (bb.paidOffAt) {
+                if (desc) desc.textContent = bb.label || '';
+                if (amount) amount.textContent = '';
+                if (paid) {
+                    paid.style.display = '';
+                    paid.textContent =
+                        bb.payMode === 'installment'
+                            ? `Balance converted to monthly installments (started ${bb.paidOffAt}).`
+                            : `Build balance paid in full on ${bb.paidOffAt}.`;
+                }
+                if (fullBtn) fullBtn.style.display = 'none';
+                if (instBtn) instBtn.style.display = 'none';
+                if (monthsSel) monthsSel.closest('.form-group').style.display = 'none';
+            }
+            return;
+        }
+
+        section.style.display = '';
+        if (desc) {
+            desc.textContent =
+                bb.label ||
+                'Optional: pay the remaining website build balance when you are ready. You already paid 50% at signup.';
+        }
+        if (amount) {
+            amount.textContent = `Remaining: ${money(remaining)} (of ${money(bb.fullAmount)} total · ${money(bb.paidAmount)} already paid)`;
+        }
+        if (paid) paid.style.display = 'none';
+        if (fullBtn) fullBtn.style.display = '';
+        if (instBtn) instBtn.style.display = '';
+        if (monthsSel) monthsSel.closest('.form-group').style.display = '';
+    }
+
+    function updateHardwareTotal() {
+        const totalEl = $('principal-hardware-total');
+        if (!totalEl || !dashboard?.hardware?.length) return;
+        const item = dashboard.hardware.find((h) => h.sku === selectedSku);
+        if (!item) {
+            totalEl.textContent = '';
+            return;
+        }
+        totalEl.textContent = `Order total: ${money(item.total)} (${money(item.subtotal)} + ${money(item.taxAmount)} tax)`;
+    }
+
+    function renderHardware(data) {
+        const mount = $('principal-hardware-options');
+        if (!mount) return;
+        const items = data.hardware || [];
+        if (!items.length) {
+            mount.innerHTML = '<span style="color:var(--gray-600);">No modems in catalog.</span>';
+            return;
+        }
+        if (!selectedSku) selectedSku = items[0].sku;
+        mount.innerHTML = items
+            .map(
+                (item) => `
+            <label style="display:flex;gap:0.5rem;align-items:flex-start;padding:0.5rem 0.65rem;border:1px solid var(--gray-200);border-radius:8px;cursor:pointer;">
+                <input type="radio" name="principal-modem-sku" value="${item.sku}" ${item.sku === selectedSku ? 'checked' : ''} style="margin-top:0.25rem;">
+                <span>
+                    <strong>${item.name}</strong> — ${money(item.total)} total<br>
+                    <span style="font-size:0.85rem;color:var(--gray-600);">${item.description || ''}</span>
+                </span>
+            </label>`
+            )
+            .join('');
+
+        mount.querySelectorAll('input[name="principal-modem-sku"]').forEach((input) => {
+            input.addEventListener('change', () => {
+                selectedSku = input.value;
+                updateHardwareTotal();
+            });
+        });
+        updateHardwareTotal();
+    }
+
+    async function apiBilling(path, options) {
+        if (!adminApp?.apiRequest) throw new Error('Admin session not ready');
+        return adminApp.apiRequest(`/platform/billing${path}`, options);
+    }
+
+    async function loadDashboard() {
+        setMsg('Loading billing…', '');
+        const data = await apiBilling('/principal');
+        dashboard = data;
+        renderStatement(data);
+        renderCardForm(Boolean(data.account?.hasBillingVault));
+        renderBuildBalance(data);
+        renderHardware(data);
+        setMsg('', '');
+        return data;
+    }
+
+    async function savePaymentMethod() {
+        const authorize = $('pos-license-billing-authorize');
+        if (!authorize?.checked) {
+            setMsg('Check the authorization box first.', 'err');
+            return;
+        }
+        const card = cardPayloadFromForm();
+        if (!card?.cardNumber) {
+            setMsg('Enter card details to save a payment method.', 'err');
+            return;
+        }
+        const btn = $('pos-license-billing-save-btn');
+        if (btn) btn.disabled = true;
+        setMsg('Saving payment method…', '');
+        try {
+            await apiBilling('/setup', {
+                method: 'POST',
+                body: JSON.stringify({
+                    authorized: true,
+                    paymentMethodType: 'card',
+                    ...card,
+                    billingEmail: card.billingEmail,
+                    businessName: document.querySelector('#pos-license-business')?.value?.trim()
+                })
+            });
+            setMsg('Payment method saved.', 'ok');
+            await loadDashboard();
+            if (adminApp?.loadPosLicense) await adminApp.loadPosLicense();
+        } catch (err) {
+            setMsg(err.message || 'Save failed', 'err');
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    }
+
+    async function payBuildBalance(mode) {
+        const bb = dashboard?.buildBalance || {};
+        const remaining = Number(bb.remaining) || 0;
+        if (remaining <= 0) return;
+
+        const needsCard = !dashboard?.account?.hasBillingVault;
+        const card = needsCard ? cardPayloadFromForm() : null;
+        if (needsCard && !card?.cardNumber) {
+            setMsg('Save a card on file or enter card details above first.', 'err');
+            return;
+        }
+
+        const label = mode === 'installment' ? 'Starting installment plan…' : 'Charging build balance…';
+        setMsg(label, '');
+        try {
+            const body = {
+                mode,
+                installmentMonths: $('principal-build-installment-months')?.value
+            };
+            if (card) body.card = card;
+            const data = await apiBilling('/principal/build-balance', {
+                method: 'POST',
+                body: JSON.stringify(body)
+            });
+            dashboard = data;
+            const r = data.result || {};
+            if (r.dryRun) {
+                setMsg(r.message || 'Dry run — no charge processed.', 'ok');
+            } else if (r.type === 'installment') {
+                setMsg(
+                    `Installment plan started: ${money(r.schedule?.monthlyAmount)}/mo for ${r.schedule?.months} months.`,
+                    'ok'
+                );
+            } else {
+                setMsg(`Build balance paid: ${money(r.total)}.`, 'ok');
+            }
+            renderStatement(data);
+            renderBuildBalance(data);
+            if (adminApp?.loadPosLicense) await adminApp.loadPosLicense();
+        } catch (err) {
+            setMsg(err.message || 'Payment failed', 'err');
+        }
+    }
+
+    async function orderModem() {
+        if (!selectedSku) {
+            setMsg('Select a modem.', 'err');
+            return;
+        }
+        const shipTo = shipToFromForm();
+        const shipErr = validateShipTo(shipTo);
+        if (shipErr) {
+            setMsg(shipErr, 'err');
+            return;
+        }
+
+        const needsCard = !dashboard?.account?.hasBillingVault;
+        const card = needsCard ? cardPayloadFromForm() : null;
+        if (needsCard && !card?.cardNumber) {
+            setMsg('Save a card on file or enter card details above first.', 'err');
+            return;
+        }
+
+        const btn = $('principal-hardware-order-btn');
+        if (btn) btn.disabled = true;
+        setMsg('Placing modem order…', '');
+        try {
+            const body = { sku: selectedSku, quantity: 1, shipTo };
+            if (card) body.card = card;
+            const data = await apiBilling('/hardware/purchase', {
+                method: 'POST',
+                body: JSON.stringify(body)
+            });
+            if (data.dryRun) {
+                setMsg(data.message || 'Dry run — modem order not charged.', 'ok');
+            } else {
+                setMsg(`Modem order placed. Charged ${money(data.total)}.`, 'ok');
+            }
+            await loadDashboard();
+        } catch (err) {
+            setMsg(err.message || 'Order failed', 'err');
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    }
+
+    function wireEvents() {
+        const saveBtn = $('pos-license-billing-save-btn');
+        const authorize = $('pos-license-billing-authorize');
         if (saveBtn) {
-            saveBtn.textContent = 'Open Business One billing portal';
-            saveBtn.disabled = false;
-            saveBtn.onclick = () => window.open(billingPortalUrl(), '_blank', 'noopener,noreferrer');
+            saveBtn.textContent = 'Save payment method';
+            saveBtn.onclick = () => savePaymentMethod();
         }
         if (authorize) {
-            authorize.closest('label')?.style.setProperty('display', 'none');
+            authorize.closest('label')?.style.removeProperty('display');
+            authorize.addEventListener('change', () => {
+                if (saveBtn) saveBtn.disabled = !authorize.checked;
+            });
+        }
+
+        $('principal-build-pay-full-btn')?.addEventListener('click', () => payBuildBalance('full'));
+        $('principal-build-pay-installment-btn')?.addEventListener('click', () =>
+            payBuildBalance('installment')
+        );
+        $('principal-hardware-order-btn')?.addEventListener('click', () => orderModem());
+    }
+
+    async function init(opts) {
+        const card = $('pos-license-billing-card');
+        if (!card || card.style.display === 'none') return;
+
+        adminApp = opts?.adminApp || window.adminApp || null;
+        wireEvents();
+
+        const saveBtn = $('pos-license-billing-save-btn');
+        const authorize = $('pos-license-billing-authorize');
+        if (saveBtn) saveBtn.disabled = !authorize?.checked;
+
+        try {
+            await loadDashboard();
+        } catch (err) {
+            setMsg(err.message || 'Failed to load billing', 'err');
+            renderCardForm(Boolean(opts?.hasVault));
         }
     }
 
-    window.adminPosBilling = { init };
+    window.adminPosBilling = { init, reload: loadDashboard };
 })();

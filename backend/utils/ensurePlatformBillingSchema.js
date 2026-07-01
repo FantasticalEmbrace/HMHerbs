@@ -227,6 +227,13 @@ async function ensurePlatformBillingSchema(pool) {
         logger.warn(`Database: billing_hardware_orders — ${logger.formatMysqlError(e)}`);
     }
 
+    await applyColumnPatches(pool, 'billing_accounts', [
+        {
+            column: 'principal_meta_json',
+            sql: 'ALTER TABLE billing_accounts ADD COLUMN principal_meta_json JSON NULL'
+        }
+    ]);
+
     await applyColumnPatches(pool, 'pos_merchant_license', [
         {
             column: 'billing_account_id',
@@ -368,6 +375,9 @@ async function syncPrincipalAccountRates(pool, accountId) {
             },
             monthlyAmountOverride: hostingMonthly
         });
+
+        const { syncPrincipalMeta } = require('../services/principalBilling');
+        await syncPrincipalMeta(pool, accountId);
     } catch (e) {
         logger.warn(`Database: syncPrincipalAccountRates — ${logger.formatMysqlError(e)}`);
     }
