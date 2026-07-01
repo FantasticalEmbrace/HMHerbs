@@ -37,12 +37,12 @@
 
 .gift-type-tab:hover,
 .gift-type-tab:focus-visible {
-    border-color: var(--primary-green, #10b981);
+    border-color: var(--primary-green);
 }
 
 .gift-type-tab.active {
-    background: var(--primary-green, #10b981);
-    border-color: var(--primary-green, #10b981);
+    background: var(--primary-green);
+    border-color: var(--primary-green);
     color: #fff;
 }
 
@@ -53,7 +53,7 @@
     border-radius: 12px;
     box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
     padding: 2rem;
-    border-top: 4px solid var(--primary-green, #10b981);
+    border-top: 4px solid var(--primary-green);
 }
 
 .gift-panel-meta {
@@ -64,7 +64,7 @@
 .gift-panel-title {
     margin: 0;
     font-size: 1.35rem;
-    color: var(--primary-green-dark, #059669);
+    color: var(--primary-green-dark);
 }
 
 .gift-panel-desc {
@@ -85,7 +85,7 @@
 
 .gift-card-visual-icon {
     font-size: 3rem;
-    color: var(--primary-green, #10b981);
+    color: var(--primary-green);
     margin-bottom: 0.5rem;
 }
 
@@ -120,13 +120,13 @@
 
 .amount-btn:hover,
 .amount-btn:focus-visible {
-    border-color: var(--primary-green, #10b981);
+    border-color: var(--primary-green);
 }
 
 .amount-btn.selected {
-    border-color: var(--primary-green, #10b981);
-    background: rgba(45, 90, 39, 0.08);
-    color: var(--primary-green, #10b981);
+    border-color: var(--primary-green);
+    background: var(--brand-surface-soft);
+    color: var(--primary-green);
 }
 
 .gift-form .form-group {
@@ -237,12 +237,12 @@
 }
 
 .browse-card-gift {
-    border-color: rgba(45, 90, 39, 0.25);
+    border-color: var(--brand-border-medium);
 }
 
 .browse-card-gift .browse-card-icon {
-    background: rgba(45, 90, 39, 0.12);
-    color: var(--primary-green, #10b981);
+    background: var(--brand-surface-medium);
+    color: var(--primary-green);
 }
 
 @media (min-width: 480px) {

@@ -68,6 +68,15 @@ function assertCanChangeOpenDrawerPermission(req, body) {
     );
 }
 
+function assertCanChangeViewCostPermission(req, body) {
+    assertCanChangeRestrictedRegisterPermission(
+        req,
+        body,
+        ['canViewCost', 'can_view_cost'],
+        'view cost permission'
+    );
+}
+
 function mapPosEmployeeRow(e) {
     return {
         id: e.id,
@@ -82,6 +91,7 @@ function mapPosEmployeeRow(e) {
         canProcessRefunds: Boolean(e.can_process_refunds),
         canOpenDrawer: Boolean(e.can_open_drawer),
         allowManualDiscounts: Boolean(e.allow_manual_discounts),
+        canViewCost: Boolean(e.can_view_cost),
         createdAt: e.created_at,
         updatedAt: e.updated_at,
     };
@@ -103,6 +113,7 @@ router.post('/employees', requireManager, async (req, res) => {
     try {
         assertCanChangeRefundPermission(req, req.body);
         assertCanChangeOpenDrawerPermission(req, req.body);
+        assertCanChangeViewCostPermission(req, req.body);
         const employee = await personnel.createEmployee(req.pool, req.body, req.admin.id);
         res.status(201).json({
             employee: {
@@ -124,6 +135,7 @@ router.put('/employees/:id', requireManager, async (req, res) => {
     try {
         assertCanChangeRefundPermission(req, req.body);
         assertCanChangeOpenDrawerPermission(req, req.body);
+        assertCanChangeViewCostPermission(req, req.body);
         const employee = await personnel.updateEmployee(req.pool, Number(req.params.id), req.body);
         if (!employee) return res.status(404).json({ error: 'Employee not found' });
         res.json({
@@ -138,6 +150,7 @@ router.put('/register-for-admin/:adminUserId', requireManager, async (req, res) 
     try {
         assertCanChangeRefundPermission(req, req.body);
         assertCanChangeOpenDrawerPermission(req, req.body);
+        assertCanChangeViewCostPermission(req, req.body);
         const adminUserId = Number(req.params.adminUserId);
         if (!Number.isInteger(adminUserId) || adminUserId <= 0) {
             return res.status(400).json({ error: 'Invalid admin user id' });

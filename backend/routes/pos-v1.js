@@ -5,7 +5,7 @@ const rateLimit = require('express-rate-limit');
 const router = express.Router();
 const logger = require('../utils/logger');
 const { authenticatePosDevice } = require('../middleware/posDeviceAuth');
-const { authenticatePosEmployee } = require('../middleware/posEmployeeAuth');
+const { authenticatePosEmployee, attachOptionalPosEmployee } = require('../middleware/posEmployeeAuth');
 const personnel = require('../services/posPersonnel');
 const {
     createInStorePosOrder,
@@ -261,10 +261,15 @@ function withPosCost(includeCost, cost) {
     return parsed != null ? { cost: parsed } : {};
 }
 
-router.get('/catalog', async (req, res) => {
+async function resolveIncludePosCost(req) {
+    const experience = await loadPosRegisterExperienceSettings(req.pool);
+    if (!experience.showCostInCart) return false;
+    return Boolean(req.posEmployee?.canViewCost);
+}
+
+router.get('/catalog', attachOptionalPosEmployee, async (req, res) => {
     try {
-        const experience = await loadPosRegisterExperienceSettings(req.pool);
-        const includeCost = experience.showCostInCart;
+        const includeCost = await resolveIncludePosCost(req);
         const since = req.query.since ? new Date(req.query.since) : null;
         const sinceValid = since && !Number.isNaN(since.getTime()) ? since : null;
         const page = Math.max(1, parseInt(req.query.page, 10) || 1);
@@ -439,10 +444,9 @@ router.get('/categories', async (req, res) => {
     }
 });
 
-router.get('/products/lookup', async (req, res) => {
+router.get('/products/lookup', attachOptionalPosEmployee, async (req, res) => {
     try {
-        const experience = await loadPosRegisterExperienceSettings(req.pool);
-        const includeCost = experience.showCostInCart;
+        const includeCost = await resolveIncludePosCost(req);
         const q = String(req.query.q || req.query.sku || '').trim();
         if (!q) {
             return res.status(400).json({ error: 'Search query required (q or sku)' });
@@ -988,7 +992,8 @@ router.get('/employees/me', authenticatePosEmployee, async (req, res) => {
                 canAuthorize: Boolean(employee.can_authorize),
                 canProcessRefunds: Boolean(employee.can_process_refunds),
                 canOpenDrawer: Boolean(employee.can_open_drawer),
-                allowManualDiscounts: personnel.employeeAllowManualDiscounts(employee)
+                allowManualDiscounts: personnel.employeeAllowManualDiscounts(employee),
+                canViewCost: personnel.employeeCanViewCost(employee)
             }
         });
     } catch (e) {

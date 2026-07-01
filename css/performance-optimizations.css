@@ -247,7 +247,7 @@
   :root {
     /* Dark mode colors - only if dark mode is supported */
     /* Keep primary-green consistent with main theme */
-    --primary-green: #10b981;
+    --primary-green: var(--brand-primary);
     --background: #111827;
     --text: #f9fafb;
   }

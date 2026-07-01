@@ -64,7 +64,7 @@ function verifyEmployeeToken(token) {
 async function findEmployeeByPin(pool, pin) {
     const [rows] = await pool.execute(
         `SELECT id, employee_code, first_name, last_name, email, pin_hash, is_active, admin_user_id,
-                can_authorize, can_process_refunds, can_open_drawer, allow_manual_discounts
+                can_authorize, can_process_refunds, can_open_drawer, allow_manual_discounts, can_view_cost
          FROM pos_employees WHERE is_active = 1`
     );
     for (const row of rows) {
@@ -175,10 +175,15 @@ function employeeAllowManualDiscounts(employee) {
     return Number(employee.allow_manual_discounts) !== 0;
 }
 
+function employeeCanViewCost(employee) {
+    return Boolean(employee?.can_view_cost);
+}
+
 async function getEmployeeById(pool, id) {
     const [rows] = await pool.execute(
         `SELECT id, employee_code, first_name, last_name, email, is_active, hourly_rate, admin_user_id,
-                can_authorize, can_process_refunds, can_open_drawer, allow_manual_discounts, created_at, updated_at
+                can_authorize, can_process_refunds, can_open_drawer, allow_manual_discounts, can_view_cost,
+                created_at, updated_at
          FROM pos_employees WHERE id = ? LIMIT 1`,
         [id]
     );
@@ -252,7 +257,8 @@ async function loginWithPin(pool, pin, context = {}) {
             canAuthorize: Boolean(employee.can_authorize),
             canProcessRefunds: Boolean(employee.can_process_refunds),
             canOpenDrawer: Boolean(employee.can_open_drawer),
-            allowManualDiscounts: employeeAllowManualDiscounts(employee)
+            allowManualDiscounts: employeeAllowManualDiscounts(employee),
+            canViewCost: employeeCanViewCost(employee)
         },
         hasAdminAccess,
         adminEmail,
@@ -280,12 +286,13 @@ async function createEmployee(pool, data, adminId) {
     const canOpenDrawer = data.canOpenDrawer || data.can_open_drawer ? 1 : 0;
     const allowManualDiscounts =
         data.allowManualDiscounts || data.allow_manual_discounts ? 1 : 0;
+    const canViewCost = data.canViewCost || data.can_view_cost ? 1 : 0;
     const [result] = await pool.execute(
         `INSERT INTO pos_employees (
             employee_code, first_name, last_name, email, pin_hash, hourly_rate, admin_user_id,
-            can_authorize, can_process_refunds, can_open_drawer, allow_manual_discounts
+            can_authorize, can_process_refunds, can_open_drawer, allow_manual_discounts, can_view_cost
          )
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
             code,
             String(data.firstName || data.first_name || '').trim(),
@@ -297,7 +304,8 @@ async function createEmployee(pool, data, adminId) {
             canAuthorize,
             canProcessRefunds,
             canOpenDrawer,
-            allowManualDiscounts
+            allowManualDiscounts,
+            canViewCost
         ]
     );
     return getEmployeeById(pool, result.insertId);
@@ -361,6 +369,10 @@ async function updateEmployee(pool, id, data) {
         updates.push('allow_manual_discounts = ?');
         params.push(data.allowManualDiscounts || data.allow_manual_discounts ? 1 : 0);
     }
+    if (data.canViewCost != null || data.can_view_cost != null) {
+        updates.push('can_view_cost = ?');
+        params.push(data.canViewCost || data.can_view_cost ? 1 : 0);
+    }
     if (!updates.length) return getEmployeeById(pool, id);
     params.push(id);
     await pool.execute(`UPDATE pos_employees SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, params);
@@ -370,7 +382,8 @@ async function updateEmployee(pool, id, data) {
 async function listEmployees(pool) {
     const [rows] = await pool.execute(
         `SELECT id, employee_code, first_name, last_name, email, is_active, hourly_rate, admin_user_id,
-                can_authorize, can_process_refunds, can_open_drawer, allow_manual_discounts, created_at, updated_at
+                can_authorize, can_process_refunds, can_open_drawer, allow_manual_discounts, can_view_cost,
+                created_at, updated_at
          FROM pos_employees ORDER BY last_name, first_name`
     );
     return rows;
@@ -416,6 +429,9 @@ async function upsertRegisterForAdminUser(pool, adminUserId, data) {
     }
     if (data.allowManualDiscounts != null || data.allow_manual_discounts != null) {
         payload.allowManualDiscounts = Boolean(data.allowManualDiscounts || data.allow_manual_discounts);
+    }
+    if (data.canViewCost != null || data.can_view_cost != null) {
+        payload.canViewCost = Boolean(data.canViewCost || data.can_view_cost);
     }
 
     if (existing) {
@@ -701,6 +717,7 @@ module.exports = {
     employeeCanAuthorize,
     employeeCanProcessRefunds,
     employeeAllowManualDiscounts,
+    employeeCanViewCost,
     verifyEmployeeToken,
     createEmployee,
     updateEmployee,

@@ -3,8 +3,20 @@
  * Used by server.js (API responses) and maintenance scripts (reports, sync, heal).
  */
 
-/** Old Concrete CMS thumbnail URLs often 404. Fallback when no override applies. */
+/** @deprecated No longer applied at runtime — kept for maintenance scripts that reference the old path. */
 const DEFAULT_FALLBACK_PRODUCT_IMAGE = '/images/products/advanced-blood-pressure-support-id1233-hmherbs-primary.jpg';
+
+const GENERIC_PLACEHOLDER_PRODUCT_IMAGES = new Set([
+    DEFAULT_FALLBACK_PRODUCT_IMAGE,
+    '/images/products/nature-s-puls-probiotic-mega.jpg',
+]);
+
+function isGenericPlaceholderProductImage(url) {
+    const u = String(url || '').trim();
+    if (!u) return false;
+    if (GENERIC_PLACEHOLDER_PRODUCT_IMAGES.has(u)) return true;
+    return /\/advanced-blood-pressure-support-id\d+-hmherbs-primary\.(jpe?g|webp|png)$/i.test(u);
+}
 
 function skuFromProductSlug(slug) {
     if (!slug || typeof slug !== 'string') return '';
@@ -64,7 +76,9 @@ const CATALOG_PRIMARY_IMAGE_BY_SLUG = {
     // Use real JPEG/PNG bytes — *-hmherbs-primary.jpg for these SKUs was WebP mislabeled as .jpg (browsers won't decode).
     'now-foods-nutraflora-fos': '/images/products/now-foods-nutraflora-fos.png',
     'now-glutathione-250mg': '/images/products/now-glutathione-250mg.jpg',
-    'now-liquid-chlorophyll-mint-4oz': '/images/products/now-liquid-chlorophyll-mint-4oz.jpg'
+    'now-liquid-chlorophyll-mint-4oz': '/images/products/now-liquid-chlorophyll-mint-4oz.jpg',
+    'digital-gift-card': '/images/products/gift-card-digital.svg',
+    'physical-gift-card': '/images/products/gift-card-physical.svg'
 };
 
 const CATALOG_PRIMARY_IMAGE_BY_SKU = {
@@ -96,7 +110,9 @@ const CATALOG_PRIMARY_IMAGE_BY_SKU = {
     '8851': '/images/products/herbs-for-life-delta-9-gummies-10mg-ea-id1312-hmherbs-primary.jpg',
     '28673': '/images/products/now-foods-nutraflora-fos.png',
     '28696': '/images/products/now-glutathione-250mg.jpg',
-    '28709': '/images/products/now-liquid-chlorophyll-mint-4oz.jpg'
+    '28709': '/images/products/now-liquid-chlorophyll-mint-4oz.jpg',
+    'GC-DIGITAL': '/images/products/gift-card-digital.svg',
+    'GC-PHYSICAL': '/images/products/gift-card-physical.svg'
 };
 
 const CATALOG_PRICE_BY_SKU = {
@@ -190,14 +206,17 @@ function isNonProductMarketingImageUrl(url) {
 
 function sanitizeLegacyProductImageUrl(url, slug = null, sku = null) {
     if (!url || typeof url !== 'string') return url;
+    if (isGenericPlaceholderProductImage(url)) {
+        return catalogPrimaryImageForProduct({ slug, sku }) || null;
+    }
     if (isNonProductMarketingImageUrl(url)) {
-        return catalogPrimaryImageForProduct({ slug, sku }) || DEFAULT_FALLBACK_PRODUCT_IMAGE;
+        return catalogPrimaryImageForProduct({ slug, sku }) || null;
     }
     if (
         /hmherbs\.com\/application\/files\//i.test(url) ||
         /i0\.wp\.com\/hmherbs\.com\/application\/files\//i.test(url)
     ) {
-        return catalogPrimaryImageForProduct({ slug, sku }) || DEFAULT_FALLBACK_PRODUCT_IMAGE;
+        return catalogPrimaryImageForProduct({ slug, sku }) || null;
     }
     return url;
 }
@@ -241,6 +260,7 @@ module.exports = {
     catalogPriceForSku,
     applyCatalogPriceFix,
     isNonProductMarketingImageUrl,
+    isGenericPlaceholderProductImage,
     sanitizeLegacyProductImageUrl,
     storefrontPrimaryImageFromFields,
     effectivePrimaryImageUrl

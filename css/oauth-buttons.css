@@ -45,7 +45,7 @@
 }
 
 .btn-google:focus-visible {
-    box-shadow: 0 0 0 3px rgba(45, 90, 39, 0.2);
+    box-shadow: 0 0 0 3px rgba(var(--brand-primary-rgb), 0.2);
 }
 
 .btn-google svg {
@@ -55,17 +55,17 @@
 }
 
 .btn-google-oauth--prompt {
-    border-color: #10b981;
-    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.35);
+    border-color: var(--brand-primary);
+    box-shadow: 0 0 0 3px rgba(var(--brand-primary-rgb), 0.35);
     animation: hm-google-prompt-pulse 1.25s ease-in-out 3;
 }
 
 @keyframes hm-google-prompt-pulse {
     0%,
     100% {
-        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.35);
+        box-shadow: 0 0 0 3px rgba(var(--brand-primary-rgb), 0.35);
     }
     50% {
-        box-shadow: 0 0 0 6px rgba(16, 185, 129, 0.2);
+        box-shadow: 0 0 0 6px rgba(var(--brand-primary-rgb), 0.2);
     }
 }

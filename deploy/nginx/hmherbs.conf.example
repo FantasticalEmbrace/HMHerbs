@@ -25,6 +25,15 @@ server {
         alias /var/www/hmherbs/backend/uploads/;
     }
 
+    # Business One Web POS — dedicated platform (not on store servers)
+    location = /pos {
+        return 301 https://pos.businessonecomprehensive.com/;
+    }
+
+    location ^~ /pos/ {
+        return 301 https://pos.businessonecomprehensive.com/;
+    }
+
     location / {
         try_files $uri $uri/ /index.html;
     }

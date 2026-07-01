@@ -1,15 +1,22 @@
 /**
  * HM Herbs canonical palette — shared by admin, storefront, POS, and emails.
- * Change colors here; both frontend and backend pick them up.
+ * Primary green matches admin sidebar (#047857 / #065f46), NOT bright emerald.
  */
 :root {
-    /* Brand greens (admin sidebar + primary actions) */
-    --brand-primary: #10b981;
-    --brand-primary-light: #34d399;
-    --brand-primary-dark: #059669;
+    /* Brand greens — same codes as admin sidebar & buttons */
+    --brand-primary: #047857;
+    --brand-primary-light: #059669;
+    --brand-primary-dark: #065f46;
     --brand-sidebar-from: #047857;
     --brand-sidebar-to: #065f46;
     --brand-accent-gold: #d4af37;
+    --brand-accent-gold-rgb: 212, 175, 55;
+
+    /* RGB channels for rgba() */
+    --brand-primary-rgb: 4, 120, 87;
+    --brand-primary-light-rgb: 5, 150, 105;
+    --brand-sidebar-from-rgb: 4, 120, 87;
+    --brand-sidebar-to-rgb: 6, 95, 70;
 
     /* Site aliases */
     --primary: var(--brand-primary);
@@ -18,13 +25,13 @@
     --primary-green-dark: var(--brand-primary-dark);
     --dark-green: var(--brand-primary-dark);
     --accent-gold: var(--brand-accent-gold);
-    --light-green: #ecfdf5;
-    --secondary-sage: #6ee7b7;
+    --light-green: #edf7f3;
+    --secondary-sage: #059669;
 
     /* Primary scale */
-    --primary-50: #ecfdf5;
-    --primary-100: #d1fae5;
-    --primary-300: #6ee7b7;
+    --primary-50: #edf7f3;
+    --primary-100: #d5ebe3;
+    --primary-300: #059669;
     --primary-500: var(--brand-primary);
     --primary-600: var(--brand-primary-dark);
     --primary-700: var(--brand-sidebar-from);
@@ -43,16 +50,55 @@
     --gray-900: #111827;
 
     /* Status */
-    --success: #10b981;
+    --success: #047857;
     --warning: #f59e0b;
     --error: #ef4444;
     --info: #3b82f6;
 
-    /* Secondary accents (storefront highlights — gold aligns with admin) */
+    /* Admin badge / alert surfaces */
+    --badge-success-bg: #d5ebe3;
+    --badge-success-text: #065f46;
+    --badge-warning-bg: #fef3c7;
+    --badge-warning-text: #92400e;
+    --badge-info-bg: #dbeafe;
+    --badge-info-text: #1e40af;
+    --badge-danger-bg: #fef2f2;
+    --badge-danger-text: #b91c1c;
+
+    /* Brand-tinted surfaces & effects */
+    --brand-surface-subtle: rgba(var(--brand-primary-rgb), 0.04);
+    --brand-surface-muted: rgba(var(--brand-primary-rgb), 0.05);
+    --brand-surface-soft: rgba(var(--brand-primary-rgb), 0.08);
+    --brand-surface-medium: rgba(var(--brand-primary-rgb), 0.12);
+    --brand-border-soft: rgba(var(--brand-primary-rgb), 0.12);
+    --brand-border-medium: rgba(var(--brand-primary-rgb), 0.25);
+    --brand-focus-ring: 0 0 0 3px rgba(var(--brand-primary-rgb), 0.1);
+    --brand-focus-ring-md: 0 0 0 3px rgba(var(--brand-primary-rgb), 0.15);
+    --brand-focus-ring-lg: 0 0 0 5px rgba(var(--brand-primary-rgb), 0.2);
+    --brand-focus-ring-sm: 0 0 0 2px rgba(var(--brand-primary-rgb), 0.2);
+    --brand-btn-shadow: 0 2px 4px rgba(var(--brand-primary-rgb), 0.2);
+    --brand-btn-shadow-hover: 0 4px 8px rgba(var(--brand-primary-rgb), 0.3);
+    --brand-btn-shadow-active: 0 1px 2px rgba(var(--brand-primary-rgb), 0.2);
+    --brand-elevated-shadow: 0 4px 16px rgba(var(--brand-primary-rgb), 0.3);
+    --brand-elevated-shadow-lg: 0 8px 24px rgba(var(--brand-primary-rgb), 0.4);
+    --brand-card-shadow: 0 4px 12px rgba(var(--brand-primary-rgb), 0.25);
+
+    /* Page & section backgrounds (match admin dashboard) */
+    --brand-page-bg: var(--gray-50);
+    --brand-section-hero: linear-gradient(180deg, var(--primary-50) 0%, var(--gray-50) 100%);
+    --brand-section-muted: linear-gradient(180deg, var(--gray-50) 0%, var(--white) 100%);
+
+    /* Secondary accents — same gold as admin active nav (#d4af37) */
     --accent-orange: var(--brand-accent-gold);
     --accent-orange-light: #e5c158;
     --accent-orange-dark: #b8941f;
     --earth-brown: var(--gray-700);
     --earth-brown-light: var(--gray-600);
     --earth-brown-dark: var(--gray-800);
+
+    --overlay-scrim: rgba(17, 24, 39, 0.55);
+    --overlay-scrim-light: rgba(17, 24, 39, 0.28);
+    --hm-close-fill: #e85242;
+    --hm-close-fill-hover: #f0786d;
+    --hm-close-fill-active: #cf4a40;
 }

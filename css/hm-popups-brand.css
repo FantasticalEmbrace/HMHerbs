@@ -30,7 +30,7 @@
 
   /* Primary action (confirm / submit in popups) */
   --hm-popup-btn-bg: linear-gradient(180deg, var(--primary-green), var(--primary-green-dark));
-  --hm-popup-btn-shadow: 0 2px 10px rgba(5, 150, 105, 0.35);
+  --hm-popup-btn-shadow: var(--brand-btn-shadow);
   --hm-popup-btn-radius: 10px;
 
   /* Safe-area padding for full-viewport overlays */
@@ -80,7 +80,7 @@
 }
 
 .hm-age-gate__exit:hover {
-  color: var(--primary-green, #10b981);
+  color: var(--primary-green);
 }
 
 /* ── Shared modal card shells ─────────────────────────────────────────── */
@@ -147,7 +147,7 @@
 .modal-footer .btn-primary,
 .ccpa-banner-actions .btn-primary {
   background: var(--hm-popup-btn-bg);
-  border-color: var(--primary-green-dark, #059669);
+  border-color: var(--primary-green-dark);
   box-shadow: var(--hm-popup-btn-shadow);
 }
 
@@ -157,8 +157,8 @@
   box-shadow: var(--hm-popup-card-shadow);
   background: linear-gradient(
     135deg,
-    var(--primary-green-dark, #059669) 0%,
-    var(--primary-green, #10b981) 100%
+    var(--primary-green-dark) 0%,
+    var(--primary-green) 100%
   );
 }
 

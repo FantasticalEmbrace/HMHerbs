@@ -905,6 +905,10 @@ class AdminApp {
         if (refundPermRow) {
             refundPermRow.style.display = isFullAdmin ? 'flex' : 'none';
         }
+        const viewCostPermRow = document.getElementById('register-view-cost-permission-row');
+        if (viewCostPermRow) {
+            viewCostPermRow.style.display = isFullAdmin ? 'flex' : 'none';
+        }
 
         const developerNav = document.getElementById('nav-developer-tools-item');
         if (developerNav) {
@@ -1915,9 +1919,9 @@ class AdminApp {
                 const v = (document.getElementById('promo-icon-url')?.value || '').trim().slice(0, 200);
                 return /^\/uploads\/promo-icons\/[a-zA-Z0-9._-]+$/.test(v) ? v : '';
             })(),
-            customBg: (document.getElementById('promo-custom-bg')?.value || '#10b981').trim(),
+            customBg: (document.getElementById('promo-custom-bg')?.value || '#047857').trim(),
             customText: (document.getElementById('promo-custom-text')?.value || '#ffffff').trim(),
-            customAccent: (document.getElementById('promo-custom-accent')?.value || '#fbbf24').trim(),
+            customAccent: (document.getElementById('promo-custom-accent')?.value || '#d4af37').trim(),
         };
     }
 
@@ -1937,9 +1941,9 @@ class AdminApp {
         if (el('promo-link-label')) el('promo-link-label').value = cfg.linkLabel || '';
         if (el('promo-icon')) el('promo-icon').value = cfg.icon || '';
         if (el('promo-icon-url')) el('promo-icon-url').value = cfg.iconUrl || '';
-        if (el('promo-custom-bg')) el('promo-custom-bg').value = cfg.customBg || '#10b981';
+        if (el('promo-custom-bg')) el('promo-custom-bg').value = cfg.customBg || '#047857';
         if (el('promo-custom-text')) el('promo-custom-text').value = cfg.customText || '#ffffff';
-        if (el('promo-custom-accent')) el('promo-custom-accent').value = cfg.customAccent || '#fbbf24';
+        if (el('promo-custom-accent')) el('promo-custom-accent').value = cfg.customAccent || '#d4af37';
         this._togglePromoCustomColors();
         this._refreshPromoIconPreview();
     }
@@ -3487,11 +3491,18 @@ class AdminApp {
         }
     }
 
+    _posRegisterUrl(register = '') {
+        const meta = document.querySelector('meta[name="business-one-pos-register-url"]');
+        const base = (meta?.getAttribute('content') || 'https://pos.businessonecomprehensive.com/').trim().replace(/\/+$/, '');
+        const reg = String(register || '').trim();
+        return reg ? `${base}/?register=${encodeURIComponent(reg)}` : `${base}/`;
+    }
+
     _showPosDeviceKeyMessage(msgEl, apiKey, deviceLabel = '') {
         const msg = msgEl || document.getElementById('pos-device-create-msg');
         if (!msg) return;
         const register = String(deviceLabel || document.getElementById('pos-new-device-label')?.value || '').trim();
-        const posUrl = `${window.location.origin.replace(/\/+$/, '')}/pos/${register ? `?register=${encodeURIComponent(register)}` : ''}`;
+        const posUrl = this._posRegisterUrl(register);
         const openPos = `<a href="${this.escapeHtml(posUrl)}" target="_blank" rel="noopener noreferrer">Open POS setup</a>`;
         if (apiKey) {
             msg.innerHTML = `<strong>Copy this key now</strong> (shown once):
@@ -4820,15 +4831,20 @@ class AdminApp {
         const canProcessRefunds = Boolean(reg?.canProcessRefunds);
         const canOpenDrawer = Boolean(reg?.canOpenDrawer);
         const allowManualDiscounts = Boolean(reg?.allowManualDiscounts);
+        const canViewCost = Boolean(reg?.canViewCost);
         const restrictedBlocks = this.isFullAdmin
             ? `
                 <label style="display:flex;align-items:flex-start;gap:0.5rem;cursor:pointer;margin-bottom:0.65rem;">
                     <input type="checkbox" name="canProcessRefunds" value="true"${canProcessRefunds ? ' checked' : ''} style="margin-top:0.2rem;">
                     <span>Can process refunds <span style="color:var(--gray-600);font-weight:400;">(Admin/Developer only — register PIN required)</span></span>
                 </label>
-                <label style="display:flex;align-items:flex-start;gap:0.5rem;cursor:pointer;">
+                <label style="display:flex;align-items:flex-start;gap:0.5rem;cursor:pointer;margin-bottom:0.65rem;">
                     <input type="checkbox" name="canOpenDrawer" value="true"${canOpenDrawer ? ' checked' : ''} style="margin-top:0.2rem;">
                     <span>Can open cash drawer manually <span style="color:var(--gray-600);font-weight:400;">(Admin/Developer only — Shift screen button)</span></span>
+                </label>
+                <label style="display:flex;align-items:flex-start;gap:0.5rem;cursor:pointer;">
+                    <input type="checkbox" name="canViewCost" value="true"${canViewCost ? ' checked' : ''} style="margin-top:0.2rem;">
+                    <span>Can view product cost at register <span style="color:var(--gray-600);font-weight:400;">(Admin/Developer only — requires store cost display enabled)</span></span>
                 </label>`
             : '';
         return `
@@ -5075,6 +5091,9 @@ class AdminApp {
         const canOpenDrawer = this.isFullAdmin
             ? !!form.querySelector('[name="canOpenDrawer"]')?.checked
             : undefined;
+        const canViewCost = this.isFullAdmin
+            ? !!form.querySelector('[name="canViewCost"]')?.checked
+            : undefined;
 
         if (pin && !this._isValidRegisterPin(pin)) {
             if (msg) {
@@ -5105,6 +5124,7 @@ class AdminApp {
                     allowManualDiscounts,
                     ...(canProcessRefunds !== undefined ? { canProcessRefunds } : {}),
                     ...(canOpenDrawer !== undefined ? { canOpenDrawer } : {}),
+                    ...(canViewCost !== undefined ? { canViewCost } : {}),
                 };
                 if (pin) payload.pin = pin;
                 await this.apiRequest(`/admin/personnel/employees/${id}`, {
@@ -5168,6 +5188,7 @@ class AdminApp {
                             allowManualDiscounts,
                             ...(canProcessRefunds !== undefined ? { canProcessRefunds } : {}),
                             ...(canOpenDrawer !== undefined ? { canOpenDrawer } : {}),
+                            ...(canViewCost !== undefined ? { canViewCost } : {}),
                         }),
                     });
                 }
@@ -5214,7 +5235,9 @@ class AdminApp {
                               canProcessRefunds:
                                   fd.get('canProcessRefunds') === 'on' || fd.get('canProcessRefunds') === 'true',
                               canOpenDrawer:
-                                  fd.get('canOpenDrawer') === 'on' || fd.get('canOpenDrawer') === 'true'
+                                  fd.get('canOpenDrawer') === 'on' || fd.get('canOpenDrawer') === 'true',
+                              canViewCost:
+                                  fd.get('canViewCost') === 'on' || fd.get('canViewCost') === 'true'
                           }
                         : {}),
                 }),
@@ -10842,12 +10865,41 @@ function createProductModal(title, formId, isEdit = false) {
     imageSection.style.borderBottom = '1px solid var(--gray-200)';
 
     const sectionTitleImages = document.createElement('h3');
-    sectionTitleImages.textContent = 'Product Images';
+    sectionTitleImages.textContent = 'Website photos';
     sectionTitleImages.style.fontSize = '1.1rem';
     sectionTitleImages.style.fontWeight = '600';
     sectionTitleImages.style.color = 'var(--primary-green)';
-    sectionTitleImages.style.marginBottom = '1.5rem';
+    sectionTitleImages.style.marginBottom = '0.5rem';
     imageSection.appendChild(sectionTitleImages);
+
+    const imageReorderHint = document.createElement('p');
+    imageReorderHint.className = 'hm-product-image-reorder-hint';
+    imageReorderHint.textContent = 'Drag photos to reorder. Order is saved when you save the product; the primary image is marked separately.';
+    imageReorderHint.style.margin = '0 0 1.25rem';
+    imageReorderHint.style.fontSize = '0.8rem';
+    imageReorderHint.style.color = 'var(--gray-500)';
+    imageReorderHint.style.lineHeight = '1.45';
+    imageSection.appendChild(imageReorderHint);
+
+    if (!document.getElementById('hm-product-image-drag-styles')) {
+        const dragStyles = document.createElement('style');
+        dragStyles.id = 'hm-product-image-drag-styles';
+        dragStyles.textContent = `
+            .hm-product-image-card--dragging {
+                opacity: 0.55;
+                border-color: var(--primary-green) !important;
+                box-shadow: 0 8px 24px rgba(4, 120, 87, 0.18);
+            }
+            .hm-product-image-card--drag-over {
+                border-color: var(--primary-green) !important;
+                box-shadow: inset 0 0 0 2px var(--primary-green);
+            }
+            .hm-product-image-drag-handle:active {
+                cursor: grabbing;
+            }
+        `;
+        document.head.appendChild(dragStyles);
+    }
 
     const imageUploadContainer = document.createElement('div');
     imageUploadContainer.id = `${isEdit ? 'edit' : 'add'}-image-upload-container`;
@@ -10859,7 +10911,7 @@ function createProductModal(title, formId, isEdit = false) {
     unifiedInputGroup.style.marginBottom = '1rem';
 
     const inputLabel = document.createElement('label');
-    inputLabel.textContent = 'Add Images (Upload files or paste URL)';
+    inputLabel.textContent = 'Add website photos (upload files or paste URL)';
     inputLabel.style.display = 'block';
     inputLabel.style.marginBottom = '0.75rem';
     inputLabel.style.fontWeight = '500';
@@ -11058,10 +11110,37 @@ function createProductModal(title, formId, isEdit = false) {
     });
 
     // Update image preview
+    let dragImageIndex = null;
+
+    function moveSelectedImage(fromIndex, toIndex) {
+        if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return;
+        if (fromIndex >= selectedImages.length || toIndex >= selectedImages.length) return;
+        const [moved] = selectedImages.splice(fromIndex, 1);
+        selectedImages.splice(toIndex, 0, moved);
+        updateImagePreview();
+    }
+
     function updateImagePreview() {
         previewContainer.innerHTML = '';
+        const canReorder = selectedImages.length > 1;
+        previewContainer.classList.toggle('hm-product-image-grid--reorderable', canReorder);
+
+        if (!selectedImages.length) {
+            const empty = document.createElement('div');
+            empty.className = 'hm-product-image-empty';
+            empty.setAttribute('aria-hidden', 'true');
+            empty.style.minHeight = '140px';
+            empty.style.border = '2px dashed var(--gray-300)';
+            empty.style.borderRadius = 'var(--border-radius)';
+            empty.style.backgroundColor = 'var(--gray-50)';
+            previewContainer.appendChild(empty);
+            return;
+        }
+
         selectedImages.forEach((imageData, index) => {
             const imageCard = document.createElement('div');
+            imageCard.className = 'hm-product-image-card';
+            imageCard.dataset.imageIndex = String(index);
             imageCard.style.position = 'relative';
             imageCard.style.border = '2px solid var(--gray-300)';
             imageCard.style.borderRadius = 'var(--border-radius)';
@@ -11070,6 +11149,72 @@ function createProductModal(title, formId, isEdit = false) {
             imageCard.style.minWidth = '0';
             imageCard.style.boxSizing = 'border-box';
             imageCard.style.overflow = 'hidden';
+            imageCard.style.transition = 'border-color 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease';
+
+            if (canReorder) {
+                const dragHandle = document.createElement('button');
+                dragHandle.type = 'button';
+                dragHandle.className = 'hm-product-image-drag-handle';
+                dragHandle.draggable = true;
+                dragHandle.title = 'Drag to reorder';
+                dragHandle.setAttribute('aria-label', `Drag image ${index + 1} to reorder`);
+                dragHandle.innerHTML = '<i class="fas fa-grip-vertical" aria-hidden="true"></i>';
+                dragHandle.style.display = 'flex';
+                dragHandle.style.alignItems = 'center';
+                dragHandle.style.justifyContent = 'center';
+                dragHandle.style.position = 'absolute';
+                dragHandle.style.top = '0.5rem';
+                dragHandle.style.left = '0.5rem';
+                dragHandle.style.zIndex = '2';
+                dragHandle.style.width = '2rem';
+                dragHandle.style.height = '2rem';
+                dragHandle.style.padding = '0';
+                dragHandle.style.border = '1px solid var(--gray-300)';
+                dragHandle.style.borderRadius = 'var(--border-radius)';
+                dragHandle.style.background = 'rgba(255,255,255,0.95)';
+                dragHandle.style.color = 'var(--gray-600)';
+                dragHandle.style.cursor = 'grab';
+
+                dragHandle.addEventListener('dragstart', (e) => {
+                    dragImageIndex = index;
+                    imageCard.classList.add('hm-product-image-card--dragging');
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', String(index));
+                    if (e.dataTransfer.setDragImage) {
+                        e.dataTransfer.setDragImage(imageCard, 24, 24);
+                    }
+                });
+
+                dragHandle.addEventListener('dragend', () => {
+                    dragImageIndex = null;
+                    previewContainer.querySelectorAll('.hm-product-image-card').forEach((card) => {
+                        card.classList.remove('hm-product-image-card--dragging', 'hm-product-image-card--drag-over');
+                    });
+                });
+
+                imageCard.addEventListener('dragover', (e) => {
+                    if (dragImageIndex === null) return;
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    if (dragImageIndex !== index) {
+                        imageCard.classList.add('hm-product-image-card--drag-over');
+                    }
+                });
+
+                imageCard.addEventListener('dragleave', () => {
+                    imageCard.classList.remove('hm-product-image-card--drag-over');
+                });
+
+                imageCard.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    imageCard.classList.remove('hm-product-image-card--drag-over');
+                    const fromIndex = dragImageIndex;
+                    if (fromIndex === null || fromIndex === index) return;
+                    moveSelectedImage(fromIndex, index);
+                });
+
+                imageCard.appendChild(dragHandle);
+            }
 
             const img = document.createElement('img');
             img.src = imageData.url;
@@ -11078,6 +11223,9 @@ function createProductModal(title, formId, isEdit = false) {
             img.style.objectFit = 'cover';
             img.style.borderRadius = 'var(--border-radius)';
             img.style.marginBottom = '0.5rem';
+            img.addEventListener('error', () => {
+                img.style.display = 'none';
+            });
 
             const primaryBadge = document.createElement('div');
             if (imageData.isPrimary) {
@@ -11600,6 +11748,14 @@ function editProduct(productId) {
 }
 
 
+function isDeprecatedPlaceholderImageUrl(url) {
+    const u = String(url || '').trim();
+    if (!u) return true;
+    if (u === '/images/products/advanced-blood-pressure-support-id1233-hmherbs-primary.jpg') return true;
+    if (u === '/images/products/nature-s-puls-probiotic-mega.jpg') return true;
+    return /\/advanced-blood-pressure-support-id\d+-hmherbs-primary\.(jpe?g|webp|png)$/i.test(u);
+}
+
 async function loadProductForEdit(productId) {
     try {
         const app = window.adminApp;
@@ -11685,23 +11841,24 @@ async function loadProductForEdit(productId) {
             }
 
             // Load existing images if available
-            if (product.images && Array.isArray(product.images) && product.images.length > 0) {
-                if (editForm && editForm.selectedImages) {
-                    // Clear existing images
-                    editForm.selectedImages.length = 0;
-                    // Add existing images
-                    product.images.forEach((img, index) => {
-                        editForm.selectedImages.push({
-                            url: img.image_url,
-                            alt: img.alt_text || '',
-                            isPrimary: img.is_primary || index === 0,
-                            file: null
+            if (editForm && editForm.selectedImages) {
+                editForm.selectedImages.length = 0;
+                if (product.images && Array.isArray(product.images) && product.images.length > 0) {
+                    product.images
+                        .slice()
+                        .sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0))
+                        .forEach((img, index) => {
+                            if (!img.image_url || isDeprecatedPlaceholderImageUrl(img.image_url)) return;
+                            editForm.selectedImages.push({
+                                url: img.image_url,
+                                alt: img.alt_text || '',
+                                isPrimary: img.is_primary === 1 || img.is_primary === true || index === 0,
+                                file: null,
+                            });
                         });
-                    });
-                    // Update preview using the stored function
-                    if (editForm.updateImagePreview) {
-                        editForm.updateImagePreview();
-                    }
+                }
+                if (editForm.updateImagePreview) {
+                    editForm.updateImagePreview();
                 }
             }
 

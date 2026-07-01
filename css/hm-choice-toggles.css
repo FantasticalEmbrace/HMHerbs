@@ -5,9 +5,9 @@
 :root {
     --hm-choice-off: #dc2626;
     --hm-choice-off-bg: rgba(220, 38, 38, 0.08);
-    --hm-choice-on: #10b981;
-    --hm-choice-on-dark: #059669;
-    --hm-choice-on-bg: rgba(16, 185, 129, 0.12);
+    --hm-choice-on: var(--brand-primary);
+    --hm-choice-on-dark: var(--brand-primary-dark);
+    --hm-choice-on-bg: var(--brand-surface-medium);
     --hm-choice-knob: #ffffff;
     --hm-choice-shadow: 0 2px 6px rgba(15, 23, 42, 0.18);
 }
@@ -156,7 +156,7 @@
 .hm-choice-row--lg:has(.hm-choice-input:checked) .hm-choice-state-off { display: none; }
 
 .hm-choice-row:has(.hm-choice-input:focus-visible) .hm-choice-pill {
-    outline: 3px solid rgba(16, 185, 129, 0.35);
+    outline: 3px solid rgba(var(--brand-primary-rgb), 0.35);
     outline-offset: 2px;
 }
 
@@ -203,11 +203,11 @@
 .hm-choice-segment:has(.hm-choice-input:checked) {
     border-color: var(--hm-choice-on);
     background: var(--hm-choice-on-bg);
-    box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.2);
+    box-shadow: 0 0 0 1px rgba(var(--brand-primary-rgb), 0.2);
 }
 
 .hm-choice-segment:has(.hm-choice-input:focus-visible) {
-    outline: 3px solid rgba(16, 185, 129, 0.3);
+    outline: 3px solid rgba(var(--brand-primary-rgb), 0.3);
     outline-offset: 2px;
 }
 

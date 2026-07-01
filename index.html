@@ -30,8 +30,8 @@
     <meta name="twitter:image" content="https://hmherbs.com/images/twitter-card.jpg">
 
     <!-- Additional SEO Meta Tags -->
-    <meta name="theme-color" content="#10b981">
-    <meta name="msapplication-TileColor" content="#10b981">
+    <meta name="theme-color" content="#047857">
+    <meta name="msapplication-TileColor" content="#047857">
     <meta name="application-name" content="H&M Herbs & Vitamins">
 
     <!-- PWA Manifest -->
@@ -167,26 +167,39 @@
     <title>H&M Herbs & Vitamins - Natural Health Products</title>
 
     <!-- CRITICAL: Emergency visual bug fixes -->
+    <link rel="stylesheet" href="css/brand-tokens.css?v=admin-sync-5">
     <link rel="stylesheet" href="css/emergency-fixes.css?v=mobile-nav-4">
     <link rel="stylesheet" href="css/hm-notify.css">
 
     <!-- Stylesheets -->
-    <link rel="stylesheet" href="styles.css?v=brand-sync-1">
+    <link rel="stylesheet" href="styles.css?v=brand-sync-5">
     <link rel="stylesheet" href="css/hm-choice-toggles.css">
     <link rel="stylesheet" href="css/mobile-enhancements.css">
-    <link rel="stylesheet" href="css/mobile-nav.css?v=brand-sync-1">
+    <link rel="stylesheet" href="css/mobile-nav.css?v=brand-sync-5">
     <link rel="stylesheet" href="css/browser-compatibility.css">
-    <link rel="stylesheet" href="css/age-gate.css?v=brand-sync-1">
+    <link rel="stylesheet" href="css/age-gate.css?v=brand-sync-5">
     <link rel="stylesheet" href="css/customer-auth.css">
     <link rel="stylesheet" href="css/oauth-buttons.css">
     <link rel="stylesheet" href="css/performance-optimizations.css?v=2">
     <link rel="stylesheet" href="css/accessibility-enhancements.css">
     <link rel="stylesheet" href="css/hm-accent-links.css">
     <link rel="stylesheet" href="css/hm-close-controls.css">
-    <link rel="stylesheet" href="css/site-promo-banner.css?v=brand-sync-1">
+    <link rel="stylesheet" href="css/site-promo-banner.css?v=brand-sync-5">
     <link rel="stylesheet" href="css/edsa-booking.css?v=16">
-    <link rel="stylesheet" href="css/hm-popups-brand.css?v=brand-sync-1">
+    <link rel="stylesheet" href="css/hm-popups-brand.css?v=brand-sync-5">
     <style id="edsa-booking-viewport-fix">
+        #edsa-booking-modal.edsa-modal:not(.show) {
+            opacity: 0 !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
+        }
+
+        #edsa-booking-modal.edsa-modal.show {
+            opacity: 1 !important;
+            visibility: visible !important;
+            pointer-events: auto !important;
+        }
+
         #edsa-booking-modal.edsa-modal {
             position: fixed !important;
             inset: 0 !important;

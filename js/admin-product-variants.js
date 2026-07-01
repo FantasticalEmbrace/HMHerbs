@@ -63,6 +63,118 @@
         return parts.length ? parts.join(' — ') : Object.values(attrs).join(' — ');
     }
 
+    function isDeprecatedPlaceholderImageUrl(url) {
+        const u = String(url || '').trim();
+        if (!u) return true;
+        if (u === '/images/products/advanced-blood-pressure-support-id1233-hmherbs-primary.jpg') return true;
+        if (u === '/images/products/nature-s-puls-probiotic-mega.jpg') return true;
+        return /\/advanced-blood-pressure-support-id\d+-hmherbs-primary\.(jpe?g|webp|png)$/i.test(u);
+    }
+
+    function resolveImagePreviewSrc(url) {
+        const u = String(url || '').trim();
+        if (!u || isDeprecatedPlaceholderImageUrl(u)) return '';
+        return u;
+    }
+
+    async function uploadVariantImageFile(file) {
+        const app = window.adminApp;
+        if (!app || !app.authToken) {
+            app?.showNotification?.('Please log in to upload images', 'error');
+            return null;
+        }
+        if (!file || !file.type.startsWith('image/')) {
+            app.showNotification(`${file?.name || 'File'} is not an image — skipped.`, 'error');
+            return null;
+        }
+        const formData = new FormData();
+        formData.append('image', file);
+        const response = await fetch(`${app.apiBaseUrl}/admin/products/upload-image`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${app.authToken}` },
+            body: formData,
+        });
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({}));
+            throw new Error(error.error || 'Upload failed');
+        }
+        const result = await response.json();
+        return result.url || null;
+    }
+
+    function updateVariantImagePreview(tr) {
+        const urlInput = tr.querySelector('.hm-v-image');
+        const previewWrap = tr.querySelector('.hm-v-image-preview-wrap');
+        const previewImg = tr.querySelector('.hm-v-image-preview');
+        if (!urlInput || !previewWrap || !previewImg) return;
+
+        const src = resolveImagePreviewSrc(urlInput.value);
+        if (src) {
+            previewImg.src = src;
+            previewWrap.style.display = 'flex';
+        } else {
+            previewImg.removeAttribute('src');
+            previewWrap.style.display = 'none';
+        }
+    }
+
+    function wireVariantImageCell(tr) {
+        const urlInput = tr.querySelector('.hm-v-image');
+        const fileInput = tr.querySelector('.hm-v-image-file');
+        const browseBtn = tr.querySelector('.hm-v-image-browse');
+        const clearBtn = tr.querySelector('.hm-v-image-clear');
+        if (!urlInput || !fileInput || !browseBtn) return;
+
+        browseBtn.addEventListener('click', () => fileInput.click());
+
+        fileInput.addEventListener('change', async () => {
+            const file = fileInput.files?.[0];
+            fileInput.value = '';
+            if (!file) return;
+
+            const originalText = browseBtn.textContent;
+            browseBtn.disabled = true;
+            browseBtn.textContent = '…';
+
+            try {
+                const url = await uploadVariantImageFile(file);
+                if (url) {
+                    urlInput.value = url;
+                    updateVariantImagePreview(tr);
+                }
+            } catch (err) {
+                window.adminApp?.showNotification?.(
+                    `Failed to upload ${file.name}: ${err.message || 'Unknown error'}`,
+                    'error'
+                );
+            } finally {
+                browseBtn.disabled = false;
+                browseBtn.textContent = originalText;
+            }
+        });
+
+        urlInput.addEventListener('input', () => updateVariantImagePreview(tr));
+        urlInput.addEventListener('change', () => updateVariantImagePreview(tr));
+
+        clearBtn?.addEventListener('click', () => {
+            urlInput.value = '';
+            updateVariantImagePreview(tr);
+        });
+
+        previewImgOnError(tr);
+        updateVariantImagePreview(tr);
+    }
+
+    function previewImgOnError(tr) {
+        const previewImg = tr.querySelector('.hm-v-image-preview');
+        if (!previewImg || previewImg.dataset.hmErrorBound) return;
+        previewImg.dataset.hmErrorBound = '1';
+        previewImg.addEventListener('error', () => {
+            const previewWrap = tr.querySelector('.hm-v-image-preview-wrap');
+            if (previewWrap) previewWrap.style.display = 'none';
+        });
+    }
+
     function mountVariantEditor(form, prefix) {
         const section = document.createElement('div');
         section.className = 'hm-variant-editor-section';
@@ -105,7 +217,7 @@
                             <th style="padding:0.5rem;border-bottom:1px solid var(--gray-200);">SKU</th>
                             <th style="padding:0.5rem;border-bottom:1px solid var(--gray-200);">Price</th>
                             <th style="padding:0.5rem;border-bottom:1px solid var(--gray-200);">Cost</th>
-                            <th style="padding:0.5rem;border-bottom:1px solid var(--gray-200);">Image</th>
+                            <th style="padding:0.5rem;border-bottom:1px solid var(--gray-200);min-width:220px;">Variant photo</th>
                             <th style="padding:0.5rem;border-bottom:1px solid var(--gray-200);">Stock</th>
                             <th style="padding:0.5rem;border-bottom:1px solid var(--gray-200);"></th>
                         </tr>
@@ -114,9 +226,44 @@
                 </table>
             </div>
             <p style="font-size:0.75rem;color:var(--gray-400);margin-top:0.75rem;">
-                Tip: set each variant's price, cost, and stock separately. Leave SKU blank to auto-generate on save.
+                Tip: set each variant's price, cost, and stock separately. Upload or paste a photo per variant — shoppers see it when they pick that option. Leave SKU blank to auto-generate on save.
             </p>
         `;
+
+        if (!document.getElementById('hm-variant-image-styles')) {
+            const variantImageStyles = document.createElement('style');
+            variantImageStyles.id = 'hm-variant-image-styles';
+            variantImageStyles.textContent = `
+                .hm-v-image-cell { display: flex; flex-direction: column; gap: 0.35rem; min-width: 200px; }
+                .hm-v-image-preview-wrap {
+                    display: none;
+                    align-items: center;
+                    gap: 0.35rem;
+                }
+                .hm-v-image-preview {
+                    width: 48px;
+                    height: 48px;
+                    object-fit: cover;
+                    border-radius: 6px;
+                    border: 1px solid var(--gray-200);
+                    background: var(--gray-50);
+                }
+                .hm-v-image-input-row { display: flex; gap: 0.25rem; align-items: stretch; }
+                .hm-v-image-input-row .hm-v-image { flex: 1; min-width: 0; font-size: 0.8rem; }
+                .hm-v-image-browse { white-space: nowrap; padding-left: 0.5rem; padding-right: 0.5rem; }
+                .hm-v-image-clear {
+                    border: none;
+                    background: transparent;
+                    color: var(--gray-400);
+                    cursor: pointer;
+                    font-size: 1.1rem;
+                    line-height: 1;
+                    padding: 0 0.15rem;
+                }
+                .hm-v-image-clear:hover { color: var(--danger, #dc2626); }
+            `;
+            document.head.appendChild(variantImageStyles);
+        }
 
         const insertBefore = form.querySelector('.form-actions');
         if (insertBefore) {
@@ -167,7 +314,19 @@
                 <td style="padding:0.35rem;"><input type="number" class="form-input hm-v-price" step="0.01" min="0" value="${data.price != null ? escapeHtml(data.price) : ''}" style="width:90px;"></td>
                 <td style="padding:0.35rem;"><input type="number" class="form-input hm-v-cost" step="0.01" min="0" value="${data.cost_price != null && data.cost_price !== '' ? escapeHtml(data.cost_price) : ''}" placeholder="Optional" style="width:90px;"></td>
                 <td style="padding:0.35rem;">
-                    <input type="text" class="form-input hm-v-image" value="${escapeHtml(data.image_url || '')}" placeholder="/images/products/..." style="width:100%;min-width:140px;">
+                    <div class="hm-v-image-cell">
+                        <div class="hm-v-image-preview-wrap">
+                            <img class="hm-v-image-preview" alt="" />
+                            <button type="button" class="hm-v-image-clear" title="Remove variant photo">&times;</button>
+                        </div>
+                        <div class="hm-v-image-input-row">
+                            <input type="text" class="form-input hm-v-image" value="${escapeHtml(
+                                data.image_url && !isDeprecatedPlaceholderImageUrl(data.image_url) ? data.image_url : ''
+                            )}" placeholder="URL or upload" />
+                            <input type="file" class="hm-v-image-file" accept="image/*" hidden />
+                            <button type="button" class="btn btn-secondary btn-sm hm-v-image-browse">Browse</button>
+                        </div>
+                    </div>
                 </td>
                 <td style="padding:0.35rem;"><input type="number" class="form-input hm-v-inventory" min="0" value="${data.inventory_quantity != null ? escapeHtml(data.inventory_quantity) : '100'}" style="width:70px;"></td>
                 <td style="padding:0.35rem;"><button type="button" class="btn btn-danger btn-sm hm-remove-variant" title="Remove variant">&times;</button></td>
@@ -176,6 +335,7 @@
                 tr.remove();
                 updateVariantCount();
             });
+            wireVariantImageCell(tr);
             rowsEl.appendChild(tr);
             updateVariantCount();
         }
@@ -273,7 +433,8 @@
                     const price = parseFloat(tr.querySelector('.hm-v-price').value);
                     const costRaw = tr.querySelector('.hm-v-cost').value.trim();
                     const cost_price = costRaw === '' ? null : parseFloat(costRaw);
-                    const image_url = tr.querySelector('.hm-v-image').value.trim();
+                    const imageRaw = tr.querySelector('.hm-v-image').value.trim();
+                    const image_url = imageRaw && !isDeprecatedPlaceholderImageUrl(imageRaw) ? imageRaw : null;
                     const inventory_quantity = parseInt(tr.querySelector('.hm-v-inventory').value, 10) || 0;
                     let attributes = null;
                     const attrsRaw = tr.dataset.attributesJson || '';
@@ -290,7 +451,7 @@
                         sku: sku || undefined,
                         price,
                         cost_price: Number.isFinite(cost_price) ? cost_price : null,
-                        image_url: image_url || null,
+                        image_url,
                         inventory_quantity,
                         sort_order: idx,
                         attributes,

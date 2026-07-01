@@ -23,7 +23,7 @@
         }
 
         .check-item.success {
-            border-left-color: #10b981;
+            border-left-color: #047857;
         }
 
         .check-item.error {
@@ -35,7 +35,7 @@
         }
 
         h1 {
-            color: #10b981;
+            color: #047857;
         }
 
         .status {
@@ -70,7 +70,7 @@
             'css/accessibility-enhancements.css',
             'css/products.css',
             'css/brands-categories.css',
-            'styles.css?v=brand-sync-1'
+            'styles.css?v=brand-sync-5'
         ];
 
         const resultsDiv = document.getElementById('results');
@@ -95,7 +95,7 @@
                     checkItem.className = 'check-item success';
                     checkItem.innerHTML = `
                         <div>✅ Found: <span class="url">${file}</span></div>
-                        <div class="status" style="color: #10b981;">SUCCESS</div>
+                        <div class="status" style="color: #047857;">SUCCESS</div>
                     `;
                     successCount++;
                     updateSummary();
@@ -151,7 +151,7 @@
             summaryDiv.innerHTML = `
                 <h2>Summary</h2>
                 <p><strong>Total Files:</strong> ${cssFiles.length}</p>
-                <p><strong>Found:</strong> <span style="color: #10b981;">${successCount}</span></p>
+                <p><strong>Found:</strong> <span style="color: #047857;">${successCount}</span></p>
                 <p><strong>Missing:</strong> <span style="color: #ef4444;">${errorCount}</span></p>
                 <p><strong>Progress:</strong> ${percentage}%</p>
                 ${errorCount > 0 ? `

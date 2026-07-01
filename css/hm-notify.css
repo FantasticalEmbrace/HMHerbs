@@ -67,7 +67,7 @@
 }
 
 .hm-toast--success {
-  background: #059669;
+  background: var(--brand-primary-dark);
 }
 
 .hm-toast--error {

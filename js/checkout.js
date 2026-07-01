@@ -2684,7 +2684,7 @@ class CheckoutManager {
             right: 20px;
             background: ${
                 type === 'success'
-                    ? '#10b981'
+                    ? '#047857'
                     : type === 'error'
                       ? '#ef4444'
                       : type === 'warning'

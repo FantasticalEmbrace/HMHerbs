@@ -21,7 +21,12 @@ body.hm-age-gate-open {
   overscroll-behavior: none;
   transform: none !important;
   -webkit-transform: none !important;
-  background: radial-gradient(circle at 30% 15%, rgba(45, 90, 39, 0.94) 0%, rgba(20, 40, 22, 0.98) 55%, rgba(12, 24, 14, 1) 100%);
+  background: radial-gradient(
+    circle at 30% 15%,
+    rgba(var(--brand-sidebar-from-rgb), 0.94) 0%,
+    rgba(var(--brand-sidebar-to-rgb), 0.98) 55%,
+    var(--gray-900) 100%
+  );
   font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   pointer-events: auto;
 }

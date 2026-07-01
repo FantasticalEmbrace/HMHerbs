@@ -40,9 +40,17 @@ Open http://127.0.0.1:3001 — uses **`backend/.env`**, not production.
 
 Copy from `backend/.env.example` if you need new env keys after an update.
 
-## POS register (separate repo)
+## POS register (separate platform — not on HM Herbs)
 
-The register UI lives in **`https://github.com/FantasticalEmbrace/business-one-pos`** (folder `../business-one-pos`). HM Herbs backend serves it at `/business-one-pos/` when that folder exists beside the site or on the server.
+The register UI lives in **`https://github.com/FantasticalEmbrace/business-one-pos`**. Production host:
+
+**`https://pos.businessonecomprehensive.com`** — its own Linode + domain.
+
+Each merchant opens that site, enters **their store URL** (e.g. `https://www.hmherbs.com`) and **device key**. HM Herbs only runs the **POS API** (`/api/pos/v1`), not the register UI.
+
+Deploy POS platform: `../business-one-pos/deploy/sync-pos-linode.ps1`
+
+Local dev: `npm run serve` in `business-one-pos`, or set `SERVE_POS_UI=true` on the store backend to mount `/pos/` locally.
 
 ## Deploy to Miami (optional)
 

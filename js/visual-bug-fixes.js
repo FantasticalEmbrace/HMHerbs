@@ -157,7 +157,7 @@ class VisualBugFixer {
             }
             
             ::-webkit-scrollbar-thumb:hover {
-                background: var(--primary-green-dark, #047857);
+                background: var(--primary-green-dark);
             }
             
             html {

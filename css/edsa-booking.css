@@ -1,4 +1,4 @@
-/* EDSA Booking Modal Styles */
+﻿/* EDSA Booking Modal Styles */
 
 html.edsa-modal-open,
 body.edsa-modal-open {
@@ -203,7 +203,7 @@ body.edsa-modal-open {
     color: var(--white);
     font-weight: 600;
     border-color: var(--primary-green);
-    box-shadow: 0 0 0 2px rgba(45, 90, 39, 0.2);
+    box-shadow: 0 0 0 2px rgba(var(--brand-primary-rgb), 0.2);
 }
 
 .calendar-day.today.selected {
@@ -316,7 +316,7 @@ body.edsa-modal-open {
 .form-group textarea:focus {
     outline: none;
     border-color: var(--primary-green);
-    box-shadow: 0 0 0 3px rgba(45, 90, 39, 0.1);
+    box-shadow: var(--brand-focus-ring);
 }
 
 .form-group textarea {

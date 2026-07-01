@@ -11,6 +11,7 @@ const path = require('path');
 const fs = require('fs').promises;
 const logger = require('../utils/logger');
 const { saveProductVariants } = require('../utils/saveProductVariants');
+const { sanitizeLegacyProductImageUrl } = require('../utils/catalogOverrides');
 const { normalizeScannedSku, generateUniqueProductSku, skuExists } = require('../utils/generateProductSku');
 
 function parseJsonField(value, fallback = null) {
@@ -1442,6 +1443,7 @@ router.get('/products/:id', ...adminAuth, async (req, res) => {
                 p.price, p.compare_price, p.cost_price, p.cost_synced_at,
                 p.weight, p.inventory_quantity, p.low_stock_threshold,
                 p.is_active, p.is_featured, p.show_on_web, p.is_cannabis, p.coa_url, p.coa_updated_at,
+                p.gift_card_type,
                 p.variant_option_groups,
                 p.created_at, p.updated_at,
                 p.brand_id, p.category_id,
@@ -1466,9 +1468,14 @@ router.get('/products/:id', ...adminAuth, async (req, res) => {
                 SELECT id, image_url, alt_text, is_primary, sort_order
                 FROM product_images
                 WHERE product_id = ?
-                ORDER BY is_primary DESC, sort_order ASC
+                ORDER BY sort_order ASC, id ASC
             `, [id]);
-            product.images = images || [];
+            product.images = (images || [])
+                .map((row) => ({
+                    ...row,
+                    image_url: sanitizeLegacyProductImageUrl(row.image_url, product.slug, product.sku),
+                }))
+                .filter((row) => row.image_url);
         } catch (imageError) {
             logger.warn('Product images table error (may not exist):', imageError.message);
             product.images = [];
@@ -4477,6 +4484,7 @@ router.get('/team', ...adminAuth, requirePermission('admin'), async (req, res) =
                 canProcessRefunds: Boolean(row.can_process_refunds),
                 canOpenDrawer: Boolean(row.can_open_drawer),
                 allowManualDiscounts: Boolean(row.allow_manual_discounts),
+                canViewCost: Boolean(row.can_view_cost),
             };
             if (row.admin_user_id) registerByAdmin.set(row.admin_user_id, reg);
             else registerOnlyEmployees.push(reg);
@@ -4569,6 +4577,7 @@ function mapTeamRegisterRow(employee) {
         canProcessRefunds: Boolean(employee.can_process_refunds),
         canOpenDrawer: Boolean(employee.can_open_drawer),
         allowManualDiscounts: Boolean(employee.allow_manual_discounts),
+        canViewCost: Boolean(employee.can_view_cost),
     };
 }
 
@@ -4587,6 +4596,14 @@ router.put('/team/:id/register', ...adminAuth, requirePermission('admin'), async
                 return res.status(403).json({
                     error: 'Only Admin or Developer can change manual drawer permission',
                     code: 'DRAWER_PERMISSION_ADMIN_ONLY'
+                });
+            }
+        }
+        if (req.body?.canViewCost != null || req.body?.can_view_cost != null) {
+            if (!hasMinAdminRole(req.admin?.role, 'admin')) {
+                return res.status(403).json({
+                    error: 'Only Admin or Developer can change view cost permission',
+                    code: 'VIEW_COST_PERMISSION_ADMIN_ONLY'
                 });
             }
         }

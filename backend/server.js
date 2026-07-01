@@ -75,6 +75,7 @@ const {
     sanitizeLegacyProductImageUrl
 } = require('./utils/catalogOverrides');
 const { STOREFRONT_VISIBLE_WHERE } = require('./utils/storefrontProductVisibility');
+const { toStorefrontProduct } = require('./utils/storefrontProduct');
 
 const { jsonSafeDeep } = require('./utils/jsonSafeMysql');
 const { buildDbConfig } = require('./utils/dbConfig');
@@ -377,15 +378,8 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Static uploads — always resolve to backend/uploads (relative "uploads" breaks if cwd is not backend/)
 const uploadsDir = path.join(__dirname, 'uploads');
 const rootPath = path.join(__dirname, '..');
-const missingUploadProductFallback = path.join(
-    rootPath,
-    'images',
-    'products',
-    'nature-s-puls-probiotic-mega.jpg'
-);
 
 // DB often points at /uploads/products/... files that only exist where they were uploaded (not in git).
-// Serve a real repo image so catalog <img> requests succeed instead of 404 + client fallbacks.
 app.get('/uploads/products/:filename', async (req, res) => {
     const filename = req.params.filename || '';
     if (!filename || filename.includes('..') || /[/\\]/.test(filename)) {
@@ -396,18 +390,11 @@ app.get('/uploads/products/:filename', async (req, res) => {
         await fs.access(filePath);
         return res.sendFile(path.resolve(filePath));
     } catch {
-        try {
-            await fs.access(missingUploadProductFallback);
-            return res.sendFile(path.resolve(missingUploadProductFallback));
-        } catch {
-            logger.error('Uploads fallback image missing. Run: node backend/scripts/ensure-product-catalog-images.js');
-            return res.status(404).end();
-        }
+        return res.status(404).end();
     }
 });
 
-// Catalog images under /images/products/ — DB often references files that are missing or 0-byte in the repo.
-// Serve a real JPEG so <img> requests decode instead of erroring (client fallbacks still work as backup).
+// Catalog images under /images/products/ — serve only when the file exists (no substitute image).
 app.get('/images/products/:filename', async (req, res) => {
     const filename = req.params.filename || '';
     if (!filename || filename.includes('..') || /[/\\]/.test(filename)) {
@@ -422,13 +409,7 @@ app.get('/images/products/:filename', async (req, res) => {
     } catch {
         // missing or unreadable
     }
-    try {
-        await fs.access(missingUploadProductFallback);
-        return res.sendFile(path.resolve(missingUploadProductFallback));
-    } catch {
-        logger.error('Catalog fallback image missing. Run: node backend/scripts/ensure-product-catalog-images.js');
-        return res.status(404).end();
-    }
+    return res.status(404).end();
 });
 
 app.use('/uploads', express.static(uploadsDir));
@@ -459,10 +440,24 @@ if (process.env.STAGING_BLOCK_INDEXING === 'true') {
 // Permanent SEO redirects from repo-root redirects-301.csv (see file header).
 app.use(createSeoRedirectMiddleware({ rootPath, logger }));
 
-// Business One POS (separate repo at ../business-one-pos — not copied into hmherbs files)
+// Business One POS UI — hosted on the dedicated POS platform (pos.businessonecomprehensive.com), not on store servers.
+// Local dev only: set SERVE_POS_UI=true to serve ../business-one-pos at /pos/ from this server.
 const posAppPath = path.join(rootPath, '..', 'business-one-pos');
-if (fsSync.existsSync(posAppPath)) {
+const servePosUi = String(process.env.SERVE_POS_UI || '').toLowerCase() === 'true';
+const posRegisterUrl = String(process.env.POS_REGISTER_URL || 'https://pos.businessonecomprehensive.com').replace(/\/+$/, '');
+
+if (servePosUi && fsSync.existsSync(posAppPath)) {
     app.use('/pos', express.static(posAppPath));
+} else {
+    app.use((req, res, next) => {
+        const p = req.path;
+        if (p === '/pos' || p.startsWith('/pos/')) {
+            const suffix = p === '/pos' ? '/' : p.slice('/pos'.length);
+            const qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+            return res.redirect(302, `${posRegisterUrl}${suffix}${qs}`);
+        }
+        next();
+    });
 }
 
 const supportAgentPath = fsSync.existsSync(path.join(rootPath, 'business-one-support-agent'))
@@ -1456,7 +1451,7 @@ app.get('/api/products', async (req, res) => {
             if (catalog) {
                 p.image_url = catalog;
             } else if (p.image_url) {
-                p.image_url = sanitizeLegacyProductImageUrl(p.image_url, p.slug, p.sku);
+                p.image_url = sanitizeLegacyProductImageUrl(p.image_url, p.slug, p.sku) || null;
             }
             enrichProductRow(p, inventorySettings);
         });
@@ -1594,10 +1589,12 @@ app.get('/api/products/:slug', async (req, res) => {
         `, [product.id]);
 
         const catalogPrimary = catalogPrimaryImageForProduct(product);
-        const dbImages = (images || []).map((row) => ({
-            ...row,
-            image_url: sanitizeLegacyProductImageUrl(row.image_url, product.slug, product.sku)
-        }));
+        const dbImages = (images || [])
+            .map((row) => ({
+                ...row,
+                image_url: sanitizeLegacyProductImageUrl(row.image_url, product.slug, product.sku),
+            }))
+            .filter((row) => row.image_url);
 
         if (dbImages.length > 0) {
             product.images = dbImages;
@@ -1653,7 +1650,7 @@ app.get('/api/products/:slug', async (req, res) => {
         product.description = product.long_description || product.description || '';
         // Ensure short_description is available (it's already in the SELECT p.*)
 
-        res.json(product);
+        res.json(toStorefrontProduct(product));
     } catch (error) {
         logger.error('Product fetch error:', error);
         res.status(500).json({ error: 'Internal server error' });
@@ -1970,8 +1967,10 @@ app.use('/api/*', (req, res) => {
     const server = app.listen(PORT, () => {
         const { isSmtpConfigured } = require('./utils/smtpConfig');
         console.log(`H&M Herbs API Server running on port ${PORT}`);
-        if (fsSync.existsSync(posAppPath)) {
-            console.log(`Business One POS: http://127.0.0.1:${PORT}/pos/`);
+        if (servePosUi && fsSync.existsSync(posAppPath)) {
+            console.log(`Business One POS (local dev): http://127.0.0.1:${PORT}/pos/`);
+        } else {
+            console.log(`Business One POS platform: ${posRegisterUrl}/`);
         }
         console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
         console.log(`Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:8000'}`);

@@ -6,8 +6,8 @@ const { sendMail } = require('../utils/mailTransporter');
 
 /** Matches css/brand-tokens.css — keep in sync with storefront brand colors. */
 const BRAND = {
-    primary: '#10b981',
-    primaryDark: '#059669',
+    primary: '#047857',
+    primaryDark: '#065f46',
     headerFrom: '#047857',
     headerTo: '#065f46',
     lightGreen: '#ecfdf5',

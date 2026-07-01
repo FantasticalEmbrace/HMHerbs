@@ -195,7 +195,7 @@ a.browse-card:focus-visible {
     margin-bottom: var(--space-3);
     font-size: var(--text-2xl);
     color: var(--white);
-    box-shadow: 0 4px 16px rgba(45, 90, 39, 0.3);
+    box-shadow: 0 4px 16px rgba(var(--brand-primary-rgb), 0.3);
     transition: all 0.4s ease;
     position: relative;
     z-index: 1;
@@ -203,7 +203,7 @@ a.browse-card:focus-visible {
 
 .browse-card:hover .browse-card-icon {
     transform: rotate(10deg) scale(1.1);
-    box-shadow: 0 8px 24px rgba(45, 90, 39, 0.4);
+    box-shadow: 0 8px 24px rgba(var(--brand-primary-rgb), 0.4);
 }
 
 .browse-card h3 {
@@ -299,7 +299,7 @@ a.browse-card:focus-visible {
 .search-input:focus {
     outline: none;
     border-color: var(--primary-green);
-    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+    box-shadow: 0 0 0 3px rgba(var(--brand-primary-rgb), 0.1);
 }
 
 .search-btn {
@@ -1284,7 +1284,7 @@ a.browse-card:focus-visible {
 .variant-select:focus {
     outline: none;
     border-color: var(--primary-green);
-    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+    box-shadow: 0 0 0 3px rgba(var(--brand-primary-rgb), 0.1);
 }
 
 /* Product Actions */
@@ -1394,7 +1394,7 @@ a.browse-card:focus-visible {
 
 .stock-status.in-stock {
     color: var(--success);
-    background-color: rgba(16, 185, 129, 0.1);
+    background-color: rgba(var(--brand-primary-rgb), 0.1);
 }
 
 .stock-status.out-of-stock {

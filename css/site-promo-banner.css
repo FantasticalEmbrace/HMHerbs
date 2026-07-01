@@ -22,13 +22,13 @@
 
 .site-promo-banner[data-preset="flash"] {
     --promo-bg: linear-gradient(95deg, #7f1d1d 0%, #b91c1c 50%, #dc2626 100%);
-    --promo-accent: #fef08a;
+    --promo-accent: var(--brand-accent-gold);
     background: var(--promo-bg);
 }
 
 .site-promo-banner[data-preset="holiday"] {
     --promo-bg: linear-gradient(95deg, #14532d 0%, #166534 40%, #1a5c3a 100%);
-    --promo-accent: #fde68a;
+    --promo-accent: var(--brand-accent-gold);
     background: var(--promo-bg);
 }
 

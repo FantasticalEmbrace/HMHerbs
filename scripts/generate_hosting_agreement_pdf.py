@@ -27,6 +27,14 @@ PROVIDER_EMAIL = "info@businessonecomprehensive.com"
 PROVIDER_PHONE = "(850) 290-2084"
 PROVIDER_WEBSITE = "https://businessonecomprehensive.com/"
 
+# Four-tier managed hosting — keep aligned with business-one-webpage/HOSTING-PRICING.md
+HOSTING_TIERS = [
+    ("Standard", "$400/mo", "$200/mo", "Up to 100k visits or 200 GB"),
+    ("Growth", "$550/mo", "$350/mo", "100k–250k visits or 201–500 GB"),
+    ("Performance", "$700/mo", "$500/mo", "250k–500k visits or 501 GB–1 TB"),
+    ("Enterprise", "$850/mo", "$650/mo", "500k+ visits or 1 TB+"),
+]
+
 LOGO_PATH = Path(__file__).resolve().parent / "assets" / "business-one-logo.png"
 OUTPUT_PATH = Path.home() / "Downloads" / "Website-Hosting-Maintenance-Agreement.pdf"
 
@@ -83,6 +91,39 @@ def draw_wrapped(c, x, y, w, text, size=7.2, leading=9.5, color=GRAY):
         c.drawString(x, y, line)
         y -= leading
     return y
+
+
+def draw_hosting_tiers(c, y):
+    """Compact four-tier plan reference (e-commerce + legacy/principal rates)."""
+    y = draw_section_header(c, y, "Hosting Plans (month-to-month)", color=ORANGE, height=20)
+    c.setFillColor(GRAY)
+    c.setFont("Helvetica", 7)
+    c.drawString(
+        MARGIN,
+        y - 10,
+        "Select plan in Section 2. Legacy/principal rate applies to designated accounts (e.g. HM Herbs). +$150/mo per tier step.",
+    )
+    y -= 18
+    col_w = [1.05 * inch, 0.85 * inch, 0.95 * inch, CONTENT_W - 1.05 * inch - 0.85 * inch - 0.95 * inch]
+    headers = ["Plan", "E-commerce", "Legacy/principal", "Traffic / bandwidth"]
+    hx = MARGIN
+    c.setFillColor(BLUE)
+    c.setFont("Helvetica-Bold", 7)
+    for i, h in enumerate(headers):
+        c.drawString(hx + 3, y, h)
+        hx += col_w[i]
+    y -= 12
+    c.setFont("Helvetica", 6.8)
+    for plan, eco, legacy, limits in HOSTING_TIERS:
+        hx = MARGIN
+        c.setFillColor(BLUE_LIGHT)
+        c.rect(MARGIN, y - 11, CONTENT_W, 13, fill=1, stroke=0)
+        for i, cell in enumerate([plan, eco, legacy, limits]):
+            c.setFillColor(GRAY)
+            c.drawString(hx + 3, y - 8, cell)
+            hx += col_w[i]
+        y -= 14
+    return y - 4
 
 
 def draw_bullet_block(c, x, y, w, items, size=7.2, leading=10):
@@ -151,6 +192,7 @@ def page1(c, form):
         "There is no minimum commitment period and no early termination fees."
     )
     y = draw_wrapped(c, MARGIN, y, CONTENT_W, intro, size=7.5, leading=10) - 6
+    y = draw_hosting_tiers(c, y)
 
     y = draw_section_header(c, y, "1. Client & Business Information")
     col_w = (CONTENT_W - 16) / 2

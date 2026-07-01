@@ -1,9 +1,15 @@
 'use strict';
 
 const logger = require('./logger');
+const { isGenericPlaceholderProductImage } = require('./catalogOverrides');
 
 const DENOMINATIONS = [10, 25, 50, 75, 100];
 const CATEGORY_SLUG = 'gift-cards';
+
+const GIFT_CARD_PRODUCT_IMAGES = {
+    digital: '/images/products/gift-card-digital.svg',
+    physical: '/images/products/gift-card-physical.svg',
+};
 
 async function tableExists(pool, tableName) {
     const [rows] = await pool.query(
@@ -106,6 +112,91 @@ async function upsertGiftCardProduct(pool, { sku, slug, name, cardType, category
     return r.insertId;
 }
 
+function isGiftCardProductImageUrl(url) {
+    return /\/gift-card-(digital|physical)\.(svg|png|jpe?g|webp)$/i.test(String(url || ''));
+}
+
+async function ensureGiftCardProductImage(pool, productId, cardType, productName) {
+    if (!(await tableExists(pool, 'product_images'))) return;
+    const imageUrl = GIFT_CARD_PRODUCT_IMAGES[cardType];
+    if (!imageUrl) return;
+    const altText = productName || (cardType === 'physical' ? 'Physical Gift Card' : 'Digital Gift Card');
+
+    const [rows] = await pool.execute(
+        `SELECT id, image_url, is_primary
+           FROM product_images
+          WHERE product_id = ?
+          ORDER BY sort_order ASC, id ASC`,
+        [productId]
+    );
+
+    const matching = rows.filter((row) => row.image_url === imageUrl);
+    const wrong = rows.filter((row) => row.image_url !== imageUrl);
+
+    for (const row of wrong) {
+        await pool.execute('DELETE FROM product_images WHERE id = ?', [row.id]);
+        logger.info(`[gift-card-catalog] Removed wrong image #${row.id} from product #${productId}`);
+    }
+
+    if (matching.length > 0) {
+        const keepId = matching[0].id;
+        if (matching.length > 1) {
+            for (let i = 1; i < matching.length; i += 1) {
+                await pool.execute('DELETE FROM product_images WHERE id = ?', [matching[i].id]);
+            }
+        }
+        await pool.execute(
+            'UPDATE product_images SET image_url = ?, alt_text = ?, is_primary = 1, sort_order = 0 WHERE id = ?',
+            [imageUrl, altText, keepId]
+        );
+        return;
+    }
+
+    await pool.execute(
+        `INSERT INTO product_images (product_id, image_url, alt_text, is_primary, sort_order)
+         VALUES (?, ?, ?, 1, 0)`,
+        [productId, imageUrl, altText]
+    );
+    logger.info(`[gift-card-catalog] Set primary image for product #${productId}`);
+}
+
+async function stripGenericPlaceholderProductImages(pool) {
+    if (!(await tableExists(pool, 'product_images'))) return;
+
+    const [rows] = await pool.execute('SELECT id, image_url FROM product_images');
+    let removed = 0;
+    for (const row of rows) {
+        if (!isGenericPlaceholderProductImage(row.image_url)) continue;
+        await pool.execute('DELETE FROM product_images WHERE id = ?', [row.id]);
+        removed += 1;
+    }
+    if (removed > 0) {
+        logger.info(`[gift-card-catalog] Removed ${removed} generic placeholder product image(s)`);
+    }
+}
+
+async function repairAllGiftCardProductImages(pool) {
+    if (!(await columnExists(pool, 'products', 'gift_card_type'))) return;
+
+    const [rows] = await pool.execute(
+        `SELECT id, sku, name, gift_card_type
+           FROM products
+          WHERE gift_card_type IN ('digital', 'physical')
+             OR sku IN ('GC-DIGITAL', 'GC-PHYSICAL')`
+    );
+
+    for (const row of rows) {
+        const cardType =
+            row.gift_card_type === 'physical' || row.sku === 'GC-PHYSICAL'
+                ? 'physical'
+                : row.gift_card_type === 'digital' || row.sku === 'GC-DIGITAL'
+                  ? 'digital'
+                  : null;
+        if (!cardType) continue;
+        await ensureGiftCardProductImage(pool, row.id, cardType, row.name);
+    }
+}
+
 async function ensureVariants(pool, productId, cardType) {
     for (const amount of DENOMINATIONS) {
         const sku = `GC-${cardType === 'digital' ? 'DIG' : 'PHY'}-${amount}`;
@@ -149,6 +240,7 @@ async function ensureGiftCardCatalog(pool) {
             categoryId,
             brandId
         });
+        await ensureGiftCardProductImage(pool, digitalId, 'digital', 'Digital Gift Card');
         await ensureVariants(pool, digitalId, 'digital');
 
         const physicalId = await upsertGiftCardProduct(pool, {
@@ -159,10 +251,23 @@ async function ensureGiftCardCatalog(pool) {
             categoryId,
             brandId
         });
+        await ensureGiftCardProductImage(pool, physicalId, 'physical', 'Physical Gift Card');
         await ensureVariants(pool, physicalId, 'physical');
+
+        await stripGenericPlaceholderProductImages(pool);
+        await repairAllGiftCardProductImages(pool);
     } catch (err) {
         logger.warn(`[gift-card-catalog] seed skipped or partial — ${logger.formatMysqlError(err)}`);
     }
 }
 
-module.exports = { ensureGiftCardCatalog, CATEGORY_SLUG, DENOMINATIONS };
+module.exports = {
+    ensureGiftCardCatalog,
+    CATEGORY_SLUG,
+    DENOMINATIONS,
+    GIFT_CARD_PRODUCT_IMAGES,
+    ensureGiftCardProductImage,
+    repairAllGiftCardProductImages,
+    stripGenericPlaceholderProductImages,
+    isGiftCardProductImageUrl,
+};

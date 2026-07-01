@@ -1,4 +1,4 @@
-/* Accessibility Enhancements for HM Herbs */
+﻿/* Accessibility Enhancements for HM Herbs */
 /* WCAG 2.1 AA Compliance and Universal Design */
 
 /* Screen Reader Only Content */
@@ -63,14 +63,14 @@
 .search-input:focus {
   outline: 3px solid var(--primary-green);
   outline-offset: 2px;
-  box-shadow: 0 0 0 5px rgba(45, 90, 39, 0.2);
+  box-shadow: 0 0 0 5px rgba(var(--brand-primary-rgb), 0.2);
 }
 
 .nav-menu a:focus:not([aria-current="page"]),
 .nav-menu a:focus-visible:not([aria-current="page"]) {
   outline: 3px solid var(--primary-green);
   outline-offset: 2px;
-  box-shadow: 0 0 0 5px rgba(45, 90, 39, 0.2);
+  box-shadow: 0 0 0 5px rgba(var(--brand-primary-rgb), 0.2);
 }
 
 /* Focus within for compound components */
@@ -228,7 +228,7 @@ a:focus-visible:not(:is(
 
 .form-control:focus {
   border-color: var(--primary-green);
-  box-shadow: 0 0 0 3px rgba(45, 90, 39, 0.1);
+  box-shadow: var(--brand-focus-ring);
 }
 
 .form-control[aria-invalid="true"] {

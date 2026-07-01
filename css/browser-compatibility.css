@@ -4,7 +4,7 @@
 /* CSS Variables fallbacks for IE11 */
 :root {
   /* Fallback colors for browsers that don't support CSS variables */
-  --primary-green-fallback: #10b981;
+  --primary-green-fallback: #047857;
   --white-fallback: #ffffff;
   --gray-100-fallback: #f3f4f6;
   --transition-fast-fallback: 0.15s ease;
@@ -126,13 +126,13 @@
 @media screen and (-ms-high-contrast: active), (-ms-high-contrast: none) {
   /* IE11 specific styles */
   .btn-primary {
-    background-color: #10b981;
-    border-color: #10b981;
+    background-color: #047857;
+    border-color: #047857;
   }
   
   .btn-primary:hover {
-    background-color: #059669;
-    border-color: #059669;
+    background-color: #065f46;
+    border-color: #065f46;
   }
   
   body {
