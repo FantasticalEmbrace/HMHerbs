@@ -35,6 +35,7 @@ const {
 const { ensureProductVariantSchema } = require('./utils/ensureProductVariantSchema');
 const { ensureShippingSchema } = require('./utils/ensureShippingSchema');
 const { ensurePosSchema } = require('./utils/ensurePosSchema');
+const { hydrateFromDatabase: hydrateIntegrationCredentials } = require('./services/integrationCredentials');
 const { ensurePosSignupSchema } = require('./utils/ensurePosSignupSchema');
 const { ensureMenuSchema } = require('./utils/ensureMenuSchema');
 const { ensurePlatformSupportSchema } = require('./utils/ensurePlatformSupportSchema');
@@ -1896,6 +1897,7 @@ app.use('/api/*', (req, res) => {
     try {
         await ensureShippingSchema(pool);
         await ensurePosSchema(pool);
+        await hydrateIntegrationCredentials(pool);
         await ensurePlatformBillingSchema(pool);
         await ensurePosSignupSchema(pool);
         await ensureMenuSchema(pool);

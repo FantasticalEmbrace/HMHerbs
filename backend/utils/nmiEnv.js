@@ -1,7 +1,9 @@
 'use strict';
 
+const creds = require('../services/integrationCredentials');
+
 /**
- * NMI credential resolution. Prefer the names from your sandbox checklist; fall back to older names.
+ * NMI credential resolution. Prefer DB (Developer Tools), then env names from your sandbox checklist.
  * @see https://docs.nmi.com/docs/collectjs — tokenization key is public (Collect.js only).
  * Private key is the Direct Post `security_key` and must never be sent to the browser.
  */
@@ -19,60 +21,32 @@ const NMI_TOKEN_CREATE_URL_SECURE = 'https://secure.nmi.com/token/api/create';
 const NMI_TOKEN_CREATE_URL_SANDBOX = 'https://sandbox.nmi.com/token/api/create';
 
 function getEpiPublicTokenizationKey() {
-    return String(
-        process.env.EPI_PUBLIC_TOKENIZATION_KEY || process.env.EPI_PUBLIC_KEY || ''
-    ).trim();
+    return creds.getEpiPublicTokenizationKey();
 }
 
 function getEpiPrivateApiKey() {
-    return String(
-        process.env.EPI_PRIVATE_API_KEY ||
-            process.env.EPI_API_KEY ||
-            process.env.EPI_SECURITY_KEY ||
-            ''
-    ).trim();
+    return creds.getEpiPrivateApiKey();
 }
 
 function getNmiPublicTokenizationKey() {
-    return String(
-        process.env.NMI_PUBLIC_TOKENIZATION_KEY || process.env.NMI_PUBLIC_KEY || ''
-    ).trim();
+    return creds.getNmiPublicTokenizationKey();
 }
 
 function getNmiPrivateApiKey() {
-    return String(
-        process.env.NMI_PRIVATE_API_KEY ||
-            process.env.NMI_PRIVATE_KEY ||
-            process.env.NMI_API_KEY ||
-            process.env.DURANGO_API_KEY ||
-            ''
-    ).trim();
+    return creds.getNmiPrivateApiKey();
 }
 
 /** In-store POS Durango/NMI — separate merchant account from website checkout. */
 function getPosNmiPublicTokenizationKey() {
-    return String(
-        process.env.POS_NMI_PUBLIC_TOKENIZATION_KEY || process.env.POS_NMI_PUBLIC_KEY || ''
-    ).trim();
+    return creds.getPosNmiPublicTokenizationKey();
 }
 
 function getPosNmiPrivateApiKey() {
-    return String(
-        process.env.POS_NMI_PRIVATE_API_KEY ||
-            process.env.POS_NMI_PRIVATE_KEY ||
-            process.env.POS_DURANGO_API_KEY ||
-            process.env.POS_NMI_API_KEY ||
-            ''
-    ).trim();
+    return creds.getPosNmiPrivateApiKey();
 }
 
 function isPosNmiSandboxHint() {
-    const raw = process.env.POS_NMI_SANDBOX;
-    if (raw !== undefined && String(raw).trim() !== '') {
-        const s = String(raw).toLowerCase();
-        return s === '1' || s === 'true' || s === 'yes';
-    }
-    return isNmiSandboxHint();
+    return creds.isPosNmiSandboxHint();
 }
 
 function resolveNmiTransactUrl(apiUrlEnv, sandboxHint) {
@@ -139,8 +113,7 @@ function getNmiCollectJsUrl() {
 }
 
 function isNmiSandboxHint() {
-    const s = String(process.env.NMI_SANDBOX || '').toLowerCase();
-    return s === '1' || s === 'true' || s === 'yes';
+    return creds.isNmiSandboxHint();
 }
 
 /** Skip Apple Pay / Google Pay in Collect.js (avoids PaymentRequest errors until wallets are configured). */

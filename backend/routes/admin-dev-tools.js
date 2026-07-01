@@ -7,6 +7,14 @@ const { authenticateAdmin, requireDeveloperRole } = require('../middleware/admin
 const { createDatabaseBackupStream, getDevToolsStatus } = require('../services/devDatabaseTools');
 const { runPendingMigrations } = require('../utils/migrationRunner');
 const { buildDbConfig } = require('../utils/dbConfig');
+const integrationCredentials = require('../services/integrationCredentials');
+const {
+    nmiResolveTokenizationCollectJs,
+    getNmiPublicTokenizationKey,
+    getNmiPrivateApiKey,
+    getPosNmiPublicTokenizationKey,
+} = require('../utils/nmiEnv');
+const shippo = require('../services/shippoClient');
 
 const devAuth = [authenticateAdmin, requireDeveloperRole];
 
@@ -64,6 +72,86 @@ router.post('/run-migrations', ...devAuth, async (req, res) => {
     } catch (error) {
         logger.error('Run migrations error:', error);
         res.status(500).json({ error: error.message || 'Failed to run migrations' });
+    }
+});
+
+router.get('/integrations', ...devAuth, async (req, res) => {
+    try {
+        await integrationCredentials.hydrateFromDatabase(req.pool);
+        res.json(integrationCredentials.buildApiPayload());
+    } catch (error) {
+        logger.error('Integration credentials load error:', error);
+        res.status(500).json({ error: error.message || 'Failed to load integration credentials' });
+    }
+});
+
+router.put('/integrations', ...devAuth, async (req, res) => {
+    try {
+        const result = await integrationCredentials.saveCredentials(req.pool, req.body || {});
+        res.json({
+            message: 'Integration credentials saved.',
+            ...result,
+        });
+    } catch (error) {
+        logger.error('Integration credentials save error:', error);
+        res.status(500).json({ error: error.message || 'Failed to save integration credentials' });
+    }
+});
+
+router.post('/integrations/test', ...devAuth, async (req, res) => {
+    try {
+        await integrationCredentials.hydrateFromDatabase(req.pool);
+        const target = String(req.body?.target || 'all').trim().toLowerCase();
+        const results = {};
+
+        if (target === 'all' || target === 'durango' || target === 'nmi') {
+            const publicKey = getNmiPublicTokenizationKey();
+            const privateKey = getNmiPrivateApiKey();
+            if (!publicKey || !privateKey) {
+                results.durangoWebsite = { ok: false, message: 'Website Durango keys missing' };
+            } else {
+                const probe = await nmiResolveTokenizationCollectJs(publicKey);
+                results.durangoWebsite = {
+                    ok: probe.ok,
+                    message: probe.ok ? 'Website tokenization key accepted' : 'Website tokenization key rejected',
+                };
+            }
+            const posPublic = getPosNmiPublicTokenizationKey();
+            results.durangoPos = {
+                ok: Boolean(posPublic && integrationCredentials.getPosNmiPrivateApiKey()),
+                message:
+                    posPublic && integrationCredentials.getPosNmiPrivateApiKey()
+                        ? 'In-store POS keys present'
+                        : 'In-store POS keys missing',
+            };
+        }
+
+        if (target === 'all' || target === 'epi') {
+            const pub = integrationCredentials.getEpiPublicTokenizationKey();
+            const priv = integrationCredentials.getEpiPrivateApiKey();
+            results.epi = {
+                ok: Boolean(pub && priv),
+                message: pub && priv ? 'EPI keys present' : 'EPI keys missing',
+            };
+        }
+
+        if (target === 'all' || target === 'shippo') {
+            try {
+                if (!shippo.isConfigured()) {
+                    results.shippo = { ok: false, message: 'Shippo API token missing' };
+                } else {
+                    await shippo.client().get('/carrier_accounts/');
+                    results.shippo = { ok: true, message: 'Shippo API token accepted' };
+                }
+            } catch (e) {
+                results.shippo = { ok: false, message: e.response?.data?.detail || e.message || 'Shippo test failed' };
+            }
+        }
+
+        res.json({ results });
+    } catch (error) {
+        logger.error('Integration credentials test error:', error);
+        res.status(500).json({ error: error.message || 'Connection test failed' });
     }
 });
 

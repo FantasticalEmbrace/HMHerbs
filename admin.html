@@ -2607,6 +2607,39 @@
             line-height: 1.45;
         }
 
+        .payment-processor-cred-body {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--gray-200);
+        }
+
+        .payment-processor-option input[type="radio"]:checked + .payment-processor-card--high-risk .payment-processor-cred-body {
+            border-top-color: rgba(196, 122, 23, 0.25);
+        }
+
+        .dev-processor-radios {
+            max-width: none;
+        }
+
+        .dev-processor-radios .payment-processor-cred-body .form-group:last-child {
+            margin-bottom: 0;
+        }
+
+        .integration-shippo-wrap {
+            max-width: 36rem;
+            margin-top: 1.5rem;
+        }
+
+        .integration-shippo-wrap .payment-processor-card {
+            cursor: default;
+        }
+
+        .integration-shippo-wrap .payment-processor-cred-body {
+            border-top: none;
+            margin-top: 0.65rem;
+            padding-top: 0;
+        }
+
         .personnel-pin-field {
             background: #f0fdf4;
             border: 1px solid #86efac;
@@ -4738,7 +4771,7 @@
                             <p style="margin:0 0 1rem 0;color:var(--gray-600);font-size:0.88rem;">
                                 <strong>Website:</strong> interchange+ card processing — customers see one listed price at online checkout (no dual cash/card pricing on the site).
                                 <strong>In-store:</strong> Business One POS uses semi-integrated <strong>Durango on the A3700</strong> with dual cash discount configured under <strong>Register display</strong>.
-                                Add <code>POS_NMI_*</code> keys in backend <code>.env</code> (separate from website <code>NMI_*</code> / EPI keys).
+                                Set processor API keys in <strong>Developer Tools → Integration credentials</strong> (developer login only).
                             </p>
                             <div class="form-group">
                                 <span class="form-label" style="display:block;margin-bottom:0.5rem;font-weight:600;">Store processor</span>
@@ -4784,7 +4817,7 @@
                             <h4 style="margin:1.5rem 0 0.35rem 0;">In-store card payments</h4>
                             <p style="margin:0 0 1rem 0;color:var(--gray-600);font-size:0.88rem;">
                                 Business One POS uses <strong>semi-integrated Durango</strong> — the register sends the total to the terminal and completes the sale when the terminal approves. Configure each register’s <strong>payment terminal</strong> and <strong>receipt printer</strong> under <strong>Equipment</strong> (POI device ID on each terminal, printer model and network address as needed).
-                                Add <code>POS_NMI_PUBLIC_TOKENIZATION_KEY</code> and <code>POS_NMI_PRIVATE_API_KEY</code> in backend <code>.env</code>.
+                                Set POS keys and the store-wide POI device ID under <strong>Developer Tools → Integration credentials</strong>.
                             </p>
                             <input type="hidden" name="pos_card_payment_processor" value="nmi_durango">
                             <input type="hidden" name="pos_card_payment_adapter" value="integrated">
@@ -5578,6 +5611,175 @@
                                     server logs with <code style="background:var(--gray-100);padding:0.1rem 0.4rem;border-radius:4px;font-size:0.85rem;">pm2 logs hmherbs-backend</code> (or send them to your developer).
                                 </div>
                             </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-content">
+                            <h3 style="margin:0 0 0.25rem 0;display:flex;align-items:center;gap:0.5rem;">
+                                <i class="fas fa-key" aria-hidden="true" style="color:var(--primary-green);"></i>
+                                Integration credentials
+                            </h3>
+                            <p style="margin:0 0 1rem 0;color:var(--gray-600);font-size:0.92rem;line-height:1.55;">
+                                Enter payment processor and shipping API keys here instead of editing <code>backend/.env</code>.
+                                Values are stored in the database and take effect immediately. Secret fields show
+                                <em>[configured]</em> when already saved — leave blank to keep the current value.
+                            </p>
+                            <p id="dev-integrations-status" style="margin:0 0 1rem 0;font-size:0.88rem;color:var(--gray-600);">Loading…</p>
+
+                            <form id="dev-integrations-form" autocomplete="off">
+                                <div class="form-group">
+                                    <span class="form-label" style="display:block;margin-bottom:0.5rem;font-weight:600;">Store processor</span>
+                                    <p style="margin:0 0 0.75rem 0;color:var(--gray-600);font-size:0.88rem;line-height:1.45;">
+                                        Choose which processor handles <strong>website checkout</strong>. Enter that processor&apos;s keys in its card below.
+                                    </p>
+                                    <div class="payment-processor-radios dev-processor-radios" role="radiogroup" aria-label="Store card processor">
+                                        <label class="payment-processor-option">
+                                            <input type="radio" name="dev_store_card_payment_processor" value="epi" data-cred-processor-radio checked>
+                                            <span class="payment-processor-card">
+                                                <span class="payment-processor-badge payment-processor-badge--default">Default</span>
+                                                <span class="payment-processor-title">EPI</span>
+                                                <span class="payment-processor-desc">Standard merchants — customer checkout uses your EPI ISO keys.</span>
+                                                <div class="payment-processor-cred-body" data-cred-stop>
+                                                    <div class="form-group">
+                                                        <label for="cred_epi_deployment_mode">Deployment</label>
+                                                        <select class="form-input" id="cred_epi_deployment_mode" name="cred_epi_deployment_mode" data-cred-field>
+                                                            <option value="virtual">Virtual — sandbox / keyed entry (no chip reader)</option>
+                                                            <option value="physical">Physical — chip reader terminal</option>
+                                                        </select>
+                                                    </div>
+                                                    <div class="form-group" data-cred-physical="cred_epi_deployment_mode">
+                                                        <label for="cred_epi_poi_device_id">Chip reader POI device ID</label>
+                                                        <input class="form-input" id="cred_epi_poi_device_id" name="cred_epi_poi_device_id" data-cred-field placeholder="From processor portal (if applicable)">
+                                                    </div>
+                                                    <div class="form-group">
+                                                        <label for="cred_epi_public_tokenization_key">Public tokenization key</label>
+                                                        <input class="form-input" id="cred_epi_public_tokenization_key" name="cred_epi_public_tokenization_key" data-cred-field data-cred-secret placeholder="Collect.js public key">
+                                                    </div>
+                                                    <div class="form-group">
+                                                        <label for="cred_epi_private_api_key">Private API / security key</label>
+                                                        <input class="form-input" id="cred_epi_private_api_key" name="cred_epi_private_api_key" data-cred-field data-cred-secret type="password" placeholder="Direct Post security key" autocomplete="new-password">
+                                                    </div>
+                                                </div>
+                                            </span>
+                                        </label>
+                                        <label class="payment-processor-option">
+                                            <input type="radio" name="dev_store_card_payment_processor" value="nmi_durango" data-cred-processor-radio>
+                                            <span class="payment-processor-card payment-processor-card--high-risk">
+                                                <span class="payment-processor-badge payment-processor-badge--warn">High risk</span>
+                                                <span class="payment-processor-title">Durango / NMI</span>
+                                                <span class="payment-processor-desc">High-risk store — website and in-store POS use Durango / NMI keys below.</span>
+                                                <div class="payment-processor-cred-body" data-cred-stop>
+                                                    <div class="form-group">
+                                                        <label for="cred_durango_deployment_mode">Deployment</label>
+                                                        <select class="form-input" id="cred_durango_deployment_mode" name="cred_durango_deployment_mode" data-cred-field>
+                                                            <option value="virtual">Virtual — sandbox / keyed entry</option>
+                                                            <option value="physical">Physical — A3700 chip reader (semi-integrated)</option>
+                                                        </select>
+                                                    </div>
+                                                    <h4 style="margin:0.75rem 0 0.5rem 0;font-size:0.92rem;">Website checkout</h4>
+                                                    <div class="form-group">
+                                                        <label for="cred_nmi_public_tokenization_key">Public tokenization key</label>
+                                                        <input class="form-input" id="cred_nmi_public_tokenization_key" name="cred_nmi_public_tokenization_key" data-cred-field data-cred-secret placeholder="NMI public key">
+                                                    </div>
+                                                    <div class="form-group">
+                                                        <label for="cred_nmi_private_api_key">Private API / security key</label>
+                                                        <input class="form-input" id="cred_nmi_private_api_key" name="cred_nmi_private_api_key" data-cred-field data-cred-secret type="password" placeholder="NMI security key" autocomplete="new-password">
+                                                    </div>
+                                                    <label style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.85rem;cursor:pointer;">
+                                                        <input type="checkbox" id="cred_nmi_sandbox" name="cred_nmi_sandbox" data-cred-field data-cred-bool>
+                                                        Sandbox / test mode (website)
+                                                    </label>
+                                                    <h4 style="margin:0 0 0.5rem 0;font-size:0.92rem;">In-store POS</h4>
+                                                    <div class="form-group">
+                                                        <label for="cred_pos_nmi_public_tokenization_key">POS public tokenization key</label>
+                                                        <input class="form-input" id="cred_pos_nmi_public_tokenization_key" name="cred_pos_nmi_public_tokenization_key" data-cred-field data-cred-secret placeholder="POS NMI public key">
+                                                    </div>
+                                                    <div class="form-group">
+                                                        <label for="cred_pos_nmi_private_api_key">POS private API / security key</label>
+                                                        <input class="form-input" id="cred_pos_nmi_private_api_key" name="cred_pos_nmi_private_api_key" data-cred-field data-cred-secret type="password" placeholder="POS NMI security key" autocomplete="new-password">
+                                                    </div>
+                                                    <label style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.85rem;cursor:pointer;">
+                                                        <input type="checkbox" id="cred_pos_nmi_sandbox" name="cred_pos_nmi_sandbox" data-cred-field data-cred-bool>
+                                                        Sandbox / test mode (POS)
+                                                    </label>
+                                                    <div class="form-group" data-cred-physical="cred_durango_deployment_mode">
+                                                        <label for="cred_pos_poi_device_id">A3700 POI device ID (chip reader)</label>
+                                                        <input class="form-input" id="cred_pos_poi_device_id" name="cred_pos_poi_device_id" data-cred-field placeholder="Durango Customer Present Cloud device ID">
+                                                        <p class="form-help" style="margin:0.35rem 0 0;">Also updates the store-wide terminal fallback under POS → Equipment.</p>
+                                                    </div>
+                                                </div>
+                                            </span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div class="integration-shippo-wrap">
+                                    <span class="form-label" style="display:block;margin-bottom:0.5rem;font-weight:600;">Shippo (shipping labels)</span>
+                                    <div class="payment-processor-card">
+                                        <span class="payment-processor-badge payment-processor-badge--default">Shipping</span>
+                                        <span class="payment-processor-title">Shippo API</span>
+                                        <span class="payment-processor-desc">Live rates and shipping labels for online orders.</span>
+                                        <div class="payment-processor-cred-body" data-cred-stop>
+                                            <div class="form-group">
+                                                <label for="cred_shippo_api_token">API token</label>
+                                                <input class="form-input" id="cred_shippo_api_token" name="cred_shippo_api_token" data-cred-field data-cred-secret type="password" placeholder="shippo_test_… or shippo_live_…" autocomplete="new-password">
+                                            </div>
+                                            <label style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.85rem;cursor:pointer;">
+                                                <input type="checkbox" id="cred_shippo_test_mode" name="cred_shippo_test_mode" data-cred-field data-cred-bool>
+                                                Test mode
+                                            </label>
+                                            <div class="form-group">
+                                                <label for="cred_shippo_carriers">Carriers (comma-separated)</label>
+                                                <input class="form-input" id="cred_shippo_carriers" name="cred_shippo_carriers" data-cred-field placeholder="usps,ups,fedex">
+                                            </div>
+                                            <h4 style="margin:0.75rem 0 0.5rem 0;font-size:0.92rem;">Ship-from address</h4>
+                                            <div class="form-group">
+                                                <label for="cred_shippo_from_name">Store / company name</label>
+                                                <input class="form-input" id="cred_shippo_from_name" name="cred_shippo_from_name" data-cred-field>
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="cred_shippo_from_street1">Street address</label>
+                                                <input class="form-input" id="cred_shippo_from_street1" name="cred_shippo_from_street1" data-cred-field>
+                                            </div>
+                                            <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:0.75rem;">
+                                                <div class="form-group" style="margin:0;">
+                                                    <label for="cred_shippo_from_city">City</label>
+                                                    <input class="form-input" id="cred_shippo_from_city" name="cred_shippo_from_city" data-cred-field>
+                                                </div>
+                                                <div class="form-group" style="margin:0;">
+                                                    <label for="cred_shippo_from_state">State</label>
+                                                    <input class="form-input" id="cred_shippo_from_state" name="cred_shippo_from_state" data-cred-field maxlength="2">
+                                                </div>
+                                                <div class="form-group" style="margin:0;">
+                                                    <label for="cred_shippo_from_zip">ZIP</label>
+                                                    <input class="form-input" id="cred_shippo_from_zip" name="cred_shippo_from_zip" data-cred-field>
+                                                </div>
+                                            </div>
+                                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-top:0.75rem;">
+                                                <div class="form-group" style="margin:0;">
+                                                    <label for="cred_shippo_from_phone">Phone</label>
+                                                    <input class="form-input" id="cred_shippo_from_phone" name="cred_shippo_from_phone" data-cred-field>
+                                                </div>
+                                                <div class="form-group" style="margin:0;">
+                                                    <label for="cred_shippo_from_email">Email</label>
+                                                    <input class="form-input" id="cred_shippo_from_email" name="cred_shippo_from_email" data-cred-field type="email">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:1.25rem;">
+                                    <button type="submit" class="btn btn-primary" id="dev-integrations-save-btn">
+                                        <i class="fas fa-save" aria-hidden="true"></i> Save credentials
+                                    </button>
+                                    <button type="button" class="btn btn-secondary" id="dev-integrations-test-btn">
+                                        <i class="fas fa-plug" aria-hidden="true"></i> Test connections
+                                    </button>
+                                </div>
+                                <p id="dev-integrations-msg" style="min-height:1.25rem;font-size:0.9rem;margin:0.75rem 0 0;"></p>
+                            </form>
                         </div>
                     </div>
 

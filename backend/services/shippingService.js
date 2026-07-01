@@ -8,8 +8,7 @@ const { sendLabelCreatedNotificationEmail } = require('./shippedNotificationEmai
 const {
     FREE_SHIPPING_THRESHOLD,
     FIRST_CLASS_SHIPPING,
-    STORE_ORIGIN,
-    CARRIER_FILTER,
+    getShippingConfig,
 } = require('../config/shippingConfig');
 
 function roundMoney(v) {
@@ -65,7 +64,7 @@ function shippoAddressFromOrder(order, prefix = 'shipping') {
 }
 
 function shippoAddressFromOrigin() {
-    const o = STORE_ORIGIN;
+    const o = getShippingConfig().STORE_ORIGIN;
     if (!o.street1 || !o.city || !o.state || !o.zip) {
         const err = new Error('SHIP_ORIGIN_NOT_CONFIGURED');
         err.code = 'SHIP_ORIGIN_NOT_CONFIGURED';
@@ -187,7 +186,7 @@ function resolveFlatRateAmount(method, merchandiseSubtotal) {
 
 function formatCarrierRate(rate) {
     const provider = String(rate.provider || '').toLowerCase();
-    if (!CARRIER_FILTER.has(provider)) return null;
+    if (!getShippingConfig().CARRIER_FILTER.has(provider)) return null;
     const amount = parseFloat(rate.amount);
     if (!Number.isFinite(amount)) return null;
     const service = rate.servicelevel?.name || rate.servicelevel_name || 'Carrier rate';
@@ -326,6 +325,7 @@ async function getOrderFulfillmentContext(pool, orderId) {
         ? resolvePackageWeightOz(contentOz, suggestedBox, null)
         : null;
 
+    const storeOrigin = getShippingConfig().STORE_ORIGIN;
     return {
         order: enrichOrderTracking(order),
         lines,
@@ -336,7 +336,7 @@ async function getOrderFulfillmentContext(pool, orderId) {
         estimatedPackageWeightOz,
         suggestedBoxId: suggestedBox?.id || null,
         shippoConfigured: shippo.isConfigured(),
-        originConfigured: Boolean(STORE_ORIGIN.street1 && STORE_ORIGIN.city),
+        originConfigured: Boolean(storeOrigin.street1 && storeOrigin.city),
         hasLabel: Boolean(order.label_url),
     };
 }

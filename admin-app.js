@@ -1524,7 +1524,17 @@ class AdminApp {
     }
 
     _integrationCredFields() {
-        return Array.from(document.querySelectorAll('[data-cred-field]'));
+        const form = document.getElementById('dev-integrations-form');
+        return form ? Array.from(form.querySelectorAll('[data-cred-field]')) : [];
+    }
+
+    _wireIntegrationCredStopPropagation() {
+        document.querySelectorAll('#dev-integrations-form [data-cred-stop]').forEach((el) => {
+            if (el.dataset.credStopWired) return;
+            el.dataset.credStopWired = '1';
+            el.addEventListener('mousedown', (e) => e.stopPropagation());
+            el.addEventListener('click', (e) => e.stopPropagation());
+        });
     }
 
     _toggleIntegrationPhysicalFields() {
@@ -1560,12 +1570,19 @@ class AdminApp {
                 const val = fields[key] != null ? String(fields[key]) : '';
                 if (input.dataset.credSecret === 'true') {
                     input.value = '';
-                    input.placeholder = val || input.placeholder || 'Not set';
+                    input.placeholder = val || input.getAttribute('placeholder') || 'Not set';
                 } else {
                     input.value = val;
                 }
             }
 
+            const processor = data.storeProcessor === 'nmi_durango' ? 'nmi_durango' : 'epi';
+            const procRadio = document.querySelector(
+                `#dev-integrations-form input[name="dev_store_card_payment_processor"][value="${processor}"]`
+            );
+            if (procRadio) procRadio.checked = true;
+
+            this._wireIntegrationCredStopPropagation();
             this._toggleIntegrationPhysicalFields();
 
             const badges = [];
@@ -1588,6 +1605,9 @@ class AdminApp {
                 st.shippo?.configured
                     ? '<span class="badge badge-success">Shippo ready</span>'
                     : '<span class="badge badge-warning">Shippo token missing</span>'
+            );
+            badges.push(
+                `<span class="badge badge-secondary">Active processor: ${processor === 'nmi_durango' ? 'Durango / NMI' : 'EPI'}</span>`
             );
             statusEl.innerHTML = badges.join(' ');
         } catch (err) {
@@ -1618,6 +1638,13 @@ class AdminApp {
             } else {
                 payload[key] = input.value.trim();
             }
+        }
+
+        const processorRadio = document.querySelector(
+            '#dev-integrations-form input[name="dev_store_card_payment_processor"]:checked'
+        );
+        if (processorRadio) {
+            payload.store_card_payment_processor = processorRadio.value;
         }
 
         if (btn) btn.disabled = true;
@@ -1673,9 +1700,8 @@ class AdminApp {
             });
             if (msg) {
                 msg.innerHTML = lines.map((l) => this._escapeHtml(l)).join('<br>');
-                msg.style.color = lines.every((_, i) => Object.values(res.results)[i]?.ok)
-                    ? 'var(--success)'
-                    : 'var(--warning)';
+                const allOk = Object.values(res.results || {}).every((v) => v.ok);
+                msg.style.color = allOk ? 'var(--success)' : 'var(--warning)';
             }
         } catch (err) {
             if (msg) {
@@ -13739,6 +13765,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (el && window.adminApp) {
             el.addEventListener('change', () => window.adminApp._toggleIntegrationPhysicalFields());
         }
+    });
+    document.querySelectorAll('#dev-integrations-form [data-cred-processor-radio]').forEach((radio) => {
+        if (radio.dataset.credRadioWired) return;
+        radio.dataset.credRadioWired = '1';
+        radio.addEventListener('change', () => {
+            if (window.adminApp) window.adminApp._toggleIntegrationPhysicalFields();
+        });
     });
     const promoForm = document.getElementById('promo-editor-form');
     if (promoForm && window.adminApp) {

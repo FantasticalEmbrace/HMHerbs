@@ -1,14 +1,15 @@
 'use strict';
 
 const axios = require('axios');
-const { SHIPPO_API_BASE, SHIPPO_API_TOKEN } = require('../config/shippingConfig');
+const { getShippingConfig } = require('../config/shippingConfig');
 
 function isConfigured() {
-    return Boolean(SHIPPO_API_TOKEN);
+    return Boolean(getShippingConfig().SHIPPO_API_TOKEN);
 }
 
 function client() {
-    if (!isConfigured()) {
+    const { SHIPPO_API_BASE, SHIPPO_API_TOKEN } = getShippingConfig();
+    if (!SHIPPO_API_TOKEN) {
         const err = new Error('SHIPPO_NOT_CONFIGURED');
         err.code = 'SHIPPO_NOT_CONFIGURED';
         throw err;
