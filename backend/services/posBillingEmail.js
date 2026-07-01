@@ -4,8 +4,8 @@ const logger = require('../utils/logger');
 const { sendMail, isSmtpConfigured } = require('../utils/mailTransporter');
 
 function billingPortalUrl() {
-    const base = String(process.env.FRONTEND_URL || process.env.PUBLIC_STORE_URL || '').trim().replace(/\/+$/, '');
-    return base ? `${base}/pos-billing.html` : '/pos-billing.html';
+    const { billingPortalUrl: platformUrl } = require('./platformBillingEmail');
+    return platformUrl();
 }
 
 function storeName(license) {

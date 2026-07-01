@@ -674,9 +674,23 @@ router.get('/license', async (req, res) => {
     try {
         const license = await loadMerchantLicense(req.pool);
         const activeDevices = await countActiveDevices(req.pool);
+        let platformBilling = null;
+        try {
+            const { ensureDefaultAccount, listSubscriptions } = require('../services/platformBillingAccount');
+            const { computeMonthlyTotal } = require('../services/platformBillingRunner');
+            const account = await ensureDefaultAccount(req.pool);
+            platformBilling = {
+                account,
+                subscriptions: await listSubscriptions(req.pool, account.id),
+                statement: await computeMonthlyTotal(req.pool, account.id)
+            };
+        } catch (e) {
+            platformBilling = { error: e.message };
+        }
         res.json({
             license,
             activeDevices,
+            platformBilling,
             pricingTiers: {
                 base: 100,
                 midRate: 50,
@@ -690,7 +704,9 @@ router.get('/license', async (req, res) => {
                 enforcementEnabled: isLicenseEnforcementEnabled(),
                 billingDryRun: isBillingDryRun(),
                 billingSchedulerEnabled:
-                    String(process.env.POS_BILLING_SCHEDULER_ENABLED || '').toLowerCase() === 'true',
+                    String(process.env.BILLING_SCHEDULER_ENABLED || process.env.POS_BILLING_SCHEDULER_ENABLED || '')
+                        .toLowerCase() === 'true',
+                processor: 'procharge',
                 graceDaysDefault: getDefaultGraceDays(),
                 maxBillingRetries: getMaxBillingRetries(),
                 revokeDevicesOnCancel:

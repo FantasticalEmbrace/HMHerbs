@@ -474,6 +474,14 @@ async function ensurePosSchema(pool) {
         {
             column: 'failover_gb_used',
             sql: `ALTER TABLE pos_merchant_license ADD COLUMN failover_gb_used DECIMAL(8,2) NOT NULL DEFAULT 0`
+        },
+        {
+            column: 'billing_account_id',
+            sql: 'ALTER TABLE pos_merchant_license ADD COLUMN billing_account_id INT NULL'
+        },
+        {
+            column: 'procharge_token',
+            sql: 'ALTER TABLE pos_merchant_license ADD COLUMN procharge_token VARCHAR(128) NULL'
         }
     ];
     await applyColumnPatches(pool, 'pos_merchant_license', LICENSE_PATCHES);

@@ -1,33 +1,21 @@
 'use strict';
 
 /**
- * Business One platform billing credentials (merchants pay YOU).
- * Falls back to store EPI keys only for local dev — use dedicated platform keys in production.
+ * Business One platform billing — merchants pay YOU via ProCharge (EPI ISO).
+ * Store customer checkout: standard merchants use EPI; high-risk merchants use NMI/Durango — not this module.
  */
-function getPlatformPublicTokenizationKey() {
-    return String(
-        process.env.EPI_PLATFORM_PUBLIC_TOKENIZATION_KEY ||
-            process.env.EPI_PUBLIC_TOKENIZATION_KEY ||
-            process.env.NMI_PUBLIC_TOKENIZATION_KEY ||
-            ''
-    ).trim();
-}
-
-function getPlatformPrivateApiKey() {
-    return String(
-        process.env.EPI_PLATFORM_PRIVATE_API_KEY ||
-            process.env.EPI_PRIVATE_API_KEY ||
-            process.env.NMI_PRIVATE_API_KEY ||
-            ''
-    ).trim();
-}
+const { isProchargeConfigured } = require('./prochargeEnv');
 
 function isPlatformBillingConfigured() {
-    return Boolean(getPlatformPublicTokenizationKey() && getPlatformPrivateApiKey());
+    return isProchargeConfigured();
+}
+
+/** @deprecated ProCharge uses server-side tokenization — no public browser key. */
+function getPlatformPublicTokenizationKey() {
+    return '';
 }
 
 module.exports = {
-    getPlatformPublicTokenizationKey,
-    getPlatformPrivateApiKey,
-    isPlatformBillingConfigured
+    isPlatformBillingConfigured,
+    getPlatformPublicTokenizationKey
 };

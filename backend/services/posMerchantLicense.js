@@ -102,7 +102,11 @@ function mapLicenseRow(row) {
         businessName: row.business_name || '',
         billingEmail: row.billing_email || '',
         paymentMethodType: row.payment_method_type || 'none',
-        hasBillingVault: Boolean(row.epi_customer_vault_id && row.epi_billing_id),
+        hasBillingVault: Boolean(
+            row.procharge_token ||
+                (row.epi_customer_vault_id && row.epi_billing_id) ||
+                row.billing_account_id
+        ),
         billingAuthorizedAt: row.billing_authorized_at,
         licenseExpiresAt: row.license_expires_at,
         nextBillDate: row.next_bill_date ? String(row.next_bill_date).slice(0, 10) : null,
@@ -387,7 +391,28 @@ async function updateMerchantLicense(pool, patch) {
         await handleCanceledStatus(pool);
     }
 
-    return loadMerchantLicense(pool);
+    const license = await loadMerchantLicense(pool);
+    if (
+        patch.licensedStationCount != null ||
+        patch.failoverGbUsed !== undefined ||
+        patch.failover_gb_used !== undefined
+    ) {
+        try {
+            const { ensureDefaultAccount, upsertSubscription } = require('./platformBillingAccount');
+            const account = await ensureDefaultAccount(pool);
+            await upsertSubscription(pool, account.id, 'pos', {
+                status: 'active',
+                config: {
+                    stationCount: license.licensedStationCount,
+                    failoverGbUsed: license.failoverGbUsed
+                }
+            });
+        } catch {
+            /* platform billing optional during migration */
+        }
+    }
+
+    return license;
 }
 
 async function waivePastDuePayment(pool, { note, notify = true } = {}) {
@@ -438,36 +463,39 @@ async function waivePastDuePayment(pool, { note, notify = true } = {}) {
     return updated;
 }
 
-async function saveBillingVault(pool, { paymentToken, billingEmail, businessName, paymentMethodType = 'card' }) {
-    const token = String(paymentToken || '').trim();
-    if (!token) {
-        const err = new Error('payment_token required');
-        err.code = 'PAYMENT_TOKEN_REQUIRED';
-        throw err;
-    }
-    if (!isPlatformBillingConfigured()) {
-        const err = new Error('Platform billing is not configured on the server.');
-        err.code = 'BILLING_NOT_CONFIGURED';
-        throw err;
-    }
+async function saveBillingVault(pool, payload) {
+    const {
+        paymentToken,
+        billingEmail,
+        businessName,
+        paymentMethodType = 'card',
+        cardNumber,
+        ccExpMonth,
+        ccExpYear,
+        cvv,
+        bankAccount
+    } = payload || {};
 
-    const { nmiVaultAddCustomer } = require('./nmiGateway');
-    const { getPlatformPrivateApiKey } = require('../utils/platformBillingEnv');
-    const vault = await nmiVaultAddCustomer({
-        securityKey: getPlatformPrivateApiKey(),
-        paymentToken: token
+    const { ensureDefaultAccount, savePaymentMethod, upsertSubscription } = require('./platformBillingAccount');
+
+    const account = await ensureDefaultAccount(pool);
+    const saved = await savePaymentMethod(pool, account.id, {
+        paymentToken,
+        paymentMethodType,
+        billingEmail,
+        businessName,
+        cardNumber,
+        ccExpMonth,
+        ccExpYear,
+        cvv,
+        bankAccount
     });
-    if (!vault.ok || !vault.customerVaultId || !vault.billingId) {
-        const err = new Error(vault.responseText || 'Failed to save payment method');
-        err.code = 'VAULT_ADD_FAILED';
-        throw err;
-    }
 
     await ensureLicenseRow(pool);
     await pool.execute(
         `UPDATE pos_merchant_license SET
-            epi_customer_vault_id = ?,
-            epi_billing_id = ?,
+            billing_account_id = ?,
+            procharge_token = ?,
             payment_method_type = ?,
             billing_email = COALESCE(?, billing_email),
             business_name = COALESCE(?, business_name),
@@ -477,18 +505,29 @@ async function saveBillingVault(pool, { paymentToken, billingEmail, businessName
             billing_retry_count = 0,
             next_billing_retry_at = NULL,
             grace_ended_email_at = NULL,
+            last_payment_failed_email_at = NULL,
             updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`,
         [
-            vault.customerVaultId,
-            vault.billingId,
-            paymentMethodType === 'ach' ? 'ach' : 'card',
+            account.id,
+            saved.paymentMethodType === 'card' ? saved.prochargeToken : null,
+            saved.paymentMethodType,
             billingEmail ? String(billingEmail).trim().slice(0, 255) : null,
             businessName ? String(businessName).trim().slice(0, 200) : null,
             LICENSE_ID
         ]
     );
-    return loadMerchantLicense(pool);
+
+    const license = await loadMerchantLicense(pool);
+    await upsertSubscription(pool, account.id, 'pos', {
+        status: 'active',
+        config: {
+            stationCount: license.licensedStationCount,
+            failoverGbUsed: license.failoverGbUsed
+        }
+    });
+
+    return license;
 }
 
 function computeChargeBreakdown(license, { failoverGbUsed } = {}) {
@@ -570,7 +609,51 @@ async function maybeSendPaymentFailedEmail(pool, license, { amount }) {
     );
 }
 
-async function attemptMerchantCharge(pool, license, { reason = 'monthly', failoverGbUsed } = {}) {
+async function syncPosSubscriptionFromLicense(pool, license) {
+    const { ensureDefaultAccount, upsertSubscription } = require('./platformBillingAccount');
+    const account = await ensureDefaultAccount(pool);
+    await upsertSubscription(pool, account.id, 'pos', {
+        status: 'active',
+        config: {
+            stationCount: license.licensedStationCount,
+            failoverGbUsed: license.failoverGbUsed
+        }
+    });
+    return account.id;
+}
+
+async function syncLicenseFromAccount(pool, accountId) {
+    const { getAccountById } = require('./platformBillingAccount');
+    const account = await getAccountById(pool, accountId);
+    if (!account) return loadMerchantLicense(pool);
+    await pool.execute(
+        `UPDATE pos_merchant_license SET
+            status = ?,
+            last_bill_amount = ?,
+            last_bill_status = ?,
+            last_bill_at = ?,
+            next_bill_date = ?,
+            past_due_since = ?,
+            billing_retry_count = ?,
+            next_billing_retry_at = ?,
+            updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [
+            account.status,
+            account.lastBillAmount,
+            account.lastBillStatus,
+            account.lastBillAt,
+            account.nextBillDate,
+            account.pastDueSince,
+            account.billingRetryCount,
+            account.nextBillingRetryAt,
+            LICENSE_ID
+        ]
+    );
+    return loadMerchantLicense(pool);
+}
+
+async function attemptMerchantCharge(pool, license, { reason = 'monthly', failoverGbUsed, force = false } = {}) {
     const dryRun = isBillingDryRun();
     const { gross, chargeAmount, subscription, failoverOverage, failoverGbUsed: gbUsed } =
         computeChargeBreakdown(license, { failoverGbUsed });
@@ -588,65 +671,64 @@ async function attemptMerchantCharge(pool, license, { reason = 'monthly', failov
         };
     }
 
-    if (dryRun) {
-        const overageLine =
-            failoverOverage > 0 ? ` + $${failoverOverage.toFixed(2)} failover overage (${gbUsed} GB)` : '';
+    const accountId = await syncPosSubscriptionFromLicense(pool, {
+        ...license,
+        failoverGbUsed: gbUsed
+    });
+    const { chargeAccount } = require('./platformBillingRunner');
+    const result = await chargeAccount(pool, accountId, { reason, force });
+
+    if (result.skipped && result.reason === 'dry_run') {
         return {
             skipped: true,
             reason: 'dry_run',
-            amount: gross,
+            amount: result.amount ?? gross,
             subscription,
             failoverOverage,
             failoverGbUsed: gbUsed,
-            chargeAmount: gross,
+            chargeAmount: result.amount ?? gross,
             dryRun: true,
-            message: `Would charge $${gross.toFixed(2)} ($${subscription.toFixed(2)} subscription${overageLine}) (${reason})`
+            message: result.message
         };
     }
 
-    const { nmiVaultSale } = require('./nmiGateway');
-    const { getPlatformPrivateApiKey } = require('../utils/platformBillingEnv');
-    const [rows] = await pool.execute(
-        `SELECT epi_customer_vault_id, epi_billing_id FROM pos_merchant_license WHERE id = ?`,
-        [LICENSE_ID]
-    );
-    const vaultRow = rows[0];
-    const sale = await nmiVaultSale({
-        securityKey: getPlatformPrivateApiKey(),
-        amount: chargeAmount.toFixed(2),
-        customerVaultId: vaultRow.epi_customer_vault_id,
-        billingId: vaultRow.epi_billing_id
-    });
+    if (result.skipped) {
+        return {
+            ...result,
+            subscription,
+            failoverOverage,
+            failoverGbUsed: gbUsed,
+            dryRun
+        };
+    }
 
-    if (sale.ok) {
-        await recordChargeSuccess(pool, { grossAmount: gross });
-        const updated = await loadMerchantLicense(pool);
-        await sendPaymentSucceededEmail(updated, { amount: chargeAmount });
+    const updated = await syncLicenseFromAccount(pool, accountId);
+
+    if (result.ok) {
+        await pool.execute(`UPDATE pos_merchant_license SET failover_gb_used = 0 WHERE id = ?`, [LICENSE_ID]);
         return {
             ok: true,
-            amount: gross,
+            amount: result.amount ?? gross,
             subscription,
             failoverOverage,
             failoverGbUsed: gbUsed,
-            chargedAmount: chargeAmount,
-            transactionId: sale.transactionId,
-            license: updated
+            chargedAmount: result.chargedAmount ?? result.amount,
+            transactionId: result.transactionId,
+            license: await loadMerchantLicense(pool)
         };
     }
 
-    await recordChargeFailure(pool, license, { grossAmount: gross });
-    const failed = await loadMerchantLicense(pool);
-    await maybeSendPaymentFailedEmail(pool, failed, { amount: chargeAmount });
+    await maybeSendPaymentFailedEmail(pool, updated, { amount: result.amount ?? chargeAmount });
     return {
         ok: false,
-        amount: gross,
+        amount: result.amount ?? gross,
         subscription,
         failoverOverage,
         failoverGbUsed: gbUsed,
-        chargedAmount: chargeAmount,
-        responseText: sale.responseText,
-        code: 'CHARGE_FAILED',
-        license: failed
+        chargedAmount: result.amount ?? chargeAmount,
+        responseText: result.responseText,
+        code: result.code || 'CHARGE_FAILED',
+        license: updated
     };
 }
 
@@ -682,7 +764,8 @@ async function runMonthlyBillingForMerchant(pool, { force = false, failoverGbUse
 
     return attemptMerchantCharge(pool, license, {
         reason: force ? 'manual' : 'monthly',
-        failoverGbUsed
+        failoverGbUsed,
+        force
     });
 }
 
@@ -747,10 +830,9 @@ async function processGraceExpiration(pool) {
 }
 
 async function processMerchantBillingMaintenance(pool) {
-    const monthly = await runMonthlyBillingForMerchant(pool);
-    const retry = monthly.skipped ? await processBillingRetries(pool) : { skipped: true, reason: 'monthly_ran' };
+    const retry = await processBillingRetries(pool);
     const grace = await processGraceExpiration(pool);
-    return { monthly, retry, grace };
+    return { retry, grace, monthly: { skipped: true, reason: 'platform_billing_scheduler' } };
 }
 
 async function markPastDueFromWebhook(pool, { reason, transactionId }) {

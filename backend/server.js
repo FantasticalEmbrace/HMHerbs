@@ -58,6 +58,8 @@ const { saveRegistrationMailingAddress, normalizeRegistrationMailingAddress } = 
 const { isUsPhoneDisplayOrEmpty } = require('./utils/usPhoneDisplay');
 const { startTaxReserveScheduler } = require('./services/taxReserveScheduler');
 const { startPosBillingScheduler } = require('./services/posBillingScheduler');
+const { startPlatformBillingScheduler } = require('./services/platformBillingScheduler');
+const { ensurePlatformBillingSchema } = require('./utils/ensurePlatformBillingSchema');
 const { startTaxAccountantScheduler } = require('./services/taxAccountantScheduler');
 const { startPosDailySalesScheduler } = require('./services/posDailySalesScheduler');
 const { ensureSocialOAuthSchema } = require('./utils/ensureSocialOAuthSchema');
@@ -1817,6 +1819,7 @@ app.use('/api/shipping', require('./routes/shipping'));
 app.use('/api/edsa', edsaRoutes);
 app.use('/api/menu', require('./routes/menu'));
 app.use('/api/business-one', require('./routes/business-one-contact'));
+app.use('/api/business-one/pos', require('./routes/business-one-pos'));
 app.use('/api/admin/customers', require('./routes/admin-customers'));
 app.use('/api/admin/customer-groups', require('./routes/admin-customer-groups'));
 app.use('/api/admin/gift-cards', require('./routes/admin-gift-cards'));
@@ -1833,6 +1836,7 @@ mountVendorReceivingRoutes(app, {
 app.use('/api/admin', adminRoutes);
 app.use('/api/payment-cards', paymentCardsRoutes);
 app.use('/api/pos-billing', require('./routes/pos-billing'));
+app.use('/api/platform/billing', require('./routes/platform-billing'));
 app.use('/api/platform/support/hub', require('./routes/platform-support-hub'));
 app.use('/api/platform/support/store', require('./routes/platform-support-store'));
 app.use('/api/pos-support/v1', require('./routes/pos-support-v1'));
@@ -1889,6 +1893,7 @@ app.use('/api/*', (req, res) => {
     try {
         await ensureShippingSchema(pool);
         await ensurePosSchema(pool);
+        await ensurePlatformBillingSchema(pool);
         await ensurePosSignupSchema(pool);
         await ensureMenuSchema(pool);
         await ensurePlatformSupportSchema(pool);
@@ -1963,6 +1968,7 @@ app.use('/api/*', (req, res) => {
     const stopTaxAccountantScheduler = startTaxAccountantScheduler(pool);
     const stopPosDailySalesScheduler = startPosDailySalesScheduler(pool);
     const stopPosBillingScheduler = startPosBillingScheduler(pool);
+    const stopPlatformBillingScheduler = startPlatformBillingScheduler(pool);
 
     const server = app.listen(PORT, () => {
         const { isSmtpConfigured } = require('./utils/smtpConfig');
@@ -2010,6 +2016,10 @@ app.use('/api/*', (req, res) => {
         if (typeof stopPosBillingScheduler === 'function') {
             process.on('SIGTERM', () => stopPosBillingScheduler());
             process.on('SIGINT', () => stopPosBillingScheduler());
+        }
+        if (typeof stopPlatformBillingScheduler === 'function') {
+            process.on('SIGTERM', () => stopPlatformBillingScheduler());
+            process.on('SIGINT', () => stopPlatformBillingScheduler());
         }
     }).on('error', (error) => {
         logger.error('Server startup error:', error);

@@ -29,10 +29,10 @@ PROVIDER_WEBSITE = "https://businessonecomprehensive.com/"
 
 # Four-tier managed hosting — keep aligned with business-one-webpage/HOSTING-PRICING.md
 HOSTING_TIERS = [
-    ("Standard", "$400/mo", "$200/mo", "Up to 100k visits or 200 GB"),
-    ("Growth", "$550/mo", "$350/mo", "100k–250k visits or 201–500 GB"),
-    ("Performance", "$700/mo", "$500/mo", "250k–500k visits or 501 GB–1 TB"),
-    ("Enterprise", "$850/mo", "$650/mo", "500k+ visits or 1 TB+"),
+    ("Essential", "$150/mo", "—", "Up to 15k visits or 40 GB"),
+    ("Standard", "$300/mo", "$150/mo", "15k–50k visits or 41–100 GB"),
+    ("Growth", "$450/mo", "$300/mo", "50k–150k visits or 101–250 GB"),
+    ("Enterprise", "$600/mo", "$450/mo", "150k+ visits or 251 GB+"),
 ]
 
 LOGO_PATH = Path(__file__).resolve().parent / "assets" / "business-one-logo.png"
@@ -101,11 +101,11 @@ def draw_hosting_tiers(c, y):
     c.drawString(
         MARGIN,
         y - 10,
-        "Select plan in Section 2. Legacy/principal rate applies to designated accounts (e.g. HM Herbs). +$150/mo per tier step.",
+        "Select plan in Section 2. +$150/mo per tier step when traffic exceeds your band for 2 consecutive months.",
     )
     y -= 18
     col_w = [1.05 * inch, 0.85 * inch, 0.95 * inch, CONTENT_W - 1.05 * inch - 0.85 * inch - 0.95 * inch]
-    headers = ["Plan", "E-commerce", "Legacy/principal", "Traffic / bandwidth"]
+    headers = ["Plan", "Monthly", "Principal", "Traffic / bandwidth"]
     hx = MARGIN
     c.setFillColor(BLUE)
     c.setFont("Helvetica-Bold", 7)

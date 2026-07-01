@@ -5,16 +5,8 @@ const rateLimit = require('express-rate-limit');
 const jwt = require('jsonwebtoken');
 const router = express.Router();
 const logger = require('../utils/logger');
-const {
-    getPlatformPublicTokenizationKey,
-    isPlatformBillingConfigured
-} = require('../utils/platformBillingEnv');
-const {
-    getNmiCollectJsUrl,
-    isNmiSandboxHint,
-    nmiResolveTokenizationCollectJs,
-    shouldSkipNmiTokenizationPreflight
-} = require('../utils/nmiEnv');
+const { isPlatformBillingConfigured } = require('../utils/platformBillingEnv');
+const { isProchargeSandbox } = require('../utils/prochargeEnv');
 const { saveBillingVault, loadMerchantLicense } = require('../services/posMerchantLicense');
 
 function isOpenBillingSetupAllowed() {
@@ -56,54 +48,22 @@ const setupLimiter = rateLimit({
     message: { error: 'Too many billing setup attempts. Please try again later.', code: 'RATE_LIMITED' }
 });
 
-/** Collect.js config for Business One platform billing (not store checkout) */
-router.get('/client-config', async (req, res) => {
-    const tokenizationKey = getPlatformPublicTokenizationKey();
-    if (!tokenizationKey) {
-        return res.json({
-            enabled: false,
-            configured: false,
-            message: 'Platform billing keys are not configured on the server yet.',
-            requiresSetupAuth: !isOpenBillingSetupAllowed(),
-            setupHint: 'Save payment in Admin → Point of Sale → License (Admin or Developer login required).'
-        });
-    }
-
-    try {
-        if (shouldSkipNmiTokenizationPreflight()) {
-            return res.json({
-                enabled: true,
-                configured: true,
-                tokenizationKey,
-                collectJsUrl: getNmiCollectJsUrl(),
-                sandbox: isNmiSandboxHint(),
-                preflightSkipped: true,
-                requiresSetupAuth: !isOpenBillingSetupAllowed(),
-            setupHint: 'Save payment in Admin → Point of Sale → License (Admin or Developer login required).'
-            });
-        }
-        const resolved = await nmiResolveTokenizationCollectJs(tokenizationKey);
-        return res.json({
-            enabled: resolved.ok,
-            configured: isPlatformBillingConfigured(),
-            tokenizationKey: resolved.ok ? tokenizationKey : '',
-            collectJsUrl: resolved.collectJsUrl || getNmiCollectJsUrl(),
-            sandbox: isNmiSandboxHint(),
-            requiresSetupAuth: !isOpenBillingSetupAllowed(),
-            setupHint: 'Save payment in Admin → Point of Sale → License (Admin or Developer login required).'
-        });
-    } catch (e) {
-        logger.warn('Platform billing client config error', { err: e.message });
-        return res.json({
-            enabled: true,
-            configured: isPlatformBillingConfigured(),
-            tokenizationKey,
-            collectJsUrl: getNmiCollectJsUrl(),
-            sandbox: isNmiSandboxHint(),
-            requiresSetupAuth: !isOpenBillingSetupAllowed(),
-            setupHint: 'Save payment in Admin → Point of Sale → License (Admin or Developer login required).'
-        });
-    }
+/** ProCharge billing config for admin POS license tab */
+router.get('/client-config', async (_req, res) => {
+    const configured = isPlatformBillingConfigured();
+    return res.json({
+        enabled: configured,
+        configured,
+        processor: 'procharge',
+        sandbox: isProchargeSandbox(),
+        achEnabled: true,
+        cardFields: true,
+        requiresSetupAuth: !isOpenBillingSetupAllowed(),
+        setupHint: 'Save payment in Admin → Point of Sale → License (Admin or Developer login required).',
+        message: configured
+            ? 'Enter card details below — processed securely by ProCharge (EPI).'
+            : 'ProCharge platform billing keys are not configured on the server yet.'
+    });
 });
 
 router.post('/setup', setupLimiter, async (req, res) => {
@@ -111,7 +71,7 @@ router.post('/setup', setupLimiter, async (req, res) => {
         const auth = await assertBillingSetupAuthorized(req);
         if (!auth) {
             return res.status(401).json({
-                error: 'Admin login is required to save POS billing.',
+                error: 'Admin login is required to save billing.',
                 code: 'ADMIN_AUTH_REQUIRED'
             });
         }
@@ -122,12 +82,22 @@ router.post('/setup', setupLimiter, async (req, res) => {
                 code: 'AUTHORIZATION_REQUIRED'
             });
         }
+
         const license = await saveBillingVault(req.pool, {
             paymentToken: req.body.payment_token,
+            paymentMethodType: req.body.paymentMethodType || 'card',
+            cardNumber: req.body.cardNumber,
+            ccExpMonth: req.body.ccExpMonth,
+            ccExpYear: req.body.ccExpYear,
+            cvv: req.body.cvv,
+            cardholderName: req.body.cardholderName,
+            postalCode: req.body.postalCode,
+            street1: req.body.street1,
             billingEmail: req.body.billingEmail || req.body.billing_email,
             businessName: req.body.businessName || req.body.business_name,
-            paymentMethodType: req.body.paymentMethodType || 'card'
+            bankAccount: req.body.bankAccount
         });
+
         if (req.body.licensedStationCount != null) {
             const { updateMerchantLicense } = require('../services/posMerchantLicense');
             await updateMerchantLicense(req.pool, {
@@ -135,6 +105,7 @@ router.post('/setup', setupLimiter, async (req, res) => {
                 status: 'active'
             });
         }
+
         res.status(201).json({
             success: true,
             license: await loadMerchantLicense(req.pool)
@@ -145,34 +116,31 @@ router.post('/setup', setupLimiter, async (req, res) => {
     }
 });
 
-/**
- * EPI / NMI webhook stub for ACH returns and chargebacks.
- * Configure EPI to POST here when platform billing webhooks are available.
- * Optional header: x-epi-webhook-secret must match EPI_PLATFORM_WEBHOOK_SECRET when set.
- */
+/** ProCharge webhook — ACH returns, chargebacks, declines */
 router.post('/webhook/epi', async (req, res) => {
     try {
-        const secret = String(process.env.EPI_PLATFORM_WEBHOOK_SECRET || '').trim();
-        if (!secret) {
-            if (process.env.NODE_ENV === 'production') {
-                return res.status(503).json({ error: 'Webhook secret is not configured' });
-            }
-        } else {
-            const incoming = String(req.headers['x-epi-webhook-secret'] || req.headers['x-nmi-webhook-secret'] || '').trim();
+        const secret = String(
+            process.env.PROCHARGE_WEBHOOK_SECRET || process.env.EPI_PLATFORM_WEBHOOK_SECRET || ''
+        ).trim();
+        if (secret) {
+            const incoming = String(
+                req.headers['x-procharge-webhook-secret'] ||
+                    req.headers['x-epi-webhook-secret'] ||
+                    ''
+            ).trim();
             if (incoming !== secret) {
                 return res.status(401).json({ error: 'Invalid webhook secret' });
             }
+        } else if (process.env.NODE_ENV === 'production') {
+            return res.status(503).json({ error: 'Webhook secret is not configured' });
         }
 
         const eventType = String(req.body?.event_type || req.body?.type || req.body?.event || 'unknown').toLowerCase();
-        const transactionId = req.body?.transaction_id || req.body?.transactionid || req.body?.id || null;
-        const achReturn = /ach|return|chargeback|void|decline|failed/.test(eventType);
-
-        if (achReturn) {
+        if (/ach|return|chargeback|void|decline|failed/.test(eventType)) {
             const { markPastDueFromWebhook } = require('../services/posMerchantLicense');
             const license = await markPastDueFromWebhook(req.pool, {
                 reason: eventType,
-                transactionId
+                transactionId: req.body?.transaction_id || req.body?.transactionid || req.body?.id
             });
             return res.json({ received: true, handled: true, licenseStatus: license.status });
         }

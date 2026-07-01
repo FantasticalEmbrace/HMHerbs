@@ -4,6 +4,11 @@ const logger = require('../utils/logger');
 const { processMerchantBillingMaintenance } = require('./posMerchantLicense');
 
 function isEnabled() {
+    if (
+        String(process.env.BILLING_SCHEDULER_ENABLED || '').trim().toLowerCase() === 'true'
+    ) {
+        return false;
+    }
     return String(process.env.POS_BILLING_SCHEDULER_ENABLED || '').trim().toLowerCase() === 'true';
 }
 
@@ -15,7 +20,9 @@ function shouldRunNow(date) {
 
 function startPosBillingScheduler(pool) {
     if (!isEnabled()) {
-        logger.info('[pos-billing] Scheduler disabled (set POS_BILLING_SCHEDULER_ENABLED=true to enable)');
+        logger.info(
+            '[pos-billing] Legacy scheduler disabled (use BILLING_SCHEDULER_ENABLED=true for platform billing)'
+        );
         return () => {};
     }
 
@@ -33,15 +40,15 @@ function startPosBillingScheduler(pool) {
         try {
             const result = await processMerchantBillingMaintenance(pool);
             lastRunKey = key;
-            logger.info('[pos-billing] Daily maintenance complete', result);
+            logger.info('[pos-billing] Retry/grace maintenance complete', result);
         } catch (error) {
-            logger.error('[pos-billing] Daily maintenance failed', { message: error.message });
+            logger.error('[pos-billing] Maintenance failed', { message: error.message });
         } finally {
             running = false;
         }
     };
 
-    logger.info('[pos-billing] Scheduler enabled (daily maintenance at configured hour)');
+    logger.info('[pos-billing] Legacy retry/grace scheduler enabled');
     const intervalId = setInterval(tick, 60 * 1000);
     return () => clearInterval(intervalId);
 }
