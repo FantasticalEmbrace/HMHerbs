@@ -3,7 +3,7 @@
 /* Brand greens: css/brand-tokens.css (--brand-primary #047857) */
 
 @import url('css/brand-tokens.css?v=admin-sync-5');
-@import url('css/password-toggle.css?v=2');
+@import url('css/password-toggle.css?v=3');
 
 /* CSS Custom Properties (Design Tokens) — colors live in brand-tokens.css */
 :root {
