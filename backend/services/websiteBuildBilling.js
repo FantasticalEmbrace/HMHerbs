@@ -49,6 +49,68 @@ const BUILD_MILESTONE_DEFS = [
     }
 ];
 
+/** Upfront payment options at signup (percent of total build). */
+const BUILD_PAY_PLANS = {
+    deposit: {
+        pct: 25,
+        label: 'Discovery deposit (25%)',
+        shortLabel: '25% deposit today',
+        chargeType: 'build_deposit'
+    },
+    '50': {
+        pct: 50,
+        label: 'Website build — 50% upfront',
+        shortLabel: '50% upfront today',
+        chargeType: 'build_prepay'
+    },
+    '75': {
+        pct: 75,
+        label: 'Website build — 75% upfront',
+        shortLabel: '75% upfront today',
+        chargeType: 'build_prepay'
+    },
+    full: {
+        pct: 100,
+        label: 'Paid in full at signup',
+        shortLabel: 'Pay build in full today',
+        chargeType: 'build_full'
+    }
+};
+
+function normalizeBuildPayMode(mode) {
+    const raw = String(mode || 'deposit')
+        .toLowerCase()
+        .replace(/%/g, '')
+        .trim();
+    if (raw === 'full' || raw === '100') return 'full';
+    if (raw === '50' || raw === 'pct50') return '50';
+    if (raw === '75' || raw === 'pct75') return '75';
+    return 'deposit';
+}
+
+function computeBuildSignupAmount(buildAmount, payMode) {
+    const mode = normalizeBuildPayMode(payMode);
+    const plan = BUILD_PAY_PLANS[mode] || BUILD_PAY_PLANS.deposit;
+    const total = Math.round(Number(buildAmount) * 100) / 100;
+    const amount = Math.round(total * (plan.pct / 100) * 100) / 100;
+    return {
+        mode,
+        pct: plan.pct,
+        amount,
+        label: plan.label,
+        shortLabel: plan.shortLabel,
+        chargeType: plan.chargeType,
+        formatted: `$${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    };
+}
+
+function describeBuildPayPlans(buildTierId) {
+    const buildAmount = buildAmountForTier(buildTierId);
+    return Object.fromEntries(
+        Object.keys(BUILD_PAY_PLANS).map((key) => [key, computeBuildSignupAmount(buildAmount, key)])
+    );
+}
+
 function buildTierFromHosting(hostingTier) {
     const hosting = normalizeHostingTier(hostingTier);
     return HOSTING_TO_BUILD_TIER[hosting] || 'basic';
@@ -89,6 +151,7 @@ function describeBuildMilestones(buildTierId) {
         })),
         depositAmount: deposit?.amount || 0,
         depositFormatted: deposit ? `$${deposit.amount.toFixed(2)}` : '$0.00',
+        payPlans: describeBuildPayPlans(buildTier),
         refundPolicy:
             'Full refund of paid milestones if no project work has started. After kickoff, completed milestones are non-refundable.'
     };
@@ -170,6 +233,47 @@ async function markMilestonePaid(pool, contractId, milestoneKey, chargeId) {
          WHERE contract_id = ? AND milestone_key = ?`,
         [chargeId, contractId, milestoneKey]
     );
+}
+
+async function markAllMilestonesPaid(pool, contractId, chargeId) {
+    await pool.execute(
+        `UPDATE billing_build_milestones SET
+            status = 'paid',
+            paid_at = CURRENT_TIMESTAMP,
+            charge_id = ?,
+            updated_at = CURRENT_TIMESTAMP
+         WHERE contract_id = ? AND status != 'paid'`,
+        [chargeId, contractId]
+    );
+}
+
+async function markMilestonesForPrepay(pool, contractId, prepayAmount, chargeId) {
+    const [rows] = await pool.execute(
+        `SELECT id, milestone_key, amount, sort_order, status
+         FROM billing_build_milestones
+         WHERE contract_id = ? AND status = 'pending'
+         ORDER BY sort_order ASC`,
+        [contractId]
+    );
+
+    let remaining = Math.round(Number(prepayAmount) * 100) / 100;
+    for (const row of rows) {
+        if (remaining <= 0) break;
+        const milestoneAmount = Math.round(Number(row.amount) * 100) / 100;
+        if (remaining >= milestoneAmount) {
+            await markMilestonePaid(pool, contractId, row.milestone_key, chargeId);
+            remaining = Math.round((remaining - milestoneAmount) * 100) / 100;
+        } else {
+            await pool.execute(
+                `UPDATE billing_build_milestones SET
+                    amount = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                 WHERE id = ?`,
+                [Math.round((milestoneAmount - remaining) * 100) / 100, row.id]
+            );
+            remaining = 0;
+        }
+    }
 }
 
 async function markKickoffStarted(pool, contractId) {
@@ -284,6 +388,10 @@ async function refundBuildIfNoWorkStarted(pool, accountId, { note } = {}) {
 module.exports = {
     BUILD_TIER_AMOUNTS,
     BUILD_MILESTONE_DEFS,
+    BUILD_PAY_PLANS,
+    normalizeBuildPayMode,
+    computeBuildSignupAmount,
+    describeBuildPayPlans,
     buildTierFromHosting,
     buildAmountForTier,
     computeMilestoneAmounts,
@@ -292,6 +400,8 @@ module.exports = {
     getBuildContract,
     createBuildContract,
     markMilestonePaid,
+    markAllMilestonesPaid,
+    markMilestonesForPrepay,
     markKickoffStarted,
     completeMilestone,
     refundBuildIfNoWorkStarted

@@ -23,7 +23,11 @@ const {
 const {
     createBuildContract,
     markMilestonePaid,
-    describeBuildFromHosting
+    markAllMilestonesPaid,
+    markMilestonesForPrepay,
+    describeBuildFromHosting,
+    normalizeBuildPayMode,
+    computeBuildSignupAmount
 } = require('./websiteBuildBilling');
 const { describeMonthlyPricing, hostingMonthlyAmount } = require('./platformBillingPricing');
 
@@ -652,13 +656,14 @@ async function chargeOneTimeFromAccount(pool, accountId, {
 }
 
 /**
- * At signup: prorated monthly (POS + hosting) through end of month + optional build deposit.
+ * At signup: prorated monthly (POS + hosting) through end of month + optional build prepay.
  * Sets next_bill_date to the 1st of the next calendar month.
  */
 async function chargeSignupMonthlyAndBuild(pool, accountId, {
     licensedStationCount,
     hostingTier,
     includeBuild = false,
+    buildPayMode = 'deposit',
     signupDate = new Date()
 } = {}) {
     const posPricing = describeMonthlyPricing(licensedStationCount);
@@ -712,31 +717,56 @@ async function chargeSignupMonthlyAndBuild(pool, accountId, {
     let buildContract = null;
     if (includeBuild && hostingTier) {
         const buildInfo = describeBuildFromHosting(hostingTier);
-        const depositAmount = buildInfo.depositAmount;
-        if (depositAmount > 0) {
+        const payMode = normalizeBuildPayMode(buildPayMode);
+        const signupPlan = computeBuildSignupAmount(buildInfo.buildAmount, payMode);
+        const buildChargeAmount = signupPlan.amount;
+        if (buildChargeAmount > 0) {
+            const isFullPay = payMode === 'full';
             const buildCharge = await chargeOneTimeFromAccount(pool, accountId, {
-                amount: depositAmount,
-                chargeType: 'build_deposit',
+                amount: buildChargeAmount,
+                chargeType: signupPlan.chargeType,
                 lineItems: [
                     {
-                        code: 'build_deposit',
-                        label: `${buildInfo.buildTier} website — discovery deposit (25%)`,
-                        amount: depositAmount
+                        code: signupPlan.chargeType,
+                        label: isFullPay
+                            ? `${buildInfo.buildTier} website — paid in full at signup`
+                            : `${buildInfo.buildTier} website — ${signupPlan.shortLabel}`,
+                        amount: buildChargeAmount
                     }
                 ],
-                description: `Website build deposit — ${buildInfo.formattedBuild}`,
+                description: isFullPay
+                    ? `Website build paid in full — ${buildInfo.formattedBuild}`
+                    : `Website build ${signupPlan.pct}% upfront — ${buildInfo.formattedBuild}`,
                 orderPrefix: 'BUILD'
             });
             if (!buildCharge.ok && !buildCharge.dryRun) {
-                const err = new Error(buildCharge.message || 'Build deposit charge failed');
+                const err = new Error(
+                    buildCharge.message ||
+                        (isFullPay ? 'Full website build charge failed' : 'Website build upfront charge failed')
+                );
                 err.code = 'CHARGE_FAILED';
                 throw err;
             }
             buildContract = await createBuildContract(pool, accountId, { hostingTier });
             if (buildCharge.chargeId && buildContract?.contract?.id) {
-                await markMilestonePaid(pool, buildContract.contract.id, 'deposit', buildCharge.chargeId);
+                if (isFullPay) {
+                    await markAllMilestonesPaid(pool, buildContract.contract.id, buildCharge.chargeId);
+                } else {
+                    await markMilestonesForPrepay(
+                        pool,
+                        buildContract.contract.id,
+                        buildChargeAmount,
+                        buildCharge.chargeId
+                    );
+                }
             }
-            charges.push({ type: 'build_deposit', ...buildCharge, buildInfo });
+            charges.push({
+                type: signupPlan.chargeType,
+                payMode,
+                payPct: signupPlan.pct,
+                ...buildCharge,
+                buildInfo
+            });
         }
     }
 

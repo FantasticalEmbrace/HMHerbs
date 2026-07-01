@@ -9,7 +9,7 @@ const { getPlatformBillingClientConfig } = require('../services/platformBillingC
 const { assertNoRawPaymentData } = require('../utils/paymentPayloadValidation');
 const { describeMonthlyPricing, computeHardwareCheckout, hardwareSalesTaxRate, hostingMonthlyAmount } = require('../services/platformBillingPricing');
 const { computeProration, describeBillingCycle } = require('../services/platformBillingCalendar');
-const { describeBuildFromHosting } = require('../services/websiteBuildBilling');
+const { describeBuildFromHosting, normalizeBuildPayMode } = require('../services/websiteBuildBilling');
 const { saveBillingVault, updateMerchantLicense } = require('../services/posMerchantLicense');
 const {
     upsertSubscription,
@@ -159,12 +159,6 @@ router.post('/signup', signupLimiter, async (req, res) => {
         }
 
         const isAch = req.body.paymentMethodType === 'ach';
-        if (isAch) {
-            return res.status(400).json({
-                error: 'Card payment is required at signup — your setup modem is charged today (plus sales tax).',
-                code: 'CARD_REQUIRED'
-            });
-        }
         const cardPayload = isAch
             ? null
             : {
@@ -219,10 +213,12 @@ router.post('/signup', signupLimiter, async (req, res) => {
         }
 
         const includeBuild = Boolean(req.body.hostingTier);
+        const buildPayMode = includeBuild ? normalizeBuildPayMode(req.body.buildPayMode) : 'deposit';
         signupBilling = await chargeSignupMonthlyAndBuild(req.pool, account.id, {
             licensedStationCount,
             hostingTier: req.body.hostingTier || null,
             includeBuild,
+            buildPayMode: includeBuild ? buildPayMode : 'deposit',
             signupDate: new Date()
         });
 
@@ -272,10 +268,16 @@ router.post('/signup', signupLimiter, async (req, res) => {
               ? ` Monthly billing begins ${signupBilling.nextBillDate}.`
               : '';
 
-        const buildMsg =
-            includeBuild && signupBilling?.charges?.find((c) => c.type === 'build_deposit')?.amount
-                ? ` Website build deposit charged — remaining milestones billed as work progresses.`
-                : '';
+        const buildCharge = signupBilling?.charges?.find(
+            (c) => c.type === 'build_deposit' || c.type === 'build_full' || c.type === 'build_prepay'
+        );
+        const buildMsg = includeBuild && buildCharge?.amount
+            ? buildCharge.type === 'build_full'
+                ? ` Website build paid in full at signup — no milestone charges later.`
+                : buildCharge.payPct && buildCharge.payPct > 25
+                  ? ` Website build ${buildCharge.payPct}% charged upfront — remaining milestones billed as work progresses.`
+                  : ` Website build deposit charged — remaining milestones billed as work progresses.`
+            : '';
 
         res.status(201).json({
             success: true,

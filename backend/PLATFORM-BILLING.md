@@ -114,7 +114,7 @@ Implementation: `backend/services/platformBillingCalendar.js` (`computeProration
 
 ## Website build milestones
 
-Build fees ($1.5k–$10k) bill in four milestones — **25% deposit at signup**, then 35% / 25% / 15% as work progresses. Refund before kickoff if no work started: `POST /api/platform/billing/build/refund-before-kickoff`. Charge next milestone: `POST /api/platform/billing/build/charge-milestone`.
+Build fees ($1.5k–$10k) can be paid **25%, 50%, 75%, or 100% upfront** at signup; any balance bills at milestones as work progresses. Refund before kickoff if no work started: `POST /api/platform/billing/build/refund-before-kickoff`. Charge next milestone: `POST /api/platform/billing/build/charge-milestone`.
 
 Schema: `billing_build_contracts`, `billing_build_milestones`. Keep aligned with `business-one-webpage/js/web-build-pricing-tiers.js`.
 
