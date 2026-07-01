@@ -1,8 +1,8 @@
 // H&M Herbs & Vitamins - Service Worker
 // Progressive Web App functionality with offline support
 
-const STATIC_CACHE = 'hmherbs-static-v1.0.48';
-const DYNAMIC_CACHE = 'hmherbs-dynamic-v1.0.48';
+const STATIC_CACHE = 'hmherbs-static-v1.0.49';
+const DYNAMIC_CACHE = 'hmherbs-dynamic-v1.0.49';
 
 // Files to cache for offline functionality
 const STATIC_FILES = [
@@ -149,6 +149,9 @@ self.addEventListener('fetch', event => {
   if (
     url.pathname === '/js/checkout.js' ||
     url.pathname === '/js/customer-auth.js' ||
+    url.pathname === '/js/password-toggle.js' ||
+    url.pathname === '/css/password-toggle.css' ||
+    url.pathname === '/js/visual-bug-fixes.js' ||
     url.pathname === '/js/gift-cards.js' ||
     url.pathname === '/js/hm-gift-card.js' ||
     url.pathname === '/css/hm-gift-card.css' ||
@@ -215,16 +218,16 @@ async function handleStaticAsset(request) {
     }
     if (url.origin !== currentOrigin) {
       // This shouldn't happen, but if it does, let browser handle it
-      return fetch(request);
+      return fetch(request, { redirect: 'follow' });
     }
 
     const cachedResponse = await caches.match(request);
-    if (cachedResponse && cachedResponse.ok) {
+    if (cachedResponse && cachedResponse.ok && cachedResponse.type === 'basic') {
       return cachedResponse;
     }
 
-    const networkResponse = await fetch(request);
-    if (networkResponse.ok) {
+    const networkResponse = await fetch(request, { redirect: 'follow' });
+    if (networkResponse.ok && networkResponse.type === 'basic' && !networkResponse.redirected) {
       const cache = await caches.open(STATIC_CACHE);
       cache.put(request, networkResponse.clone());
     }
@@ -233,7 +236,7 @@ async function handleStaticAsset(request) {
     // Retry a plain network fetch — returning a 503 text body breaks <img> and triggers
     // error cascades (browser tries to decode HTML/plain as an image).
     try {
-      return await fetch(request);
+      return await fetch(request, { redirect: 'follow' });
     } catch (e2) {
       return new Response('Asset not available offline', {
         status: 503,
@@ -246,7 +249,7 @@ async function handleStaticAsset(request) {
 // Handle API requests (network first, then cache)
 async function handleAPIRequest(request) {
   try {
-    const networkResponse = await fetch(request);
+    const networkResponse = await fetch(request, { redirect: 'follow' });
     if (networkResponse.ok) {
       const cache = await caches.open(DYNAMIC_CACHE);
       cache.put(request, networkResponse.clone());
@@ -272,7 +275,7 @@ async function handleAPIRequest(request) {
 // Handle navigation requests (network first, then cache, then offline page)
 async function handleNavigationRequest(request) {
   try {
-    const networkResponse = await fetch(request);
+    const networkResponse = await fetch(request, { redirect: 'follow' });
     return networkResponse;
   } catch (error) {
     // Silently fall back to cache - this is expected behavior when offline
@@ -364,10 +367,10 @@ async function handleOtherRequests(request) {
     }
     if (url.origin !== currentOrigin) {
       // This shouldn't happen, but if it does, let browser handle it
-      return fetch(request);
+      return fetch(request, { redirect: 'follow' });
     }
 
-    return await fetch(request);
+    return await fetch(request, { redirect: 'follow' });
   } catch (error) {
     // Only return 503 for same-origin requests that fail
     // External resources should never reach this catch block
