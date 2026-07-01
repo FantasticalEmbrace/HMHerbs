@@ -6,7 +6,8 @@ const jwt = require('jsonwebtoken');
 const router = express.Router();
 const logger = require('../utils/logger');
 const { isPlatformBillingConfigured } = require('../utils/platformBillingEnv');
-const { isProchargeSandbox } = require('../utils/prochargeEnv');
+const { getPlatformBillingClientConfig } = require('../services/platformBillingClientConfig');
+const { assertNoRawPaymentData } = require('../utils/paymentPayloadValidation');
 const {
     ensureDefaultAccount,
     getAccountById,
@@ -32,7 +33,6 @@ const {
     HARDWARE_MAX_INSTALLMENT_MONTHS
 } = require('../services/platformBillingPricing');
 const { getPrincipalDashboard } = require('../services/principalBilling');
-const { billingPortalUrl } = require('../services/platformBillingEmail');
 
 async function assertBillingAuth(req) {
     const authHeader = req.headers.authorization || '';
@@ -61,19 +61,7 @@ const setupLimiter = rateLimit({
 });
 
 router.get('/client-config', async (_req, res) => {
-    const configured = isPlatformBillingConfigured();
-    res.json({
-        enabled: configured,
-        configured,
-        processor: 'procharge',
-        sandbox: isProchargeSandbox(),
-        achEnabled: true,
-        cardFields: true,
-        portalUrl: billingPortalUrl(),
-        message: configured
-            ? 'Enter card details below. Charges are processed by ProCharge (EPI).'
-            : 'ProCharge platform billing is not configured on the server yet.'
-    });
+    res.json(getPlatformBillingClientConfig());
 });
 
 router.get('/account', async (req, res) => {
@@ -115,6 +103,8 @@ router.post('/principal/build-balance', setupLimiter, async (req, res) => {
         const auth = await assertBillingAuth(req);
         if (!auth) return res.status(401).json({ error: 'Admin login required' });
         const account = await ensureDefaultAccount(req.pool);
+        assertNoRawPaymentData(req.body.card || {});
+
         const result = await payPrincipalBuildBalance(req.pool, account.id, {
             mode: req.body.mode === 'installment' ? 'installment' : 'full',
             installmentMonths: req.body.installmentMonths,
@@ -168,10 +158,12 @@ router.post('/setup', setupLimiter, async (req, res) => {
             return res.status(400).json({ error: 'Authorization required', code: 'AUTHORIZATION_REQUIRED' });
         }
 
+        assertNoRawPaymentData(req.body);
+
         const account = await ensureDefaultAccount(req.pool);
         const saved = await savePaymentMethod(req.pool, account.id, {
             paymentMethodType: req.body.paymentMethodType || 'card',
-            paymentToken: req.body.payment_token,
+            paymentToken: req.body.payment_token || req.body.paymentToken,
             cardNumber: req.body.cardNumber,
             ccExpMonth: req.body.ccExpMonth,
             ccExpYear: req.body.ccExpYear,
@@ -256,6 +248,8 @@ router.post('/hardware/purchase', setupLimiter, async (req, res) => {
         const auth = await assertBillingAuth(req);
         if (!auth) return res.status(401).json({ error: 'Admin login required' });
         const account = await ensureDefaultAccount(req.pool);
+        assertNoRawPaymentData(req.body.card || {});
+
         const result = await purchaseHardware(req.pool, account.id, {
             sku: req.body.sku,
             quantity: req.body.quantity,

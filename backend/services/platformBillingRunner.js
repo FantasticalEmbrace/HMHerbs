@@ -318,6 +318,15 @@ async function purchaseHardware(pool, accountId, {
             orderNumber: `HW-${sku}-${Date.now()}`,
             description: `${item.name} × ${qty}`
         });
+    } else if (cardPayload?.paymentToken || cardPayload?.payment_token) {
+        sale = await chargeToken({
+            amount: total,
+            token: cardPayload.paymentToken || cardPayload.payment_token,
+            orderNumber: `HW-${sku}-${Date.now()}`,
+            description: `${item.name} × ${qty}`,
+            email: cardPayload.billingEmail || cardPayload.email,
+            name: cardPayload.cardholderName || cardPayload.name
+        });
     } else if (cardPayload?.cardNumber) {
         sale = await chargeCard({
             amount: total,
@@ -480,6 +489,15 @@ async function payPrincipalBuildBalance(pool, accountId, { mode = 'full', instal
         sale = await executeProchargeCharge(account, remaining, {
             orderNumber: `BUILD-${accountId}-${Date.now()}`,
             description: label
+        });
+    } else if (cardPayload?.paymentToken || cardPayload?.payment_token) {
+        sale = await chargeToken({
+            amount: remaining,
+            token: cardPayload.paymentToken || cardPayload.payment_token,
+            orderNumber: `BUILD-${accountId}-${Date.now()}`,
+            description: label,
+            email: cardPayload.billingEmail || cardPayload.email,
+            name: cardPayload.cardholderName || cardPayload.name
         });
     } else if (cardPayload?.cardNumber) {
         sale = await chargeCard({

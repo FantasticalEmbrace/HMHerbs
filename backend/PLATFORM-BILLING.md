@@ -31,12 +31,22 @@ PROCHARGE_PASSWORD=
 PROCHARGE_PIN=
 PROCHARGE_MERCHANT_NUMBER=
 
+# CardPointe hosted iFrame — card/ACH tokenized in the browser (recommended)
+PROCHARGE_HOSTED_TOKENIZER_HOST=fts-uat.cardconnect.com
+PROCHARGE_REQUIRE_HOSTED_FIELDS=true
+
 BILLING_DRY_RUN=true
 BILLING_SCHEDULER_ENABLED=false
 BILLING_PORTAL_URL=https://businessonecomprehensive.com/billing-portal.html
 BILLING_PORTAL_ALLOW_OPEN_SETUP=false
 BUSINESS_ONE_POS_SIGNUP_ENABLED=false
 ```
+
+When `PROCHARGE_HOSTED_TOKENIZER_HOST` (or `PROCHARGE_HOSTED_TOKENIZER_URL`) is set, signup, billing portal, and HM Herbs admin billing load the CardPointe iframe. The API accepts **`payment_token` only** — raw PAN/routing numbers are rejected.
+
+`GET /api/platform/billing/client-config` and `GET /api/business-one/pos/client-config` return `hostedFields.cardTokenizerUrl`, `hostedFields.achTokenizerUrl`, and `hostedFields.messageOrigin` for the browser widget (`js/procharge-hosted.js`).
+
+UAT iframe host: `fts-uat.cardconnect.com`. Production: `fts.cardconnect.com` (or the site EPI assigns).
 
 Point `business-one-webpage` pages at the hub API:
 
@@ -114,6 +124,8 @@ Tax rate: `BILLING_HARDWARE_SALES_TAX_RATE` (default `0.075`). ACH is not accept
 | `business-one-webpage/billing-portal.html` | Merchant billing portal |
 | `business-one-webpage/css/platform-billing.css` | ProCharge form + button styling |
 | `business-one-webpage/js/billing-portal.js` | Portal client |
+| `business-one-webpage/js/procharge-hosted.js` | CardPointe hosted iframe widget |
+| `hmherbs-main/js/procharge-hosted.js` | Same widget for HM Herbs admin billing |
 | `hmherbs-main/backend/services/*` | Billing engine (run on hub when split) |
 
 ## Going live

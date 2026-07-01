@@ -5,7 +5,8 @@ const rateLimit = require('express-rate-limit');
 const router = express.Router();
 const logger = require('../utils/logger');
 const { isPlatformBillingConfigured } = require('../utils/platformBillingEnv');
-const { isProchargeSandbox } = require('../utils/prochargeEnv');
+const { getPlatformBillingClientConfig } = require('../services/platformBillingClientConfig');
+const { assertNoRawPaymentData } = require('../utils/paymentPayloadValidation');
 const { describeMonthlyPricing, computeHardwareCheckout, hardwareSalesTaxRate } = require('../services/platformBillingPricing');
 const { saveBillingVault, updateMerchantLicense } = require('../services/posMerchantLicense');
 const {
@@ -35,18 +36,11 @@ router.get('/info', (_req, res) => {
 });
 
 router.get('/client-config', (_req, res) => {
-    const configured = isPlatformBillingConfigured();
-    res.json({
-        enabled: isSignupEnabled() && configured,
-        configured,
-        processor: 'procharge',
-        sandbox: isProchargeSandbox(),
-        achEnabled: true,
-        cardFields: true,
-        message: configured
-            ? 'Secure card entry — processed by ProCharge (EPI).'
-            : 'Online signup payment is not configured yet. Call (850) 290-2084.'
-    });
+    res.json(
+        getPlatformBillingClientConfig({
+            signupEnabled: isSignupEnabled()
+        })
+    );
 });
 
 router.get('/pricing', (req, res) => {
@@ -102,6 +96,8 @@ router.post('/signup', signupLimiter, async (req, res) => {
             return res.status(400).json({ error: 'Authorization required', code: 'AUTHORIZATION_REQUIRED' });
         }
 
+        assertNoRawPaymentData(req.body);
+
         const businessName = String(req.body.businessName || '').trim();
         const billingEmail = String(req.body.billingEmail || '').trim();
         const licensedStationCount = Math.max(1, Number(req.body.licensedStationCount) || 1);
@@ -148,7 +144,7 @@ router.post('/signup', signupLimiter, async (req, res) => {
 
         await saveBillingVault(req.pool, {
             paymentMethodType: req.body.paymentMethodType || 'card',
-            paymentToken: req.body.payment_token,
+            paymentToken: req.body.payment_token || req.body.paymentToken,
             cardNumber: req.body.cardNumber,
             ccExpMonth: req.body.ccExpMonth,
             ccExpYear: req.body.ccExpYear,

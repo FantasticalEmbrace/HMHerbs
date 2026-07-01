@@ -192,9 +192,37 @@ async function savePaymentMethod(pool, accountId, payload) {
         throw err;
     }
 
+    const { assertNoRawPaymentData } = require('../utils/paymentPayloadValidation');
+    assertNoRawPaymentData(payload);
+
     const paymentMethodType = payload.paymentMethodType === 'ach' ? 'ach' : 'card';
 
     if (paymentMethodType === 'ach') {
+        const achToken = payload.paymentToken || payload.prochargeToken;
+        if (achToken) {
+            await pool.execute(
+                `UPDATE billing_accounts SET
+                    payment_method_type = 'ach',
+                    procharge_token = ?,
+                    ach_customer_uuid = NULL,
+                    billing_authorized_at = CURRENT_TIMESTAMP,
+                    status = CASE WHEN status = 'canceled' THEN 'active' ELSE status END,
+                    past_due_since = NULL,
+                    billing_retry_count = 0,
+                    next_billing_retry_at = NULL,
+                    updated_at = CURRENT_TIMESTAMP
+                 WHERE id = ?`,
+                [String(achToken), accountId]
+            );
+            if (payload.businessName || payload.billingEmail) {
+                await updateAccount(pool, accountId, {
+                    businessName: payload.businessName,
+                    billingEmail: payload.billingEmail
+                });
+            }
+            return getAccountById(pool, accountId);
+        }
+
         const bank = payload.bankAccount || {};
         const added = await achAddCustomer({
             name: payload.businessName || payload.name || 'Business One customer',

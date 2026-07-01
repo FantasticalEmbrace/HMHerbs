@@ -8,6 +8,9 @@
     let adminApp = null;
     let dashboard = null;
     let selectedSku = '';
+    let clientConfig = null;
+    let hostedMount = null;
+    let paymentToken = null;
 
     function $(id) {
         return document.getElementById(id);
@@ -25,7 +28,25 @@
             tone === 'ok' ? 'var(--success, #15803d)' : tone === 'err' ? 'var(--error, #b91c1c)' : '';
     }
 
+    function destroyHostedMount() {
+        hostedMount?.destroy?.();
+        hostedMount = null;
+        paymentToken = null;
+    }
+
     function cardPayloadFromForm() {
+        const useHosted = clientConfig?.hostedFields?.required || clientConfig?.hostedFields?.enabled;
+        if (useHosted) {
+            const token = paymentToken || hostedMount?.getToken?.();
+            if (!token) return null;
+            return {
+                paymentToken: token,
+                cardholderName: $('principal-billing-card-name')?.value?.trim(),
+                billingEmail: $('principal-billing-card-email')?.value?.trim(),
+                postalCode: $('principal-billing-card-zip')?.value?.trim()
+            };
+        }
+
         const cardNumber = $('principal-billing-card-number')?.value?.replace(/\s+/g, '') || '';
         if (!cardNumber) return null;
         return {
@@ -61,15 +82,55 @@
         const placeholder = $('pos-license-collect-placeholder');
         if (!mount) return;
 
+        destroyHostedMount();
+
         const vaultNote = hasVault
             ? `<p style="margin:0 0 0.5rem;font-size:0.88rem;color:var(--gray-600);">
                     Card on file. Enter new card details below only if you want to replace it.
                 </p>`
             : '';
 
-        mount.innerHTML =
-            vaultNote +
-            `
+        if (clientConfig?.hostedFields?.enabled) {
+            mount.innerHTML =
+                vaultNote +
+                `
+            <div class="form-group" style="margin:0;">
+                <label for="principal-billing-card-name">Name on card</label>
+                <input class="form-input" id="principal-billing-card-name" autocomplete="cc-name">
+            </div>
+            <div id="principal-hosted-card-mount"></div>
+            <p style="margin:0.35rem 0 0;font-size:0.85rem;color:var(--gray-600);" id="principal-hosted-card-hint">
+                Card number, expiration, and CVV are entered in the secure frame below.
+            </p>
+            <div style="display:grid;grid-template-columns:1fr 8rem;gap:0.5rem;margin-top:0.65rem;">
+                <div class="form-group" style="margin:0;">
+                    <label for="principal-billing-card-email">Billing email</label>
+                    <input class="form-input" id="principal-billing-card-email" type="email" autocomplete="email">
+                </div>
+                <div class="form-group" style="margin:0;">
+                    <label for="principal-billing-card-zip">Billing ZIP</label>
+                    <input class="form-input" id="principal-billing-card-zip" inputmode="numeric" autocomplete="postal-code">
+                </div>
+            </div>`;
+
+            const hostedEl = $('principal-hosted-card-mount');
+            if (hostedEl && window.BusinessOneProchargeHosted) {
+                hostedMount = window.BusinessOneProchargeHosted.mount({
+                    mountEl: hostedEl,
+                    config: clientConfig,
+                    mode: 'card',
+                    onToken(token) {
+                        paymentToken = token;
+                    },
+                    onError(err) {
+                        setMsg(err?.message || 'Secure payment fields could not load.', 'err');
+                    }
+                });
+            }
+        } else {
+            mount.innerHTML =
+                vaultNote +
+                `
             <div class="form-group" style="margin:0;">
                 <label for="principal-billing-card-number">Card number</label>
                 <input class="form-input" id="principal-billing-card-number" inputmode="numeric" autocomplete="cc-number" placeholder="4111…">
@@ -102,6 +163,7 @@
                     <input class="form-input" id="principal-billing-card-zip" inputmode="numeric" autocomplete="postal-code">
                 </div>
             </div>`;
+        }
 
         if (placeholder) {
             placeholder.textContent = hasVault
@@ -191,8 +253,9 @@
         if (warnEl) {
             if (!data.configured) {
                 warnEl.style.display = '';
-                warnEl.textContent =
-                    'ProCharge is not configured on the server yet. You can still review pricing; charges will not run until PROCHARGE_* keys are set.';
+                warnEl.textContent = clientConfig?.hostedFields?.enabled
+                    ? 'ProCharge API credentials are not on the server yet. Secure card fields are ready; charges will run after PROCHARGE_* keys are set.'
+                    : 'ProCharge is not configured on the server yet. You can still review pricing; charges will not run until PROCHARGE_* keys are set.';
             } else {
                 warnEl.style.display = 'none';
             }
@@ -345,6 +408,11 @@
 
     async function loadDashboard() {
         setMsg('Loading billing…', '');
+        try {
+            clientConfig = await apiBilling('/client-config');
+        } catch {
+            clientConfig = null;
+        }
         const data = await apiBilling('/principal');
         dashboard = data;
         renderModemGate(data);
@@ -363,8 +431,21 @@
             return;
         }
         const card = cardPayloadFromForm();
-        if (!card?.cardNumber) {
-            setMsg('Enter card details to save a payment method.', 'err');
+        if (!card) {
+            setMsg(
+                clientConfig?.hostedFields?.enabled
+                    ? 'Complete the secure card fields above to save a payment method.'
+                    : 'Enter card details to save a payment method.',
+                'err'
+            );
+            return;
+        }
+        if (!clientConfig?.paymentReady && !dashboard?.configured) {
+            setMsg(
+                clientConfig?.message ||
+                    'Payment processing is not live on the server yet. ProCharge credentials are still being configured.',
+                'warn'
+            );
             return;
         }
         const btn = $('pos-license-billing-save-btn');
@@ -376,12 +457,20 @@
                 body: JSON.stringify({
                     authorized: true,
                     paymentMethodType: 'card',
-                    ...card,
+                    payment_token: card.paymentToken,
+                    cardNumber: card.cardNumber,
+                    ccExpMonth: card.ccExpMonth,
+                    ccExpYear: card.ccExpYear,
+                    cvv: card.cvv,
+                    cardholderName: card.cardholderName,
+                    postalCode: card.postalCode,
                     billingEmail: card.billingEmail,
                     businessName: dashboard?.account?.businessName?.trim()
                 })
             });
             setMsg('Payment method saved.', 'ok');
+            hostedMount?.reload?.();
+            paymentToken = null;
             await loadDashboard();
             if (adminApp?.loadPosLicense) await adminApp.loadPosLicense();
         } catch (err) {
@@ -398,8 +487,8 @@
 
         const needsCard = !dashboard?.account?.hasBillingVault;
         const card = needsCard ? cardPayloadFromForm() : null;
-        if (needsCard && !card?.cardNumber) {
-            setMsg('Save a card on file or enter card details above first.', 'err');
+        if (needsCard && !card) {
+            setMsg('Save a card on file or complete the secure card fields above first.', 'err');
             return;
         }
 
@@ -452,8 +541,8 @@
 
         const needsCard = !dashboard?.account?.hasBillingVault;
         const card = needsCard ? cardPayloadFromForm() : null;
-        if (needsCard && !card?.cardNumber) {
-            setMsg('Save a card on file or enter card details above first.', 'err');
+        if (needsCard && !card) {
+            setMsg('Save a card on file or complete the secure card fields above first.', 'err');
             return;
         }
 
