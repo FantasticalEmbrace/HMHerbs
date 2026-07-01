@@ -191,6 +191,20 @@ async function chargeAccount(pool, accountId, { reason = 'monthly', force = fals
         return { skipped: true, reason: 'no_vault', amount: chargeAmount, lines, dryRun };
     }
 
+    const { getMonthlyBillingBlocker } = require('./billingPrerequisites');
+    const modemBlocker = await getMonthlyBillingBlocker(pool, accountId, account);
+    if (modemBlocker) {
+        return {
+            skipped: true,
+            reason: modemBlocker.reason,
+            code: modemBlocker.code,
+            message: modemBlocker.message,
+            amount: chargeAmount,
+            lines,
+            dryRun
+        };
+    }
+
     if (dryRun) {
         return {
             skipped: true,

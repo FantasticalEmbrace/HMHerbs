@@ -80,10 +80,12 @@ router.get('/account', async (req, res) => {
     try {
         const account = await ensureDefaultAccount(req.pool);
         const { refreshFailoverBillingForAccount } = require('../services/posFailoverMetering');
+        const { getModemBillingStatus } = require('../services/billingPrerequisites');
         await refreshFailoverBillingForAccount(req.pool, account.id);
         const subscriptions = await listSubscriptions(req.pool, account.id);
         const statement = await computeMonthlyTotal(req.pool, account.id);
-        res.json({ account, subscriptions, statement });
+        const modemBilling = await getModemBillingStatus(req.pool, account.id, account);
+        res.json({ account, subscriptions, statement, modemBilling });
     } catch (e) {
         logger.error('Platform billing account fetch', { err: e.message });
         res.status(500).json({ error: 'Failed to load billing account' });

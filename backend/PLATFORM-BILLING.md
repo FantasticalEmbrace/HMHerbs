@@ -122,3 +122,20 @@ Tax rate: `BILLING_HARDWARE_SALES_TAX_RATE` (default `0.075`). ACH is not accept
 2. Upload `business-one-webpage` billing portal to SiteGround
 3. Set `meta business-one-api-origin` to the hub URL
 4. `BILLING_DRY_RUN=false` and `BILLING_SCHEDULER_ENABLED=true` on the hub
+5. Set `BILLING_FAILOVER_INGEST_SECRET` and point the WTI cloud portal (or modem webhook) at the ingest URL
+
+### Failover usage ingest (modem / WTI cloud)
+
+Registers on cellular report through the POS app. **Modem failover** (when the store path does not hit registers) meters through this webhook:
+
+```
+POST https://YOUR-HUB/api/platform/billing/failover/ingest
+Header: x-failover-ingest-secret: <BILLING_FAILOVER_INGEST_SECRET>
+Content-Type: application/json
+
+{ "bytesUsed": 3500000000 }
+```
+
+Optional multi-tenant fields: `accountKey`, `accountId`, `bytesDelta`, `source` (default `modem`).
+
+After a hard refresh of admin, the manual failover GB box is gone — usage appears read-only on the license summary.

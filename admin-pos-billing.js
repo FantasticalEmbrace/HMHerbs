@@ -136,6 +136,41 @@
         if (nameEl && business) nameEl.value = business;
     }
 
+    function renderModemGate(data) {
+        const banner = $('principal-modem-gate-banner');
+        const statementSection = $('principal-monthly-statement-section');
+        const modem = data.modemBilling || {};
+
+        if (!banner) return;
+
+        if (!modem.required || modem.waived) {
+            banner.style.display = 'none';
+            if (statementSection) statementSection.style.opacity = '';
+            return;
+        }
+
+        if (modem.ordered) {
+            const when = modem.order?.orderedAt
+                ? new Date(modem.order.orderedAt).toLocaleDateString()
+                : 'recently';
+            banner.style.display = '';
+            banner.style.background = '#ecfdf5';
+            banner.style.color = '#166534';
+            banner.style.border = '1px solid #bbf7d0';
+            banner.innerHTML = `<strong>Modem ordered.</strong> Monthly platform billing can run after your WTI failover modem order (${modem.order?.sku || 'modem'} · ${when}).`;
+            if (statementSection) statementSection.style.opacity = '';
+            return;
+        }
+
+        banner.style.display = '';
+        banner.style.background = '#eff6ff';
+        banner.style.color = '#1e40af';
+        banner.style.border = '1px solid #bfdbfe';
+        banner.innerHTML =
+            '<strong>Order your WTI modem first.</strong> Monthly platform fees will not charge until a failover modem is ordered below. Modem data usage is metered automatically after setup.';
+        if (statementSection) statementSection.style.opacity = '0.72';
+    }
+
     function renderStatement(data) {
         const linesEl = $('principal-billing-statement-lines');
         const totalEl = $('principal-billing-statement-total');
@@ -181,9 +216,11 @@
 
     function renderBuildBalance(data) {
         const section = $('principal-build-balance-section');
+        const summaryHint = $('principal-build-balance-summary-hint');
         const desc = $('principal-build-balance-desc');
         const amount = $('principal-build-balance-amount');
         const paid = $('principal-build-balance-paid');
+        const actions = $('principal-build-balance-actions');
         const fullBtn = $('principal-build-pay-full-btn');
         const instBtn = $('principal-build-pay-installment-btn');
         const monthsSel = $('principal-build-installment-months');
@@ -194,7 +231,9 @@
 
         if (remaining <= 0) {
             section.style.display = bb.paidOffAt ? '' : 'none';
+            if (summaryHint) summaryHint.textContent = bb.paidOffAt ? ' · paid' : '';
             if (bb.paidOffAt) {
+                section.open = false;
                 if (desc) desc.textContent = bb.label || '';
                 if (amount) amount.textContent = '';
                 if (paid) {
@@ -204,6 +243,7 @@
                             ? `Balance converted to monthly installments (started ${bb.paidOffAt}).`
                             : `Build balance paid in full on ${bb.paidOffAt}.`;
                 }
+                if (actions) actions.style.display = 'none';
                 if (fullBtn) fullBtn.style.display = 'none';
                 if (instBtn) instBtn.style.display = 'none';
                 if (monthsSel) monthsSel.closest('.form-group').style.display = 'none';
@@ -212,6 +252,10 @@
         }
 
         section.style.display = '';
+        section.open = false;
+        if (summaryHint) {
+            summaryHint.textContent = ` · ${money(remaining)} remaining (optional)`;
+        }
         if (desc) {
             desc.textContent =
                 bb.label ||
@@ -221,9 +265,35 @@
             amount.textContent = `Remaining: ${money(remaining)} (of ${money(bb.fullAmount)} total · ${money(bb.paidAmount)} already paid)`;
         }
         if (paid) paid.style.display = 'none';
+        if (actions) actions.style.display = '';
         if (fullBtn) fullBtn.style.display = '';
         if (instBtn) instBtn.style.display = '';
         if (monthsSel) monthsSel.closest('.form-group').style.display = '';
+    }
+
+    async function confirmBuildBalancePayment(mode) {
+        const bb = dashboard?.buildBalance || {};
+        const remaining = Number(bb.remaining) || 0;
+        const months = Math.max(1, Number($('principal-build-installment-months')?.value) || 6);
+        const monthlyApprox = remaining / months;
+
+        const title =
+            mode === 'installment' ? 'Start installment plan?' : 'Pay build balance in full?';
+        const message =
+            mode === 'installment'
+                ? `You are about to convert ${money(remaining)} into ${months} monthly payments of about ${money(monthlyApprox)} each.\n\nThis will charge your card on file. Continue?`
+                : `You are about to charge ${money(remaining)} to your card on file for the website build balance.\n\nThis cannot be undone from this screen. Continue?`;
+
+        if (adminApp?.showAdminConfirm) {
+            return adminApp.showAdminConfirm({
+                title,
+                message,
+                confirmLabel: mode === 'installment' ? 'Start plan' : 'Charge now',
+                cancelLabel: 'Cancel',
+                danger: true
+            });
+        }
+        return window.confirm(message);
     }
 
     function updateHardwareTotal() {
@@ -277,6 +347,7 @@
         setMsg('Loading billing…', '');
         const data = await apiBilling('/principal');
         dashboard = data;
+        renderModemGate(data);
         renderStatement(data);
         renderCardForm(Boolean(data.account?.hasBillingVault));
         renderBuildBalance(data);
@@ -331,6 +402,9 @@
             setMsg('Save a card on file or enter card details above first.', 'err');
             return;
         }
+
+        const confirmed = await confirmBuildBalancePayment(mode);
+        if (!confirmed) return;
 
         const label = mode === 'installment' ? 'Starting installment plan…' : 'Charging build balance…';
         setMsg(label, '');

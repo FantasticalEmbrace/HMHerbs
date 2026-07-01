@@ -20,6 +20,13 @@ function parsePrincipalMeta(raw) {
     }
 }
 
+function defaultPrincipalContact() {
+    return {
+        businessName: String(process.env.BILLING_PRINCIPAL_BUSINESS_NAME || 'H&M Herbs & Vitamins').trim(),
+        billingEmail: String(process.env.BILLING_PRINCIPAL_BILLING_EMAIL || 'hmherbs1@gmail.com').trim()
+    };
+}
+
 function defaultBuildMeta() {
     const buildFull = Number(process.env.BILLING_PRINCIPAL_BUILD_FULL || 10000);
     const buildPaid = Number(process.env.BILLING_PRINCIPAL_BUILD_PAID || 5000);
@@ -57,8 +64,42 @@ async function updatePrincipalMeta(pool, accountId, patch) {
     return merged;
 }
 
+/** Seed HM Herbs business name + billing email when missing. */
+async function syncPrincipalContact(pool, accountId) {
+    const { getAccountById, updateAccount } = require('./platformBillingAccount');
+    const account = await getAccountById(pool, accountId);
+    if (!account || !isPrincipalAccountKey(account.accountKey)) return;
+
+    const defaults = defaultPrincipalContact();
+    const accountPatch = {};
+    if (!String(account.businessName || '').trim()) accountPatch.businessName = defaults.businessName;
+    if (!String(account.billingEmail || '').trim()) accountPatch.billingEmail = defaults.billingEmail;
+    if (Object.keys(accountPatch).length) {
+        await updateAccount(pool, accountId, accountPatch);
+    }
+
+    const [licRows] = await pool.execute(
+        `SELECT business_name, billing_email FROM pos_merchant_license WHERE id = 1 LIMIT 1`
+    );
+    const lic = licRows[0] || {};
+    const licSets = [];
+    const licVals = [];
+    if (!String(lic.business_name || '').trim()) {
+        licSets.push('business_name = ?');
+        licVals.push(defaults.businessName);
+    }
+    if (!String(lic.billing_email || '').trim()) {
+        licSets.push('billing_email = ?');
+        licVals.push(defaults.billingEmail);
+    }
+    if (licSets.length) {
+        await pool.execute(`UPDATE pos_merchant_license SET ${licSets.join(', ')} WHERE id = 1`, licVals);
+    }
+}
+
 /** Seed build-balance metadata once for the principal merchant (HM Herbs). */
 async function syncPrincipalMeta(pool, accountId) {
+    await syncPrincipalContact(pool, accountId);
     const [rows] = await pool.execute(
         `SELECT account_key, principal_meta_json FROM billing_accounts WHERE id = ? LIMIT 1`,
         [accountId]
@@ -89,9 +130,11 @@ async function getPrincipalDashboard(pool, account) {
     const { FAILOVER_INCLUDED_GB, FAILOVER_OVERAGE_PER_GB } = require('./posBillingPricing');
     const { isPlatformBillingConfigured } = require('../utils/platformBillingEnv');
     const { isProchargeSandbox } = require('../utils/prochargeEnv');
+    const { getModemBillingStatus } = require('./billingPrerequisites');
 
     await refreshFailoverBillingForAccount(pool, account.id);
     const failoverGbUsed = await getMeteredFailoverGb(pool, account.id);
+    const modemBilling = await getModemBillingStatus(pool, account.id, account);
 
     const subscriptions = await listSubscriptions(pool, account.id);
     const statement = await computeMonthlyTotal(pool, account.id);
@@ -123,6 +166,7 @@ async function getPrincipalDashboard(pool, account) {
             includedGb: FAILOVER_INCLUDED_GB,
             overagePerGb: FAILOVER_OVERAGE_PER_GB
         },
+        modemBilling,
         buildBalance: {
             remaining: Number(principalMeta.buildBalanceRemaining) || 0,
             fullAmount: Number(principalMeta.buildFullAmount) || 0,
@@ -141,6 +185,7 @@ module.exports = {
     getPrincipalMeta,
     updatePrincipalMeta,
     syncPrincipalMeta,
+    syncPrincipalContact,
     assertPrincipalAccount,
     getPrincipalDashboard,
     todayDateString
