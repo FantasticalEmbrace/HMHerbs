@@ -1,36 +1,31 @@
 # Business One — four-tier web hosting pricing
 
-Managed e-commerce hosting for Business One website clients. **Month-to-month** — see `hmherbs-main/scripts/generate_hosting_agreement_pdf.py` for the fillable agreement PDF.
+Managed hosting for Business One website clients — **informational pages through full e-commerce**. **Month-to-month** — see `scripts/generate_hosting_agreement_pdf.py` in this repo for the fillable agreement PDF.
 
-POS register fees are **billed separately** (`POS-PRICING.md`).
+Website **build** tiers are documented in `business-one-webpage/WEBSITE-BUILD-PRICING.md` (marketing site repo).
 
-## Standard e-commerce rates
+POS register fees are **billed separately**.
 
-| Tier | Plan | Monthly | Traffic / bandwidth (whichever hits first) | Infrastructure |
-|------|------|---------|---------------------------------------------|----------------|
-| **1** | **Standard** | **$400/mo** | Up to 100,000 visits/mo or 200 GB/mo | 1× 2 GB Linode, NodeBalancer, Managed MySQL (entry), SSL, backups |
-| **2** | **Growth** | **$550/mo** | 100,001–250,000 visits or 201–500 GB | 4 GB Linode, Akamai CDN, same NodeBalancer |
-| **3** | **Performance** | **$700/mo** | 250,001–500,000 visits or 501 GB–1 TB | 4 GB + 2nd app node, CDN, enhanced monitoring |
-| **4** | **Enterprise** | **$850/mo** | 500,001+ visits or 1 TB+ | Dual app nodes, larger DB tier, full CDN, priority peak support |
+## Public rates (+$150 per tier step)
 
-Each tier step is **+$150/mo**.
+| Tier | Plan | Monthly | Traffic / bandwidth (whichever hits first) | Best for |
+|------|------|---------|---------------------------------------------|----------|
+| **1** | **Essential** | **$150/mo** | Up to 15,000 visits/mo or 40 GB/mo | Informational site, hours, contact, light retail |
+| **2** | **Standard** | **$300/mo** | 15,001–50,000 visits or 41–100 GB | Small catalog, basic retail |
+| **3** | **Growth** | **$450/mo** | 50,001–150,000 visits or 101–250 GB | Larger catalogs, growing stores |
+| **4** | **Enterprise** | **$600/mo** | 150,001+ visits or 251 GB+ | Full e-commerce at high traffic |
 
-## Legacy / principal rate (e.g. HM Herbs)
+Each tier step is **+$150/mo** when sustained traffic exceeds the current band.
 
-Same tiers and limits, **$150 less per tier**:
+## Principal / designated accounts
 
-| Tier | Plan | Monthly |
-|------|------|---------|
-| 1 | Standard | **$200/mo** |
-| 2 | Growth | **$350/mo** |
-| 3 | Performance | **$500/mo** |
-| 4 | Enterprise | **$650/mo** |
+Custom monthly amounts are set in the **billing backend only** (`backend/services/platformBillingPricing.js`, `monthly_amount_override`) — never on the public signup form.
 
 ## Tier change rules
 
 - **Upgrade:** Client exceeds the current tier for **2 consecutive calendar months**.
-- **Notice:** Business One gives **30 days** written notice before the new rate applies.
-- **Downgrade (optional):** Client stays below a tier for **3 consecutive months**.
+- **Notice:** Business One gives **30 days** written notice before the new rate applies (+$150/mo per step).
+- **Downgrade (optional):** Client stays below a lower tier for **3 consecutive months**.
 - **Measurement:** Google Analytics 4 visits **or** Akamai/Linode outbound bandwidth — **whichever is higher**.
 
 ## What's included (all tiers)
@@ -42,16 +37,11 @@ Same tiers and limits, **$150 less per tier**:
 - Technical support during business hours
 - Website maintenance (updates & upkeep) per agreement
 
-## Where this appears
-
-- **Marketing site:** `index.html`, `#web-hosting-pricing`, Website Development service modal
-- **Agreement PDF:** `hmherbs-main/scripts/generate_hosting_agreement_pdf.py`
-- **This file:** `HOSTING-PRICING.md`
-
 ## Related files
 
 | File | Purpose |
 |------|---------|
-| `js/web-hosting-pricing-tiers.js` | Renders tier cards on the Business One website |
-| `css/web-hosting-pricing-tiers.css` | Tier card styles |
-| `js/pos-pricing-tiers.js` | **POS** register pricing (separate product) |
+| `backend/services/platformBillingPricing.js` | Billing source of truth |
+| | `scripts/generate_hosting_agreement_pdf.py` | Agreement PDF |
+| `business-one-webpage/js/web-build-pricing-tiers.js` | Unified package cards (build + hosting) |
+| `business-one-webpage/js/web-hosting-pricing-tiers.js` | Hosting limits + signup tier picker |
