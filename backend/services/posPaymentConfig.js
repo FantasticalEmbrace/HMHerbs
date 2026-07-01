@@ -1,6 +1,7 @@
 'use strict';
 
 const { loadStorePaymentProcessor, posProcessorConfigured } = require('./storePaymentProcessor');
+const { loadPosCardCheckoutSettings } = require('./posCardCheckoutSettings');
 
 /** Semi-integrated Durango on A3700 — the only POS card payment mode. */
 const SEMI_INTEGRATED_ADAPTER = Object.freeze({
@@ -39,9 +40,21 @@ function listPublicAdapters() {
  * Resolve POS payment — always semi-integrated Durango terminal.
  * @param {import('mysql2/promise').Pool|null} _pool
  */
-async function resolveEffectivePaymentAdapter(_pool) {
-    const storeProcessor = _pool ? await loadStorePaymentProcessor(_pool) : 'epi';
+async function resolveEffectivePaymentAdapter(pool) {
+    const storeProcessor = pool ? await loadStorePaymentProcessor(pool) : 'epi';
     const configured = adapterConfigured();
+    const checkout = pool ? await loadPosCardCheckoutSettings(pool) : { virtualTerminal: true };
+
+    let configurationNote = null;
+    if (!configured) {
+        configurationNote =
+            'Add POS Durango keys in Admin → Developer tools → Integrations (In-store POS section), or set POS_NMI_* in backend .env.';
+    } else if (checkout.virtualTerminal) {
+        configurationNote =
+            'Virtual terminal — card entry on the register via Collect.js sandbox (no A3700 required).';
+    } else if (!checkout.poiDeviceId) {
+        configurationNote = 'Physical terminal mode — set the A3700 POI device ID in Developer tools or POS Equipment.';
+    }
 
     return {
         posMode: 'integrated',
@@ -55,13 +68,13 @@ async function resolveEffectivePaymentAdapter(_pool) {
         integrated: true,
         serverCharge: true,
         configured,
-        configurationNote: configured
-            ? null
-            : 'Add POS_NMI_PUBLIC_TOKENIZATION_KEY and POS_NMI_PRIVATE_API_KEY to backend .env, then set the A3700 POI device ID in admin.',
+        configurationNote,
         compliance: {
-            cardDataInApp: false,
-            useExternalTerminalForCards: false,
-            pciScope: SEMI_INTEGRATED_ADAPTER.pciScope
+            cardDataInApp: Boolean(checkout.virtualTerminal),
+            useExternalTerminalForCards: !checkout.virtualTerminal,
+            pciScope: checkout.virtualTerminal
+                ? 'SAQ A-EP — Collect.js tokenization on register (virtual terminal testing)'
+                : SEMI_INTEGRATED_ADAPTER.pciScope
         },
         envOverride: false
     };

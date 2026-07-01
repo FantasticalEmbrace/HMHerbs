@@ -2,7 +2,7 @@
 
 const crypto = require('crypto');
 const { resolvePosProcessorCredentials } = require('./storePaymentProcessor');
-const { nmiPoiSale } = require('./nmiGateway');
+const { nmiPoiSale, nmiSale } = require('./nmiGateway');
 const { loadPosCardCheckoutSettings } = require('./posCardCheckoutSettings');
 const { buildRegisterHardwareProfile } = require('./posRegisterHardware');
 
@@ -140,9 +140,8 @@ async function revertIntentToAwaiting(pool, intentId, message) {
     );
 }
 
-function resolveCredentialsForMode(checkoutMode) {
-    const posProcessor = 'nmi_durango';
-    return resolvePosProcessorCredentials(posProcessor);
+function resolveCredentialsForMode() {
+    return resolvePosProcessorCredentials('nmi_durango');
 }
 
 async function applySaleResult(pool, intentId, deviceId, sale) {
@@ -301,7 +300,7 @@ async function chargeTerminalCheckoutIntent(pool, intentId, deviceRef) {
     const claimed = await claimIntentForProcessing(pool, intentId);
     await upsertDisplayCheckout(pool, existing.deviceId, claimed, 'durango_terminal');
 
-    const creds = resolveCredentialsForMode('durango_terminal');
+    const creds = resolveCredentialsForMode();
     if (!creds.privateKey) {
         await revertIntentToAwaiting(pool, intentId, 'Durango/NMI is not configured on the server');
         const err = new Error('Card processor is not configured on the server');
@@ -326,9 +325,70 @@ async function chargeTerminalCheckoutIntent(pool, intentId, deviceRef) {
 }
 
 async function completeCheckoutIntent(pool, intentId, { paymentToken, deviceId }) {
-    const err = new Error('In-POS card entry is disabled. Customer pays on the Durango A3700 terminal only.');
-    err.code = 'TERMINAL_ONLY';
-    throw err;
+    const token = String(paymentToken || '').trim();
+    if (!token) {
+        const err = new Error('Payment token is required');
+        err.code = 'TOKEN_REQUIRED';
+        throw err;
+    }
+
+    const existing = await getCheckoutIntent(pool, intentId);
+    if (!existing) {
+        const err = new Error('Checkout not found');
+        err.code = 'NOT_FOUND';
+        throw err;
+    }
+    if (deviceId && existing.deviceId !== deviceId) {
+        const err = new Error('Checkout not found');
+        err.code = 'NOT_FOUND';
+        throw err;
+    }
+    if (existing.status === 'approved') return existing;
+    if (existing.checkoutMode !== 'collect_js') {
+        const err = new Error(
+            'Virtual terminal checkout is not active. Set Durango deployment to Virtual in Developer Tools, or use the A3700 terminal.'
+        );
+        err.code = 'TERMINAL_ONLY';
+        throw err;
+    }
+    if (existing.status !== 'awaiting' && existing.status !== 'processing') {
+        const err = new Error('Checkout is no longer active');
+        err.code = 'INVALID_STATE';
+        throw err;
+    }
+    if (existing.expiresAt && new Date(existing.expiresAt) < new Date()) {
+        await pool.execute(
+            `UPDATE pos_checkout_intents SET status = 'expired', error_message = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+            ['Checkout expired', intentId]
+        );
+        const err = new Error('Checkout expired');
+        err.code = 'EXPIRED';
+        throw err;
+    }
+
+    const creds = resolveCredentialsForMode();
+    if (!creds.privateKey || !creds.publicKey) {
+        const err = new Error('POS Durango/NMI keys are not configured');
+        err.code = 'PROCESSOR_NOT_CONFIGURED';
+        throw err;
+    }
+
+    await claimIntentForProcessing(pool, intentId);
+    await upsertDisplayCheckout(pool, existing.deviceId, await getCheckoutIntent(pool, intentId), 'collect_js');
+
+    try {
+        const sale = await nmiSale({
+            securityKey: creds.privateKey,
+            amount: existing.amount.toFixed(2),
+            paymentToken: token,
+            transactUrl: creds.transactUrl
+        });
+        return await applySaleResult(pool, intentId, existing.deviceId, sale);
+    } catch (e) {
+        if (e.code === 'CARD_DECLINED') throw e;
+        await revertIntentToAwaiting(pool, intentId, e.message || 'Card payment failed');
+        throw e;
+    }
 }
 
 module.exports = {

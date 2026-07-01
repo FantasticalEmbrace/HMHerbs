@@ -117,13 +117,29 @@ router.post('/integrations/test', ...devAuth, async (req, res) => {
                 };
             }
             const posPublic = getPosNmiPublicTokenizationKey();
-            results.durangoPos = {
-                ok: Boolean(posPublic && integrationCredentials.getPosNmiPrivateApiKey()),
-                message:
-                    posPublic && integrationCredentials.getPosNmiPrivateApiKey()
-                        ? 'In-store POS keys present'
+            const posPrivate = integrationCredentials.getPosNmiPrivateApiKey();
+            const posDeployment = integrationCredentials.getDurangoDeploymentMode();
+            if (!posPublic || !posPrivate) {
+                results.durangoPos = { ok: false, message: 'In-store POS keys missing' };
+            } else if (posDeployment === 'virtual') {
+                const probe = await nmiResolveTokenizationCollectJs(posPublic, {
+                    collectJsUrl: process.env.POS_NMI_COLLECT_JS_URL || '',
+                    sandbox: integrationCredentials.isPosNmiSandboxHint()
+                });
+                results.durangoPos = {
+                    ok: probe.ok,
+                    message: probe.ok
+                        ? 'In-store virtual terminal ready (Collect.js)'
+                        : 'In-store POS tokenization key rejected',
+                };
+            } else {
+                results.durangoPos = {
+                    ok: true,
+                    message: posPublic && posPrivate
+                        ? 'In-store POS keys present (physical terminal mode)'
                         : 'In-store POS keys missing',
-            };
+                };
+            }
         }
 
         if (target === 'all' || target === 'epi') {

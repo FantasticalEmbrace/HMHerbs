@@ -142,6 +142,15 @@ function getStoreProcessor() {
     return normalizeStoreProcessor(cache.store_card_payment_processor);
 }
 
+function getDurangoDeploymentMode() {
+    const raw = resolve('cred_durango_deployment_mode');
+    return raw === 'physical' ? 'physical' : 'virtual';
+}
+
+function resolvePosCheckoutDisplayMode() {
+    return getDurangoDeploymentMode() === 'physical' ? 'durango_terminal' : 'collect_js';
+}
+
 function maskSecret(value) {
     const v = trim(value);
     if (!v) return '';
@@ -181,6 +190,7 @@ function buildApiPayload() {
                 websiteConfigured: Boolean(nmiPublic && nmiPrivate),
                 posConfigured: Boolean(posPublic && posPrivate),
                 deploymentMode: resolve('cred_durango_deployment_mode') || 'virtual',
+                posCheckoutMode: resolvePosCheckoutDisplayMode(),
                 poiDeviceId: resolve('cred_pos_poi_device_id') || resolve('cred_epi_poi_device_id') || '',
             },
             shippo: {
@@ -243,6 +253,13 @@ async function saveCredentials(pool, updates = {}) {
         );
         cache.store_card_payment_processor = processor;
         saved.push('store_card_payment_processor');
+    }
+
+    if ('cred_durango_deployment_mode' in updates) {
+        const mode = trim(updates.cred_durango_deployment_mode) === 'physical' ? 'physical' : 'virtual';
+        const displayMode = mode === 'physical' ? 'durango_terminal' : 'collect_js';
+        await upsertSetting(pool, 'pos_card_display_mode', displayMode, 'string');
+        saved.push('pos_card_display_mode');
     }
 
     return { saved, payload: buildApiPayload() };
@@ -350,5 +367,7 @@ module.exports = {
     getShippoCarrierFilter,
     getPosPoiDeviceId,
     getStoreProcessor,
+    getDurangoDeploymentMode,
+    resolvePosCheckoutDisplayMode,
     normalizeStoreProcessor,
 };

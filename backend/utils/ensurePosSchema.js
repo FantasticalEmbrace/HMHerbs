@@ -461,13 +461,10 @@ async function ensurePosSchema(pool) {
             `UPDATE settings SET value = 'nmi_durango' WHERE key_name = 'pos_card_payment_processor'`
         );
         await pool.query(
-            `UPDATE settings SET value = 'durango_terminal' WHERE key_name = 'pos_card_display_mode'`
-        );
-        await pool.query(
             `UPDATE settings SET value = 'true' WHERE key_name = 'pos_display_card_checkout'`
         );
     } catch (e) {
-        logger.warn(`Database: semi-integrated Durango lock — ${logger.formatMysqlError(e)}`);
+        logger.warn(`Database: POS card checkout defaults — ${logger.formatMysqlError(e)}`);
     }
     try {
         await pool.query(`

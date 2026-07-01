@@ -1609,6 +1609,9 @@ class AdminApp {
             badges.push(
                 `<span class="badge badge-secondary">Active processor: ${processor === 'nmi_durango' ? 'Durango / NMI' : 'EPI'}</span>`
             );
+            const posMode =
+                st.durango?.deploymentMode === 'physical' ? 'POS: A3700 terminal' : 'POS: Virtual terminal';
+            badges.push(`<span class="badge badge-secondary">${posMode}</span>`);
             statusEl.innerHTML = badges.join(' ');
         } catch (err) {
             statusEl.textContent = '';
