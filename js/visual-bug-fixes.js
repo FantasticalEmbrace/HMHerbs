@@ -122,6 +122,14 @@ class VisualBugFixer {
             .product-image.loading {
                 opacity: 1;
             }
+
+            .product-image--empty {
+                display: block;
+                width: 100%;
+                min-height: 180px;
+                background: var(--gray-100, #f3f4f6);
+                border-radius: var(--border-radius, 0.5rem);
+            }
             
             /* Catalog grid cards only — spotlight uses rules above */
             .products-grid .product-card {
@@ -412,7 +420,7 @@ class VisualBugFixer {
                         // Handle new images
                         const images = node.querySelectorAll ? node.querySelectorAll('img') : [];
                         images.forEach(img => {
-                            if (img.src && !this.processedImages.has(img) && !this.loadingImages.has(img)) {
+                            if (this.shouldProcessImage(img) && !this.processedImages.has(img) && !this.loadingImages.has(img)) {
                                 this.handleNewImage(img);
                             }
                         });
@@ -420,7 +428,8 @@ class VisualBugFixer {
                         // Handle product images specifically
                         const productImages = node.querySelectorAll ? node.querySelectorAll('.product-image') : [];
                         productImages.forEach(img => {
-                            if (!this.processedImages.has(img) && !this.loadingImages.has(img)) {
+                            if (img.tagName !== 'IMG') return;
+                            if (this.shouldProcessImage(img) && !this.processedImages.has(img) && !this.loadingImages.has(img)) {
                                 this.handleNewImage(img);
                             }
                         });
@@ -441,9 +450,30 @@ class VisualBugFixer {
         });
     }
 
+    shouldProcessImage(img) {
+        if (!img || img.tagName !== 'IMG') return false;
+        const src = img.currentSrc || img.src || img.getAttribute('src') || '';
+        if (!src || src.trim() === '' || src.startsWith('data:image/svg+xml')) return false;
+        if (src === window.location.href) return false;
+        try {
+            const imgUrl = new URL(src, window.location.href);
+            if (imgUrl.href === window.location.href) return false;
+            const path = imgUrl.pathname.toLowerCase();
+            if (path.endsWith('.html') && !path.includes('/images/')) return false;
+        } catch {
+            return false;
+        }
+        return true;
+    }
+
     handleNewImage(img) {
         // Skip if already processed or currently loading
         if (this.loadingImages.has(img) || this.processedImages.has(img)) {
+            return;
+        }
+
+        if (!this.shouldProcessImage(img)) {
+            this.processedImages.add(img);
             return;
         }
 
@@ -565,37 +595,21 @@ class VisualBugFixer {
                 return;
             }
 
-            // Skip images with empty src or data URI placeholders (they'll be set by other scripts)
-            const src = img.src || img.getAttribute('src') || '';
-            if (!src || src.trim() === '' || src.startsWith('data:image/svg+xml') || src === window.location.href) {
-                // Skip processing - these will be set by product-detail.js or other scripts
+            // Skip images without a usable src (empty src resolves to the page URL)
+            if (!this.shouldProcessImage(img)) {
                 this.processedImages.add(img);
                 return;
             }
 
-            // Skip if src is the current page URL (common when src="" resolves to page URL)
-            try {
-                const imgUrl = new URL(src, window.location.href);
-                if (imgUrl.href === window.location.href || imgUrl.pathname.endsWith('.html')) {
-                    // This is likely a placeholder or incorrectly set src
-                    this.processedImages.add(img);
-                    return;
-                }
-            } catch (e) {
-                // URL parsing failed, continue processing
-            }
+            const src = img.src || img.getAttribute('src') || '';
 
             // Only log in debug mode
             if (this.config.debugMode) {
                 console.log('🖼️ Processing image:', src, 'Complete:', img.complete);
             }
 
-            // Process images that haven't been processed yet
-            if (src && !this.processedImages.has(img)) {
+            if (!this.processedImages.has(img)) {
                 this.handleNewImage(img);
-            } else {
-                // Image has no valid src - mark as processed but don't apply fallback yet
-                this.processedImages.add(img);
             }
         });
 

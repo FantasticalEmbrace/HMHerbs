@@ -1572,12 +1572,20 @@ class HMHerbsApp {
         productCard.className = `product-card ${product.inventory === 0 ? 'out-of-stock' : ''} ${product.inventory <= product.lowStockThreshold ? 'low-stock' : ''}`;
         productCard.setAttribute('data-product-id', product.id);
 
-        // Create image element
-        const img = document.createElement('img');
-        img.src = product.image || '';
-        img.alt = product.name || '';
-        img.className = 'product-image';
-        img.setAttribute('loading', 'lazy');
+        // Create image element (blank area when no photo — never set src="" which resolves to the page URL)
+        if (product.image) {
+            const img = document.createElement('img');
+            img.src = product.image;
+            img.alt = product.name || '';
+            img.className = 'product-image';
+            img.setAttribute('loading', 'lazy');
+            productCard.appendChild(img);
+        } else {
+            const blankImage = document.createElement('div');
+            blankImage.className = 'product-image product-image--empty';
+            blankImage.setAttribute('aria-hidden', 'true');
+            productCard.appendChild(blankImage);
+        }
 
         // Create title element (make it clickable if URL is provided)
         const title = document.createElement('h3');
@@ -1641,7 +1649,6 @@ class HMHerbsApp {
         actions.appendChild(addToCartBtn);
 
         // Assemble product card
-        productCard.appendChild(img);
         productCard.appendChild(title);
         if (description) {
             productCard.appendChild(description);

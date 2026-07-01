@@ -168,7 +168,7 @@ class ProductsPage {
                         id: product.id,
                         name: product.name,
                         price: parseFloat(product.price) || 0,
-                        image: product.image_url || product.image || this.createProductPlaceholder(product.name),
+                        image: product.image_url || product.image || '',
                         category: product.category_slug || product.category_name || '',
                         brand: product.brand_slug || product.brand_name || '',
                         brandName: product.brand_name || '',
@@ -586,11 +586,19 @@ class ProductsPage {
         productLink.setAttribute('aria-label', `View ${product.name} details`);
 
         // Product image
-        const image = document.createElement('img');
-        image.className = 'product-image';
-        image.src = product.image || this.createProductPlaceholder(product.name);
-        image.alt = product.name;
-        image.loading = 'lazy';
+        if (product.image) {
+            const image = document.createElement('img');
+            image.className = 'product-image';
+            image.src = product.image;
+            image.alt = product.name;
+            image.loading = 'lazy';
+            productLink.appendChild(image);
+        } else {
+            const blankImage = document.createElement('div');
+            blankImage.className = 'product-image product-image--empty';
+            blankImage.setAttribute('aria-hidden', 'true');
+            productLink.appendChild(blankImage);
+        }
 
         // Product title
         const title = document.createElement('h3');
@@ -598,7 +606,6 @@ class ProductsPage {
         title.textContent = product.name;
 
         // Add image and title to link
-        productLink.appendChild(image);
         productLink.appendChild(title);
 
         // Product price

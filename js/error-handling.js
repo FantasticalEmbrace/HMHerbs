@@ -399,10 +399,11 @@ class ErrorHandler {
     }
 
     handleResourceError(resourceInfo) {
-        // Silently ignore ALL errors for external resources (images, stylesheets, etc.)
-        // External resources may fail for various reasons (network, CORS, 404, etc.)
-        // and we don't want to spam the console with these expected failures
         const source = resourceInfo.source || '';
+        if (source === window.location.href) {
+            return;
+        }
+        // Silently ignore ALL errors for external resources (images, stylesheets, etc.)
         // Local product images: visual-bug-fixes applies placeholders — avoid duplicate "Resource Loading Error" noise
         if (typeof source === 'string' && source.includes('/images/products/')) {
             return;
