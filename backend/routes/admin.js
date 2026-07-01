@@ -1066,46 +1066,22 @@ router.post('/products/bulk', ...adminAuth, requirePermission('manager'), async 
             return res.status(400).json({ error: 'No fields to update.' });
         }
 
-        const allowedFields = [
-            'brand_id', 'category_id', 'price', 'compare_price', 'cost_price', 'weight',
-            'inventory_quantity', 'low_stock_threshold', 'is_active', 'is_featured', 'show_on_web', 'is_cannabis'
-        ];
-        const numericFields = ['price', 'compare_price', 'cost_price', 'weight'];
-        const integerFields = ['brand_id', 'category_id', 'inventory_quantity', 'low_stock_threshold'];
-        const booleanFields = ['is_active', 'is_featured', 'show_on_web', 'is_cannabis'];
+        const {
+            buildProductUpdateClause,
+            validateProductReferences,
+            PRODUCT_BULK_ALLOWED_FIELDS
+        } = require('../utils/productFieldNormalizer');
 
-        const setParts = [];
-        const setValues = [];
-
-        for (const field of allowedFields) {
-            if (updates[field] === undefined) continue;
-            let value = updates[field];
-
-            if (numericFields.includes(field)) {
-                if (value === '' || value === null) value = null;
-                else {
-                    const numValue = parseFloat(value);
-                    value = Number.isNaN(numValue) ? null : numValue;
-                }
-            }
-            if (integerFields.includes(field) && value !== null && value !== undefined) {
-                if (value === '') value = null;
-                else {
-                    const intValue = parseInt(value, 10);
-                    value = Number.isNaN(intValue) ? null : intValue;
-                }
-            }
-            if (booleanFields.includes(field)) {
-                value = Boolean(value === true || value === 'true' || value === 1 || value === '1');
-            }
-
-            setParts.push(`${field} = ?`);
-            setValues.push(value);
-        }
+        const { setParts, setValues, applied } = buildProductUpdateClause(
+            updates,
+            PRODUCT_BULK_ALLOWED_FIELDS
+        );
 
         if (!setParts.length) {
             return res.status(400).json({ error: 'No valid fields to update.' });
         }
+
+        await validateProductReferences(req.pool, applied);
 
         setParts.push('updated_at = CURRENT_TIMESTAMP');
         const [result] = await req.pool.execute(
@@ -1115,11 +1091,13 @@ router.post('/products/bulk', ...adminAuth, requirePermission('manager'), async 
 
         res.json({
             message: `Updated ${result.affectedRows} product(s).`,
-            affected: result.affectedRows
+            affected: result.affectedRows,
+            fields: Object.keys(applied)
         });
     } catch (error) {
         logger.error('Products bulk update error:', error);
-        res.status(500).json({ error: 'Bulk update failed.' });
+        const status = error.code === 'INVALID_BRAND' || error.code === 'INVALID_CATEGORY' ? 400 : 500;
+        res.status(status).json({ error: error.message || 'Bulk update failed.', code: error.code });
     }
 });
 
@@ -1701,102 +1679,26 @@ router.put('/products/:id', ...adminAuth, requirePermission('manager'), async (r
             await connection.beginTransaction();
 
             // Build update query dynamically
-            const updateFields = [];
-            const updateValues = [];
+            const {
+                buildProductUpdateClause,
+                validateProductReferences,
+                PRODUCT_SINGLE_ALLOWED_FIELDS
+            } = require('../utils/productFieldNormalizer');
 
-            const allowedFields = [
-                'sku', 'name', 'short_description', 'long_description', 'brand_id', 'category_id',
-                'price', 'compare_price', 'cost_price', 'weight', 'inventory_quantity', 'low_stock_threshold',
-                'is_active', 'is_featured', 'show_on_web', 'is_cannabis', 'coa_url', 'coa_updated_at'
-            ];
+            const { setParts, setValues, applied } = buildProductUpdateClause(
+                updateData,
+                PRODUCT_SINGLE_ALLOWED_FIELDS
+            );
 
-            // Fields that should be numeric (decimal or integer)
-            const numericFields = ['price', 'compare_price', 'cost_price', 'weight', 'inventory_quantity', 'low_stock_threshold'];
-            // Fields that should be integers
-            const integerFields = ['brand_id', 'category_id', 'inventory_quantity', 'low_stock_threshold'];
-            // Fields that should be booleans
-            const booleanFields = ['is_active', 'is_featured', 'show_on_web', 'is_cannabis'];
-
-            for (const field of allowedFields) {
-                if (updateData[field] !== undefined) {
-                    let value = updateData[field];
-
-                    // Handle empty strings for numeric fields - convert to NULL
-                    if (numericFields.includes(field)) {
-                        if (value === '' || value === null || value === undefined) {
-                            value = null;
-                        } else {
-                            // Convert to number, or null if invalid
-                            const numValue = parseFloat(value);
-                            value = isNaN(numValue) ? null : numValue;
-                        }
-                    }
-
-                    // Handle integer fields
-                    if (integerFields.includes(field) && value !== null) {
-                        if (value === '') {
-                            value = null;
-                        } else {
-                            const intValue = parseInt(value, 10);
-                            value = isNaN(intValue) ? null : intValue;
-                        }
-                    }
-
-                    // Handle boolean fields
-                    if (booleanFields.includes(field)) {
-                        if (value === '' || value === null || value === undefined) {
-                            value = false;
-                        } else {
-                            value = Boolean(value === true || value === 'true' || value === 1 || value === '1');
-                        }
-
-                        // Log boolean field updates for debugging
-                        if (field === 'is_featured') {
-                            logger.info('Updating is_featured field', {
-                                productId: id,
-                                originalValue: updateData[field],
-                                convertedValue: value,
-                                valueType: typeof updateData[field]
-                            });
-                        }
-                    }
-
-                    // Handle text fields - convert empty strings to null for optional fields
-                    if (['short_description', 'long_description'].includes(field)) {
-                        if (value === '') {
-                            value = null;
-                        }
-                    }
-
-                    if (field === 'coa_url') {
-                        if (value === '' || value === null || value === undefined) {
-                            value = null;
-                        } else {
-                            value = String(value).trim().slice(0, 500);
-                        }
-                    }
-
-                    if (field === 'coa_updated_at') {
-                        if (value === '' || value === null || value === undefined) {
-                            value = null;
-                        } else {
-                            const d = new Date(String(value));
-                            value = Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
-                        }
-                    }
-
-                    updateFields.push(`${field} = ?`);
-                    updateValues.push(value);
-                }
+            if (Object.keys(applied).some((k) => ['brand_id', 'category_id'].includes(k))) {
+                await validateProductReferences(connection, applied);
             }
 
-            if (updateFields.length > 0) {
-                updateFields.push('updated_at = CURRENT_TIMESTAMP');
-                updateValues.push(id);
-
+            if (setParts.length > 0) {
+                setParts.push('updated_at = CURRENT_TIMESTAMP');
                 await connection.execute(
-                    `UPDATE products SET ${updateFields.join(', ')} WHERE id = ?`,
-                    updateValues
+                    `UPDATE products SET ${setParts.join(', ')} WHERE id = ?`,
+                    [...setValues, id]
                 );
             }
 
@@ -1873,6 +1775,9 @@ router.put('/products/:id', ...adminAuth, requirePermission('manager'), async (r
         }
         if (error.code === 'ER_DUP_ENTRY' && /products\.(slug|sku)/i.test(error.message || '')) {
             return res.status(409).json({ error: 'Product SKU or URL slug already exists. Choose a different SKU or name.' });
+        }
+        if (error.code === 'INVALID_BRAND' || error.code === 'INVALID_CATEGORY') {
+            return res.status(400).json({ error: error.message, code: error.code });
         }
         res.status(500).json({ error: 'Internal server error' });
     }

@@ -9164,15 +9164,40 @@ class AdminApp {
 
         modal.querySelector('#productsBulkEditSubmit')?.addEventListener('click', async () => {
             const updates = {};
+            const missingLabels = [];
+            const fieldLabels = {
+                brand_id: 'Brand',
+                category_id: 'Category',
+                price: 'Price',
+                inventory_quantity: 'Stock quantity',
+                low_stock_threshold: 'Low stock alert'
+            };
+
             modal.querySelectorAll('.bulk-edit-enable:checked').forEach((cb) => {
                 const field = cb.dataset.field;
                 const valueEl = modal.querySelector(`.bulk-edit-value[data-field="${field}"]`);
                 if (!valueEl) return;
                 let val = valueEl.value;
+
+                if (['brand_id', 'category_id'].includes(field) && (val === '' || val == null)) {
+                    missingLabels.push(fieldLabels[field] || field);
+                    return;
+                }
+                if (field === 'price' && (val === '' || val == null || Number.isNaN(parseFloat(val)))) {
+                    missingLabels.push(fieldLabels.price);
+                    return;
+                }
+                if (
+                    ['inventory_quantity', 'low_stock_threshold'].includes(field) &&
+                    (val === '' || val == null || Number.isNaN(parseInt(val, 10)))
+                ) {
+                    missingLabels.push(fieldLabels[field] || field);
+                    return;
+                }
+
                 if (['is_active', 'is_featured', 'show_on_web', 'is_cannabis'].includes(field)) {
                     val = val === '1';
                 } else if (['brand_id', 'category_id', 'inventory_quantity', 'low_stock_threshold'].includes(field)) {
-                    if (val === '' || val == null) return;
                     val = parseInt(val, 10);
                 } else if (['price', 'cost_price', 'compare_price', 'weight'].includes(field)) {
                     if (val === '') val = null;
@@ -9180,6 +9205,11 @@ class AdminApp {
                 }
                 updates[field] = val;
             });
+
+            if (missingLabels.length) {
+                this.showNotification(`Choose a value for: ${missingLabels.join(', ')}.`, 'error');
+                return;
+            }
 
             if (!Object.keys(updates).length) {
                 this.showNotification('Check at least one field to update.', 'error');
@@ -12011,6 +12041,8 @@ async function createProduct(formData, formElement) {
         for (let [key, value] of formData.entries()) {
             if (key === 'is_active' || key === 'is_featured' || key === 'is_cannabis' || key === 'show_on_web') {
                 productData[key] = true; // Checkbox was checked
+            } else if (key === 'brand_id' || key === 'category_id') {
+                productData[key] = value ? parseInt(value, 10) : null;
             } else if (key === 'health_categories') {
                 // Convert comma-separated string to array
                 productData[key] = value.split(',').map(cat => cat.trim()).filter(cat => cat);
