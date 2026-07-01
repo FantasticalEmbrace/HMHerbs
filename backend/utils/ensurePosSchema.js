@@ -233,6 +233,47 @@ async function ensurePosSchema(pool) {
     } catch (e) {
         logger.warn(`Database: pos_failover_usage_period — ${logger.formatMysqlError(e)}`);
     }
+
+    try {
+        if (await tableExists(pool, 'pos_failover_usage_period')) {
+            if (!(await columnExists(pool, 'pos_failover_usage_period', 'account_id'))) {
+                await pool.query(
+                    `ALTER TABLE pos_failover_usage_period ADD COLUMN account_id INT NULL AFTER id`
+                );
+            }
+            const { ensureDefaultAccount } = require('../services/platformBillingAccount');
+            const account = await ensureDefaultAccount(pool);
+            await pool.execute(
+                `UPDATE pos_failover_usage_period SET account_id = ? WHERE account_id IS NULL`,
+                [account.id]
+            );
+            try {
+                await pool.query(`ALTER TABLE pos_failover_usage_period DROP INDEX uq_failover_usage_period`);
+            } catch {
+                /* index may already be replaced */
+            }
+            try {
+                await pool.query(
+                    `ALTER TABLE pos_failover_usage_period
+                     ADD UNIQUE KEY uq_failover_usage_account_period (account_id, period_month)`
+                );
+            } catch {
+                /* already exists */
+            }
+            try {
+                await pool.query(
+                    `ALTER TABLE pos_failover_usage_period
+                     ADD CONSTRAINT fk_failover_usage_account
+                     FOREIGN KEY (account_id) REFERENCES billing_accounts(id) ON DELETE CASCADE`
+                );
+            } catch {
+                /* optional */
+            }
+        }
+    } catch (e) {
+        logger.warn(`Database: pos_failover_usage_period migrate — ${logger.formatMysqlError(e)}`);
+    }
+
     try {
         await pool.query(`
             CREATE TABLE IF NOT EXISTS pos_admin_handoffs (

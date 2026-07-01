@@ -253,8 +253,9 @@ async function loadMerchantLicense(pool) {
     const row = await ensureLicenseRow(pool);
     let failoverGbUsed = Math.max(0, Number(row.failover_gb_used) || 0);
     try {
-        const { getMeteredFailoverGb } = require('./posFailoverMetering');
-        failoverGbUsed = await getMeteredFailoverGb(pool);
+        const { getMeteredFailoverGb, resolveBillingAccountId } = require('./posFailoverMetering');
+        const accountId = await resolveBillingAccountId(pool, { accountId: row.billing_account_id });
+        failoverGbUsed = await getMeteredFailoverGb(pool, accountId);
     } catch {
         /* metering table optional during migration */
     }

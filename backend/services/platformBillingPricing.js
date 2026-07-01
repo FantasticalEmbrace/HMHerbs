@@ -133,15 +133,14 @@ function buildMonthlyLineItems({
         let label = type;
 
         if (type === 'pos') {
+            const stations = Math.max(1, Number(config.stationCount || config.licensedStationCount) || 1);
             if (override != null) {
                 amount = override;
                 label = config.label || `POS — $${override.toFixed(2)}/mo`;
             } else {
-                const stations = Math.max(1, Number(config.stationCount || config.licensedStationCount) || 1);
-                const gb = Math.max(0, Number(config.failoverGbUsed) || 0);
-                const breakdown = describeBillingBreakdown(stations, gb);
-                amount = breakdown.monthlyAmount;
-                label = `POS — ${breakdown.summary}`;
+                const pricing = describeMonthlyPricing(stations);
+                amount = pricing.monthlyAmount;
+                label = `POS — ${pricing.summary}`;
             }
         } else if (type === 'hosting') {
             if (override != null) {

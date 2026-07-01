@@ -222,7 +222,7 @@ async function chargeAccount(pool, accountId, { reason = 'monthly', force = fals
         await advanceInstallmentPlans(pool, accountId, lines);
         try {
             const { resetFailoverPeriodAfterBilling } = require('./posFailoverMetering');
-            await resetFailoverPeriodAfterBilling(pool, periodMonth);
+            await resetFailoverPeriodAfterBilling(pool, accountId, periodMonth);
         } catch (e) {
             logger.warn('[platform-billing] failover reset after billing failed', { message: e.message });
         }
@@ -355,6 +355,14 @@ async function purchaseHardware(pool, accountId, {
 }
 
 async function processAllAccountsMaintenance(pool) {
+    const periodMonth = todayDateString().slice(0, 7);
+    try {
+        const { refreshFailoverBillingForAllAccounts } = require('./posFailoverMetering');
+        await refreshFailoverBillingForAllAccounts(pool, periodMonth);
+    } catch (e) {
+        logger.warn('[platform-billing] failover pre-sync failed', { message: e.message });
+    }
+
     const [rows] = await pool.execute(`SELECT id FROM billing_accounts WHERE status != 'canceled'`);
     const results = [];
     for (const row of rows) {

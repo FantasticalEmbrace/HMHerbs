@@ -79,6 +79,8 @@ router.get('/client-config', async (_req, res) => {
 router.get('/account', async (req, res) => {
     try {
         const account = await ensureDefaultAccount(req.pool);
+        const { refreshFailoverBillingForAccount } = require('../services/posFailoverMetering');
+        await refreshFailoverBillingForAccount(req.pool, account.id);
         const subscriptions = await listSubscriptions(req.pool, account.id);
         const statement = await computeMonthlyTotal(req.pool, account.id);
         res.json({ account, subscriptions, statement });
@@ -276,6 +278,8 @@ router.post('/failover/ingest', async (req, res) => {
         const bytesTotal = req.body?.bytesUsed ?? req.body?.bytes_total ?? req.body?.bytesTotal;
         const bytesDelta = req.body?.bytesDelta ?? req.body?.bytes_delta;
         const result = await recordFailoverUsage(req.pool, {
+            accountId: req.body?.accountId ?? req.body?.account_id,
+            accountKey: req.body?.accountKey ?? req.body?.account_key,
             bytesTotal,
             bytesDelta,
             source: req.body?.source || 'modem'

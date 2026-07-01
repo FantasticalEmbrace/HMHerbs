@@ -85,12 +85,16 @@ Everyone else uses `business-one-webpage/billing-portal.html`.
 
 ### Failover data metering
 
-Failover usage is **never entered manually**. The billing period counter comes from:
+Failover usage is **never entered manually** on any account. Each `billing_accounts` row has its own meter for the billing period.
 
-- **WTI modem / cloud** — `POST /api/platform/billing/failover/ingest` with header `x-failover-ingest-secret` and body `{ "bytesUsed": 3500000000 }` (cumulative for the month)
-- **POS registers** — `PUT /api/pos/v1/failover/usage` with `{ "bytesDelta": 12345 }` when the device is on cellular
+**Billing rule (all accounts):** POS subscription line is stations only. Failover overage is always a separate `failover_overage` usage line ($10/GB over 2 GB included) and is included in the automatic monthly charge.
 
-Before each monthly charge, usage syncs into `billing_usage_lines` as `failover_overage` ($10/GB over 2 GB included). The counter resets after a successful charge.
+Sources:
+
+- **WTI modem / cloud** — `POST /api/platform/billing/failover/ingest` with optional `accountKey` / `accountId`, header `x-failover-ingest-secret`, body `{ "bytesUsed": 3500000000 }`
+- **POS registers** — `PUT /api/pos/v1/failover/usage` with `{ "bytesDelta": 12345 }` (resolves the store billing account automatically)
+
+The scheduler runs `processAllAccountsMaintenance`, which syncs failover for **every active billing account** before charging. Usage resets per account after a successful charge.
 
 ## WTI hardware
 

@@ -91,7 +91,7 @@ async function getPrincipalDashboard(pool, account) {
     const { isProchargeSandbox } = require('../utils/prochargeEnv');
 
     await refreshFailoverBillingForAccount(pool, account.id);
-    const failoverGbUsed = await getMeteredFailoverGb(pool);
+    const failoverGbUsed = await getMeteredFailoverGb(pool, account.id);
 
     const subscriptions = await listSubscriptions(pool, account.id);
     const statement = await computeMonthlyTotal(pool, account.id);
