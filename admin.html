@@ -4941,11 +4941,19 @@
                             </p>
                             <div id="pos-license-summary" style="margin-bottom:1rem;padding:0.85rem 1rem;background:var(--gray-50);border-radius:8px;font-size:0.9rem;"></div>
                             <p id="pos-license-auto-status-note" style="margin:0 0 1rem 0;max-width:42rem;color:var(--gray-600);font-size:0.88rem;">
-                                License status is set automatically from billing. If a payment is missed, registers stop syncing after the grace period until billing is current again.
+                                Account details and monthly charges are on file — use <strong>Platform billing</strong> below to save a card, order a modem, or pay the optional build balance. Status and failover usage update automatically.
                             </p>
-                            <form id="pos-license-form" style="display:grid;gap:0.75rem;max-width:32rem;">
-                                <div id="pos-license-dev-panel" style="display:none;gap:0.75rem;">
-                                    <p style="margin:0;color:var(--gray-600);font-size:0.85rem;">Developer overrides — merchants cannot change license status manually.</p>
+                            <form id="pos-license-form" style="display:none;gap:0.75rem;max-width:32rem;">
+                                <div id="pos-license-dev-panel" style="display:grid;gap:0.75rem;">
+                                    <p style="margin:0;color:var(--gray-600);font-size:0.85rem;">Developer tools — billing runs automatically; merchants use Platform billing below.</p>
+                                    <div class="form-group">
+                                        <label for="pos-license-business">Business name</label>
+                                        <input class="form-input" id="pos-license-business" name="businessName" maxlength="200">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="pos-license-email">Billing email</label>
+                                        <input class="form-input" id="pos-license-email" name="billingEmail" type="email" maxlength="255">
+                                    </div>
                                     <div class="form-group">
                                         <label for="pos-license-status">Status override</label>
                                         <select class="form-input" id="pos-license-status" name="status">
@@ -4982,18 +4990,10 @@
                                         <textarea class="form-input" id="pos-license-notes" name="notes" rows="2" maxlength="2000"></textarea>
                                     </div>
                                 </div>
-                                <div class="form-group">
-                                    <label for="pos-license-business">Business name</label>
-                                    <input class="form-input" id="pos-license-business" name="businessName" maxlength="200">
-                                </div>
-                                <div class="form-group">
-                                    <label for="pos-license-email">Billing email</label>
-                                    <input class="form-input" id="pos-license-email" name="billingEmail" type="email" maxlength="255">
-                                </div>
                                 <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
-                                    <button type="submit" class="btn btn-primary">Save contact info</button>
+                                    <button type="submit" class="btn btn-primary">Save license</button>
                                     <button type="button" class="btn btn-secondary" id="pos-license-reload-btn">Reload</button>
-                                    <button type="button" class="btn btn-ghost" id="pos-license-billing-run-btn" hidden>Test billing run</button>
+                                    <button type="button" class="btn btn-ghost" id="pos-license-billing-run-btn">Test billing run</button>
                                 </div>
                                 <p id="pos-license-form-msg" style="min-height:1.25rem;font-size:0.9rem;margin:0;"></p>
                             </form>

@@ -3058,6 +3058,8 @@ class AdminApp {
                           ? `<div><strong>Failover data:</strong> ${Number(license.failoverGbUsed).toFixed(1)} GB (within included 2 GB)</div>`
                           : '';
                 summary.innerHTML = `
+                    <div><strong>Business:</strong> ${this.escapeHtml(license.businessName || '—')}</div>
+                    <div><strong>Billing email:</strong> ${this.escapeHtml(license.billingEmail || '—')}</div>
                     <div><strong>Status:</strong> ${this.escapeHtml(license.status || 'trial')}</div>
                     <div><strong>Active registers:</strong> ${activeDevices} of ${license.licensedStationCount || 1} licensed</div>
                     <div><strong>Monthly:</strong> ${this.escapeHtml(license.monthlyFormatted || 'â€”')}</div>
@@ -3110,11 +3112,7 @@ class AdminApp {
             const devPanel = document.getElementById('pos-license-dev-panel');
             const isDev = this._isPosLicenseDeveloper();
             const isPastDue = license.status === 'past_due' && Number(license.pastDueOwed) > 0;
-            if (devPanel) devPanel.style.display = isDev ? 'grid' : 'none';
-            const licenseSubmitBtn = form?.querySelector('button[type="submit"]');
-            if (licenseSubmitBtn) {
-                licenseSubmitBtn.textContent = isDev ? 'Save license' : 'Save contact info';
-            }
+            if (form) form.style.display = isDev ? 'grid' : 'none';
             if (waiveCard) waiveCard.style.display = isDev && isPastDue ? '' : 'none';
             if (owedEl) {
                 owedEl.innerHTML = isPastDue
@@ -3124,10 +3122,8 @@ class AdminApp {
             if (legUpHint) legUpHint.style.display = isDev && !isPastDue ? '' : 'none';
 
             const billingCard = document.getElementById('pos-license-billing-card');
-            const billingRunBtn = document.getElementById('pos-license-billing-run-btn');
             const canBill = this._canManagePosBilling();
             if (billingCard) billingCard.style.display = canBill ? '' : 'none';
-            if (billingRunBtn) billingRunBtn.hidden = !isDev;
             if (canBill && window.adminPosBilling?.init) {
                 window.adminPosBilling.init({
                     hasVault: Boolean(license.hasBillingVault),
@@ -3165,18 +3161,18 @@ class AdminApp {
 
     async savePosLicense(e) {
         if (e && typeof e.preventDefault === 'function') e.preventDefault();
+        if (!this._isPosLicenseDeveloper()) return;
         const form = document.getElementById('pos-license-form');
         if (!form) return;
         const msg = document.getElementById('pos-license-form-msg');
         if (msg) msg.textContent = '';
-        const body = {
-            businessName: form.querySelector('[name="businessName"]')?.value || '',
-            billingEmail: form.querySelector('[name="billingEmail"]')?.value || ''
-        };
+        const body = {};
         if (this._isPosLicenseDeveloper()) {
             Object.assign(body, {
                 status: form.querySelector('[name="status"]')?.value,
                 licensedStationCount: Number(form.querySelector('[name="licensedStationCount"]')?.value) || 1,
+                businessName: form.querySelector('[name="businessName"]')?.value || '',
+                billingEmail: form.querySelector('[name="billingEmail"]')?.value || '',
                 notes: form.querySelector('[name="notes"]')?.value || '',
                 serviceCompedUntil: form.querySelector('[name="serviceCompedUntil"]')?.value || null,
                 graceDaysOverride: form.querySelector('[name="graceDaysOverride"]')?.value || null
@@ -3185,10 +3181,10 @@ class AdminApp {
         try {
             await this.apiRequest('/admin/pos/license', { method: 'PUT', body: JSON.stringify(body) });
             if (msg) {
-                msg.textContent = this._isPosLicenseDeveloper() ? 'License saved.' : 'Contact info saved.';
+                msg.textContent = 'License saved.';
                 msg.style.color = 'var(--success)';
             }
-            this.showToast(this._isPosLicenseDeveloper() ? 'POS license saved' : 'Billing contact saved', 'success');
+            this.showToast('POS license saved', 'success');
             await this.loadPosLicense();
         } catch (err) {
             if (msg) {

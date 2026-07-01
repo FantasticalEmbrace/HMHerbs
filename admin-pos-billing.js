@@ -110,15 +110,30 @@
         }
 
         const emailEl = $('principal-billing-card-email');
-        const licenseEmail = document.querySelector('#pos-license-email')?.value?.trim();
+        const licenseEmail = dashboard?.account?.billingEmail?.trim();
         if (emailEl && licenseEmail && !emailEl.value) emailEl.value = licenseEmail;
 
         const nameEl = $('principal-billing-card-name');
-        const business = document.querySelector('#pos-license-business')?.value?.trim();
+        const business = dashboard?.account?.businessName?.trim();
         if (nameEl && business && !nameEl.value) nameEl.value = business;
 
         const shipName = $('principal-ship-name');
         if (shipName && business && !shipName.value) shipName.value = business;
+    }
+
+    function prefillFromDashboard(data) {
+        dashboard = data;
+        prefillCardContactFromDashboard();
+    }
+
+    function prefillCardContactFromDashboard() {
+        const emailEl = $('principal-billing-card-email');
+        const licenseEmail = dashboard?.account?.billingEmail?.trim();
+        if (emailEl && licenseEmail) emailEl.value = licenseEmail;
+
+        const nameEl = $('principal-billing-card-name');
+        const business = dashboard?.account?.businessName?.trim();
+        if (nameEl && business) nameEl.value = business;
     }
 
     function renderStatement(data) {
@@ -292,7 +307,7 @@
                     paymentMethodType: 'card',
                     ...card,
                     billingEmail: card.billingEmail,
-                    businessName: document.querySelector('#pos-license-business')?.value?.trim()
+                    businessName: dashboard?.account?.businessName?.trim()
                 })
             });
             setMsg('Payment method saved.', 'ok');
