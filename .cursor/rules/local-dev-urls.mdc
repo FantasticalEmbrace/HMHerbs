@@ -1,0 +1,26 @@
+---
+description: Keep HM Herbs repo working for local dev without production URL edits
+globs: "**/*.{html,js,md,env.example}"
+alwaysApply: true
+---
+
+# Local testing — do not break local URLs
+
+This repo must run locally at **`http://127.0.0.1:3001`** (`backend/npm run dev`) without changing links or env files before each test.
+
+## Rules
+
+1. **Never commit `backend/.env`** — use `.env.example` for new keys only.
+2. **Do not hardcode production domains** in admin/store JS when a relative `/api/...` path works locally and on Linode.
+3. **Billing portal / marketing UI live in `business-one-webpage`** — HM Herbs only hosts redirect stubs and the API; do not copy marketing HTML into this repo.
+4. **Linode deploy scripts** exclude `.env` and business-one marketing files — keep that separation.
+5. **After deploy**, local files stay unchanged; production is updated via `deploy/sync-full-linode.ps1`, not by rewriting local URLs.
+
+## Local stack
+
+| Service | URL |
+|---------|-----|
+| API + store | `http://127.0.0.1:3001` |
+| Admin | `http://127.0.0.1:3001/admin.html` |
+
+See `LOCAL_DEV.md` for pull/install/migrate steps.
