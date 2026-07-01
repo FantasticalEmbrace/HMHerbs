@@ -106,6 +106,18 @@ Sources:
 
 The scheduler runs `processAllAccountsMaintenance`, which syncs failover for **every active billing account** before charging. Usage resets per account after a successful charge.
 
+## Billing cycle (calendar month)
+
+Monthly subscriptions (POS, hosting, internet) bill on the **1st of each calendar month**. Mid-month signups pay a **prorated** amount through the end of the current month; `next_bill_date` is set to the 1st of the next month.
+
+Implementation: `backend/services/platformBillingCalendar.js` (`computeProration`, `firstOfNextMonth`). Signup charges via `chargeSignupMonthlyAndBuild` in `platformBillingRunner.js`.
+
+## Website build milestones
+
+Build fees ($1.5k–$10k) bill in four milestones — **25% deposit at signup**, then 35% / 25% / 15% as work progresses. Refund before kickoff if no work started: `POST /api/platform/billing/build/refund-before-kickoff`. Charge next milestone: `POST /api/platform/billing/build/charge-milestone`.
+
+Schema: `billing_build_contracts`, `billing_build_milestones`. Keep aligned with `business-one-webpage/js/web-build-pricing-tiers.js`.
+
 ## WTI hardware
 
 **Required with every POS signup** — customer chooses standard or premium; card charged once at signup (subtotal + sales tax).

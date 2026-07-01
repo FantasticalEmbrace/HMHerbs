@@ -165,6 +165,25 @@ async function ensurePlatformBillingSchema(pool) {
         logger.warn(`Database: billing_charges — ${logger.formatMysqlError(e)}`);
     }
 
+    await applyColumnPatches(pool, 'billing_charges', [
+        {
+            column: 'procharge_approval_code',
+            sql: 'ALTER TABLE billing_charges ADD COLUMN procharge_approval_code VARCHAR(32) NULL'
+        },
+        {
+            column: 'refund_method',
+            sql: 'ALTER TABLE billing_charges ADD COLUMN refund_method VARCHAR(16) NULL'
+        },
+        {
+            column: 'procharge_refund_transaction_id',
+            sql: 'ALTER TABLE billing_charges ADD COLUMN procharge_refund_transaction_id VARCHAR(64) NULL'
+        },
+        {
+            column: 'refunded_at',
+            sql: 'ALTER TABLE billing_charges ADD COLUMN refunded_at TIMESTAMP NULL'
+        }
+    ]);
+
     try {
         await pool.query(`
             CREATE TABLE IF NOT EXISTS billing_hardware_catalog (
@@ -225,6 +244,54 @@ async function ensurePlatformBillingSchema(pool) {
             )`);
     } catch (e) {
         logger.warn(`Database: billing_hardware_orders — ${logger.formatMysqlError(e)}`);
+    }
+
+    try {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS billing_build_contracts (
+                id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                account_id INT NOT NULL,
+                build_tier VARCHAR(32) NOT NULL,
+                build_amount DECIMAL(10,2) NOT NULL,
+                hosting_tier VARCHAR(32) NULL,
+                status VARCHAR(20) NOT NULL DEFAULT 'active',
+                kickoff_at TIMESTAMP NULL,
+                work_started_at TIMESTAMP NULL,
+                canceled_at TIMESTAMP NULL,
+                cancel_note VARCHAR(255) NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                KEY idx_build_contract_account (account_id),
+                CONSTRAINT fk_build_contract_account FOREIGN KEY (account_id)
+                    REFERENCES billing_accounts(id) ON DELETE CASCADE
+            )`);
+    } catch (e) {
+        logger.warn(`Database: billing_build_contracts — ${logger.formatMysqlError(e)}`);
+    }
+
+    try {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS billing_build_milestones (
+                id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                contract_id INT NOT NULL,
+                milestone_key VARCHAR(32) NOT NULL,
+                label VARCHAR(255) NOT NULL,
+                amount DECIMAL(10,2) NOT NULL,
+                sort_order INT NOT NULL DEFAULT 0,
+                status VARCHAR(20) NOT NULL DEFAULT 'pending',
+                work_status VARCHAR(20) NOT NULL DEFAULT 'not_started',
+                charge_id INT NULL,
+                paid_at TIMESTAMP NULL,
+                completed_at TIMESTAMP NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                KEY idx_build_milestone_contract (contract_id),
+                UNIQUE KEY uq_build_milestone_key (contract_id, milestone_key),
+                CONSTRAINT fk_build_milestone_contract FOREIGN KEY (contract_id)
+                    REFERENCES billing_build_contracts(id) ON DELETE CASCADE
+            )`);
+    } catch (e) {
+        logger.warn(`Database: billing_build_milestones — ${logger.formatMysqlError(e)}`);
     }
 
     await applyColumnPatches(pool, 'billing_accounts', [

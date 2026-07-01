@@ -7,14 +7,17 @@ const logger = require('../utils/logger');
 const { isPlatformBillingConfigured } = require('../utils/platformBillingEnv');
 const { getPlatformBillingClientConfig } = require('../services/platformBillingClientConfig');
 const { assertNoRawPaymentData } = require('../utils/paymentPayloadValidation');
-const { describeMonthlyPricing, computeHardwareCheckout, hardwareSalesTaxRate } = require('../services/platformBillingPricing');
+const { describeMonthlyPricing, computeHardwareCheckout, hardwareSalesTaxRate, hostingMonthlyAmount } = require('../services/platformBillingPricing');
+const { computeProration, describeBillingCycle } = require('../services/platformBillingCalendar');
+const { describeBuildFromHosting } = require('../services/websiteBuildBilling');
 const { saveBillingVault, updateMerchantLicense } = require('../services/posMerchantLicense');
 const {
     upsertSubscription,
-    ensureDefaultAccount,
+    ensureAccountForSignup,
     listHardwareCatalog
 } = require('../services/platformBillingAccount');
-const { purchaseHardware } = require('../services/platformBillingRunner');
+const { purchaseHardware, chargeSignupMonthlyAndBuild } = require('../services/platformBillingRunner');
+const { compensateSignupBilling } = require('../services/prochargeRefunds');
 
 function isSignupEnabled() {
     return String(process.env.BUSINESS_ONE_POS_SIGNUP_ENABLED || 'false').toLowerCase() === 'true';
@@ -46,7 +49,36 @@ router.get('/client-config', (_req, res) => {
 router.get('/pricing', (req, res) => {
     const stations = Math.max(1, Number(req.query.stations) || 1);
     const quote = describeMonthlyPricing(stations);
-    res.json({ quote, failover: quote.failover });
+    const hostingTier = req.query.hostingTier ? String(req.query.hostingTier).trim() : null;
+    const includeHosting = req.query.includeHosting === '1' || req.query.includeHosting === 'true';
+
+    let hostingQuote = null;
+    let buildQuote = null;
+    let combinedMonthly = quote.monthlyAmount;
+
+    if (includeHosting && hostingTier) {
+        const hostingAmount = hostingMonthlyAmount(hostingTier);
+        hostingQuote = {
+            tier: hostingTier,
+            monthlyAmount: hostingAmount,
+            formatted: `$${hostingAmount.toFixed(2)}/mo`
+        };
+        buildQuote = describeBuildFromHosting(hostingTier);
+        combinedMonthly = Math.round((quote.monthlyAmount + hostingAmount) * 100) / 100;
+    }
+
+    const proration = computeProration(combinedMonthly);
+    const billingCycle = describeBillingCycle();
+
+    res.json({
+        quote,
+        failover: quote.failover,
+        hosting: hostingQuote,
+        build: buildQuote,
+        combinedMonthly,
+        proration,
+        billingCycle
+    });
 });
 
 router.get('/hardware', async (req, res) => {
@@ -85,6 +117,8 @@ function validateHardwareShipTo(shipTo) {
 }
 
 router.post('/signup', signupLimiter, async (req, res) => {
+    let account = null;
+    let signupBilling = null;
     try {
         if (!isSignupEnabled()) {
             return res.status(503).json({
@@ -142,7 +176,10 @@ router.post('/signup', signupLimiter, async (req, res) => {
                   postalCode: req.body.postalCode
               };
 
+        account = await ensureAccountForSignup(req.pool, { businessName, billingEmail });
+
         await saveBillingVault(req.pool, {
+            accountId: account.id,
             paymentMethodType: req.body.paymentMethodType || 'card',
             paymentToken: req.body.payment_token || req.body.paymentToken,
             cardNumber: req.body.cardNumber,
@@ -164,8 +201,6 @@ router.post('/signup', signupLimiter, async (req, res) => {
             status: 'active'
         });
 
-        const account = await ensureDefaultAccount(req.pool);
-
         await upsertSubscription(req.pool, account.id, 'pos', {
             status: 'active',
             config: {
@@ -183,30 +218,70 @@ router.post('/signup', signupLimiter, async (req, res) => {
             });
         }
 
-        let hardwareResult = null;
-        hardwareResult = await purchaseHardware(req.pool, account.id, {
-            sku: hardwareSku,
-            quantity: hardwareQty,
-            installmentMonths: 0,
-            shipTo,
-            cardPayload
+        const includeBuild = Boolean(req.body.hostingTier);
+        signupBilling = await chargeSignupMonthlyAndBuild(req.pool, account.id, {
+            licensedStationCount,
+            hostingTier: req.body.hostingTier || null,
+            includeBuild,
+            signupDate: new Date()
         });
+
+        let hardwareResult = null;
+        try {
+            hardwareResult = await purchaseHardware(req.pool, account.id, {
+                sku: hardwareSku,
+                quantity: hardwareQty,
+                installmentMonths: 0,
+                shipTo,
+                cardPayload
+            });
+        } catch (hardwareErr) {
+            try {
+                const rollback = await compensateSignupBilling(req.pool, account.id, signupBilling, {
+                    reason: `Hardware charge failed: ${hardwareErr.message}`
+                });
+                logger.warn('[business-one-pos] signup rolled back after hardware failure', {
+                    accountId: account.id,
+                    rollback
+                });
+            } catch (rollbackErr) {
+                logger.error('[business-one-pos] signup rollback failed', {
+                    accountId: account.id,
+                    message: rollbackErr.message
+                });
+            }
+            throw hardwareErr;
+        }
 
         logger.info('[business-one-pos] New signup', {
             businessName,
             billingEmail,
             licensedStationCount,
-            hardwareSku: hardwareSku || null
+            hardwareSku: hardwareSku || null,
+            accountId: account.id,
+            nextBillDate: signupBilling?.nextBillDate || null
         });
 
         const hardwareMsg = hardwareResult?.total
             ? ` Your setup modem was charged $${Number(hardwareResult.total).toFixed(2)} (includes sales tax) — we will program and ship it shortly.`
             : '';
 
+        const prorationMsg = signupBilling?.proration?.proratedAmount
+            ? ` Prorated subscription $${signupBilling.proration.proratedAmount.toFixed(2)} through month-end; full billing begins ${signupBilling.nextBillDate}.`
+            : signupBilling?.nextBillDate
+              ? ` Monthly billing begins ${signupBilling.nextBillDate}.`
+              : '';
+
+        const buildMsg =
+            includeBuild && signupBilling?.charges?.find((c) => c.type === 'build_deposit')?.amount
+                ? ` Website build deposit charged — remaining milestones billed as work progresses.`
+                : '';
+
         res.status(201).json({
             success: true,
-            message: `Welcome to Business One! We will email your store access shortly.${hardwareMsg}`,
-            hardware: hardwareResult
+            message: `Welcome to Business One! We will email your store access shortly.${hardwareMsg}${prorationMsg}${buildMsg}`,
+            hardware: hardwareResult,
+            signupBilling
         });
     } catch (e) {
         const status = e.code === 'BILLING_NOT_CONFIGURED' ? 503 : e.code ? 400 : 500;

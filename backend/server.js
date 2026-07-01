@@ -277,6 +277,19 @@ const allowedOrigins = [
 if (process.env.FRONTEND_URL && !allowedOrigins.includes(process.env.FRONTEND_URL)) {
     allowedOrigins.push(process.env.FRONTEND_URL);
 }
+if (process.env.STOREFRONT_PUBLIC_URL && !allowedOrigins.includes(process.env.STOREFRONT_PUBLIC_URL)) {
+    allowedOrigins.push(process.env.STOREFRONT_PUBLIC_URL);
+}
+
+// Optional comma-separated extra origins (staging hostnames, alternate sslip.io URLs, etc.)
+if (process.env.CORS_EXTRA_ORIGINS) {
+    process.env.CORS_EXTRA_ORIGINS.split(',')
+        .map((o) => o.trim())
+        .filter(Boolean)
+        .forEach((origin) => {
+            if (!allowedOrigins.includes(origin)) allowedOrigins.push(origin);
+        });
+}
 
 // Add production domain if specified
 if (process.env.PRODUCTION_DOMAIN) {

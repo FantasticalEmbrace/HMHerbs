@@ -33,6 +33,9 @@ const {
     HARDWARE_MAX_INSTALLMENT_MONTHS
 } = require('../services/platformBillingPricing');
 const { getPrincipalDashboard } = require('../services/principalBilling');
+const { getBuildContract, refundBuildIfNoWorkStarted } = require('../services/websiteBuildBilling');
+const { describeBillingCycle } = require('../services/platformBillingCalendar');
+const { chargeOneTimeFromAccount } = require('../services/platformBillingRunner');
 
 async function assertBillingAuth(req) {
     const authHeader = req.headers.authorization || '';
@@ -75,7 +78,9 @@ router.get('/account', async (req, res) => {
         const subscriptions = await listSubscriptions(req.pool, account.id);
         const statement = await computeMonthlyTotal(req.pool, account.id);
         const modemBilling = await getModemBillingStatus(req.pool, account.id, account);
-        res.json({ account, subscriptions, statement, modemBilling });
+        const buildContract = await getBuildContract(req.pool, account.id);
+        const billingCycle = describeBillingCycle();
+        res.json({ account, subscriptions, statement, modemBilling, buildContract, billingCycle });
     } catch (e) {
         logger.error('Platform billing account fetch', { err: e.message });
         res.status(500).json({ error: 'Failed to load billing account' });
@@ -289,6 +294,67 @@ router.post('/failover/ingest', async (req, res) => {
         res.json({ success: true, ...result });
     } catch (e) {
         res.status(400).json({ error: e.message });
+    }
+});
+
+router.post('/build/refund-before-kickoff', async (req, res) => {
+    try {
+        const auth = await assertBillingAuth(req);
+        if (!auth) return res.status(401).json({ error: 'Admin login required' });
+        const account = await ensureDefaultAccount(req.pool);
+        const result = await refundBuildIfNoWorkStarted(req.pool, account.id, {
+            note: req.body.note
+        });
+        const buildContract = await getBuildContract(req.pool, account.id);
+        res.json({ result, buildContract });
+    } catch (e) {
+        res.status(400).json({ error: e.message, code: e.code });
+    }
+});
+
+router.post('/build/charge-milestone', async (req, res) => {
+    try {
+        const auth = await assertBillingAuth(req);
+        if (!auth) return res.status(401).json({ error: 'Admin login required' });
+        const account = await ensureDefaultAccount(req.pool);
+        const milestoneKey = String(req.body.milestoneKey || '').trim();
+        const buildContract = await getBuildContract(req.pool, account.id);
+        if (!buildContract) {
+            return res.status(404).json({ error: 'No build contract', code: 'NO_BUILD_CONTRACT' });
+        }
+        const milestone = buildContract.milestones.find((m) => m.key === milestoneKey);
+        if (!milestone) {
+            return res.status(404).json({ error: 'Milestone not found', code: 'MILESTONE_NOT_FOUND' });
+        }
+        if (milestone.status !== 'pending') {
+            return res.status(400).json({ error: 'Milestone already paid or completed', code: 'MILESTONE_NOT_PENDING' });
+        }
+        const order = ['deposit', 'design', 'development', 'launch'];
+        const targetIdx = order.indexOf(milestoneKey);
+        const priorUnpaid = buildContract.milestones.filter(
+            (m) => order.indexOf(m.key) < targetIdx && m.status === 'pending'
+        );
+        if (priorUnpaid.length) {
+            return res.status(400).json({
+                error: `Pay prior milestones first: ${priorUnpaid.map((m) => m.label).join(', ')}`,
+                code: 'MILESTONE_ORDER'
+            });
+        }
+        const { markMilestonePaid } = require('../services/websiteBuildBilling');
+        const charge = await chargeOneTimeFromAccount(req.pool, account.id, {
+            amount: milestone.amount,
+            chargeType: 'build_milestone',
+            lineItems: [{ code: 'build_milestone', label: milestone.label, amount: milestone.amount }],
+            description: `Website build — ${milestone.label}`,
+            orderPrefix: 'BUILD'
+        });
+        if (charge.chargeId) {
+            await markMilestonePaid(req.pool, buildContract.contract.id, milestoneKey, charge.chargeId);
+        }
+        const updated = await getBuildContract(req.pool, account.id);
+        res.json({ charge, buildContract: updated });
+    } catch (e) {
+        res.status(400).json({ error: e.message, code: e.code });
     }
 });
 

@@ -267,8 +267,95 @@ async function achChargeToken({ customerUuid, amount, description }) {
     return {
         ok: true,
         transactionId: paymentUuid ? String(paymentUuid) : null,
+        approvalCode: String(res.data?.approval_code || res.data?.approvalCode || ''),
         raw: res.data
     };
+}
+
+function buildProchargeClient(authToken) {
+    return new Client({
+        env: getProchargeApiHost(),
+        applicationKey: getProchargeApplicationKey(),
+        authToken: bearerHeader(authToken)
+    });
+}
+
+function baseTransactionFields({ profileId } = {}) {
+    const transaction = new Transaction();
+    transaction.merchantNumber = getProchargeMerchantNumber();
+    transaction.isEcommerce = true;
+    transaction.sandbox = isProchargeSandbox() ? 'y' : 'n';
+    if (profileId) transaction.profileID = profileId;
+    return transaction;
+}
+
+/**
+ * Void a sale in the same open batch (before settlement).
+ * Requires transactionID + approvalCode from the original sale.
+ */
+async function voidSale({ transactionId, approvalCode, profileId }) {
+    if (!transactionId || !approvalCode) {
+        return { ok: false, responseText: 'transactionId and approvalCode required for void' };
+    }
+    const transaction = baseTransactionFields({ profileId });
+    transaction.transactionID = String(transactionId);
+    transaction.approvalCode = String(approvalCode);
+    transaction.cardNotPresent = true;
+    transaction.cardTypeIndicator = 'C';
+
+    try {
+        const client = buildProchargeClient(await getAuthToken());
+        const response = await client.voidSale(transaction);
+        return normalizeTransactionResponse(response);
+    } catch (e) {
+        logger.warn('[procharge] voidSale failed', { message: e.message, transactionId });
+        return {
+            ok: false,
+            responseText: e.responseText || e.message || 'Void failed'
+        };
+    }
+}
+
+/**
+ * Refund to card via stored vault token (closed batch / after settlement).
+ */
+async function refundToken({
+    amount,
+    token,
+    orderNumber,
+    email,
+    name,
+    description,
+    profileId,
+    transactionId,
+    approvalCode
+}) {
+    if (!token) {
+        return { ok: false, responseText: 'Payment token required for refund' };
+    }
+    const transaction = baseTransactionFields({ profileId });
+    transaction.amount = Number(amount).toFixed(2);
+    transaction.token = String(token);
+    transaction.cardTypeIndicator = 'C';
+    transaction.aci = 'N';
+    if (orderNumber) transaction.orderNumber = String(orderNumber).slice(0, 64);
+    if (email) transaction.email = String(email).slice(0, 255);
+    if (name) transaction.name = String(name).slice(0, 120);
+    if (description) transaction.description = String(description).slice(0, 255);
+    if (transactionId) transaction.transactionID = String(transactionId);
+    if (approvalCode) transaction.approvalCode = String(approvalCode);
+
+    try {
+        const client = buildProchargeClient(await getAuthToken());
+        const response = await client.processRefund(transaction);
+        return normalizeTransactionResponse(response);
+    } catch (e) {
+        logger.warn('[procharge] refundToken failed', { message: e.message });
+        return {
+            ok: false,
+            responseText: e.responseText || e.message || 'Refund failed'
+        };
+    }
 }
 
 function resetAuthCache() {
@@ -283,6 +370,8 @@ module.exports = {
     achAuthenticate,
     achAddCustomer,
     achChargeToken,
+    voidSale,
+    refundToken,
     normalizeTransactionResponse,
     resetAuthCache,
     Environment

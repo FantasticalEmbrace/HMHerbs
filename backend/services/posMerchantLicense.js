@@ -432,8 +432,8 @@ async function waivePastDuePayment(pool, { note, notify = true } = {}) {
     const line = `[${stamp}] Past due waived $${owed.toFixed(2)}${note ? `: ${String(note).trim().slice(0, 200)}` : ''}`;
     const newNotes = [license.notes, line].filter(Boolean).join('\n').slice(-2000);
 
-    const nextBill = addDays(new Date(), 30);
-    const renew = addDays(new Date(), 30);
+    const { firstOfNextMonth, todayDateString: calToday } = require('./platformBillingCalendar');
+    const nextBill = calToday(firstOfNextMonth());
     await pool.execute(
         `UPDATE pos_merchant_license SET
             status = 'active',
@@ -450,7 +450,7 @@ async function waivePastDuePayment(pool, { note, notify = true } = {}) {
             last_payment_failed_email_at = NULL,
             updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`,
-        [owed, renew, todayDateString(nextBill), newNotes, LICENSE_ID]
+        [owed, nextBill, nextBill, newNotes, LICENSE_ID]
     );
 
     const updated = await loadMerchantLicense(pool);
@@ -473,9 +473,17 @@ async function saveBillingVault(pool, payload) {
         bankAccount
     } = payload || {};
 
-    const { ensureDefaultAccount, savePaymentMethod, upsertSubscription } = require('./platformBillingAccount');
+    const { ensureDefaultAccount, getAccountById, savePaymentMethod, upsertSubscription } =
+        require('./platformBillingAccount');
 
-    const account = await ensureDefaultAccount(pool);
+    const account = payload?.accountId
+        ? await getAccountById(pool, payload.accountId)
+        : await ensureDefaultAccount(pool);
+    if (!account) {
+        const err = new Error('Billing account not found');
+        err.code = 'ACCOUNT_NOT_FOUND';
+        throw err;
+    }
     const saved = await savePaymentMethod(pool, account.id, {
         paymentToken,
         paymentMethodType,
@@ -523,7 +531,7 @@ async function saveBillingVault(pool, payload) {
         }
     });
 
-    return license;
+    return { license, accountId: account.id };
 }
 
 function computeChargeBreakdown(license) {
@@ -539,9 +547,10 @@ function computeChargeBreakdown(license) {
     };
 }
 
-async function recordChargeSuccess(pool, { grossAmount }) {
-    const nextBill = addDays(new Date(), 30);
-    const renew = addDays(new Date(), 30);
+async function recordChargeSuccess(pool, { grossAmount, billingAnchorDate } = {}) {
+    const { firstOfNextMonth, todayDateString: calToday } = require('./platformBillingCalendar');
+    const nextBill = calToday(firstOfNextMonth(billingAnchorDate || new Date()));
+    const renew = nextBill;
     await pool.execute(
         `UPDATE pos_merchant_license SET
             status = 'active',
@@ -557,7 +566,7 @@ async function recordChargeSuccess(pool, { grossAmount }) {
             failover_gb_used = 0,
             updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`,
-        [grossAmount, renew, todayDateString(nextBill), LICENSE_ID]
+        [grossAmount, renew, nextBill, LICENSE_ID]
     );
 }
 
@@ -868,5 +877,6 @@ module.exports = {
     processGraceExpiration,
     processMerchantBillingMaintenance,
     markPastDueFromWebhook,
-    calculateMonthlyAmount
+    calculateMonthlyAmount,
+    syncLicenseFromAccount
 };

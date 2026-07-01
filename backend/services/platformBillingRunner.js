@@ -15,6 +15,17 @@ const {
     sendPaymentSucceededEmail,
     sendPastDueWaivedEmail
 } = require('./platformBillingEmail');
+const {
+    todayDateString: calendarToday,
+    firstOfNextMonth,
+    computeProration
+} = require('./platformBillingCalendar');
+const {
+    createBuildContract,
+    markMilestonePaid,
+    describeBuildFromHosting
+} = require('./websiteBuildBilling');
+const { describeMonthlyPricing, hostingMonthlyAmount } = require('./platformBillingPricing');
 
 function isBillingDryRun() {
     const s = String(process.env.POS_BILLING_DRY_RUN ?? process.env.BILLING_DRY_RUN ?? 'true')
@@ -54,16 +65,21 @@ async function computeMonthlyTotal(pool, accountId, { periodMonth } = {}) {
     });
 }
 
-async function recordCharge(pool, accountId, { amount, chargeType, lineItems, status, transactionId, failureReason }) {
+async function recordCharge(
+    pool,
+    accountId,
+    { amount, chargeType, lineItems, status, transactionId, approvalCode, failureReason }
+) {
     const [ins] = await pool.execute(
-        `INSERT INTO billing_charges (account_id, charge_type, amount, status, procharge_transaction_id, line_items_json, failure_reason)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO billing_charges (account_id, charge_type, amount, status, procharge_transaction_id, procharge_approval_code, line_items_json, failure_reason)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [
             accountId,
             chargeType,
             amount,
             status,
             transactionId || null,
+            approvalCode || null,
             JSON.stringify(lineItems || []),
             failureReason || null
         ]
@@ -71,8 +87,17 @@ async function recordCharge(pool, accountId, { amount, chargeType, lineItems, st
     return ins.insertId;
 }
 
-async function recordChargeSuccess(pool, accountId, { grossAmount }) {
-    const nextBill = addDays(new Date(), 30);
+async function setAccountNextBillDate(pool, accountId, date = new Date()) {
+    const nextBill = calendarToday(firstOfNextMonth(date));
+    await pool.execute(
+        `UPDATE billing_accounts SET next_bill_date = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        [nextBill, accountId]
+    );
+    return nextBill;
+}
+
+async function recordChargeSuccess(pool, accountId, { grossAmount, billingAnchorDate } = {}) {
+    const nextBill = calendarToday(firstOfNextMonth(billingAnchorDate || new Date()));
     await pool.execute(
         `UPDATE billing_accounts SET
             status = 'active',
@@ -85,7 +110,7 @@ async function recordChargeSuccess(pool, accountId, { grossAmount }) {
             next_billing_retry_at = NULL,
             updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`,
-        [grossAmount, todayDateString(nextBill), accountId]
+        [grossAmount, nextBill, accountId]
     );
 }
 
@@ -115,7 +140,7 @@ async function advanceInstallmentPlans(pool, accountId, lineItems) {
             `UPDATE billing_installment_plans SET
                 months_remaining = GREATEST(0, months_remaining - 1),
                 status = CASE WHEN months_remaining <= 1 THEN 'completed' ELSE status END,
-                next_due_date = DATE_ADD(CURDATE(), INTERVAL 30 DAY),
+                next_due_date = DATE_FORMAT(DATE_ADD(DATE_FORMAT(CURDATE(), '%Y-%m-01'), INTERVAL 1 MONTH), '%Y-%m-%d'),
                 updated_at = CURRENT_TIMESTAMP
              WHERE id = ? AND account_id = ?`,
             [id, accountId]
@@ -183,7 +208,30 @@ async function chargeAccount(pool, accountId, { reason = 'monthly', force = fals
     }
 
     if (chargeAmount <= 0) {
+        const chargeId = await recordCharge(pool, accountId, {
+            amount: 0,
+            chargeType: 'monthly_consolidated',
+            lineItems: lines,
+            status: 'paid',
+            transactionId: null
+        });
         await recordChargeSuccess(pool, accountId, { grossAmount: 0 });
+        await markUsageBilled(pool, accountId, periodMonth, chargeId);
+        await advanceInstallmentPlans(pool, accountId, lines);
+        try {
+            const { resetFailoverPeriodAfterBilling } = require('./posFailoverMetering');
+            await resetFailoverPeriodAfterBilling(pool, accountId, periodMonth);
+        } catch (e) {
+            logger.warn('[platform-billing] failover reset after zero billing failed', {
+                message: e.message
+            });
+        }
+        if (credit > 0) {
+            await pool.execute(
+                `UPDATE billing_accounts SET billing_credit_balance = GREATEST(0, billing_credit_balance - ?), updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+                [Math.min(credit, subtotal), accountId]
+            );
+        }
         return { ok: true, skipped: true, reason: 'zero_balance', amount: 0, lines, dryRun };
     }
 
@@ -229,9 +277,16 @@ async function chargeAccount(pool, accountId, { reason = 'monthly', force = fals
             chargeType: reason === 'installment' ? 'installment' : 'monthly_consolidated',
             lineItems: lines,
             status: 'paid',
-            transactionId: sale.transactionId
+            transactionId: sale.transactionId,
+            approvalCode: sale.approvalCode
         });
         await recordChargeSuccess(pool, accountId, { grossAmount: chargeAmount });
+        if (credit > 0) {
+            await pool.execute(
+                `UPDATE billing_accounts SET billing_credit_balance = GREATEST(0, billing_credit_balance - ?), updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+                [Math.min(credit, subtotal), accountId]
+            );
+        }
         await markUsageBilled(pool, accountId, periodMonth, chargeId);
         await advanceInstallmentPlans(pool, accountId, lines);
         try {
@@ -346,7 +401,7 @@ async function purchaseHardware(pool, accountId, {
         throw err;
     }
 
-    await recordCharge(pool, accountId, {
+    const chargeId = await recordCharge(pool, accountId, {
         amount: total,
         chargeType: 'hardware_onetime',
         lineItems: [
@@ -354,14 +409,9 @@ async function purchaseHardware(pool, accountId, {
             { code: 'sales_tax', label: `Sales tax (${(checkout.taxRate * 100).toFixed(2)}%)`, amount: checkout.taxAmount }
         ],
         status: 'paid',
-        transactionId: sale.transactionId
+        transactionId: sale.transactionId,
+        approvalCode: sale.approvalCode
     });
-
-    const [chargeRows] = await pool.execute(
-        `SELECT id FROM billing_charges WHERE account_id = ? ORDER BY id DESC LIMIT 1`,
-        [accountId]
-    );
-    const chargeId = chargeRows[0]?.id || null;
 
     if (shipTo && (shipTo.street1 || shipTo.street)) {
         await recordHardwareOrder(pool, accountId, {
@@ -411,7 +461,7 @@ async function waivePastDue(pool, accountId, { note, notify = true } = {}) {
         throw err;
     }
     const owed = Number(account.lastBillAmount) || 0;
-    const nextBill = addDays(new Date(), 30);
+    const nextBill = calendarToday(firstOfNextMonth());
     await pool.execute(
         `UPDATE billing_accounts SET
             status = 'active',
@@ -523,7 +573,8 @@ async function payPrincipalBuildBalance(pool, accountId, { mode = 'full', instal
         chargeType: 'principal_build_balance',
         lineItems: [{ code: 'build_balance', label, amount: remaining }],
         status: 'paid',
-        transactionId: sale.transactionId
+        transactionId: sale.transactionId,
+        approvalCode: sale.approvalCode
     });
 
     await updatePrincipalMeta(pool, accountId, {
@@ -536,6 +587,179 @@ async function payPrincipalBuildBalance(pool, accountId, { mode = 'full', instal
     return { type: 'onetime', ok: true, total: remaining, transactionId: sale.transactionId };
 }
 
+async function chargeOneTimeFromAccount(pool, accountId, {
+    amount,
+    chargeType,
+    lineItems,
+    description,
+    orderPrefix = 'BO'
+}) {
+    const total = Math.round(Number(amount) * 100) / 100;
+    if (total <= 0) {
+        return { ok: true, skipped: true, amount: 0, dryRun: isBillingDryRun() };
+    }
+
+    const account = await getAccountById(pool, accountId);
+    if (!account) {
+        const err = new Error('Billing account not found');
+        err.code = 'ACCOUNT_NOT_FOUND';
+        throw err;
+    }
+
+    if (isBillingDryRun()) {
+        return {
+            ok: true,
+            dryRun: true,
+            amount: total,
+            message: `Would charge $${total.toFixed(2)} (${description || chargeType})`
+        };
+    }
+
+    if (!account.hasBillingVault) {
+        const err = new Error('Payment method required');
+        err.code = 'PAYMENT_REQUIRED';
+        throw err;
+    }
+
+    const orderNumber = `${orderPrefix}-${accountId}-${Date.now()}`;
+    const sale = await executeProchargeCharge(account, total, {
+        orderNumber,
+        description: description || chargeType
+    });
+
+    if (!sale.ok) {
+        const err = new Error(sale.responseText || 'Charge failed');
+        err.code = 'CHARGE_FAILED';
+        throw err;
+    }
+
+    const chargeId = await recordCharge(pool, accountId, {
+        amount: total,
+        chargeType,
+        lineItems: lineItems || [{ code: chargeType, label: description || chargeType, amount: total }],
+        status: 'paid',
+        transactionId: sale.transactionId,
+        approvalCode: sale.approvalCode
+    });
+
+    return {
+        ok: true,
+        amount: total,
+        chargeId,
+        transactionId: sale.transactionId,
+        approvalCode: sale.approvalCode
+    };
+}
+
+/**
+ * At signup: prorated monthly (POS + hosting) through end of month + optional build deposit.
+ * Sets next_bill_date to the 1st of the next calendar month.
+ */
+async function chargeSignupMonthlyAndBuild(pool, accountId, {
+    licensedStationCount,
+    hostingTier,
+    includeBuild = false,
+    signupDate = new Date()
+} = {}) {
+    const posPricing = describeMonthlyPricing(licensedStationCount);
+    const hostingAmount = hostingTier ? hostingMonthlyAmount(hostingTier) : 0;
+    const fullMonthly = Math.round((posPricing.monthlyAmount + hostingAmount) * 100) / 100;
+    const proration = computeProration(fullMonthly, signupDate);
+    const charges = [];
+
+    if (proration.proratedAmount > 0) {
+        const proratedTotal = proration.proratedAmount;
+        const lineItems = [];
+        if (posPricing.monthlyAmount > 0 && fullMonthly > 0) {
+            const posShare = Math.round((proratedTotal * (posPricing.monthlyAmount / fullMonthly)) * 100) / 100;
+            if (posShare > 0) {
+                lineItems.push({
+                    code: 'pos_proration',
+                    label: `POS — prorated ${proration.remainingDays}/${proration.daysInMonth} days`,
+                    amount: posShare
+                });
+            }
+        }
+        if (hostingAmount > 0 && fullMonthly > 0) {
+            const allocated = lineItems.reduce((s, l) => s + l.amount, 0);
+            const hostShare = Math.round((proratedTotal - allocated) * 100) / 100;
+            if (hostShare > 0) {
+                lineItems.push({
+                    code: 'hosting_proration',
+                    label: `Web hosting — prorated ${proration.remainingDays}/${proration.daysInMonth} days`,
+                    amount: hostShare
+                });
+            }
+        }
+        if (!lineItems.length) {
+            lineItems.push({
+                code: 'signup_proration',
+                label: `Subscription — prorated ${proration.remainingDays}/${proration.daysInMonth} days`,
+                amount: proratedTotal
+            });
+        }
+
+        const monthlyCharge = await chargeOneTimeFromAccount(pool, accountId, {
+            amount: proratedTotal,
+            chargeType: 'signup_proration',
+            lineItems,
+            description: `Business One prorated subscription (${proration.remainingDays} days)`,
+            orderPrefix: 'PROR'
+        });
+        charges.push({ type: 'proration', ...monthlyCharge, proration });
+    }
+
+    let buildContract = null;
+    if (includeBuild && hostingTier) {
+        const buildInfo = describeBuildFromHosting(hostingTier);
+        const depositAmount = buildInfo.depositAmount;
+        if (depositAmount > 0) {
+            const buildCharge = await chargeOneTimeFromAccount(pool, accountId, {
+                amount: depositAmount,
+                chargeType: 'build_deposit',
+                lineItems: [
+                    {
+                        code: 'build_deposit',
+                        label: `${buildInfo.buildTier} website — discovery deposit (25%)`,
+                        amount: depositAmount
+                    }
+                ],
+                description: `Website build deposit — ${buildInfo.formattedBuild}`,
+                orderPrefix: 'BUILD'
+            });
+            if (!buildCharge.ok && !buildCharge.dryRun) {
+                const err = new Error(buildCharge.message || 'Build deposit charge failed');
+                err.code = 'CHARGE_FAILED';
+                throw err;
+            }
+            buildContract = await createBuildContract(pool, accountId, { hostingTier });
+            if (buildCharge.chargeId && buildContract?.contract?.id) {
+                await markMilestonePaid(pool, buildContract.contract.id, 'deposit', buildCharge.chargeId);
+            }
+            charges.push({ type: 'build_deposit', ...buildCharge, buildInfo });
+        }
+    }
+
+    const nextBillDate = await setAccountNextBillDate(pool, accountId, signupDate);
+
+    try {
+        const { syncLicenseFromAccount } = require('./posMerchantLicense');
+        await syncLicenseFromAccount(pool, accountId);
+    } catch (e) {
+        logger.warn('[platform-billing] syncLicenseFromAccount after signup failed', {
+            message: e.message
+        });
+    }
+
+    return {
+        nextBillDate,
+        fullMonthly,
+        proration,
+        charges,
+        buildContract
+    };
+}
+
 module.exports = {
     isBillingDryRun,
     computeMonthlyTotal,
@@ -543,5 +767,8 @@ module.exports = {
     purchaseHardware,
     payPrincipalBuildBalance,
     processAllAccountsMaintenance,
-    waivePastDue
+    waivePastDue,
+    chargeOneTimeFromAccount,
+    chargeSignupMonthlyAndBuild,
+    setAccountNextBillDate
 };

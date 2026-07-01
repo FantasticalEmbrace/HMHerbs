@@ -72,6 +72,46 @@ async function ensureDefaultAccount(pool) {
     return getAccountById(pool, ins.insertId);
 }
 
+/** Per-merchant billing account for public signup — never reuse principal `default`. */
+async function ensureAccountForSignup(pool, { businessName, billingEmail }) {
+    const email = String(billingEmail || '').trim().toLowerCase();
+    if (!email) {
+        const err = new Error('Billing email is required');
+        err.code = 'EMAIL_REQUIRED';
+        throw err;
+    }
+
+    const [byEmail] = await pool.execute(
+        `SELECT * FROM billing_accounts
+         WHERE LOWER(billing_email) = ? AND account_key != ?
+         ORDER BY id DESC LIMIT 1`,
+        [email, DEFAULT_ACCOUNT_KEY]
+    );
+    if (byEmail.length) {
+        const existing = mapAccountRow(byEmail[0]);
+        await updateAccount(pool, existing.id, {
+            businessName: String(businessName || '').trim().slice(0, 200),
+            billingEmail: email
+        });
+        return getAccountById(pool, existing.id);
+    }
+
+    const slug = email.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'merchant';
+    let accountKey = `merchant-${slug}`;
+    let suffix = 0;
+    while (await getAccountByKey(pool, accountKey)) {
+        suffix += 1;
+        accountKey = `merchant-${slug}-${suffix}`;
+    }
+
+    const [ins] = await pool.execute(
+        `INSERT INTO billing_accounts (account_key, business_name, billing_email, status)
+         VALUES (?, ?, ?, 'trial')`,
+        [accountKey, String(businessName || '').trim().slice(0, 200), email]
+    );
+    return getAccountById(pool, ins.insertId);
+}
+
 async function updateAccount(pool, accountId, fields) {
     const sets = [];
     const vals = [];
@@ -382,6 +422,7 @@ module.exports = {
     getAccountByKey,
     getAccountById,
     ensureDefaultAccount,
+    ensureAccountForSignup,
     updateAccount,
     listSubscriptions,
     upsertSubscription,

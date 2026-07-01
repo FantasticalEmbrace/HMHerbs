@@ -83,7 +83,7 @@ router.post('/setup', setupLimiter, async (req, res) => {
             });
         }
 
-        const license = await saveBillingVault(req.pool, {
+        const result = await saveBillingVault(req.pool, {
             paymentToken: req.body.payment_token,
             paymentMethodType: req.body.paymentMethodType || 'card',
             cardNumber: req.body.cardNumber,
