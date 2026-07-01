@@ -1570,7 +1570,7 @@ app.get('/api/products/:slug', async (req, res) => {
 
         // Get product variants
         const [variants] = await pool.execute(
-            'SELECT id, sku, name, price, compare_price, inventory_quantity, is_active, attributes FROM product_variants WHERE product_id = ? AND is_active = 1 ORDER BY sort_order',
+            'SELECT id, sku, name, price, compare_price, inventory_quantity, is_active, attributes, image_url FROM product_variants WHERE product_id = ? AND is_active = 1 ORDER BY sort_order',
             [product.id]
         );
 
@@ -1616,7 +1616,14 @@ app.get('/api/products/:slug', async (req, res) => {
                     attributes = null;
                 }
             }
-            return { ...row, attributes: attributes && typeof attributes === 'object' ? attributes : null };
+            const imageUrl = row.image_url
+                ? sanitizeLegacyProductImageUrl(row.image_url, product.slug, row.sku || product.sku)
+                : null;
+            return {
+                ...row,
+                attributes: attributes && typeof attributes === 'object' ? attributes : null,
+                image_url: imageUrl,
+            };
         });
         product.health_categories = healthCategories;
 

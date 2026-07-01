@@ -71,6 +71,7 @@ function normalizeVariantRow(v, productSku, index) {
             v.cost_price != null && v.cost_price !== ''
                 ? parseFloat(v.cost_price)
                 : null,
+        image_url: String(v.image_url || '').trim() || null,
         inventory_quantity: parseInt(v.inventory_quantity, 10) || 0,
         weight: v.weight != null && v.weight !== '' ? parseFloat(v.weight) : null,
         is_active: v.is_active === false || v.is_active === 0 ? 0 : 1,
@@ -126,7 +127,7 @@ async function saveProductVariants(connection, productId, productSku, variantOpt
         if (targetId) {
             await connection.execute(
                 `UPDATE product_variants
-                 SET sku = ?, name = ?, price = ?, compare_price = ?, cost_price = ?, inventory_quantity = ?,
+                 SET sku = ?, name = ?, price = ?, compare_price = ?, cost_price = ?, image_url = ?, inventory_quantity = ?,
                      weight = ?, is_active = ?, sort_order = ?, attributes = ?
                  WHERE id = ? AND product_id = ?`,
                 [
@@ -135,6 +136,7 @@ async function saveProductVariants(connection, productId, productSku, variantOpt
                     row.price,
                     row.compare_price,
                     row.cost_price,
+                    row.image_url,
                     row.inventory_quantity,
                     row.weight,
                     row.is_active,
@@ -148,8 +150,8 @@ async function saveProductVariants(connection, productId, productSku, variantOpt
         } else {
             const [insertResult] = await connection.execute(
                 `INSERT INTO product_variants
-                 (product_id, sku, name, price, compare_price, cost_price, inventory_quantity, weight, is_active, sort_order, attributes)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                 (product_id, sku, name, price, compare_price, cost_price, image_url, inventory_quantity, weight, is_active, sort_order, attributes)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
                     productId,
                     row.sku,
@@ -157,6 +159,7 @@ async function saveProductVariants(connection, productId, productSku, variantOpt
                     row.price,
                     row.compare_price,
                     row.cost_price,
+                    row.image_url,
                     row.inventory_quantity,
                     row.weight,
                     row.is_active,

@@ -316,7 +316,7 @@ class ProductDetailPage {
     }
 
     renderImages() {
-        const images = this.product.images || [];
+        const images = this.getDisplayImages();
 
         if (images.length === 0) {
             // Use placeholder if no images
@@ -381,6 +381,64 @@ class ProductDetailPage {
             mainImage.src = this.resolveProductImageUrl(image.image_url);
             mainImage.alt = image.alt_text || this.product.name || 'Product image';
         }
+    }
+
+    getDisplayImages() {
+        const baseImages = (this.product.images || []).map((img) => ({
+            image_url: img.image_url,
+            alt_text: img.alt_text || this.product.name,
+            is_primary: img.is_primary,
+        }));
+        const variantImages = (this.product.variants || [])
+            .filter((v) => v.image_url)
+            .map((v) => ({
+                image_url: v.image_url,
+                alt_text: v.name || this.product.name,
+                is_primary: false,
+                variant_id: v.id,
+            }));
+
+        const seen = new Set();
+        const merged = [];
+        for (const img of [...variantImages, ...baseImages]) {
+            const key = String(img.image_url || '').trim();
+            if (!key || seen.has(key)) continue;
+            seen.add(key);
+            merged.push(img);
+        }
+        return merged;
+    }
+
+    getVariantImageUrl(variant) {
+        if (!variant) {
+            return this.product.images?.[0]?.image_url || '';
+        }
+        if (variant.image_url) return variant.image_url;
+        const galleryMatch = (this.product.images || []).find((img) => {
+            const url = String(img.image_url || '').toUpperCase();
+            const sku = String(variant.sku || '').toUpperCase();
+            if (sku && url.includes(sku)) return true;
+            const hint = String(variant.name || '').match(/#([A-Za-z0-9-]+)/);
+            return hint && url.includes(hint[1].toUpperCase());
+        });
+        return galleryMatch?.image_url || this.product.images?.[0]?.image_url || '';
+    }
+
+    updateVariantImage() {
+        const url = this.getVariantImageUrl(this.selectedVariant);
+        if (!url) return;
+        this.switchMainImage({
+            image_url: url,
+            alt_text: this.selectedVariant?.name || this.product.name,
+        });
+
+        const gallery = document.getElementById('product-image-gallery');
+        if (!gallery) return;
+        const images = this.getDisplayImages();
+        const activeIndex = images.findIndex((img) => String(img.image_url) === String(url));
+        gallery.querySelectorAll('.gallery-thumbnail').forEach((thumb, idx) => {
+            thumb.classList.toggle('active', activeIndex >= 0 && idx === activeIndex);
+        });
     }
 
     renderVariants() {
@@ -459,6 +517,7 @@ class ProductDetailPage {
                     this.selectedVariant = variant;
                     this.updatePrice();
                     this.updateStockStatus();
+                    this.updateVariantImage();
                 }
             });
 
@@ -469,6 +528,7 @@ class ProductDetailPage {
             this.selectedVariant = variants[0];
             this.updatePrice();
             this.updateStockStatus();
+            this.updateVariantImage();
         }
 
         container.style.display = 'flex';
@@ -537,6 +597,7 @@ class ProductDetailPage {
             this.selectedVariant = match;
             this.updatePrice();
             this.updateStockStatus();
+            this.updateVariantImage();
         }
     }
 
@@ -727,7 +788,7 @@ class ProductDetailPage {
                 name: this.product.name,
                 price: this.selectedVariant?.price || this.product.price,
                 quantity: this.quantity,
-                image: this.resolveProductImageUrl(this.product.images?.[0]?.image_url || ''),
+                image: this.resolveProductImageUrl(this.getVariantImageUrl(this.selectedVariant)),
                 inventory_quantity: inventory,
                 inventory: inventory,
                 trackInventory: this.product.track_inventory !== false && this.product.track_inventory !== 0,

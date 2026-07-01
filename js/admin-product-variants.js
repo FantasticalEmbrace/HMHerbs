@@ -105,6 +105,7 @@
                             <th style="padding:0.5rem;border-bottom:1px solid var(--gray-200);">SKU</th>
                             <th style="padding:0.5rem;border-bottom:1px solid var(--gray-200);">Price</th>
                             <th style="padding:0.5rem;border-bottom:1px solid var(--gray-200);">Cost</th>
+                            <th style="padding:0.5rem;border-bottom:1px solid var(--gray-200);">Image</th>
                             <th style="padding:0.5rem;border-bottom:1px solid var(--gray-200);">Stock</th>
                             <th style="padding:0.5rem;border-bottom:1px solid var(--gray-200);"></th>
                         </tr>
@@ -165,6 +166,9 @@
                 <td style="padding:0.35rem;"><input type="text" class="form-input hm-v-sku" value="${escapeHtml(data.sku || '')}" placeholder="Optional" style="width:100%;min-width:100px;"></td>
                 <td style="padding:0.35rem;"><input type="number" class="form-input hm-v-price" step="0.01" min="0" value="${data.price != null ? escapeHtml(data.price) : ''}" style="width:90px;"></td>
                 <td style="padding:0.35rem;"><input type="number" class="form-input hm-v-cost" step="0.01" min="0" value="${data.cost_price != null && data.cost_price !== '' ? escapeHtml(data.cost_price) : ''}" placeholder="Optional" style="width:90px;"></td>
+                <td style="padding:0.35rem;">
+                    <input type="text" class="form-input hm-v-image" value="${escapeHtml(data.image_url || '')}" placeholder="/images/products/..." style="width:100%;min-width:140px;">
+                </td>
                 <td style="padding:0.35rem;"><input type="number" class="form-input hm-v-inventory" min="0" value="${data.inventory_quantity != null ? escapeHtml(data.inventory_quantity) : '100'}" style="width:70px;"></td>
                 <td style="padding:0.35rem;"><button type="button" class="btn btn-danger btn-sm hm-remove-variant" title="Remove variant">&times;</button></td>
             `;
@@ -252,6 +256,7 @@
                         sku: v.sku,
                         price: v.price,
                         cost_price: v.cost_price,
+                        image_url: v.image_url,
                         inventory_quantity: v.inventory_quantity,
                         attributesJson: v.attributes ? JSON.stringify(v.attributes) : '',
                     });
@@ -268,6 +273,7 @@
                     const price = parseFloat(tr.querySelector('.hm-v-price').value);
                     const costRaw = tr.querySelector('.hm-v-cost').value.trim();
                     const cost_price = costRaw === '' ? null : parseFloat(costRaw);
+                    const image_url = tr.querySelector('.hm-v-image').value.trim();
                     const inventory_quantity = parseInt(tr.querySelector('.hm-v-inventory').value, 10) || 0;
                     let attributes = null;
                     const attrsRaw = tr.dataset.attributesJson || '';
@@ -284,6 +290,7 @@
                         sku: sku || undefined,
                         price,
                         cost_price: Number.isFinite(cost_price) ? cost_price : null,
+                        image_url: image_url || null,
                         inventory_quantity,
                         sort_order: idx,
                         attributes,

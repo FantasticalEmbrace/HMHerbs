@@ -2,6 +2,10 @@
  * Parse hmherbs.com storefront product option groups from HTML.
  */
 const cheerio = require('cheerio');
+const {
+    indexVariationDataBySku,
+    matchVariationImageForOption,
+} = require('./extractHmherbsVariationData');
 
 function parsePriceFromLabel(text) {
     const s = String(text);
@@ -67,6 +71,7 @@ function inferAttributesFromLabel(label) {
 
 function extractHmherbsVariantsFromHtml(html) {
     const $ = cheerio.load(html);
+    const variationIndex = indexVariationDataBySku(html);
     const groups = [];
 
     $('.store-product-option-group').each((_, groupEl) => {
@@ -93,6 +98,10 @@ function extractHmherbsVariantsFromHtml(html) {
                 price,
                 skuHint,
                 attributes,
+                image_url: matchVariationImageForOption(
+                    { externalValue: value, skuHint },
+                    variationIndex
+                ),
             });
         });
 
@@ -121,6 +130,7 @@ function extractHmherbsVariantsFromHtml(html) {
             skuHint: opt.skuHint,
             externalValue: opt.externalValue,
             attributes: opt.attributes,
+            image_url: opt.image_url || null,
             sort_order: idx,
         }));
         return { variant_option_groups, variants };
@@ -138,6 +148,7 @@ function extractHmherbsVariantsFromHtml(html) {
                 skuHint: opt.skuHint,
                 externalValue: opt.externalValue,
                 attributes: opt.attributes,
+                image_url: opt.image_url || null,
                 sort_order: sort++,
             });
         }

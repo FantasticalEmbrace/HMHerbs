@@ -19,6 +19,10 @@ const VARIANT_PATCHES = [
         column: 'cost_price',
         sql: 'ALTER TABLE product_variants ADD COLUMN cost_price DECIMAL(10,2) NULL DEFAULT NULL AFTER compare_price',
     },
+    {
+        column: 'image_url',
+        sql: 'ALTER TABLE product_variants ADD COLUMN image_url VARCHAR(500) NULL DEFAULT NULL AFTER cost_price',
+    },
 ];
 
 async function tableExists(pool, tableName) {
