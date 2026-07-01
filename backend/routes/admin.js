@@ -1378,6 +1378,59 @@ router.get('/products/export', ...adminAuth, requirePermission('manager'), async
     }
 });
 
+// Get manufacturer SKU suggestion from brand website (must be before /products/:id)
+router.get('/products/suggest-sku', ...adminAuth, async (req, res) => {
+    try {
+        const name = String(req.query.name || req.query.product_name || '').trim();
+        const brandId = req.query.brand_id ? parseInt(req.query.brand_id, 10) : null;
+
+        if (!name) {
+            return res.status(400).json({ error: 'Product name is required' });
+        }
+
+        let brandName = String(req.query.brand_name || '').trim();
+        let websiteUrl = null;
+
+        if (brandId) {
+            const [brands] = await req.pool.execute(
+                'SELECT name, website_url FROM brands WHERE id = ? LIMIT 1',
+                [brandId]
+            );
+            if (brands.length) {
+                brandName = brands[0].name || brandName;
+                websiteUrl = brands[0].website_url || null;
+            }
+        }
+
+        const { suggestProductSkuFromBrand } = require('../services/suggestProductSkuFromBrand');
+        const result = await suggestProductSkuFromBrand({
+            productName: name,
+            brandName,
+            websiteUrl,
+        });
+
+        if (!result.ok) {
+            return res.status(404).json(result);
+        }
+
+        const [existing] = await req.pool.execute(
+            'SELECT id, name FROM products WHERE sku = ? LIMIT 1',
+            [result.sku]
+        );
+        if (existing.length) {
+            result.duplicateWarning = `SKU ${result.sku} is already used by product #${existing[0].id} (${existing[0].name}).`;
+        }
+
+        res.json(result);
+    } catch (error) {
+        logger.error('Suggest SKU error:', error);
+        res.status(500).json({
+            error: 'SKU lookup failed',
+            message: process.env.NODE_ENV === 'development' ? error.message : undefined,
+        });
+    }
+});
+
 // Get Single Product by ID
 router.get('/products/:id', ...adminAuth, async (req, res) => {
     try {

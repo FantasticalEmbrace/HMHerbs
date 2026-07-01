@@ -1,5 +1,5 @@
 /**
- * Product SKU field: barcode scanner wedge, manual entry, and custom SKU generation.
+ * Product SKU field: barcode scanner wedge, manual entry, and manufacturer SKU lookup.
  */
 (function () {
     'use strict';
@@ -8,17 +8,42 @@
         return String(raw || '').trim().replace(/\s+/g, '');
     }
 
-    function generateRandomSku() {
+    function generateFallbackSku() {
         return `HM-${Date.now()}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
     }
 
-    function generateSkuFromName(name) {
-        const base = String(name || '')
-            .toUpperCase()
-            .replace(/[^A-Z0-9]+/g, '-')
-            .replace(/^-+|-+$/g, '')
-            .slice(0, 28) || 'ITEM';
-        return `HM-${base}-${Math.floor(Math.random() * 100).toString().padStart(2, '0')}`;
+    function getBrandIdFromForm(form, prefix) {
+        const brandEl = form.querySelector(`#${prefix}-brand`);
+        if (brandEl && brandEl.value) return brandEl.value;
+        return '';
+    }
+
+    async function lookupManufacturerSku(form, prefix) {
+        const nameEl = form.querySelector(`#${prefix}-name`);
+        const name = nameEl?.value?.trim();
+        if (!name) {
+            window.adminApp?.showNotification?.('Enter a product name first', 'error');
+            nameEl?.focus();
+            return null;
+        }
+
+        const app = window.adminApp;
+        const apiBase = app?.apiBaseUrl || '/api';
+        const token = localStorage.getItem('adminToken');
+        const brandId = getBrandIdFromForm(form, prefix);
+        const params = new URLSearchParams({ name });
+        if (brandId) params.set('brand_id', brandId);
+
+        const res = await fetch(`${apiBase}/admin/products/suggest-sku?${params}`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            const msg = data.message || data.error || 'Manufacturer SKU lookup failed';
+            throw new Error(msg);
+        }
+        return data;
     }
 
     function enhanceProductForm(form, prefix, modal) {
@@ -53,21 +78,29 @@
         btnRow.style.gap = '0.35rem';
         btnRow.style.flexWrap = 'wrap';
 
-        const genBtn = document.createElement('button');
-        genBtn.type = 'button';
-        genBtn.className = 'btn btn-secondary btn-sm';
-        genBtn.innerHTML = '<i class="fas fa-barcode" aria-hidden="true"></i> Generate SKU';
-        genBtn.title = 'Create a custom HM Herbs SKU when there is no manufacturer barcode';
+        const lookupBtn = document.createElement('button');
+        lookupBtn.type = 'button';
+        lookupBtn.className = 'btn btn-primary btn-sm';
+        lookupBtn.innerHTML = '<i class="fas fa-search" aria-hidden="true"></i> Look up SKU';
+        lookupBtn.title = 'Search the manufacturer website for this product and fill in the real SKU';
 
-        const fromNameBtn = document.createElement('button');
-        fromNameBtn.type = 'button';
-        fromNameBtn.className = 'btn btn-secondary btn-sm';
-        fromNameBtn.textContent = 'From name';
-        fromNameBtn.title = 'Build a SKU from the product name';
+        const fallbackBtn = document.createElement('button');
+        fallbackBtn.type = 'button';
+        fallbackBtn.className = 'btn btn-secondary btn-sm';
+        fallbackBtn.textContent = 'Custom SKU';
+        fallbackBtn.title = 'Generate a temporary HM Herbs SKU if no manufacturer code exists';
 
-        btnRow.appendChild(genBtn);
-        btnRow.appendChild(fromNameBtn);
+        btnRow.appendChild(lookupBtn);
+        btnRow.appendChild(fallbackBtn);
         wrap.appendChild(btnRow);
+
+        const statusEl = document.createElement('p');
+        statusEl.className = 'hm-sku-lookup-status';
+        statusEl.style.fontSize = '0.8rem';
+        statusEl.style.color = 'var(--gray-500)';
+        statusEl.style.marginTop = '0.35rem';
+        statusEl.style.marginBottom = '0';
+        statusEl.style.display = 'none';
 
         const hint = document.createElement('p');
         hint.className = 'hm-sku-scan-hint';
@@ -77,26 +110,57 @@
         hint.style.marginBottom = '0';
         hint.style.lineHeight = '1.45';
         hint.textContent =
-            'Click this field, then scan with your USB barcode scanner — it fills in automatically. You can also type a SKU manually or generate one.';
+            'Click Look up SKU after entering the product name and brand — we search the manufacturer site for the real item number. You can also scan a barcode or type a SKU manually.';
         wrap.parentNode.insertBefore(hint, wrap.nextSibling);
+        wrap.parentNode.insertBefore(statusEl, hint.nextSibling);
 
-        genBtn.addEventListener('click', () => {
-            skuInput.value = generateRandomSku();
-            skuInput.dispatchEvent(new Event('input', { bubbles: true }));
-            window.adminApp?.showNotification?.('Generated custom SKU', 'success');
-            skuInput.focus();
+        lookupBtn.addEventListener('click', async () => {
+            const originalHtml = lookupBtn.innerHTML;
+            lookupBtn.disabled = true;
+            lookupBtn.innerHTML = '<i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Searching…';
+            statusEl.style.display = 'block';
+            statusEl.textContent = 'Searching manufacturer website for this product…';
+
+            try {
+                const result = await lookupManufacturerSku(form, prefix);
+                if (!result?.sku) {
+                    throw new Error('No SKU returned from lookup');
+                }
+                skuInput.value = normalizeScanValue(result.sku);
+                skuInput.dispatchEvent(new Event('input', { bubbles: true }));
+
+                let status = result.message || 'Manufacturer SKU found.';
+                if (result.pdpUrl) {
+                    status += ` Source: ${result.pdpUrl}`;
+                }
+                statusEl.textContent = status;
+                statusEl.style.color = 'var(--primary-green)';
+
+                let toast = `SKU ${result.sku} found on manufacturer site`;
+                if (result.duplicateWarning) {
+                    toast = result.duplicateWarning;
+                    window.adminApp?.showNotification?.(toast, 'warning');
+                } else {
+                    window.adminApp?.showNotification?.(toast, 'success');
+                }
+                skuInput.focus();
+            } catch (err) {
+                statusEl.textContent = err.message || 'Lookup failed';
+                statusEl.style.color = 'var(--danger, #dc2626)';
+                window.adminApp?.showNotification?.(err.message || 'Manufacturer SKU lookup failed', 'error');
+            } finally {
+                lookupBtn.disabled = false;
+                lookupBtn.innerHTML = originalHtml;
+            }
         });
 
-        fromNameBtn.addEventListener('click', () => {
-            const nameEl = form.querySelector(`#${prefix}-name`);
-            const name = nameEl?.value?.trim();
-            if (!name) {
-                window.adminApp?.showNotification?.('Enter a product name first', 'error');
-                nameEl?.focus();
-                return;
-            }
-            skuInput.value = generateSkuFromName(name);
-            window.adminApp?.showNotification?.('SKU generated from product name', 'success');
+        fallbackBtn.addEventListener('click', () => {
+            skuInput.value = generateFallbackSku();
+            skuInput.dispatchEvent(new Event('input', { bubbles: true }));
+            statusEl.style.display = 'block';
+            statusEl.style.color = 'var(--gray-500)';
+            statusEl.textContent = 'Temporary custom SKU generated — replace with manufacturer code when available.';
+            window.adminApp?.showNotification?.('Generated temporary custom SKU', 'success');
             skuInput.focus();
         });
 
@@ -176,7 +240,6 @@
     window.HMProductSkuField = {
         enhanceProductForm,
         normalizeScanValue,
-        generateRandomSku,
-        generateSkuFromName,
+        lookupManufacturerSku,
     };
 })();
