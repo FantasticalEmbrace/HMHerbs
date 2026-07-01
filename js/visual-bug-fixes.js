@@ -803,7 +803,7 @@ if (typeof module !== 'undefined' && module.exports) {
 (function loadPasswordToggle() {
     if (document.querySelector('script[src*="password-toggle.js"]')) return;
     const script = document.createElement('script');
-    script.src = 'js/password-toggle.js?v=1';
+    script.src = 'js/password-toggle.js?v=2';
     script.defer = true;
     document.head.appendChild(script);
 })();

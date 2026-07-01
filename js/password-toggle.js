@@ -55,8 +55,12 @@
     let observerStarted = false;
 
     function init() {
+        if (!document.body) {
+            document.addEventListener('DOMContentLoaded', init, { once: true });
+            return;
+        }
         scan(document);
-        if (observerStarted || !document.body) return;
+        if (observerStarted) return;
         observerStarted = true;
         const observer = new MutationObserver((mutations) => {
             mutations.forEach((mutation) => {

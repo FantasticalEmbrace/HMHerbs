@@ -1552,6 +1552,7 @@ class CustomerAuth {
         this._showModalForA11y(modal);
         this._resetAuthModalScroll(modal);
         this._syncAuthScrollLock();
+        window.HMPasswordToggle?.scan(modal);
     }
 
     /** Keep modal card scrolled to top (avoids focus/animation clipping header + Google button). */
@@ -1710,11 +1711,14 @@ class CustomerAuth {
 }
 
 // Initialize on DOM ready
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-        window.customerAuth = new CustomerAuth();
-    });
-} else {
+function hmInitCustomerAuth() {
     window.customerAuth = new CustomerAuth();
+    window.HMPasswordToggle?.scan(document);
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', hmInitCustomerAuth);
+} else {
+    hmInitCustomerAuth();
 }
 
