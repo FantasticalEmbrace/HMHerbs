@@ -1153,7 +1153,7 @@ router.post('/products', ...adminAuth, requirePermission('manager'), productVali
                 await saveProductVariants(
                     connection,
                     productId,
-                    sku,
+                    finalSku,
                     variant_option_groups,
                     variants
                 );
@@ -1175,6 +1175,16 @@ router.post('/products', ...adminAuth, requirePermission('manager'), productVali
 
     } catch (error) {
         logger.error('Product creation error:', error);
+        if (error.code === 'VARIANT_SKU_EXISTS' || (error.code === 'ER_DUP_ENTRY' && /product_variants\.sku/i.test(error.message || ''))) {
+            const skuMatch = (error.message || '').match(/Duplicate entry '([^']+)'/);
+            const sku = error.sku || (skuMatch && skuMatch[1]) || 'that SKU';
+            return res.status(409).json({
+                error: error.message || `Variant SKU "${sku}" is already in use. Each variant SKU must be unique.`,
+            });
+        }
+        if (error.code === 'ER_DUP_ENTRY' && /products\.(slug|sku)/i.test(error.message || '')) {
+            return res.status(409).json({ error: 'Product SKU or URL slug already exists. Choose a different SKU or name.' });
+        }
         res.status(500).json({ error: 'Internal server error' });
     }
 });
@@ -1414,12 +1424,27 @@ router.get('/products/suggest-sku', ...adminAuth, async (req, res) => {
             return res.status(404).json(result);
         }
 
+        result.sku = normalizeScannedSku(result.sku);
+
         const [existing] = await req.pool.execute(
             'SELECT id, name FROM products WHERE sku = ? LIMIT 1',
             [result.sku]
         );
         if (existing.length) {
             result.duplicateWarning = `SKU ${result.sku} is already used by product #${existing[0].id} (${existing[0].name}).`;
+        }
+
+        const [existingVariant] = await req.pool.execute(
+            `SELECT pv.id, pv.name, p.name AS product_name
+             FROM product_variants pv
+             JOIN products p ON p.id = pv.product_id
+             WHERE pv.sku = ?
+             LIMIT 1`,
+            [result.sku]
+        );
+        if (existingVariant.length) {
+            const v = existingVariant[0];
+            result.duplicateWarning = `SKU ${result.sku} is already used by variant "${v.name}" on ${v.product_name}.`;
         }
 
         res.json(result);
@@ -1545,6 +1570,17 @@ router.put('/products/:id', ...adminAuth, requirePermission('manager'), async (r
             return res.status(404).json({ error: 'Product not found' });
         }
 
+        if (updateData.sku !== undefined) {
+            const newSku = normalizeScannedSku(updateData.sku);
+            if (!newSku) {
+                return res.status(400).json({ error: 'SKU cannot be empty' });
+            }
+            if (await skuExists(req.pool, newSku, id)) {
+                return res.status(400).json({ error: 'SKU already exists' });
+            }
+            updateData.sku = newSku;
+        }
+
         const connection = await req.pool.getConnection();
 
         try {
@@ -1559,17 +1595,6 @@ router.put('/products/:id', ...adminAuth, requirePermission('manager'), async (r
                 'price', 'compare_price', 'cost_price', 'weight', 'inventory_quantity', 'low_stock_threshold',
                 'is_active', 'is_featured', 'show_on_web', 'is_cannabis', 'coa_url', 'coa_updated_at'
             ];
-
-            if (updateData.sku !== undefined) {
-                const newSku = normalizeScannedSku(updateData.sku);
-                if (!newSku) {
-                    return res.status(400).json({ error: 'SKU cannot be empty' });
-                }
-                if (await skuExists(req.pool, newSku, id)) {
-                    return res.status(400).json({ error: 'SKU already exists' });
-                }
-                updateData.sku = newSku;
-            }
 
             // Fields that should be numeric (decimal or integer)
             const numericFields = ['price', 'compare_price', 'cost_price', 'weight', 'inventory_quantity', 'low_stock_threshold'];
@@ -1725,6 +1750,16 @@ router.put('/products/:id', ...adminAuth, requirePermission('manager'), async (r
 
     } catch (error) {
         logger.error('Product update error:', error);
+        if (error.code === 'VARIANT_SKU_EXISTS' || (error.code === 'ER_DUP_ENTRY' && /product_variants\.sku/i.test(error.message || ''))) {
+            const skuMatch = (error.message || '').match(/Duplicate entry '([^']+)'/);
+            const sku = error.sku || (skuMatch && skuMatch[1]) || 'that SKU';
+            return res.status(409).json({
+                error: error.message || `Variant SKU "${sku}" is already in use. Each variant SKU must be unique.`,
+            });
+        }
+        if (error.code === 'ER_DUP_ENTRY' && /products\.(slug|sku)/i.test(error.message || '')) {
+            return res.status(409).json({ error: 'Product SKU or URL slug already exists. Choose a different SKU or name.' });
+        }
         res.status(500).json({ error: 'Internal server error' });
     }
 });

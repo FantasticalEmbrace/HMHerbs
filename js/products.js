@@ -81,9 +81,18 @@ class ProductsPage {
             if (loadingState) loadingState.style.display = 'block';
             if (productsGrid) productsGrid.style.display = 'none';
 
-            // Get API base URL - backend serves both frontend and API on port 3001
-            // Use relative path when on same origin
-            const apiBaseUrl = '';
+            // Get API base URL — use shared loopback helper when static files are on another port
+            const apiBaseUrl =
+                typeof window.hmHerbsStorefrontApiBase === 'function'
+                    ? window.hmHerbsStorefrontApiBase()
+                    : (() => {
+                          if (window.location.protocol === 'file:') return 'http://localhost:3001';
+                          const h = window.location.hostname;
+                          if ((h === 'localhost' || h === '127.0.0.1') && window.location.port !== '3001') {
+                              return 'http://localhost:3001';
+                          }
+                          return '';
+                      })();
 
             // Check URL parameters for brand/category to pass to API
             const urlParams = new URLSearchParams(window.location.search);

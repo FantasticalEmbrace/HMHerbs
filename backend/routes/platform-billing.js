@@ -78,6 +78,8 @@ router.get('/client-config', async (_req, res) => {
 
 router.get('/account', async (req, res) => {
     try {
+        const auth = await assertBillingAuth(req);
+        if (!auth) return res.status(401).json({ error: 'Admin login required' });
         const account = await ensureDefaultAccount(req.pool);
         const { refreshFailoverBillingForAccount } = require('../services/posFailoverMetering');
         const { getModemBillingStatus } = require('../services/billingPrerequisites');
@@ -156,9 +158,9 @@ router.post('/setup', setupLimiter, async (req, res) => {
     try {
         const auth = await assertBillingAuth(req);
         const openDev =
-            (process.env.NODE_ENV !== 'production' &&
-                String(process.env.POS_BILLING_ALLOW_OPEN_SETUP || '').toLowerCase() === 'true') ||
-            String(process.env.BILLING_PORTAL_ALLOW_OPEN_SETUP || '').toLowerCase() === 'true';
+            process.env.NODE_ENV !== 'production' &&
+            (String(process.env.POS_BILLING_ALLOW_OPEN_SETUP || '').toLowerCase() === 'true' ||
+                String(process.env.BILLING_PORTAL_ALLOW_OPEN_SETUP || '').toLowerCase() === 'true');
         if (!auth && !openDev) {
             return res.status(401).json({ error: 'Admin login required', code: 'ADMIN_AUTH_REQUIRED' });
         }
@@ -270,7 +272,11 @@ router.post('/hardware/purchase', setupLimiter, async (req, res) => {
 router.post('/failover/ingest', async (req, res) => {
     try {
         const secret = String(process.env.BILLING_FAILOVER_INGEST_SECRET || '').trim();
-        if (secret) {
+        if (!secret) {
+            if (process.env.NODE_ENV === 'production') {
+                return res.status(503).json({ error: 'Failover ingest is not configured' });
+            }
+        } else {
             const incoming = String(req.headers['x-failover-ingest-secret'] || '').trim();
             if (incoming !== secret) {
                 return res.status(401).json({ error: 'Invalid ingest secret' });
@@ -295,7 +301,11 @@ router.post('/failover/ingest', async (req, res) => {
 router.post('/webhook/procharge', async (req, res) => {
     try {
         const secret = String(process.env.PROCHARGE_WEBHOOK_SECRET || '').trim();
-        if (secret) {
+        if (!secret) {
+            if (process.env.NODE_ENV === 'production') {
+                return res.status(503).json({ error: 'Webhook secret is not configured' });
+            }
+        } else {
             const incoming = String(req.headers['x-procharge-webhook-secret'] || '').trim();
             if (incoming !== secret) return res.status(401).json({ error: 'Invalid webhook secret' });
         }

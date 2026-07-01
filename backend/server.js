@@ -1072,6 +1072,9 @@ app.put('/api/user/profile', authenticateToken, async (req, res) => {
         });
     } catch (error) {
         logger.error('Update user profile error:', error);
+        if (error.code === 'ER_DUP_ENTRY') {
+            return res.status(409).json({ error: 'Email already in use' });
+        }
         res.status(500).json({ error: 'Internal server error' });
     }
 });

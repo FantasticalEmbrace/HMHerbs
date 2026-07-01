@@ -214,7 +214,7 @@
                     <thead>
                         <tr style="background:var(--gray-50);text-align:left;">
                             <th style="padding:0.5rem;border-bottom:1px solid var(--gray-200);">What shopper sees</th>
-                            <th style="padding:0.5rem;border-bottom:1px solid var(--gray-200);">SKU</th>
+                            <th style="padding:0.5rem;border-bottom:1px solid var(--gray-200);">SKU / Barcode</th>
                             <th style="padding:0.5rem;border-bottom:1px solid var(--gray-200);">Price</th>
                             <th style="padding:0.5rem;border-bottom:1px solid var(--gray-200);">Cost</th>
                             <th style="padding:0.5rem;border-bottom:1px solid var(--gray-200);min-width:220px;">Variant photo</th>
@@ -226,7 +226,7 @@
                 </table>
             </div>
             <p style="font-size:0.75rem;color:var(--gray-400);margin-top:0.75rem;">
-                Tip: set each variant's price, cost, and stock separately. Upload or paste a photo per variant — shoppers see it when they pick that option. Leave SKU blank to auto-generate on save.
+                Tip: set each variant's price, cost, and stock separately. Upload or paste a photo per variant — shoppers see it when they pick that option. Scan a barcode into SKU / Barcode, use Look up SKU, or leave blank to auto-generate on save (spaces in scanned codes are removed automatically).
             </p>
         `;
 
@@ -276,6 +276,28 @@
         const rowsEl = section.querySelector(`#${prefix}-variant-rows`);
         const countEl = section.querySelector(`#${prefix}-variant-count`);
         const presetsEl = section.querySelector(`#${prefix}-variant-presets`);
+        const modal = form.closest('.modal') || document.body;
+
+        function normalizeVariantSku(raw) {
+            if (window.HMProductSkuField?.normalizeScanValue) {
+                return window.HMProductSkuField.normalizeScanValue(raw);
+            }
+            return String(raw || '').trim().replace(/\s+/g, '');
+        }
+
+        function wireVariantSkuField(tr) {
+            const skuInput = tr.querySelector('.hm-v-sku');
+            if (!skuInput || skuInput.dataset.hmSkuWired === '1') return;
+            skuInput.dataset.hmSkuWired = '1';
+            if (window.HMProductSkuField?.enhanceVariantSkuInput) {
+                window.HMProductSkuField.enhanceVariantSkuInput(skuInput, { form, prefix, modal });
+            } else {
+                skuInput.placeholder = 'Scan or type SKU';
+                skuInput.addEventListener('blur', () => {
+                    skuInput.value = normalizeVariantSku(skuInput.value);
+                });
+            }
+        }
 
         function updateVariantCount() {
             const n = rowsEl.querySelectorAll('tr').length;
@@ -310,7 +332,7 @@
             }
             tr.innerHTML = `
                 <td style="padding:0.35rem;"><input type="text" class="form-input hm-v-name" value="${escapeHtml(data.name || '')}" placeholder="Dropper — 1oz" style="width:100%;min-width:160px;"></td>
-                <td style="padding:0.35rem;"><input type="text" class="form-input hm-v-sku" value="${escapeHtml(data.sku || '')}" placeholder="Optional" style="width:100%;min-width:100px;"></td>
+                <td style="padding:0.35rem;"><input type="text" class="form-input hm-v-sku" value="${escapeHtml(data.sku || '')}" placeholder="Scan or type SKU" style="width:100%;min-width:100px;"></td>
                 <td style="padding:0.35rem;"><input type="number" class="form-input hm-v-price" step="0.01" min="0" value="${data.price != null ? escapeHtml(data.price) : ''}" style="width:90px;"></td>
                 <td style="padding:0.35rem;"><input type="number" class="form-input hm-v-cost" step="0.01" min="0" value="${data.cost_price != null && data.cost_price !== '' ? escapeHtml(data.cost_price) : ''}" placeholder="Optional" style="width:90px;"></td>
                 <td style="padding:0.35rem;">
@@ -336,6 +358,7 @@
                 updateVariantCount();
             });
             wireVariantImageCell(tr);
+            wireVariantSkuField(tr);
             rowsEl.appendChild(tr);
             updateVariantCount();
         }
@@ -429,7 +452,8 @@
                     if (!name) return null;
                     const idRaw = tr.dataset.variantId;
                     const id = idRaw ? parseInt(idRaw, 10) : undefined;
-                    const sku = tr.querySelector('.hm-v-sku').value.trim();
+                    const skuRaw = tr.querySelector('.hm-v-sku').value.trim();
+                    const sku = normalizeVariantSku(skuRaw);
                     const price = parseFloat(tr.querySelector('.hm-v-price').value);
                     const costRaw = tr.querySelector('.hm-v-cost').value.trim();
                     const cost_price = costRaw === '' ? null : parseFloat(costRaw);

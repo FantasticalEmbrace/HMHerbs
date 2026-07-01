@@ -1183,7 +1183,7 @@ class AdminApp {
                         <div class="activity-content">
                             <div class="activity-title">${this.escapeHtml(activity.title)}</div>
                             <div class="activity-description">${this.escapeHtml(activity.description)}</div>
-                            ${activity.status ? `<span class="activity-status badge badge-${activity.status === 'pending' ? 'warning' : activity.status === 'completed' || activity.status === 'confirmed' ? 'success' : 'info'}">${activity.status}</span>` : ''}
+                            ${activity.status ? `<span class="activity-status badge badge-${activity.status === 'pending' ? 'warning' : activity.status === 'completed' || activity.status === 'confirmed' ? 'success' : 'info'}">${this.escapeHtml(activity.status)}</span>` : ''}
                         </div>
                         <div class="activity-time">${activity.time}</div>
                     </div>
@@ -1539,36 +1539,40 @@ class AdminApp {
         }
 
         const url = `${this.apiBaseUrl}/admin/dev-tools/backup`;
-        this.showNotification('Building database backupâ€¦', 'info');
-        const response = await fetch(url, {
-            method: 'GET',
-            headers: { Authorization: `Bearer ${this.authToken}` },
-        });
+        this.showNotification('Building database backup…', 'info');
+        try {
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: { Authorization: `Bearer ${this.authToken}` },
+            });
 
-        if (!response.ok) {
-            let message = `Backup failed (${response.status})`;
-            try {
-                const err = await response.json();
-                if (err?.error) message = err.error;
-            } catch (_) {
-                /* ignore */
+            if (!response.ok) {
+                let message = `Backup failed (${response.status})`;
+                try {
+                    const err = await response.json();
+                    if (err?.error) message = err.error;
+                } catch (_) {
+                    /* ignore */
+                }
+                this.showNotification(message, 'error');
+                return;
             }
-            this.showNotification(message, 'error');
-            return;
-        }
 
-        const method = response.headers.get('X-Backup-Method') || 'sql';
-        const blob = await response.blob();
-        const href = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = href;
-        const stamp = new Date().toISOString().slice(0, 10);
-        link.download = `hmherbs-backup-${stamp}.sql`;
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        URL.revokeObjectURL(href);
-        this.showNotification(`Database backup downloaded (${method})`, 'success');
+            const method = response.headers.get('X-Backup-Method') || 'sql';
+            const blob = await response.blob();
+            const href = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = href;
+            const stamp = new Date().toISOString().slice(0, 10);
+            link.download = `hmherbs-backup-${stamp}.sql`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(href);
+            this.showNotification(`Database backup downloaded (${method})`, 'success');
+        } catch (err) {
+            this.showNotification(err.message || 'Backup download failed', 'error');
+        }
     }
 
     async runPendingMigrations() {
@@ -6805,7 +6809,7 @@ class AdminApp {
             if (error.message === 'Authentication required' || error.message.includes('Invalid admin token')) {
                 container.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--gray-500);"><p>Please log in to view orders.</p></div>';
             } else {
-                container.innerHTML = `<div style="text-align: center; padding: 2rem; color: var(--error);"><p>Failed to load orders: ${error.message}</p></div>`;
+                container.innerHTML = `<div style="text-align: center; padding: 2rem; color: var(--error);"><p>Failed to load orders: ${this.escapeHtml(error.message)}</p></div>`;
             }
         }
     }
@@ -7162,7 +7166,7 @@ class AdminApp {
             if (error.message === 'Authentication required' || error.message.includes('Invalid admin token')) {
                 container.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--gray-500);"><p>Please log in to view EDSA bookings.</p></div>';
             } else {
-                container.innerHTML = `<div style="text-align: center; padding: 2rem; color: var(--error);"><p>Failed to load EDSA bookings: ${error.message}</p></div>`;
+                container.innerHTML = `<div style="text-align: center; padding: 2rem; color: var(--error);"><p>Failed to load EDSA bookings: ${this.escapeHtml(error.message)}</p></div>`;
             }
         }
     }
@@ -9248,7 +9252,7 @@ class AdminApp {
             refreshCategoryDropdown();
 
         } catch (error) {
-            container.innerHTML = `<div style="text-align: center; padding: 2rem; color: var(--error);"><p>Failed to load categories: ${error.message}</p></div>`;
+            container.innerHTML = `<div style="text-align: center; padding: 2rem; color: var(--error);"><p>Failed to load categories: ${this.escapeHtml(error.message)}</p></div>`;
         }
     }
 
@@ -9317,7 +9321,7 @@ class AdminApp {
                 container.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--gray-500);"><p>No health categories found.</p></div>';
             }
         } catch (error) {
-            container.innerHTML = `<div style="text-align: center; padding: 2rem; color: var(--error);"><p>Failed to load health categories: ${error.message}</p></div>`;
+            container.innerHTML = `<div style="text-align: center; padding: 2rem; color: var(--error);"><p>Failed to load health categories: ${this.escapeHtml(error.message)}</p></div>`;
         }
     }
 
@@ -9737,7 +9741,7 @@ class AdminApp {
             refreshBrandDropdown();
 
         } catch (error) {
-            container.innerHTML = `<div style="text-align: center; padding: 2rem; color: var(--error);"><p>Failed to load brands: ${error.message}</p></div>`;
+            container.innerHTML = `<div style="text-align: center; padding: 2rem; color: var(--error);"><p>Failed to load brands: ${this.escapeHtml(error.message)}</p></div>`;
         }
     }
 

@@ -822,11 +822,6 @@ class ProductDetailPage {
                 setTimeout(() => this.updateCartDisplay(), 50);
                 return;
             }
-            if (app?.addToCart) {
-                app.addToCart(this.product.id, this.quantity);
-                setTimeout(() => this.updateCartDisplay(), 50);
-                return;
-            }
 
             let cart = JSON.parse(localStorage.getItem('hmherbs_cart') || '[]');
             const existingIndex = cart.findIndex(item => {

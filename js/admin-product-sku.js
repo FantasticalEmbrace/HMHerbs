@@ -18,9 +18,9 @@
         return '';
     }
 
-    async function lookupManufacturerSku(form, prefix) {
+    async function lookupManufacturerSku(form, prefix, nameOverride) {
         const nameEl = form.querySelector(`#${prefix}-name`);
-        const name = nameEl?.value?.trim();
+        const name = String(nameOverride || nameEl?.value || '').trim();
         if (!name) {
             window.adminApp?.showNotification?.('Enter a product name first', 'error');
             nameEl?.focus();
@@ -237,8 +237,171 @@
         form._hmSkuInput = skuInput;
     }
 
+    function enhanceVariantSkuInput(skuInput, { form, prefix, modal }) {
+        if (!skuInput || skuInput.dataset.hmSkuEnhanced === '1') return;
+        skuInput.dataset.hmSkuEnhanced = '1';
+
+        skuInput.setAttribute('autocomplete', 'off');
+        skuInput.setAttribute('spellcheck', 'false');
+        skuInput.placeholder = 'Scan or type SKU';
+
+        const wrap = document.createElement('div');
+        wrap.className = 'hm-v-sku-wrap';
+        wrap.style.display = 'flex';
+        wrap.style.flexDirection = 'column';
+        wrap.style.gap = '0.25rem';
+        wrap.style.minWidth = '140px';
+
+        const inputRow = document.createElement('div');
+        inputRow.style.display = 'flex';
+        inputRow.style.gap = '0.25rem';
+        inputRow.style.alignItems = 'stretch';
+
+        skuInput.parentNode.insertBefore(wrap, skuInput);
+        inputRow.appendChild(skuInput);
+        skuInput.style.flex = '1';
+        skuInput.style.minWidth = '0';
+
+        const btnRow = document.createElement('div');
+        btnRow.style.display = 'flex';
+        btnRow.style.gap = '0.2rem';
+        btnRow.style.flexShrink = '0';
+
+        const lookupBtn = document.createElement('button');
+        lookupBtn.type = 'button';
+        lookupBtn.className = 'btn btn-primary btn-sm hm-v-sku-lookup';
+        lookupBtn.title = 'Look up manufacturer SKU for this variant';
+        lookupBtn.innerHTML = '<i class="fas fa-search" aria-hidden="true"></i>';
+        lookupBtn.style.padding = '0.25rem 0.4rem';
+
+        const fallbackBtn = document.createElement('button');
+        fallbackBtn.type = 'button';
+        fallbackBtn.className = 'btn btn-secondary btn-sm hm-v-sku-custom';
+        fallbackBtn.title = 'Generate a custom SKU';
+        fallbackBtn.innerHTML = '<i class="fas fa-barcode" aria-hidden="true"></i>';
+        fallbackBtn.style.padding = '0.25rem 0.4rem';
+
+        btnRow.appendChild(lookupBtn);
+        btnRow.appendChild(fallbackBtn);
+        inputRow.appendChild(btnRow);
+        wrap.appendChild(inputRow);
+
+        const statusEl = document.createElement('span');
+        statusEl.className = 'hm-v-sku-status';
+        statusEl.style.fontSize = '0.7rem';
+        statusEl.style.color = 'var(--gray-500)';
+        statusEl.style.display = 'none';
+        statusEl.style.lineHeight = '1.3';
+        wrap.appendChild(statusEl);
+
+        const getVariantName = () => {
+            const tr = skuInput.closest('tr');
+            return tr?.querySelector('.hm-v-name')?.value?.trim() || '';
+        };
+
+        lookupBtn.addEventListener('click', async () => {
+            const tr = skuInput.closest('tr');
+            const variantName = getVariantName();
+            const productName = form.querySelector(`#${prefix}-name`)?.value?.trim() || '';
+            const lookupName = variantName || productName;
+            if (!lookupName) {
+                window.adminApp?.showNotification?.('Enter a variant name or product name first', 'error');
+                tr?.querySelector('.hm-v-name')?.focus();
+                return;
+            }
+
+            lookupBtn.disabled = true;
+            statusEl.style.display = 'block';
+            statusEl.style.color = 'var(--gray-500)';
+            statusEl.textContent = 'Searching…';
+
+            try {
+                const result = await lookupManufacturerSku(form, prefix, lookupName);
+                if (!result?.sku) throw new Error('No SKU returned from lookup');
+                skuInput.value = normalizeScanValue(result.sku);
+                statusEl.style.color = 'var(--primary-green)';
+                statusEl.textContent = result.duplicateWarning || 'SKU found';
+                window.adminApp?.showNotification?.(
+                    result.duplicateWarning || `SKU ${result.sku} found`,
+                    result.duplicateWarning ? 'warning' : 'success'
+                );
+            } catch (err) {
+                statusEl.style.color = 'var(--danger, #dc2626)';
+                statusEl.textContent = err.message || 'Lookup failed';
+                window.adminApp?.showNotification?.(err.message || 'SKU lookup failed', 'error');
+            } finally {
+                lookupBtn.disabled = false;
+            }
+        });
+
+        fallbackBtn.addEventListener('click', () => {
+            const parentSku =
+                form.querySelector(`#${prefix}-sku`)?.value?.trim() ||
+                'HM';
+            const hint = getVariantName()
+                .toUpperCase()
+                .replace(/[^A-Z0-9]+/g, '')
+                .slice(0, 12) || 'V';
+            skuInput.value = normalizeScanValue(`${parentSku}-${hint}-${Math.floor(Math.random() * 100)}`);
+            statusEl.style.display = 'block';
+            statusEl.style.color = 'var(--gray-500)';
+            statusEl.textContent = 'Custom SKU generated';
+            window.adminApp?.showNotification?.('Generated custom variant SKU', 'success');
+            skuInput.focus();
+        });
+
+        skuInput.addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter') return;
+            e.preventDefault();
+            e.stopPropagation();
+            skuInput.value = normalizeScanValue(skuInput.value);
+            if (skuInput.value) {
+                window.adminApp?.showNotification?.('Variant barcode / SKU captured', 'success');
+            }
+        });
+
+        skuInput.addEventListener('blur', () => {
+            skuInput.value = normalizeScanValue(skuInput.value);
+        });
+
+        if (modal) {
+            let wedgeBuffer = '';
+            let wedgeTimer = null;
+
+            const onModalKeyDown = (e) => {
+                if (!modal.isConnected || document.activeElement !== skuInput) return;
+
+                if (e.key === 'Enter' && wedgeBuffer.length >= 4) {
+                    e.preventDefault();
+                    skuInput.value = normalizeScanValue(wedgeBuffer);
+                    wedgeBuffer = '';
+                    window.adminApp?.showNotification?.('Barcode scanned into variant SKU', 'success');
+                    return;
+                }
+
+                if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                    wedgeBuffer += e.key;
+                    clearTimeout(wedgeTimer);
+                    wedgeTimer = setTimeout(() => {
+                        wedgeBuffer = '';
+                    }, 150);
+                }
+            };
+
+            modal.addEventListener('keydown', onModalKeyDown, true);
+            const observer = new MutationObserver(() => {
+                if (!modal.isConnected) {
+                    modal.removeEventListener('keydown', onModalKeyDown, true);
+                    observer.disconnect();
+                }
+            });
+            observer.observe(document.body, { childList: true, subtree: true });
+        }
+    }
+
     window.HMProductSkuField = {
         enhanceProductForm,
+        enhanceVariantSkuInput,
         normalizeScanValue,
         lookupManufacturerSku,
     };

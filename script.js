@@ -198,9 +198,15 @@ class HMHerbsApp {
 
         try {
             // Get API base URL from environment or default to current origin
-            const apiBaseUrl = window.location.origin.includes('localhost')
-                ? 'http://localhost:3001'
-                : window.location.origin;
+            const apiBaseUrl =
+                typeof window.hmHerbsStorefrontApiBase === 'function'
+                    ? window.hmHerbsStorefrontApiBase()
+                    : (() => {
+                          const h = window.location.hostname;
+                          const isLoopback = h === 'localhost' || h === '127.0.0.1';
+                          if (isLoopback && window.location.port !== '3001') return 'http://localhost:3001';
+                          return window.location.origin;
+                      })();
 
             try {
                 const nativeFetch = window.__nativeFetch || window.fetch;
@@ -1672,12 +1678,12 @@ function initLazyLoading() {
                     const img = entry.target;
 
                     // Add error handling for failed image loads
-                    this.addEventListenerWithCleanup(img, 'load', () => {
+                    img.addEventListener('load', () => {
                         img.classList.remove('lazy');
                         img.classList.add('loaded');
                     }, { once: true });
 
-                    this.addEventListenerWithCleanup(img, 'error', () => {
+                    img.addEventListener('error', () => {
                         img.classList.remove('lazy');
                         img.classList.add('error');
                         Logger.warn('Failed to load image:', img.dataset.src);

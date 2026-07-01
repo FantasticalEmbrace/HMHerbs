@@ -248,24 +248,13 @@ async function handleStaticAsset(request) {
   }
 }
 
-// Handle API requests (network first, then cache)
+// Handle API requests (network only — never cache commerce data)
 async function handleAPIRequest(request) {
   try {
-    const networkResponse = await fetch(request, { redirect: 'follow' });
-    if (networkResponse.ok) {
-      const cache = await caches.open(DYNAMIC_CACHE);
-      cache.put(request, networkResponse.clone());
-    }
-    return networkResponse;
+    return await fetch(request, { redirect: 'follow', cache: 'no-store' });
   } catch (error) {
-    // Silently fall back to cache - this is expected behavior when offline
-    // Don't log to reduce console noise
-    const cachedResponse = await caches.match(request);
-    if (cachedResponse) {
-      return cachedResponse;
-    }
     return new Response(JSON.stringify({
-      error: 'Data not available offline',
+      error: 'Network unavailable',
       offline: true
     }), {
       status: 503,

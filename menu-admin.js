@@ -1,8 +1,15 @@
 // Business One Menu Admin - JavaScript
 
-const API_BASE_URL = window.location.origin.includes('localhost') 
-    ? 'http://localhost:3001' 
-    : window.location.origin;
+const API_BASE_URL = (() => {
+    if (typeof window !== 'undefined' && typeof window.hmHerbsStorefrontApiBase === 'function') {
+        const origin = window.hmHerbsStorefrontApiBase();
+        return origin || window.location.origin;
+    }
+    const h = window.location.hostname;
+    const isLoopback = h === 'localhost' || h === '127.0.0.1';
+    if (isLoopback && window.location.port !== '3001') return 'http://localhost:3001';
+    return window.location.origin;
+})();
 
 const AUTH_STORAGE_KEY = 'adminToken';
 

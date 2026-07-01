@@ -70,6 +70,7 @@ class CheckoutManager {
         this.selectedSavedCardId = null;
         this.loyaltyProfile = null;
         this.loyaltySettings = null;
+        this._checkoutInFlight = false;
         /** @type {null | (() => void)} */
         this._nmiConsoleNoiseFilterRestore = null;
         this.init();
@@ -77,6 +78,24 @@ class CheckoutManager {
 
     getApiOrigin() {
         return hmHerbsApiOrigin();
+    }
+
+    setCheckoutBusy(busy) {
+        this._checkoutInFlight = !!busy;
+        const btn = document.getElementById('submit-order-btn');
+        if (btn) btn.disabled = !!busy;
+        const loadingOverlay = document.getElementById('loading-overlay');
+        if (loadingOverlay) loadingOverlay.classList.toggle('active', !!busy);
+    }
+
+    safeImageUrl(url) {
+        const raw = String(url || '').trim();
+        if (!raw) return this.createPlaceholderImage();
+        if (/^\s*(javascript|data):/i.test(raw)) return this.createPlaceholderImage();
+        if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('//') || raw.startsWith('/')) {
+            return raw;
+        }
+        return this.createPlaceholderImage();
     }
 
     applyPaymentProcessorLabels(cfg = {}) {
@@ -826,6 +845,7 @@ class CheckoutManager {
     }
 
     async onNmiInlineCallback(response) {
+        if (this._checkoutInFlight) return;
         const loadingOverlay = document.getElementById('loading-overlay');
         if (!response?.token) {
             const msg =
@@ -834,7 +854,7 @@ class CheckoutManager {
             this.showNotification(typeof msg === 'string' ? msg : 'Card tokenization failed', 'error');
             return;
         }
-        if (loadingOverlay) loadingOverlay.classList.add('active');
+        this.setCheckoutBusy(true);
         try {
             const customerToken = localStorage.getItem('hmherbs_customer_token');
             const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
@@ -896,7 +916,7 @@ class CheckoutManager {
             console.error('NMI checkout error:', err);
             this.showNotification(err.message || 'Payment failed', 'error');
         } finally {
-            if (loadingOverlay) loadingOverlay.classList.remove('active');
+            this.setCheckoutBusy(false);
         }
     }
 
@@ -914,22 +934,36 @@ class CheckoutManager {
         const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
         if (token) headers.Authorization = `Bearer ${token}`;
         const apiOrigin = this.getApiOrigin();
-        const response = await fetch(`${apiOrigin}/api/promotions/preview`, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({
-                promoCode: code,
-                cartItems: items,
-                email,
-                shippingMethod: this.selectedShippingMethod,
-                shippingAmount: this.selectedShippingAmount,
-            })
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) {
-            throw new Error(data.error || data.message || 'Could not calculate total');
+        try {
+            const response = await fetch(`${apiOrigin}/api/promotions/preview`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({
+                    promoCode: code,
+                    cartItems: items,
+                    email,
+                    shippingMethod: this.selectedShippingMethod,
+                    shippingAmount: this.selectedShippingAmount,
+                })
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(data.error || data.message || 'Could not calculate total');
+            }
+            return data.totals;
+        } catch (err) {
+            console.warn('Promo preview unavailable, using client estimate:', err.message);
+            const subtotal = items.reduce((sum, item) => sum + (Number(item.price) || 0) * (Number(item.quantity) || 1), 0);
+            const tax = Math.round(subtotal * (this.storeTaxRate || 0.08) * 100) / 100;
+            const shipping = this.selectedShippingAmount || (subtotal >= 50 ? 0 : 9.99);
+            return {
+                subtotal,
+                discount: 0,
+                tax,
+                shipping,
+                total: subtotal + tax + shipping,
+            };
         }
-        return data.totals;
     }
 
     getShippingAddressForQuote() {
@@ -1358,7 +1392,7 @@ class CheckoutManager {
                           cardType: item.giftCard.cardType || 'digital',
                           compact: true
                       })}</div>`
-                    : `<img src="${item.image || this.createPlaceholderImage()}" alt="${safeName}" class="order-item-image" onerror="this.src='${this.createPlaceholderImage()}'">`;
+                    : `<img src="${this.escapeHtml(this.safeImageUrl(item.image))}" alt="${safeName}" class="order-item-image" onerror="this.src='${this.createPlaceholderImage()}'">`;
             const itemDiv = document.createElement('div');
             itemDiv.className = 'order-item';
             itemDiv.innerHTML = `
@@ -1928,6 +1962,7 @@ class CheckoutManager {
     }
 
     async handleSubmit() {
+        if (this._checkoutInFlight) return;
         // Validate form
         if (!this.validateForm()) {
             this.showNotification('Please fix the errors in the form', 'error');
@@ -1945,8 +1980,7 @@ class CheckoutManager {
             const savedId = document.getElementById('saved-card-select')?.value;
             if (savedId) {
                 this.selectedSavedCardId = Number(savedId);
-                const loadingOverlay = document.getElementById('loading-overlay');
-                if (loadingOverlay) loadingOverlay.classList.add('active');
+                this.setCheckoutBusy(true);
                 try {
                     const formData = this.collectFormData();
                     formData.awaitingNmiPayment = true;
@@ -1976,7 +2010,7 @@ class CheckoutManager {
                 } catch (e) {
                     this.showNotification(e.message || 'Payment failed', 'error');
                 } finally {
-                    if (loadingOverlay) loadingOverlay.classList.remove('active');
+                    this.setCheckoutBusy(false);
                 }
                 return;
             }
@@ -2036,11 +2070,7 @@ class CheckoutManager {
             return;
         }
 
-        // Show loading overlay
-        const loadingOverlay = document.getElementById('loading-overlay');
-        if (loadingOverlay) {
-            loadingOverlay.classList.add('active');
-        }
+        this.setCheckoutBusy(true);
 
         // Collect form data
         const formData = this.collectFormData();
@@ -2082,9 +2112,7 @@ class CheckoutManager {
             console.error('Error submitting order:', error);
             this.showNotification(error.message || 'Failed to place order. Please try again.', 'error');
         } finally {
-            if (loadingOverlay) {
-                loadingOverlay.classList.remove('active');
-            }
+            this.setCheckoutBusy(false);
         }
     }
 

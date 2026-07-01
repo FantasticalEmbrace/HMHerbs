@@ -12,8 +12,14 @@ class NavDropdowns {
     }
 
     getApiBaseUrl() {
-        // Detect if we're running on file:// protocol
+        if (typeof window.hmHerbsStorefrontApiBase === 'function') {
+            return window.hmHerbsStorefrontApiBase();
+        }
         if (window.location.protocol === 'file:') {
+            return 'http://localhost:3001';
+        }
+        const h = window.location.hostname;
+        if ((h === 'localhost' || h === '127.0.0.1') && window.location.port !== '3001') {
             return 'http://localhost:3001';
         }
         return '';

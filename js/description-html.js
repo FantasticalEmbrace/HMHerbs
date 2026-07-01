@@ -161,12 +161,59 @@
         return formatLongDescriptionForDisplay(s);
     }
 
+    function sanitizeDisplayHtml(html) {
+        const allowedTags = new Set([
+            'P', 'DIV', 'SPAN', 'BR', 'STRONG', 'B', 'EM', 'I', 'U', 'UL', 'OL', 'LI',
+            'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'A', 'TABLE', 'THEAD', 'TBODY', 'TR', 'TD', 'TH',
+            'BLOCKQUOTE', 'SECTION', 'ARTICLE', 'SUP', 'SUB', 'HR'
+        ]);
+        const allowedAttrs = new Set(['href', 'src', 'alt', 'title', 'class', 'colspan', 'rowspan', 'target', 'rel']);
+
+        const root = document.createElement('div');
+        root.innerHTML = String(html || '');
+
+        function walk(node) {
+            if (!node) return;
+            if (node.nodeType === Node.ELEMENT_NODE) {
+                const tag = node.tagName;
+                if (!allowedTags.has(tag)) {
+                    const parent = node.parentNode;
+                    if (parent) {
+                        while (node.firstChild) parent.insertBefore(node.firstChild, node);
+                        parent.removeChild(node);
+                    }
+                    return;
+                }
+                Array.from(node.attributes).forEach((attr) => {
+                    const name = attr.name.toLowerCase();
+                    const value = String(attr.value || '');
+                    if (name.startsWith('on') || name === 'style' || name === 'srcdoc') {
+                        node.removeAttribute(attr.name);
+                        return;
+                    }
+                    if (!allowedAttrs.has(name)) {
+                        node.removeAttribute(attr.name);
+                        return;
+                    }
+                    if ((name === 'href' || name === 'src') && /^\s*(javascript|data):/i.test(value)) {
+                        node.removeAttribute(attr.name);
+                    }
+                });
+            }
+            const children = node.childNodes ? Array.from(node.childNodes) : [];
+            children.forEach(walk);
+        }
+
+        walk(root);
+        return root.innerHTML.trim();
+    }
+
     function formatLongDescriptionForDisplay(raw) {
         let s = stripFdaDisclaimer(decodeHtmlEntities(String(raw || '').trim()));
         if (!s) return '';
 
         if (looksLikeHtml(s)) {
-            return s;
+            return sanitizeDisplayHtml(s);
         }
 
         const blocks = s.split(/\n\s*\n/).filter((p) => p.trim());

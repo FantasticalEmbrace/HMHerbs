@@ -7,6 +7,7 @@ const { storefrontPrimaryImageFromFields } = require('../utils/catalogOverrides'
 const { cartLookupBinds } = require('../utils/cartSession');
 const { loadInventorySettings, canFulfillQuantity } = require('../utils/inventorySettings');
 const { STOREFRONT_VISIBLE_WHERE } = require('../utils/storefrontProductVisibility');
+const { loadStoreTaxRate } = require('../utils/storeTaxRate');
 
 // Get or create cart for user/session
 const getOrCreateCart = async (pool, userId, sessionId) => {
