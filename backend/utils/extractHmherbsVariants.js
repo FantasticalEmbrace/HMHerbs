@@ -4,10 +4,21 @@
 const cheerio = require('cheerio');
 
 function parsePriceFromLabel(text) {
-    const m = String(text).match(/\$\s*([\d,.]+)\s*$/);
-    if (!m) return null;
-    const n = parseFloat(m[1].replace(/,/g, ''));
-    return Number.isFinite(n) ? n : null;
+    const s = String(text);
+    const sale = s.match(/=\s*\$\s*([\d,.]+)\s*$/);
+    if (sale) {
+        const n = parseFloat(sale[1].replace(/,/g, ''));
+        if (Number.isFinite(n)) return n;
+    }
+    const patterns = [/\s*-\s*\$\s*([\d,.]+)\s*$/, /-\$\s*([\d,.]+)\s*$/, /\$\s*([\d,.]+)\s*$/];
+    for (const re of patterns) {
+        const m = s.match(re);
+        if (m) {
+            const n = parseFloat(m[1].replace(/,/g, ''));
+            if (Number.isFinite(n)) return n;
+        }
+    }
+    return null;
 }
 
 function parseSkuHint(text) {
@@ -16,7 +27,12 @@ function parseSkuHint(text) {
 }
 
 function labelWithoutPrice(text) {
-    return String(text).replace(/\s*-\s*\$\s*[\d,.]+\s*$/, '').trim();
+    return String(text)
+        .replace(/\s*=\s*\$\s*[\d,.]+\s*$/i, '')
+        .replace(/\s*-\s*\$\s*[\d,.]+\s*$/i, '')
+        .replace(/-\$\s*[\d,.]+\s*$/i, '')
+        .replace(/\s*\$\s*[\d,.]+\s*$/i, '')
+        .trim();
 }
 
 /**
@@ -99,7 +115,7 @@ function extractHmherbsVariantsFromHtml(html) {
     if (groups.length === 1) {
         const g = groups[0];
         const variants = g.options.map((opt, idx) => ({
-            name: opt.name,
+            name: opt.label || opt.name,
             label: opt.label,
             price: opt.price,
             skuHint: opt.skuHint,
@@ -116,7 +132,7 @@ function extractHmherbsVariantsFromHtml(html) {
     for (const g of groups) {
         for (const opt of g.options) {
             variants.push({
-                name: opt.name,
+                name: opt.label || opt.name,
                 label: opt.label,
                 price: opt.price,
                 skuHint: opt.skuHint,
@@ -133,5 +149,6 @@ function extractHmherbsVariantsFromHtml(html) {
 module.exports = {
     extractHmherbsVariantsFromHtml,
     parsePriceFromLabel,
+    labelWithoutPrice,
     inferAttributesFromLabel,
 };

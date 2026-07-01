@@ -2,6 +2,8 @@
  * Upsert product variants and sync parent price/inventory from variants.
  * Avoids DELETE-all, which breaks FK constraints on inventory_transactions / order_items.
  */
+const { parsePriceFromLabel, labelWithoutPrice } = require('./extractHmherbsVariants');
+
 function normalizeOptionGroups(raw) {
     if (!raw) return null;
     if (typeof raw === 'string') {
@@ -19,8 +21,17 @@ function normalizeOptionGroups(raw) {
 }
 
 function normalizeVariantRow(v, productSku, index) {
-    const name = String(v.name || v.label || '').trim();
-    if (!name) return null;
+    const rawName = String(v.name || v.label || '').trim();
+    let name = labelWithoutPrice(rawName);
+    name = name.replace(/\s*\(\s*\$\s*[\d,.]+\s*\)\s*$/i, '').trim();
+    if (!name) name = rawName;
+
+    let price = parseFloat(v.price);
+    if (!Number.isFinite(price)) {
+        const fromName = parsePriceFromLabel(rawName);
+        price = fromName != null ? fromName : NaN;
+    }
+    if (!Number.isFinite(price)) return null;
 
     let sku = String(v.sku || '').trim();
     if (!sku) {
@@ -35,9 +46,6 @@ function normalizeVariantRow(v, productSku, index) {
         }
     }
     sku = sku.slice(0, 100);
-
-    const price = parseFloat(v.price);
-    if (!Number.isFinite(price)) return null;
 
     let attributes = v.attributes;
     if (typeof attributes === 'string') {
