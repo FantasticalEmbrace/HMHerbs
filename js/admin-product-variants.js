@@ -104,6 +104,7 @@
                             <th style="padding:0.5rem;border-bottom:1px solid var(--gray-200);">What shopper sees</th>
                             <th style="padding:0.5rem;border-bottom:1px solid var(--gray-200);">SKU</th>
                             <th style="padding:0.5rem;border-bottom:1px solid var(--gray-200);">Price</th>
+                            <th style="padding:0.5rem;border-bottom:1px solid var(--gray-200);">Cost</th>
                             <th style="padding:0.5rem;border-bottom:1px solid var(--gray-200);">Stock</th>
                             <th style="padding:0.5rem;border-bottom:1px solid var(--gray-200);"></th>
                         </tr>
@@ -112,7 +113,7 @@
                 </table>
             </div>
             <p style="font-size:0.75rem;color:var(--gray-400);margin-top:0.75rem;">
-                Tip: set each variant's price and stock separately. Leave SKU blank to auto-generate on save.
+                Tip: set each variant's price, cost, and stock separately. Leave SKU blank to auto-generate on save.
             </p>
         `;
 
@@ -163,6 +164,7 @@
                 <td style="padding:0.35rem;"><input type="text" class="form-input hm-v-name" value="${escapeHtml(data.name || '')}" placeholder="Dropper — 1oz" style="width:100%;min-width:160px;"></td>
                 <td style="padding:0.35rem;"><input type="text" class="form-input hm-v-sku" value="${escapeHtml(data.sku || '')}" placeholder="Optional" style="width:100%;min-width:100px;"></td>
                 <td style="padding:0.35rem;"><input type="number" class="form-input hm-v-price" step="0.01" min="0" value="${data.price != null ? escapeHtml(data.price) : ''}" style="width:90px;"></td>
+                <td style="padding:0.35rem;"><input type="number" class="form-input hm-v-cost" step="0.01" min="0" value="${data.cost_price != null && data.cost_price !== '' ? escapeHtml(data.cost_price) : ''}" placeholder="Optional" style="width:90px;"></td>
                 <td style="padding:0.35rem;"><input type="number" class="form-input hm-v-inventory" min="0" value="${data.inventory_quantity != null ? escapeHtml(data.inventory_quantity) : '100'}" style="width:70px;"></td>
                 <td style="padding:0.35rem;"><button type="button" class="btn btn-danger btn-sm hm-remove-variant" title="Remove variant">&times;</button></td>
             `;
@@ -189,13 +191,16 @@
                 return;
             }
             const basePriceEl = form.querySelector(`#${prefix}-price`);
+            const baseCostEl = form.querySelector(`#${prefix}-cost-price`);
             const basePrice = basePriceEl ? parseFloat(basePriceEl.value) : NaN;
+            const baseCost = baseCostEl ? parseFloat(baseCostEl.value) : NaN;
             const combos = cartesian(groups);
             rowsEl.innerHTML = '';
             combos.forEach((attrs) => {
                 addVariantRow({
                     name: buildVariantName(attrs, groups),
                     price: Number.isFinite(basePrice) ? basePrice : '',
+                    cost_price: Number.isFinite(baseCost) ? baseCost : '',
                     inventory_quantity: 100,
                     attributesJson: JSON.stringify(attrs),
                 });
@@ -206,7 +211,7 @@
             groupsEl.innerHTML = '';
             preset.groups.forEach((g) => addOptionGroup(g.name, g.values.join(', ')));
             generateMatrixFromGroups();
-            window.adminApp?.showNotification?.(`Added ${preset.label} template — set price and stock for each row, then save.`, 'success');
+            window.adminApp?.showNotification?.(`Added ${preset.label} template — set price, cost, and stock for each row, then save.`, 'success');
         }
 
         QUICK_PRESETS.forEach((preset) => {
@@ -246,6 +251,7 @@
                         name: v.name,
                         sku: v.sku,
                         price: v.price,
+                        cost_price: v.cost_price,
                         inventory_quantity: v.inventory_quantity,
                         attributesJson: v.attributes ? JSON.stringify(v.attributes) : '',
                     });
@@ -260,6 +266,8 @@
                     const id = idRaw ? parseInt(idRaw, 10) : undefined;
                     const sku = tr.querySelector('.hm-v-sku').value.trim();
                     const price = parseFloat(tr.querySelector('.hm-v-price').value);
+                    const costRaw = tr.querySelector('.hm-v-cost').value.trim();
+                    const cost_price = costRaw === '' ? null : parseFloat(costRaw);
                     const inventory_quantity = parseInt(tr.querySelector('.hm-v-inventory').value, 10) || 0;
                     let attributes = null;
                     const attrsRaw = tr.dataset.attributesJson || '';
@@ -275,6 +283,7 @@
                         name,
                         sku: sku || undefined,
                         price,
+                        cost_price: Number.isFinite(cost_price) ? cost_price : null,
                         inventory_quantity,
                         sort_order: idx,
                         attributes,

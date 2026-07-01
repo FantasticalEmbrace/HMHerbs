@@ -1477,7 +1477,7 @@ router.get('/products/:id', ...adminAuth, async (req, res) => {
         // Get product variants - handle gracefully if table doesn't exist
         try {
             const [variants] = await req.pool.execute(`
-                SELECT id, sku, name, price, compare_price, inventory_quantity, weight, is_active, sort_order, attributes
+                SELECT id, sku, name, price, compare_price, cost_price, inventory_quantity, weight, is_active, sort_order, attributes
                 FROM product_variants
                 WHERE product_id = ?
                 ORDER BY sort_order ASC

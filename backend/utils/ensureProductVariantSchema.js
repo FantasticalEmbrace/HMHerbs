@@ -15,6 +15,10 @@ const VARIANT_PATCHES = [
         column: 'attributes',
         sql: 'ALTER TABLE product_variants ADD COLUMN attributes JSON NULL',
     },
+    {
+        column: 'cost_price',
+        sql: 'ALTER TABLE product_variants ADD COLUMN cost_price DECIMAL(10,2) NULL DEFAULT NULL AFTER compare_price',
+    },
 ];
 
 async function tableExists(pool, tableName) {

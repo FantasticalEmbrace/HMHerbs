@@ -309,7 +309,7 @@ router.get('/catalog', async (req, res) => {
         if (productIds.length) {
             const placeholders = productIds.map(() => '?').join(',');
             const [variantRows] = await req.pool.execute(
-                `SELECT id, product_id, sku, name, price, inventory_quantity
+                `SELECT id, product_id, sku, name, price, cost_price, inventory_quantity
                  FROM product_variants
                  WHERE is_active = 1 AND product_id IN (${placeholders})`,
                 productIds
@@ -324,7 +324,10 @@ router.get('/catalog', async (req, res) => {
                 sku: v.sku,
                 name: v.name,
                 price: Number(v.price),
-                inventoryQuantity: Number(v.inventory_quantity) || 0
+                inventoryQuantity: Number(v.inventory_quantity) || 0,
+                ...(includeCost && v.cost_price != null
+                    ? withPosCost(true, v.cost_price)
+                    : {}),
             });
             return acc;
         }, {});
@@ -448,6 +451,7 @@ router.get('/products/lookup', async (req, res) => {
         const [variantHits] = await req.pool.execute(
             `SELECT pv.id AS variant_id, pv.sku, pv.name AS variant_name, pv.price AS variant_price,
                     pv.inventory_quantity AS variant_inventory,
+                    COALESCE(pv.cost_price, p.cost_price) AS effective_cost_price,
                     p.id, p.sku AS product_sku, p.name, p.slug, p.price, p.cost_price, p.inventory_quantity,
                     p.track_inventory, p.is_taxable,
                     pi.image_url AS primary_image_url
@@ -477,7 +481,7 @@ router.get('/products/lookup', async (req, res) => {
                             sku: row.sku,
                             primaryImageUrl: row.primary_image_url
                         }) || null,
-                    ...withPosCost(includeCost, row.cost_price)
+                    ...withPosCost(includeCost, row.effective_cost_price)
                 }))
             });
         }

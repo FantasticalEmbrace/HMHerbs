@@ -59,6 +59,10 @@ function normalizeVariantRow(v, productSku, index) {
             v.compare_price != null && v.compare_price !== ''
                 ? parseFloat(v.compare_price)
                 : null,
+        cost_price:
+            v.cost_price != null && v.cost_price !== ''
+                ? parseFloat(v.cost_price)
+                : null,
         inventory_quantity: parseInt(v.inventory_quantity, 10) || 0,
         weight: v.weight != null && v.weight !== '' ? parseFloat(v.weight) : null,
         is_active: v.is_active === false || v.is_active === 0 ? 0 : 1,
@@ -114,7 +118,7 @@ async function saveProductVariants(connection, productId, productSku, variantOpt
         if (targetId) {
             await connection.execute(
                 `UPDATE product_variants
-                 SET sku = ?, name = ?, price = ?, compare_price = ?, inventory_quantity = ?,
+                 SET sku = ?, name = ?, price = ?, compare_price = ?, cost_price = ?, inventory_quantity = ?,
                      weight = ?, is_active = ?, sort_order = ?, attributes = ?
                  WHERE id = ? AND product_id = ?`,
                 [
@@ -122,6 +126,7 @@ async function saveProductVariants(connection, productId, productSku, variantOpt
                     row.name,
                     row.price,
                     row.compare_price,
+                    row.cost_price,
                     row.inventory_quantity,
                     row.weight,
                     row.is_active,
@@ -135,14 +140,15 @@ async function saveProductVariants(connection, productId, productSku, variantOpt
         } else {
             const [insertResult] = await connection.execute(
                 `INSERT INTO product_variants
-                 (product_id, sku, name, price, compare_price, inventory_quantity, weight, is_active, sort_order, attributes)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                 (product_id, sku, name, price, compare_price, cost_price, inventory_quantity, weight, is_active, sort_order, attributes)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
                     productId,
                     row.sku,
                     row.name,
                     row.price,
                     row.compare_price,
+                    row.cost_price,
                     row.inventory_quantity,
                     row.weight,
                     row.is_active,
