@@ -94,7 +94,7 @@
     height: var(--hm-pill-height);
     display: inline-flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     gap: 0.15rem;
 }
 
@@ -112,6 +112,7 @@
     -webkit-transform: none !important;
     transition: left 0.2s ease;
     pointer-events: none;
+    z-index: 2;
 }
 
 .hm-choice-state {
@@ -123,12 +124,27 @@
     line-height: 1;
     pointer-events: none;
     user-select: none;
+    position: relative;
+    z-index: 1;
 }
 
 .hm-choice-row--lg .hm-choice-state { font-size: 0.68rem; }
 
-.hm-choice-state-on { display: none; margin-left: auto; padding-right: 0.15rem; }
-.hm-choice-state-off { margin-left: auto; padding-right: 0.1rem; }
+/* Off: label right (knob left). On: label left (knob right). */
+.hm-choice-state-on {
+    display: none;
+    margin-left: 0;
+    margin-right: auto;
+    padding-left: 0.38rem;
+    padding-right: 0;
+}
+
+.hm-choice-state-off {
+    margin-left: auto;
+    margin-right: 0;
+    padding-right: 0.38rem;
+    padding-left: 0;
+}
 
 .hm-choice-row--sm .hm-choice-state,
 .hm-choice-row--md .hm-choice-state {
@@ -138,11 +154,7 @@
 .hm-choice-row:has(.hm-choice-input:checked) .hm-choice-pill {
     background: linear-gradient(180deg, var(--hm-choice-on) 0%, var(--hm-choice-on-dark) 100%);
     border-color: var(--hm-choice-on-dark);
-    justify-content: flex-end;
-}
-
-.hm-choice-row--lg:has(.hm-choice-input:checked) .hm-choice-pill {
-    justify-content: center;
+    justify-content: flex-start;
 }
 
 .hm-choice-row:has(.hm-choice-input:checked) .hm-choice-knob {

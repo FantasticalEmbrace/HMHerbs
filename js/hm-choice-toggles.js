@@ -34,9 +34,9 @@ const HmChoiceToggles = {
         pill.className = 'hm-choice-pill';
         pill.setAttribute('aria-hidden', 'true');
         pill.innerHTML =
+            '<span class="hm-choice-state hm-choice-state-on">On</span>' +
             '<span class="hm-choice-knob"></span>' +
-            '<span class="hm-choice-state hm-choice-state-off">Off</span>' +
-            '<span class="hm-choice-state hm-choice-state-on">On</span>';
+            '<span class="hm-choice-state hm-choice-state-off">Off</span>';
         if (size !== 'lg') {
             pill.querySelectorAll('.hm-choice-state').forEach((el) => el.remove());
         }
