@@ -9113,8 +9113,8 @@ class AdminApp {
                     </div>
                     <div class="bulk-edit-section">
                         <h4>Organization</h4>
-                        ${selectRow('brand_id', 'Brand', `<option value="">â€” Select brand â€”</option>${brandOptions}`)}
-                        ${selectRow('category_id', 'Category', `<option value="">â€” Select category â€”</option>${categoryOptions}`)}
+                        ${selectRow('brand_id', 'Brand', `<option value="">— Select brand —</option>${brandOptions}`)}
+                        ${selectRow('category_id', 'Category', `<option value="">— Select category —</option>${categoryOptions}`)}
                     </div>
                     <div class="bulk-edit-section" style="border-bottom:none;margin-bottom:0;padding-bottom:0;">
                         <h4>Pricing &amp; inventory</h4>
@@ -9134,8 +9134,20 @@ class AdminApp {
             </div>`;
 
         document.body.appendChild(modal);
+        modal.style.display = 'block';
 
-        const close = () => modal.remove();
+        const close = () => {
+            modal.remove();
+            document.removeEventListener('keydown', onEscape, true);
+        };
+        const onEscape = (e) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                close();
+            }
+        };
+        document.addEventListener('keydown', onEscape, true);
+
         modal.querySelector('.modal-close')?.addEventListener('click', close);
         modal.querySelector('.modal-cancel')?.addEventListener('click', close);
         modal.addEventListener('click', (e) => {

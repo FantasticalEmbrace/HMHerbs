@@ -1009,6 +1009,120 @@ router.get('/products', ...adminAuth, async (req, res) => {
     }
 });
 
+// Bulk update / preset actions on selected products (admin products table)
+router.post('/products/bulk', ...adminAuth, requirePermission('manager'), async (req, res) => {
+    try {
+        const { ids, action, updates } = req.body || {};
+        const productIds = (Array.isArray(ids) ? ids : [])
+            .map((id) => parseInt(id, 10))
+            .filter((id) => Number.isFinite(id) && id > 0);
+
+        if (!productIds.length) {
+            return res.status(400).json({ error: 'Select at least one product.' });
+        }
+        if (productIds.length > 500) {
+            return res.status(400).json({ error: 'Too many products selected (max 500).' });
+        }
+
+        const placeholders = productIds.map(() => '?').join(', ');
+
+        if (action) {
+            if (action === 'delete') {
+                if (!hasMinAdminRole(req.admin?.role, 'admin')) {
+                    return res.status(403).json({ error: 'Admin permission required to delete products.' });
+                }
+                const [result] = await req.pool.execute(
+                    `DELETE FROM products WHERE id IN (${placeholders})`,
+                    productIds
+                );
+                return res.json({
+                    message: `Deleted ${result.affectedRows} product(s).`,
+                    affected: result.affectedRows
+                });
+            }
+
+            const presetMap = {
+                activate: { sql: 'is_active = 1', label: 'activated on POS' },
+                deactivate: { sql: 'is_active = 0', label: 'deactivated on POS' },
+                show_on_web: { sql: 'show_on_web = 1', label: 'shown on website' },
+                hide_from_web: { sql: 'show_on_web = 0', label: 'hidden from website' }
+            };
+            const preset = presetMap[action];
+            if (!preset) {
+                return res.status(400).json({ error: 'Unknown bulk action.' });
+            }
+
+            const [result] = await req.pool.execute(
+                `UPDATE products SET ${preset.sql}, updated_at = CURRENT_TIMESTAMP WHERE id IN (${placeholders})`,
+                productIds
+            );
+            return res.json({
+                message: `Updated ${result.affectedRows} product(s) — ${preset.label}.`,
+                affected: result.affectedRows
+            });
+        }
+
+        if (!updates || typeof updates !== 'object' || !Object.keys(updates).length) {
+            return res.status(400).json({ error: 'No fields to update.' });
+        }
+
+        const allowedFields = [
+            'brand_id', 'category_id', 'price', 'compare_price', 'cost_price', 'weight',
+            'inventory_quantity', 'low_stock_threshold', 'is_active', 'is_featured', 'show_on_web', 'is_cannabis'
+        ];
+        const numericFields = ['price', 'compare_price', 'cost_price', 'weight'];
+        const integerFields = ['brand_id', 'category_id', 'inventory_quantity', 'low_stock_threshold'];
+        const booleanFields = ['is_active', 'is_featured', 'show_on_web', 'is_cannabis'];
+
+        const setParts = [];
+        const setValues = [];
+
+        for (const field of allowedFields) {
+            if (updates[field] === undefined) continue;
+            let value = updates[field];
+
+            if (numericFields.includes(field)) {
+                if (value === '' || value === null) value = null;
+                else {
+                    const numValue = parseFloat(value);
+                    value = Number.isNaN(numValue) ? null : numValue;
+                }
+            }
+            if (integerFields.includes(field) && value !== null && value !== undefined) {
+                if (value === '') value = null;
+                else {
+                    const intValue = parseInt(value, 10);
+                    value = Number.isNaN(intValue) ? null : intValue;
+                }
+            }
+            if (booleanFields.includes(field)) {
+                value = Boolean(value === true || value === 'true' || value === 1 || value === '1');
+            }
+
+            setParts.push(`${field} = ?`);
+            setValues.push(value);
+        }
+
+        if (!setParts.length) {
+            return res.status(400).json({ error: 'No valid fields to update.' });
+        }
+
+        setParts.push('updated_at = CURRENT_TIMESTAMP');
+        const [result] = await req.pool.execute(
+            `UPDATE products SET ${setParts.join(', ')} WHERE id IN (${placeholders})`,
+            [...setValues, ...productIds]
+        );
+
+        res.json({
+            message: `Updated ${result.affectedRows} product(s).`,
+            affected: result.affectedRows
+        });
+    } catch (error) {
+        logger.error('Products bulk update error:', error);
+        res.status(500).json({ error: 'Bulk update failed.' });
+    }
+});
+
 // Create Product
 router.post('/products', ...adminAuth, requirePermission('manager'), productValidation, async (req, res) => {
     try {
