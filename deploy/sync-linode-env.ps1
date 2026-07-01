@@ -96,6 +96,15 @@ if ($merged.ContainsKey("POS_ALLOWED_ORIGINS") -and -not (Is-PlaceholderValue $m
 foreach ($origin in @($baseUrl, "http://$TempDomain", "https://$TempDomain", "http://$NodeBalancerIp")) {
     if ($origin -and ($posOrigins -notcontains $origin)) { $posOrigins += $origin }
 }
+foreach ($origin in @(
+    "https://pos.businessonecomprehensive.com",
+    "http://pos.businessonecomprehensive.com",
+    "https://172-238-220-29.sslip.io",
+    "http://172.238.220.29",
+    "https://172.238.220.29"
+)) {
+    if ($origin -and ($posOrigins -notcontains $origin)) { $posOrigins += $origin }
+}
 if ($posOrigins.Count -gt 0) {
     $merged["POS_ALLOWED_ORIGINS"] = ($posOrigins -join ",")
 }
