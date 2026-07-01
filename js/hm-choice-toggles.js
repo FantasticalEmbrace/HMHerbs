@@ -10,7 +10,7 @@ const HmChoiceToggles = {
 
     inferSize(input) {
         const key = `${input.name || ''} ${input.id || ''}`.toLowerCase();
-        if (/canauthorize|canprocessrefunds|tax.exempt|tax_exempt/.test(key)) return 'lg';
+        if (/canauthorize|canprocessrefunds|allowmanualdiscounts|canviewcost|canopendrawer|tax.exempt|tax_exempt/.test(key)) return 'lg';
         if (
             /pos_receipt_|pos_payment_|pos_scan_|pos_show_|pos_display_|pos_large_|pos_sign_|pos_require_|pos_eod_|pos_daily_|promo-form-|inventory-|compactview|showdescriptions/.test(
                 key
