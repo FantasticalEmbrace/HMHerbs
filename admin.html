@@ -4940,37 +4940,47 @@
                                 Enforcement is <strong>off</strong> until you set <code>POS_LICENSE_ENFORCE=true</code> on the server.
                             </p>
                             <div id="pos-license-summary" style="margin-bottom:1rem;padding:0.85rem 1rem;background:var(--gray-50);border-radius:8px;font-size:0.9rem;"></div>
+                            <p id="pos-license-auto-status-note" style="margin:0 0 1rem 0;max-width:42rem;color:var(--gray-600);font-size:0.88rem;">
+                                License status is set automatically from billing. If a payment is missed, registers stop syncing after the grace period until billing is current again.
+                            </p>
                             <form id="pos-license-form" style="display:grid;gap:0.75rem;max-width:32rem;">
-                                <div class="form-group">
-                                    <label for="pos-license-status">Status</label>
-                                    <select class="form-input" id="pos-license-status" name="status">
-                                        <option value="trial">Trial</option>
-                                        <option value="active">Active</option>
-                                        <option value="past_due">Past due</option>
-                                        <option value="canceled">Canceled</option>
-                                    </select>
-                                </div>
-                                <div class="form-group">
-                                    <label for="pos-license-stations">Licensed stations</label>
-                                    <input class="form-input" id="pos-license-stations" name="licensedStationCount" type="number" min="1" max="99" step="1" value="1" style="max-width:8rem;">
-                                    <p id="pos-license-pricing-hint" style="margin:0.35rem 0 0;color:var(--gray-600);font-size:0.85rem;"></p>
-                                </div>
-                                <div class="form-group">
-                                    <label for="pos-license-failover-gb">Failover data used this period (GB)</label>
-                                    <input class="form-input" id="pos-license-failover-gb" name="failoverGbUsed" type="number" min="0" max="9999" step="0.1" value="0" style="max-width:8rem;">
-                                    <p style="margin:0.35rem 0 0;color:var(--gray-600);font-size:0.85rem;">
-                                        First station includes 2 GB failover internet in the $100/mo fee. Each GB used after that adds $10 to the bill. Clears after a successful charge.
-                                    </p>
-                                </div>
-                                <div class="form-group">
-                                    <label for="pos-license-comped">Service comped until</label>
-                                    <input class="form-input" id="pos-license-comped" name="serviceCompedUntil" type="date" style="max-width:12rem;">
-                                    <p style="margin:0.35rem 0 0;color:var(--gray-600);font-size:0.85rem;">Free access through this date — no monthly charge while active.</p>
-                                </div>
-                                <div class="form-group">
-                                    <label for="pos-license-grace">Grace days override</label>
-                                    <input class="form-input" id="pos-license-grace" name="graceDaysOverride" type="number" min="0" max="30" step="1" placeholder="Default from server" style="max-width:8rem;">
-                                    <p style="margin:0.35rem 0 0;color:var(--gray-600);font-size:0.85rem;">Days after a failed payment before registers stop syncing. Leave blank for server default.</p>
+                                <div id="pos-license-dev-panel" style="display:none;gap:0.75rem;">
+                                    <p style="margin:0;color:var(--gray-600);font-size:0.85rem;">Developer overrides — merchants cannot change license status manually.</p>
+                                    <div class="form-group">
+                                        <label for="pos-license-status">Status override</label>
+                                        <select class="form-input" id="pos-license-status" name="status">
+                                            <option value="trial">Trial</option>
+                                            <option value="active">Active</option>
+                                            <option value="past_due">Past due</option>
+                                            <option value="canceled">Canceled</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="pos-license-stations">Licensed stations</label>
+                                        <input class="form-input" id="pos-license-stations" name="licensedStationCount" type="number" min="1" max="99" step="1" value="1" style="max-width:8rem;">
+                                        <p id="pos-license-pricing-hint" style="margin:0.35rem 0 0;color:var(--gray-600);font-size:0.85rem;"></p>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="pos-license-failover-gb">Failover data used this period (GB)</label>
+                                        <input class="form-input" id="pos-license-failover-gb" name="failoverGbUsed" type="number" min="0" max="9999" step="0.1" value="0" style="max-width:8rem;">
+                                        <p style="margin:0.35rem 0 0;color:var(--gray-600);font-size:0.85rem;">
+                                            First station includes 2 GB failover internet in the $100/mo fee. Each GB used after that adds $10 to the bill. Clears after a successful charge.
+                                        </p>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="pos-license-comped">Service comped until</label>
+                                        <input class="form-input" id="pos-license-comped" name="serviceCompedUntil" type="date" style="max-width:12rem;">
+                                        <p style="margin:0.35rem 0 0;color:var(--gray-600);font-size:0.85rem;">Credit a free month (or longer) without charging — developer only.</p>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="pos-license-grace">Grace days override</label>
+                                        <input class="form-input" id="pos-license-grace" name="graceDaysOverride" type="number" min="0" max="30" step="1" placeholder="Default from server" style="max-width:8rem;">
+                                        <p style="margin:0.35rem 0 0;color:var(--gray-600);font-size:0.85rem;">Days after a failed payment before registers stop syncing. Leave blank for server default.</p>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="pos-license-notes">Internal notes</label>
+                                        <textarea class="form-input" id="pos-license-notes" name="notes" rows="2" maxlength="2000"></textarea>
+                                    </div>
                                 </div>
                                 <div class="form-group">
                                     <label for="pos-license-business">Business name</label>
@@ -4980,12 +4990,8 @@
                                     <label for="pos-license-email">Billing email</label>
                                     <input class="form-input" id="pos-license-email" name="billingEmail" type="email" maxlength="255">
                                 </div>
-                                <div class="form-group">
-                                    <label for="pos-license-notes">Notes</label>
-                                    <textarea class="form-input" id="pos-license-notes" name="notes" rows="2" maxlength="2000"></textarea>
-                                </div>
                                 <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
-                                    <button type="submit" class="btn btn-primary">Save license</button>
+                                    <button type="submit" class="btn btn-primary">Save contact info</button>
                                     <button type="button" class="btn btn-secondary" id="pos-license-reload-btn">Reload</button>
                                     <button type="button" class="btn btn-ghost" id="pos-license-billing-run-btn" hidden>Test billing run</button>
                                 </div>
@@ -5074,8 +5080,8 @@
                             </div>
                             <div id="pos-license-waive-card" class="card" style="margin-top:1.25rem;max-width:32rem;display:none;">
                                 <div class="card-content">
-                                    <h4 style="margin:0 0 0.5rem 0;">Clear past due</h4>
-                                    <p style="margin:0 0 0.75rem 0;color:var(--gray-600);font-size:0.88rem;">Waive the missed payment and restore service. This only applies to the current past-due balance — nothing carries forward to future months.</p>
+                                    <h4 style="margin:0 0 0.5rem 0;">Developer: credit missed month</h4>
+                                    <p style="margin:0 0 0.75rem 0;color:var(--gray-600);font-size:0.88rem;">Waive the missed payment and restore service without charging. Merchant admins cannot do this — billing must fail or succeed on its own.</p>
                                     <p id="pos-license-past-due-owed" style="margin:0 0 0.75rem 0;font-size:0.95rem;"></p>
                                     <form id="pos-license-waive-form" style="display:grid;gap:0.65rem;">
                                         <div class="form-group" style="margin:0;">
@@ -5091,7 +5097,7 @@
                                     </form>
                                 </div>
                             </div>
-                            <p id="pos-license-leg-up-hint" style="margin-top:1rem;max-width:32rem;color:var(--gray-600);font-size:0.88rem;">For free access without a missed payment, use <em>Service comped until</em> above.</p>
+                            <p id="pos-license-leg-up-hint" style="margin-top:1rem;max-width:32rem;color:var(--gray-600);font-size:0.88rem;display:none;">Developer: use <em>Service comped until</em> above to credit free access without a missed payment.</p>
                         </div>
                     </div>
                 </div>

@@ -133,6 +133,13 @@ function requireAdminOrDeveloper(req, res, next) {
     next();
 }
 
+function requireDeveloper(req, res, next) {
+    if (String(req.admin?.role || '').toLowerCase() !== 'developer') {
+        return res.status(403).json({ error: 'Developer access required.' });
+    }
+    next();
+}
+
 router.use(authenticateAdmin);
 router.use(requireManager);
 
@@ -722,18 +729,24 @@ router.get('/license', async (req, res) => {
 router.put('/license', async (req, res) => {
     try {
         const body = req.body || {};
-        const license = await updateMerchantLicense(req.pool, {
-            status: body.status,
-            licensedStationCount: body.licensedStationCount ?? body.licensed_station_count,
+        const isDeveloper = String(req.admin?.role || '').toLowerCase() === 'developer';
+        const patch = {
             businessName: body.businessName ?? body.business_name,
-            billingEmail: body.billingEmail ?? body.billing_email,
-            notes: body.notes,
-            licenseExpiresAt: body.licenseExpiresAt ?? body.license_expires_at,
-            nextBillDate: body.nextBillDate ?? body.next_bill_date,
-            serviceCompedUntil: body.serviceCompedUntil ?? body.service_comped_until,
-            graceDaysOverride: body.graceDaysOverride ?? body.grace_days_override,
-            failoverGbUsed: body.failoverGbUsed ?? body.failover_gb_used
-        });
+            billingEmail: body.billingEmail ?? body.billing_email
+        };
+        if (isDeveloper) {
+            Object.assign(patch, {
+                status: body.status,
+                licensedStationCount: body.licensedStationCount ?? body.licensed_station_count,
+                notes: body.notes,
+                licenseExpiresAt: body.licenseExpiresAt ?? body.license_expires_at,
+                nextBillDate: body.nextBillDate ?? body.next_bill_date,
+                serviceCompedUntil: body.serviceCompedUntil ?? body.service_comped_until,
+                graceDaysOverride: body.graceDaysOverride ?? body.grace_days_override,
+                failoverGbUsed: body.failoverGbUsed ?? body.failover_gb_used
+            });
+        }
+        const license = await updateMerchantLicense(req.pool, patch);
         res.json({ license });
     } catch (e) {
         const status = e.code ? 400 : 500;
@@ -741,7 +754,7 @@ router.put('/license', async (req, res) => {
     }
 });
 
-router.post('/license/run-billing', requireAdminOrDeveloper, async (req, res) => {
+router.post('/license/run-billing', requireDeveloper, async (req, res) => {
     try {
         const body = req.body || {};
         const failoverGbUsed = body.failoverGbUsed ?? body.failover_gb_used;
@@ -756,7 +769,7 @@ router.post('/license/run-billing', requireAdminOrDeveloper, async (req, res) =>
     }
 });
 
-router.post('/license/waive-past-due', async (req, res) => {
+router.post('/license/waive-past-due', requireDeveloper, async (req, res) => {
     try {
         const note = req.body?.note || req.body?.reason || '';
         const notify = req.body?.notify !== false;
@@ -778,7 +791,7 @@ router.post('/billing/setup-token', async (req, res) => {
 });
 
 /** @deprecated use POST /license/waive-past-due */
-router.post('/license/credit', async (req, res) => {
+router.post('/license/credit', requireDeveloper, async (req, res) => {
     try {
         const note = req.body?.note || req.body?.reason || '';
         const notify = req.body?.notify !== false;
