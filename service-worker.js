@@ -1,8 +1,8 @@
 // H&M Herbs & Vitamins - Service Worker
 // Progressive Web App functionality with offline support
 
-const STATIC_CACHE = 'hmherbs-static-v1.0.49';
-const DYNAMIC_CACHE = 'hmherbs-dynamic-v1.0.49';
+const STATIC_CACHE = 'hmherbs-static-v1.0.50';
+const DYNAMIC_CACHE = 'hmherbs-dynamic-v1.0.50';
 
 // Files to cache for offline functionality
 const STATIC_FILES = [
@@ -147,10 +147,12 @@ self.addEventListener('fetch', event => {
 
   // Auth + checkout + gift card scripts must not be cache-first (stale UI logic).
   if (
+    url.pathname === '/styles.css' ||
     url.pathname === '/js/checkout.js' ||
     url.pathname === '/js/customer-auth.js' ||
     url.pathname === '/js/password-toggle.js' ||
     url.pathname === '/css/password-toggle.css' ||
+    url.pathname === '/js/account.js' ||
     url.pathname === '/js/visual-bug-fixes.js' ||
     url.pathname === '/js/gift-cards.js' ||
     url.pathname === '/js/hm-gift-card.js' ||

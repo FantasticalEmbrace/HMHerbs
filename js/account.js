@@ -737,6 +737,7 @@ class AccountManager {
 
         backdrop.appendChild(panel);
         document.body.appendChild(backdrop);
+        window.HMPasswordToggle?.scan(panel);
 
         const onBackdropClick = (e) => {
             if (e.target === backdrop) this._closeModal();

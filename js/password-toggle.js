@@ -84,4 +84,8 @@
     } else {
         init();
     }
+
+    window.addEventListener('load', () => {
+        scan(document);
+    }, { once: true });
 })(window);
