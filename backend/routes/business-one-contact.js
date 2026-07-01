@@ -1,23 +1,15 @@
 'use strict';
 
 const express = require('express');
-const rateLimit = require('express-rate-limit');
 const logger = require('../utils/logger');
 const { sendMail, isSmtpConfigured } = require('../utils/mailTransporter');
 
 const router = express.Router();
 
-const contactLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 10,
-    standardHeaders: true,
-    legacyHeaders: false
-});
-
 const INBOX =
     String(process.env.BUSINESS_ONE_CONTACT_EMAIL || 'info@businessonecomprehensive.com').trim();
 
-router.post('/contact', contactLimiter, async (req, res) => {
+router.post('/contact', async (req, res) => {
     try {
         const name = String(req.body?.name || '').trim();
         const email = String(req.body?.email || '').trim();
@@ -53,14 +45,21 @@ router.post('/contact', contactLimiter, async (req, res) => {
             <p>${message.replace(/\n/g, '<br>')}</p>`;
 
         if (isSmtpConfigured()) {
-            await sendMail({
-                to: INBOX,
-                replyTo: email,
-                subject: `Business One contact — ${businessName || name}`,
-                text,
-                html,
-                logTag: 'Business One contact'
-            });
+            try {
+                await sendMail({
+                    to: INBOX,
+                    replyTo: email,
+                    subject: `Business One contact — ${businessName || name}`,
+                    text,
+                    html,
+                    logTag: 'Business One contact'
+                });
+            } catch (mailErr) {
+                logger.error('[business-one-contact] send failed', { err: mailErr.message });
+                return res.status(503).json({
+                    error: 'Could not send message. Please call (850) 290-2084.'
+                });
+            }
         } else {
             logger.info('[business-one-contact] intake (SMTP not configured)', {
                 name,

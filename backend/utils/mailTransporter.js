@@ -35,7 +35,7 @@ async function getMailTransporter() {
  * @param {{ to: string, subject: string, html: string, text?: string, logTag?: string, attachments?: Array<{ filename: string, content: Buffer | string, contentType?: string }> }} opts
  * @returns {Promise<{ sent: boolean, reason?: string }>}
  */
-async function sendMail({ to, subject, html, text, logTag = 'Email', attachments = [] }) {
+async function sendMail({ to, subject, html, text, logTag = 'Email', attachments = [], replyTo }) {
     const mail = await getMailTransporter();
     if (!mail) {
         logger.warn(`${logTag} skipped — SMTP not configured (set SMTP_HOST, SMTP_USER, SMTP_PASSWORD in backend/.env)`);
@@ -46,6 +46,7 @@ async function sendMail({ to, subject, html, text, logTag = 'Email', attachments
         await mail.transporter.sendMail({
             from: mail.from,
             to,
+            replyTo: replyTo || undefined,
             subject,
             html,
             text: text || subject,
