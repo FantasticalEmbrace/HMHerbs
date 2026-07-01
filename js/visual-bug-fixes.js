@@ -785,3 +785,11 @@ class VisualBugFixer {
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = VisualBugFixer;
 }
+
+(function loadPasswordToggle() {
+    if (document.querySelector('script[src*="password-toggle.js"]')) return;
+    const script = document.createElement('script');
+    script.src = 'js/password-toggle.js?v=1';
+    script.defer = true;
+    document.head.appendChild(script);
+})();
