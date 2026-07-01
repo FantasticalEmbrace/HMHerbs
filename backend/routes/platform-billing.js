@@ -263,6 +263,29 @@ router.post('/hardware/purchase', setupLimiter, async (req, res) => {
     }
 });
 
+router.post('/failover/ingest', async (req, res) => {
+    try {
+        const secret = String(process.env.BILLING_FAILOVER_INGEST_SECRET || '').trim();
+        if (secret) {
+            const incoming = String(req.headers['x-failover-ingest-secret'] || '').trim();
+            if (incoming !== secret) {
+                return res.status(401).json({ error: 'Invalid ingest secret' });
+            }
+        }
+        const { recordFailoverUsage } = require('../services/posFailoverMetering');
+        const bytesTotal = req.body?.bytesUsed ?? req.body?.bytes_total ?? req.body?.bytesTotal;
+        const bytesDelta = req.body?.bytesDelta ?? req.body?.bytes_delta;
+        const result = await recordFailoverUsage(req.pool, {
+            bytesTotal,
+            bytesDelta,
+            source: req.body?.source || 'modem'
+        });
+        res.json({ success: true, ...result });
+    } catch (e) {
+        res.status(400).json({ error: e.message });
+    }
+});
+
 router.post('/webhook/procharge', async (req, res) => {
     try {
         const secret = String(process.env.PROCHARGE_WEBHOOK_SECRET || '').trim();

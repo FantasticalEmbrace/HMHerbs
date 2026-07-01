@@ -162,6 +162,12 @@ async function chargeAccount(pool, accountId, { reason = 'monthly', force = fals
     }
 
     const periodMonth = todayDateString().slice(0, 7);
+    try {
+        const { refreshFailoverBillingForAccount } = require('./posFailoverMetering');
+        await refreshFailoverBillingForAccount(pool, accountId, periodMonth);
+    } catch (e) {
+        logger.warn('[platform-billing] failover usage sync failed', { message: e.message });
+    }
     const { lines, subtotal } = await computeMonthlyTotal(pool, accountId, { periodMonth });
     const credit = Math.max(0, Number(account.billingCreditBalance) || 0);
     const chargeAmount = Math.max(0, Math.round((subtotal - credit) * 100) / 100);
@@ -214,6 +220,12 @@ async function chargeAccount(pool, accountId, { reason = 'monthly', force = fals
         await recordChargeSuccess(pool, accountId, { grossAmount: chargeAmount });
         await markUsageBilled(pool, accountId, periodMonth, chargeId);
         await advanceInstallmentPlans(pool, accountId, lines);
+        try {
+            const { resetFailoverPeriodAfterBilling } = require('./posFailoverMetering');
+            await resetFailoverPeriodAfterBilling(pool, periodMonth);
+        } catch (e) {
+            logger.warn('[platform-billing] failover reset after billing failed', { message: e.message });
+        }
         const updated = await getAccountById(pool, accountId);
         await sendPaymentSucceededEmail(updated, { amount: chargeAmount, lines });
         return {

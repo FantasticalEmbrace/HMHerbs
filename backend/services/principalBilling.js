@@ -85,8 +85,13 @@ async function getPrincipalDashboard(pool, account) {
     const { listSubscriptions, listHardwareCatalog } = require('./platformBillingAccount');
     const { computeMonthlyTotal } = require('./platformBillingRunner');
     const { computeHardwareCheckout } = require('./platformBillingPricing');
+    const { refreshFailoverBillingForAccount, getMeteredFailoverGb } = require('./posFailoverMetering');
+    const { FAILOVER_INCLUDED_GB, FAILOVER_OVERAGE_PER_GB } = require('./posBillingPricing');
     const { isPlatformBillingConfigured } = require('../utils/platformBillingEnv');
     const { isProchargeSandbox } = require('../utils/prochargeEnv');
+
+    await refreshFailoverBillingForAccount(pool, account.id);
+    const failoverGbUsed = await getMeteredFailoverGb(pool);
 
     const subscriptions = await listSubscriptions(pool, account.id);
     const statement = await computeMonthlyTotal(pool, account.id);
@@ -113,6 +118,11 @@ async function getPrincipalDashboard(pool, account) {
         statement,
         hardware,
         principalMeta,
+        failover: {
+            gbUsed: failoverGbUsed,
+            includedGb: FAILOVER_INCLUDED_GB,
+            overagePerGb: FAILOVER_OVERAGE_PER_GB
+        },
         buildBalance: {
             remaining: Number(principalMeta.buildBalanceRemaining) || 0,
             fullAmount: Number(principalMeta.buildFullAmount) || 0,

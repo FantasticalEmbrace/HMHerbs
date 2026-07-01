@@ -251,7 +251,14 @@ async function ensureLicenseRow(pool) {
 
 async function loadMerchantLicense(pool) {
     const row = await ensureLicenseRow(pool);
-    return mapLicenseRow(row);
+    let failoverGbUsed = Math.max(0, Number(row.failover_gb_used) || 0);
+    try {
+        const { getMeteredFailoverGb } = require('./posFailoverMetering');
+        failoverGbUsed = await getMeteredFailoverGb(pool);
+    } catch {
+        /* metering table optional during migration */
+    }
+    return mapLicenseRow({ ...row, failover_gb_used: failoverGbUsed });
 }
 
 async function countActiveDevices(pool) {
@@ -370,12 +377,6 @@ async function updateMerchantLicense(pool, patch) {
         fields.push('grace_days_override = ?');
         values.push(g === '' || g == null ? null : Math.max(0, Math.min(30, Math.floor(Number(g) || 0))));
     }
-    if (patch.failoverGbUsed !== undefined || patch.failover_gb_used !== undefined) {
-        const raw = patch.failoverGbUsed ?? patch.failover_gb_used;
-        const gb = Math.max(0, Math.min(9999, Number(raw) || 0));
-        fields.push('failover_gb_used = ?');
-        values.push(Math.round(gb * 100) / 100);
-    }
 
     if (!fields.length) {
         return loadMerchantLicense(pool);
@@ -392,19 +393,14 @@ async function updateMerchantLicense(pool, patch) {
     }
 
     const license = await loadMerchantLicense(pool);
-    if (
-        patch.licensedStationCount != null ||
-        patch.failoverGbUsed !== undefined ||
-        patch.failover_gb_used !== undefined
-    ) {
+    if (patch.licensedStationCount != null) {
         try {
             const { ensureDefaultAccount, upsertSubscription } = require('./platformBillingAccount');
             const account = await ensureDefaultAccount(pool);
             await upsertSubscription(pool, account.id, 'pos', {
                 status: 'active',
                 config: {
-                    stationCount: license.licensedStationCount,
-                    failoverGbUsed: license.failoverGbUsed
+                    stationCount: license.licensedStationCount
                 }
             });
         } catch {
@@ -522,19 +518,15 @@ async function saveBillingVault(pool, payload) {
     await upsertSubscription(pool, account.id, 'pos', {
         status: 'active',
         config: {
-            stationCount: license.licensedStationCount,
-            failoverGbUsed: license.failoverGbUsed
+            stationCount: license.licensedStationCount
         }
     });
 
     return license;
 }
 
-function computeChargeBreakdown(license, { failoverGbUsed } = {}) {
-    const gb =
-        failoverGbUsed != null
-            ? Math.max(0, Number(failoverGbUsed) || 0)
-            : Math.max(0, Number(license.failoverGbUsed) || 0);
+function computeChargeBreakdown(license) {
+    const gb = Math.max(0, Number(license.failoverGbUsed) || 0);
     const breakdown = describeBillingBreakdown(license.licensedStationCount, gb);
     return {
         subscription: breakdown.subscriptionAmount,
@@ -615,8 +607,7 @@ async function syncPosSubscriptionFromLicense(pool, license) {
     await upsertSubscription(pool, account.id, 'pos', {
         status: 'active',
         config: {
-            stationCount: license.licensedStationCount,
-            failoverGbUsed: license.failoverGbUsed
+            stationCount: license.licensedStationCount
         }
     });
     return account.id;
@@ -653,10 +644,10 @@ async function syncLicenseFromAccount(pool, accountId) {
     return loadMerchantLicense(pool);
 }
 
-async function attemptMerchantCharge(pool, license, { reason = 'monthly', failoverGbUsed, force = false } = {}) {
+async function attemptMerchantCharge(pool, license, { reason = 'monthly', force = false } = {}) {
     const dryRun = isBillingDryRun();
     const { gross, chargeAmount, subscription, failoverOverage, failoverGbUsed: gbUsed } =
-        computeChargeBreakdown(license, { failoverGbUsed });
+        computeChargeBreakdown(license);
 
     if (!license.hasBillingVault) {
         return {
@@ -732,9 +723,18 @@ async function attemptMerchantCharge(pool, license, { reason = 'monthly', failov
     };
 }
 
-async function runMonthlyBillingForMerchant(pool, { force = false, failoverGbUsed } = {}) {
+async function runMonthlyBillingForMerchant(pool, { force = false } = {}) {
+    try {
+        const { ensureDefaultAccount } = require('./platformBillingAccount');
+        const { refreshFailoverBillingForAccount } = require('./posFailoverMetering');
+        const account = await ensureDefaultAccount(pool);
+        await refreshFailoverBillingForAccount(pool, account.id);
+    } catch {
+        /* platform billing optional during migration */
+    }
+
     const license = await loadMerchantLicense(pool);
-    const { gross: amount, subscription, failoverOverage } = computeChargeBreakdown(license, { failoverGbUsed });
+    const { gross: amount, subscription, failoverOverage } = computeChargeBreakdown(license);
     const dryRun = isBillingDryRun();
 
     if (isCompedActive(license)) {
@@ -764,7 +764,6 @@ async function runMonthlyBillingForMerchant(pool, { force = false, failoverGbUse
 
     return attemptMerchantCharge(pool, license, {
         reason: force ? 'manual' : 'monthly',
-        failoverGbUsed,
         force
     });
 }

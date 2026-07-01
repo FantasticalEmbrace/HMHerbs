@@ -679,6 +679,14 @@ router.post('/troubleshoot-assistant/chat', async (req, res) => {
 
 router.get('/license', async (req, res) => {
     try {
+        try {
+            const { ensureDefaultAccount } = require('../services/platformBillingAccount');
+            const { refreshFailoverBillingForAccount } = require('../services/posFailoverMetering');
+            const account = await ensureDefaultAccount(req.pool);
+            await refreshFailoverBillingForAccount(req.pool, account.id);
+        } catch {
+            /* optional */
+        }
         const license = await loadMerchantLicense(req.pool);
         const activeDevices = await countActiveDevices(req.pool);
         let platformBilling = null;
@@ -742,8 +750,7 @@ router.put('/license', async (req, res) => {
                 licenseExpiresAt: body.licenseExpiresAt ?? body.license_expires_at,
                 nextBillDate: body.nextBillDate ?? body.next_bill_date,
                 serviceCompedUntil: body.serviceCompedUntil ?? body.service_comped_until,
-                graceDaysOverride: body.graceDaysOverride ?? body.grace_days_override,
-                failoverGbUsed: body.failoverGbUsed ?? body.failover_gb_used
+                graceDaysOverride: body.graceDaysOverride ?? body.grace_days_override
             });
         }
         const license = await updateMerchantLicense(req.pool, patch);
@@ -756,12 +763,7 @@ router.put('/license', async (req, res) => {
 
 router.post('/license/run-billing', requireDeveloper, async (req, res) => {
     try {
-        const body = req.body || {};
-        const failoverGbUsed = body.failoverGbUsed ?? body.failover_gb_used;
-        const result = await runMonthlyBillingForMerchant(req.pool, {
-            force: true,
-            ...(failoverGbUsed != null ? { failoverGbUsed } : {})
-        });
+        const result = await runMonthlyBillingForMerchant(req.pool, { force: true });
         res.json({ result });
     } catch (e) {
         logger.error('POS manual billing run error:', e);

@@ -220,6 +220,21 @@ async function ensurePosSchema(pool) {
     }
     try {
         await pool.query(`
+            CREATE TABLE IF NOT EXISTS pos_failover_usage_period (
+                id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                period_month CHAR(7) NOT NULL,
+                bytes_used BIGINT UNSIGNED NOT NULL DEFAULT 0,
+                last_source VARCHAR(32) NULL,
+                last_reported_at TIMESTAMP NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_failover_usage_period (period_month)
+            )`);
+    } catch (e) {
+        logger.warn(`Database: pos_failover_usage_period — ${logger.formatMysqlError(e)}`);
+    }
+    try {
+        await pool.query(`
             CREATE TABLE IF NOT EXISTS pos_admin_handoffs (
                 code VARCHAR(64) NOT NULL PRIMARY KEY,
                 admin_user_id INT NOT NULL,

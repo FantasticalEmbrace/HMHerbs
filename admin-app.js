@@ -3091,9 +3091,18 @@ class AdminApp {
             if (emailEl) emailEl.value = license.billingEmail || '';
             const notesEl = form.querySelector('[name="notes"]');
             if (notesEl) notesEl.value = license.notes || '';
-            const failoverEl = form.querySelector('[name="failoverGbUsed"]');
-            if (failoverEl) failoverEl.value = String(license.failoverGbUsed ?? 0);
-            this._updatePosLicensePricingHint(Number(license.licensedStationCount) || 1);
+            const failoverEl = document.getElementById('pos-license-failover-readout');
+            if (failoverEl) {
+                const gb = Number(license.failoverGbUsed) || 0;
+                const over = Number(license.failoverOverageAmount) || 0;
+                failoverEl.textContent =
+                    over > 0
+                        ? `${gb.toFixed(1)} GB used · $${over.toFixed(2)} overage due`
+                        : gb > 0
+                          ? `${gb.toFixed(1)} GB used (within included 2 GB)`
+                          : '0 GB used this period';
+            }
+            this._updatePosLicensePricingHint(Number(license.licensedStationCount) || 1, license);
 
             const waiveCard = document.getElementById('pos-license-waive-card');
             const owedEl = document.getElementById('pos-license-past-due-owed');
@@ -3131,7 +3140,7 @@ class AdminApp {
         }
     }
 
-    _updatePosLicensePricingHint(stations) {
+    _updatePosLicensePricingHint(stations, license) {
         const hint = document.getElementById('pos-license-pricing-hint');
         if (!hint) return;
         const n = Math.max(1, Math.min(99, Number(stations) || 1));
@@ -3139,17 +3148,18 @@ class AdminApp {
         if (n > 1) subscription += Math.min(n - 1, 4) * 50;
         if (n > 5) subscription += (n - 5) * 25;
 
-        const form = document.getElementById('pos-license-form');
-        const gb = Math.max(0, Number(form?.querySelector('[name="failoverGbUsed"]')?.value) || 0);
+        const gb = Math.max(0, Number(license?.failoverGbUsed) || 0);
         const overGb = Math.max(0, gb - 2);
         const failoverOverage = overGb > 0 ? Math.ceil(overGb) * 10 : 0;
         const total = subscription + failoverOverage;
 
         let text = `Estimated monthly: $${total.toFixed(2)}/mo ($${subscription.toFixed(2)} subscription`;
         if (failoverOverage > 0) {
-            text += ` + $${failoverOverage.toFixed(2)} failover overage for ${gb.toFixed(1)} GB`;
+            text += ` + $${failoverOverage.toFixed(2)} auto-metered failover for ${gb.toFixed(1)} GB`;
+        } else {
+            text += '; failover over 2 GB is metered automatically at $10/GB';
         }
-        text += '). First station includes 2 GB failover internet; $10/mo per GB after that.';
+        text += ').';
         hint.textContent = text;
     }
 
@@ -3169,8 +3179,7 @@ class AdminApp {
                 licensedStationCount: Number(form.querySelector('[name="licensedStationCount"]')?.value) || 1,
                 notes: form.querySelector('[name="notes"]')?.value || '',
                 serviceCompedUntil: form.querySelector('[name="serviceCompedUntil"]')?.value || null,
-                graceDaysOverride: form.querySelector('[name="graceDaysOverride"]')?.value || null,
-                failoverGbUsed: Number(form.querySelector('[name="failoverGbUsed"]')?.value) || 0
+                graceDaysOverride: form.querySelector('[name="graceDaysOverride"]')?.value || null
             });
         }
         try {
@@ -3192,11 +3201,9 @@ class AdminApp {
 
     async runPosBillingTest() {
         try {
-            const form = document.getElementById('pos-license-form');
-            const failoverGbUsed = Number(form?.querySelector('[name="failoverGbUsed"]')?.value) || 0;
             const res = await this.apiRequest('/admin/pos/license/run-billing', {
                 method: 'POST',
-                body: JSON.stringify({ failoverGbUsed })
+                body: JSON.stringify({})
             });
             const r = res.result || {};
             const text =
@@ -13337,13 +13344,11 @@ document.addEventListener('DOMContentLoaded', () => {
         posLicenseForm.addEventListener('submit', (ev) => window.adminApp.savePosLicense(ev));
         const stationsInput = posLicenseForm.querySelector('[name="licensedStationCount"]');
         if (stationsInput) {
-            stationsInput.addEventListener('input', (e) => window.adminApp._updatePosLicensePricingHint(e.target.value));
-        }
-        const failoverInput = posLicenseForm.querySelector('[name="failoverGbUsed"]');
-        if (failoverInput) {
-            failoverInput.addEventListener('input', () => {
-                const stations = Number(stationsInput?.value) || 1;
-                window.adminApp._updatePosLicensePricingHint(stations);
+            stationsInput.addEventListener('input', (e) => {
+                const licenseSummary = document.getElementById('pos-license-summary');
+                const gbMatch = licenseSummary?.textContent?.match(/([\d.]+) GB/);
+                const gb = gbMatch ? Number(gbMatch[1]) : 0;
+                window.adminApp._updatePosLicensePricingHint(e.target.value, { failoverGbUsed: gb });
             });
         }
     }

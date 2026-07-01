@@ -100,6 +100,23 @@ router.put('/network/report', async (req, res) => {
     }
 });
 
+router.put('/failover/usage', async (req, res) => {
+    try {
+        const { recordFailoverUsage } = require('../services/posFailoverMetering');
+        const bytesDelta = req.body?.bytesDelta ?? req.body?.bytes_delta;
+        const bytesTotal = req.body?.bytesTotal ?? req.body?.bytes_total ?? req.body?.bytesUsed;
+        const result = await recordFailoverUsage(req.pool, {
+            bytesDelta,
+            bytesTotal,
+            source: req.body?.source || 'register'
+        });
+        res.json({ success: true, ...result });
+    } catch (e) {
+        logger.error('POS failover usage report error:', e);
+        res.status(500).json({ error: 'Failed to record failover usage' });
+    }
+});
+
 router.get('/config', async (req, res) => {
     try {
         const [cashDiscount, store, security, payment, taxRate, operations, experience, cardCheckout, displayAds, paymentMethods, loyaltyProgram] =

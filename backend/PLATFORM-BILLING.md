@@ -83,6 +83,15 @@ BILLING_PRINCIPAL_BUILD_REMAINING=5000
 
 Everyone else uses `business-one-webpage/billing-portal.html`.
 
+### Failover data metering
+
+Failover usage is **never entered manually**. The billing period counter comes from:
+
+- **WTI modem / cloud** — `POST /api/platform/billing/failover/ingest` with header `x-failover-ingest-secret` and body `{ "bytesUsed": 3500000000 }` (cumulative for the month)
+- **POS registers** — `PUT /api/pos/v1/failover/usage` with `{ "bytesDelta": 12345 }` when the device is on cellular
+
+Before each monthly charge, usage syncs into `billing_usage_lines` as `failover_overage` ($10/GB over 2 GB included). The counter resets after a successful charge.
+
 ## WTI hardware
 
 **Required with every POS signup** — customer chooses standard or premium; card charged once at signup (subtotal + sales tax).
