@@ -1447,6 +1447,7 @@ class AdminApp {
                 break;
             case 'developer-tools':
                 await this.loadDeveloperTools();
+                await this.loadIntegrationCredentials();
                 break;
         }
     }
@@ -1519,6 +1520,170 @@ class AdminApp {
             backupMeta.textContent = 'Could not load developer tools status.';
             migrationsSummary.textContent = '';
             migrationsList.innerHTML = `<p style="margin:0;color:var(--error);">${this._escapeHtml(err.message || 'Failed to load status')}</p>`;
+        }
+    }
+
+    _integrationCredFields() {
+        return Array.from(document.querySelectorAll('[data-cred-field]'));
+    }
+
+    _toggleIntegrationPhysicalFields() {
+        document.querySelectorAll('[data-cred-physical]').forEach((block) => {
+            const selectId = block.getAttribute('data-cred-physical');
+            const select = document.getElementById(selectId);
+            const isPhysical = select?.value === 'physical';
+            block.style.display = isPhysical ? '' : 'none';
+        });
+    }
+
+    async loadIntegrationCredentials() {
+        const statusEl = document.getElementById('dev-integrations-status');
+        const msg = document.getElementById('dev-integrations-msg');
+        if (!statusEl) return;
+        if (this.currentUser?.role !== 'developer') return;
+
+        statusEl.textContent = 'Loading credentials…';
+        if (msg) msg.textContent = '';
+
+        try {
+            const data = await this.apiRequest('/admin/dev-tools/integrations');
+            const fields = data?.fields || {};
+            const st = data?.status || {};
+
+            for (const input of this._integrationCredFields()) {
+                const key = input.name;
+                if (!key) continue;
+                if (input.dataset.credBool === 'true') {
+                    input.checked = String(fields[key]).toLowerCase() === 'true';
+                    continue;
+                }
+                const val = fields[key] != null ? String(fields[key]) : '';
+                if (input.dataset.credSecret === 'true') {
+                    input.value = '';
+                    input.placeholder = val || input.placeholder || 'Not set';
+                } else {
+                    input.value = val;
+                }
+            }
+
+            this._toggleIntegrationPhysicalFields();
+
+            const badges = [];
+            badges.push(
+                st.epi?.configured
+                    ? '<span class="badge badge-success">EPI ready</span>'
+                    : '<span class="badge badge-warning">EPI keys missing</span>'
+            );
+            badges.push(
+                st.durango?.websiteConfigured
+                    ? '<span class="badge badge-success">Durango website ready</span>'
+                    : '<span class="badge badge-warning">Durango website keys missing</span>'
+            );
+            badges.push(
+                st.durango?.posConfigured
+                    ? '<span class="badge badge-success">Durango POS ready</span>'
+                    : '<span class="badge badge-warning">Durango POS keys missing</span>'
+            );
+            badges.push(
+                st.shippo?.configured
+                    ? '<span class="badge badge-success">Shippo ready</span>'
+                    : '<span class="badge badge-warning">Shippo token missing</span>'
+            );
+            statusEl.innerHTML = badges.join(' ');
+        } catch (err) {
+            statusEl.textContent = '';
+            if (msg) {
+                msg.textContent = err.message || 'Could not load integration credentials.';
+                msg.style.color = 'var(--error)';
+            }
+        }
+    }
+
+    async saveIntegrationCredentials(e) {
+        e?.preventDefault();
+        if (this.currentUser?.role !== 'developer') {
+            this.showNotification('Developer access required', 'error');
+            return;
+        }
+
+        const msg = document.getElementById('dev-integrations-msg');
+        const btn = document.getElementById('dev-integrations-save-btn');
+        const payload = {};
+
+        for (const input of this._integrationCredFields()) {
+            const key = input.name;
+            if (!key) continue;
+            if (input.dataset.credBool === 'true') {
+                payload[key] = input.checked ? 'true' : 'false';
+            } else {
+                payload[key] = input.value.trim();
+            }
+        }
+
+        if (btn) btn.disabled = true;
+        if (msg) {
+            msg.textContent = 'Saving…';
+            msg.style.color = 'var(--gray-600)';
+        }
+
+        try {
+            const res = await this.apiRequest('/admin/dev-tools/integrations', {
+                method: 'PUT',
+                body: JSON.stringify(payload),
+            });
+            this.showNotification(res.message || 'Credentials saved', 'success');
+            if (msg) {
+                msg.textContent = 'Saved. Keys are active immediately.';
+                msg.style.color = 'var(--success)';
+            }
+            await this.loadIntegrationCredentials();
+        } catch (err) {
+            if (msg) {
+                msg.textContent = err.message || 'Save failed';
+                msg.style.color = 'var(--error)';
+            }
+            this.showNotification(err.message || 'Save failed', 'error');
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    }
+
+    async testIntegrationCredentials() {
+        if (this.currentUser?.role !== 'developer') {
+            this.showNotification('Developer access required', 'error');
+            return;
+        }
+
+        const msg = document.getElementById('dev-integrations-msg');
+        const btn = document.getElementById('dev-integrations-test-btn');
+        if (btn) btn.disabled = true;
+        if (msg) {
+            msg.textContent = 'Testing connections…';
+            msg.style.color = 'var(--gray-600)';
+        }
+
+        try {
+            const res = await this.apiRequest('/admin/dev-tools/integrations/test', {
+                method: 'POST',
+                body: JSON.stringify({ target: 'all' }),
+            });
+            const lines = Object.entries(res.results || {}).map(([k, v]) => {
+                const label = k.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase());
+                return `${label}: ${v.ok ? 'OK' : 'Failed'} — ${v.message}`;
+            });
+            if (msg) {
+                msg.innerHTML = lines.map((l) => this._escapeHtml(l)).join('<br>');
+                msg.style.color = lines.every((_, i) => Object.values(res.results)[i]?.ok)
+                    ? 'var(--success)'
+                    : 'var(--warning)';
+            }
+        } catch (err) {
+            if (msg) {
+                msg.textContent = err.message || 'Test failed';
+                msg.style.color = 'var(--error)';
+            }
+        } finally {
+            if (btn) btn.disabled = false;
         }
     }
 
@@ -7454,11 +7619,21 @@ class AdminApp {
             }
 
             if (response.products && response.products.length > 0) {
+                const requestedPage = this.productsPagination.currentPage;
                 // Update pagination info if available
                 if (response.pagination) {
                     this.productsPagination.totalPages = response.pagination.totalPages;
                     this.productsPagination.totalProducts = response.pagination.totalProducts;
-                    this.productsPagination.currentPage = response.pagination.currentPage;
+                    if (hasFilters) {
+                        // Client-side filter mode keeps the page the user selected when possible
+                        this.productsPagination.currentPage = Math.min(
+                            requestedPage,
+                            Math.max(1, response.pagination.totalPages || 1)
+                        );
+                    } else {
+                        this.productsPagination.currentPage =
+                            response.pagination.currentPage || requestedPage;
+                    }
                 }
 
                 // Store all products for search/filtering
@@ -8210,11 +8385,12 @@ class AdminApp {
     goToProductsPage(page) {
         if (page < 1 || page > this.productsPagination.totalPages) return;
         this.productsPagination.currentPage = page;
-        this.loadProducts();
-        // Scroll to top of products table
-        const container = document.getElementById('productsTable');
-        if (container) {
-            container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        this.loadProducts().then(() => {
+            this.renderProductsPagination();
+        });
+        const paginationContainer = document.getElementById('productsPagination');
+        if (paginationContainer) {
+            paginationContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
     }
 
@@ -8623,28 +8799,11 @@ class AdminApp {
             categoryId: categoryId
         });
 
-        // Get featured status - handle case where filter might not exist yet or value might be lost
-        // First try to get from the filter element, then fall back to sessionStorage
-        let featuredStatus = '';
-        if (featuredFilter) {
-            featuredStatus = featuredFilter.value || '';
-        } else {
-            // Filter doesn't exist yet, try to find it
+        // Featured filter: read DOM only during render (sessionStorage restore happens in loadProducts).
+        let featuredStatus = featuredFilter ? (featuredFilter.value || '') : '';
+        if (!featuredFilter) {
             const tempFilter = document.getElementById('productsFeaturedFilter');
-            if (tempFilter) {
-                featuredStatus = tempFilter.value || '';
-            }
-        }
-        // If still empty, try sessionStorage as a fallback
-        if (!featuredStatus) {
-            const storedValue = sessionStorage.getItem('adminFeaturedFilter');
-            if (storedValue) {
-                featuredStatus = storedValue;
-                // Restore it to the filter if it exists
-                if (featuredFilter) {
-                    featuredFilter.value = storedValue;
-                }
-            }
+            if (tempFilter) featuredStatus = tempFilter.value || '';
         }
 
         // Ensure featuredStatus is always a string, never undefined
@@ -8694,17 +8853,10 @@ class AdminApp {
             return;
         }
 
-        // If using server pagination and we have filters/search, we need to fetch all products for filtering
-        // Otherwise, if using server pagination with no filters, use the products we already have
+        // Filter changes trigger loadProducts(); do not refetch during render (resets page to 1).
         let filteredProducts;
 
-        if (this.productsPagination.useServerPagination && (searchTerm || brandId || categoryId || featuredStatus)) {
-            // We have filters but are using server pagination - need to fetch all products for client-side filtering
-            console.log('âš ï¸ Filters active but using server pagination. Fetching all products for filtering...');
-            // Trigger a reload with filters to switch to client-side filtering
-            this.loadProducts();
-            return; // Will re-render after products are loaded
-        } else if (this.productsPagination.useServerPagination && !searchTerm && !brandId && !categoryId && !featuredStatus) {
+        if (this.productsPagination.useServerPagination && !searchTerm && !brandId && !categoryId && !featuredStatus) {
             // No filters, using server pagination - use products as-is (already paginated by server)
             filteredProducts = this.allProducts;
             console.log('ðŸ“„ Using server-paginated products:', {
@@ -13574,6 +13726,20 @@ document.addEventListener('DOMContentLoaded', () => {
     if (devToolsRunMigrationsBtn && window.adminApp) {
         devToolsRunMigrationsBtn.addEventListener('click', () => window.adminApp.runPendingMigrations());
     }
+    const devIntegrationsForm = document.getElementById('dev-integrations-form');
+    if (devIntegrationsForm && window.adminApp) {
+        devIntegrationsForm.addEventListener('submit', (ev) => window.adminApp.saveIntegrationCredentials(ev));
+    }
+    const devIntegrationsTestBtn = document.getElementById('dev-integrations-test-btn');
+    if (devIntegrationsTestBtn && window.adminApp) {
+        devIntegrationsTestBtn.addEventListener('click', () => window.adminApp.testIntegrationCredentials());
+    }
+    ['cred_epi_deployment_mode', 'cred_durango_deployment_mode'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el && window.adminApp) {
+            el.addEventListener('change', () => window.adminApp._toggleIntegrationPhysicalFields());
+        }
+    });
     const promoForm = document.getElementById('promo-editor-form');
     if (promoForm && window.adminApp) {
         window.adminApp.initPromoProductPickers();
