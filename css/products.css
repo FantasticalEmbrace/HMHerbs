@@ -1116,11 +1116,23 @@ a.browse-card:focus-visible {
 
 .product-image-gallery {
     display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
     gap: var(--space-2);
-    flex-wrap: wrap;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 0.25rem;
+    margin-top: var(--space-2);
+}
+
+.product-image-gallery[hidden] {
+    display: none !important;
 }
 
 .gallery-thumbnail {
+    flex: 0 0 auto;
+    scroll-snap-align: start;
     width: 80px;
     height: 80px;
     border: 2px solid transparent;

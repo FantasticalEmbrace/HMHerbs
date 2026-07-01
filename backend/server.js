@@ -1594,7 +1594,14 @@ app.get('/api/products/:slug', async (req, res) => {
         `, [product.id]);
 
         const catalogPrimary = catalogPrimaryImageForProduct(product);
-        if (catalogPrimary) {
+        const dbImages = (images || []).map((row) => ({
+            ...row,
+            image_url: sanitizeLegacyProductImageUrl(row.image_url, product.slug, product.sku)
+        }));
+
+        if (dbImages.length > 0) {
+            product.images = dbImages;
+        } else if (catalogPrimary) {
             product.images = [{
                 image_url: catalogPrimary,
                 alt_text: product.name,
@@ -1602,10 +1609,7 @@ app.get('/api/products/:slug', async (req, res) => {
                 sort_order: 0
             }];
         } else {
-            product.images = images.map((row) => ({
-                ...row,
-                image_url: sanitizeLegacyProductImageUrl(row.image_url, product.slug, product.sku)
-            }));
+            product.images = [];
         }
         product.variants = variants.map((row) => {
             let attributes = row.attributes;

@@ -233,11 +233,12 @@ class ProductDetailPage {
             }
         }
 
-        // Images
-        this.renderImages();
-
-        // Variants
+        // Images after variants so the first selected option drives the hero photo + thumbnails.
         this.renderVariants();
+        this.renderImages();
+        if (this.selectedVariant) {
+            this.updateVariantImage();
+        }
 
         // Brand
         const brandRow = document.getElementById('product-brand');
@@ -317,61 +318,72 @@ class ProductDetailPage {
 
     renderImages() {
         const images = this.getDisplayImages();
+        const gallery = document.getElementById('product-image-gallery');
+        const mainImage = document.getElementById('product-main-image');
 
         if (images.length === 0) {
-            // Use placeholder if no images
-            const mainImage = document.getElementById('product-main-image');
             if (mainImage) {
-                // Use SVG data URI as placeholder instead of missing file
                 mainImage.src = this.createPlaceholderImage();
                 mainImage.alt = this.product.name || 'Product image';
+            }
+            if (gallery) {
+                gallery.innerHTML = '';
+                gallery.style.display = 'none';
+                gallery.hidden = true;
             }
             return;
         }
 
-        // Find primary image or use first image
-        const primaryImage = images.find(img => img.is_primary) || images[0];
-        const mainImage = document.getElementById('product-main-image');
-        if (mainImage && primaryImage) {
-            const imageUrl = this.resolveProductImageUrl(primaryImage.image_url);
+        const preferredUrl = this.getVariantImageUrl(this.selectedVariant);
+        let activeIndex = images.findIndex((img) => String(img.image_url) === String(preferredUrl));
+        if (activeIndex < 0) {
+            activeIndex = images.findIndex((img) => img.is_primary);
+        }
+        if (activeIndex < 0) activeIndex = 0;
 
-            // Remove skip-error-handling attribute before setting src
+        const activeImage = images[activeIndex];
+        if (mainImage && activeImage) {
             mainImage.removeAttribute('data-skip-error-handling');
-            mainImage.src = imageUrl;
-            mainImage.alt = primaryImage.alt_text || this.product.name || 'Product image';
+            mainImage.src = this.resolveProductImageUrl(activeImage.image_url);
+            mainImage.alt = activeImage.alt_text || this.product.name || 'Product image';
 
-            // Ensure image is processed by visual-bug-fixes if needed
             if (window.visualBugFixer && window.visualBugFixer.processedImages && !window.visualBugFixer.processedImages.has(mainImage)) {
                 window.visualBugFixer.handleNewImage(mainImage);
             }
         }
 
-        // Render thumbnail gallery
-        const gallery = document.getElementById('product-image-gallery');
-        if (gallery && images.length > 1) {
+        if (!gallery) return;
+
+        if (images.length > 1) {
+            gallery.hidden = false;
+            gallery.style.display = 'flex';
             gallery.innerHTML = images.map((img, index) => `
-                <button type="button" class="gallery-thumbnail ${index === 0 ? 'active' : ''}" 
+                <button type="button" class="gallery-thumbnail ${index === activeIndex ? 'active' : ''}" 
                         data-image-index="${index}" 
-                        aria-label="View image ${index + 1}">
+                        aria-label="View image ${index + 1}"
+                        aria-current="${index === activeIndex ? 'true' : 'false'}">
                     <img src="${this.resolveProductImageUrl(img.image_url)}" 
-                         alt="${img.alt_text || ''}" 
+                         alt="${this.escapeHtml(img.alt_text || '')}" 
                          loading="lazy">
                 </button>
             `).join('');
 
-            // Add click handlers for thumbnails
-            gallery.querySelectorAll('.gallery-thumbnail').forEach(thumb => {
+            gallery.querySelectorAll('.gallery-thumbnail').forEach((thumb) => {
                 thumb.addEventListener('click', () => {
-                    const index = parseInt(thumb.dataset.imageIndex);
+                    const index = parseInt(thumb.dataset.imageIndex, 10);
+                    if (!Number.isFinite(index) || !images[index]) return;
                     this.switchMainImage(images[index]);
-
-                    // Update active thumbnail
-                    gallery.querySelectorAll('.gallery-thumbnail').forEach(t => t.classList.remove('active'));
-                    thumb.classList.add('active');
+                    gallery.querySelectorAll('.gallery-thumbnail').forEach((t) => {
+                        const isActive = t === thumb;
+                        t.classList.toggle('active', isActive);
+                        t.setAttribute('aria-current', isActive ? 'true' : 'false');
+                    });
                 });
             });
-        } else if (gallery) {
+        } else {
+            gallery.innerHTML = '';
             gallery.style.display = 'none';
+            gallery.hidden = true;
         }
     }
 
@@ -433,12 +445,20 @@ class ProductDetailPage {
         });
 
         const gallery = document.getElementById('product-image-gallery');
-        if (!gallery) return;
+        if (!gallery || gallery.hidden) return;
         const images = this.getDisplayImages();
         const activeIndex = images.findIndex((img) => String(img.image_url) === String(url));
         gallery.querySelectorAll('.gallery-thumbnail').forEach((thumb, idx) => {
-            thumb.classList.toggle('active', activeIndex >= 0 && idx === activeIndex);
+            const isActive = activeIndex >= 0 && idx === activeIndex;
+            thumb.classList.toggle('active', isActive);
+            thumb.setAttribute('aria-current', isActive ? 'true' : 'false');
         });
+        if (activeIndex >= 0) {
+            const activeThumb = gallery.querySelector(`[data-image-index="${activeIndex}"]`);
+            if (activeThumb && typeof activeThumb.scrollIntoView === 'function') {
+                activeThumb.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+            }
+        }
     }
 
     renderVariants() {
@@ -528,7 +548,6 @@ class ProductDetailPage {
             this.selectedVariant = variants[0];
             this.updatePrice();
             this.updateStockStatus();
-            this.updateVariantImage();
         }
 
         container.style.display = 'flex';
