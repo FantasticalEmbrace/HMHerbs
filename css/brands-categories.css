@@ -650,25 +650,35 @@ a.browse-card:focus-visible {
     }
 
     .grid-wrapper {
-        grid-template-columns: 1fr;
-        gap: var(--space-4);
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--space-2);
     }
 
     .browse-by-cards {
-        grid-template-columns: 1fr;
-        gap: var(--space-4);
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--space-2);
     }
 
     .brand-card,
     .category-card {
-        padding: var(--space-5);
+        padding: var(--space-3);
     }
 
     .brand-card-icon,
     .category-card-icon {
-        width: 60px;
-        height: 60px;
-        font-size: var(--text-2xl);
+        width: 44px;
+        height: 44px;
+        font-size: 1rem;
         padding: var(--space-1);
+    }
+
+    .category-card-title,
+    .brand-card-name {
+        font-size: 0.8125rem;
+    }
+
+    .category-card-description {
+        font-size: 0.6875rem;
+        line-height: 1.3;
     }
 }

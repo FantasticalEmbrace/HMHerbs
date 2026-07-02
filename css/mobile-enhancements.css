@@ -276,26 +276,160 @@
         font-size: 24px !important;
     }
 
-    /* Cards */
-    .card,
-    .product-card,
-    .category-card {
+    /* Cards — default; product grids use compact rules below */
+    .card {
         padding: var(--space-4) !important;
         margin-bottom: var(--space-4) !important;
     }
 
-    /* Grids */
-    .products-grid,
-    .categories-grid {
-        grid-template-columns: 1fr !important;
-        gap: var(--space-4) !important;
+    .grid-wrapper .brand-card,
+    .grid-wrapper .category-card {
+        padding: var(--space-3) !important;
+        margin-bottom: 0 !important;
     }
 
-    @media (min-width: 480px) {
-        .products-grid,
-        .categories-grid {
-            grid-template-columns: repeat(2, 1fr) !important;
-        }
+    /* Product grids: 2 columns so ~4 cards fit in the viewport (2 rows) */
+    .products-grid,
+    .products-section .products-grid,
+    .spotlight-grid,
+    .categories-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: var(--space-2) !important;
+    }
+
+    .products-grid > *,
+    .products-section .products-grid > * {
+        max-width: none !important;
+        flex: none !important;
+    }
+
+    /* Compact product cards on phones/tablets */
+    .products-grid .product-card,
+    .products-section .product-card,
+    .spotlight-grid .product-card,
+    .product-spotlight .spotlight-grid .product-card {
+        padding: var(--space-2) !important;
+        margin-bottom: 0 !important;
+        min-height: 0 !important;
+    }
+
+    .products-grid .product-image,
+    .products-section .product-image,
+    .spotlight-grid .product-image {
+        height: 100px !important;
+        margin-bottom: var(--space-2) !important;
+        border-radius: var(--radius-md) !important;
+    }
+
+    .products-grid .product-title,
+    .products-section .product-title,
+    .spotlight-grid .product-title {
+        font-size: 0.8125rem !important;
+        line-height: 1.25 !important;
+        margin-bottom: var(--space-1) !important;
+        max-height: 2.5em !important;
+    }
+
+    .products-grid .product-brand,
+    .products-section .product-brand {
+        font-size: 0.6875rem !important;
+        margin-bottom: var(--space-1) !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    .products-grid .product-description,
+    .products-section .product-description,
+    .spotlight-grid .product-description {
+        display: none !important;
+    }
+
+    .products-grid .inventory-status,
+    .products-section .inventory-status,
+    .spotlight-grid .inventory-status {
+        display: none !important;
+    }
+
+    .products-grid .product-price,
+    .products-section .product-price,
+    .spotlight-grid .product-price {
+        font-size: 0.9375rem !important;
+        margin-bottom: var(--space-1) !important;
+    }
+
+    .products-grid .add-to-cart-btn,
+    .products-section .add-to-cart-btn,
+    .spotlight-grid .add-to-cart-btn,
+    .spotlight-grid .product-actions .add-to-cart-btn {
+        min-height: 36px !important;
+        min-width: 0 !important;
+        padding: var(--space-1) var(--space-2) !important;
+        font-size: 0.75rem !important;
+        line-height: 1.2 !important;
+    }
+
+    .spotlight-grid .product-actions {
+        margin-top: 0 !important;
+    }
+
+    .products-grid .add-to-cart-btn i,
+    .products-section .add-to-cart-btn i,
+    .spotlight-grid .add-to-cart-btn i {
+        font-size: 0.6875rem !important;
+    }
+
+    .product-spotlight {
+        padding: var(--space-10) 0 !important;
+    }
+
+    .spotlight-grid {
+        gap: var(--space-2) !important;
+        padding: 0 var(--space-3) !important;
+        margin-bottom: var(--space-8) !important;
+    }
+
+    /* Browse-by cards: 2-up on mobile */
+    .browse-by-cards {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: var(--space-2) !important;
+        justify-items: stretch !important;
+    }
+
+    .browse-by-cards .browse-card {
+        max-width: none !important;
+        padding: var(--space-2) !important;
+    }
+
+    .browse-by-cards .browse-card-icon {
+        width: 44px !important;
+        height: 44px !important;
+        font-size: 1rem !important;
+        margin-bottom: var(--space-2) !important;
+    }
+
+    .browse-by-cards .browse-card h3 {
+        font-size: 0.8125rem !important;
+    }
+
+    .browse-by-cards .browse-card p {
+        font-size: 0.6875rem !important;
+        line-height: 1.3 !important;
+    }
+
+    .browse-by-cards .browse-arrow {
+        width: 24px !important;
+        height: 24px !important;
+        font-size: 0.625rem !important;
+    }
+}
+
+/* Slightly roomier cards on wider phones — still 2 columns, ~2–3 cards visible */
+@media (max-width: 768px) and (min-width: 480px) {
+    .products-grid .product-image,
+    .products-section .product-image,
+    .spotlight-grid .product-image {
+        height: 115px !important;
     }
 }
 

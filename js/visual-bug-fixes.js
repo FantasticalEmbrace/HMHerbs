@@ -99,9 +99,19 @@ class VisualBugFixer {
                 will-change: auto;
             }
 
-            .product-spotlight .product-card {
-                min-height: 400px;
-                contain: layout style paint;
+            @media (min-width: 768px) {
+                .product-spotlight .product-card {
+                    min-height: 400px;
+                    contain: layout style paint;
+                }
+            }
+
+            @media (max-width: 767px) {
+                .product-spotlight .product-card,
+                .products-grid .product-card,
+                .products-section .product-card {
+                    min-height: 0;
+                }
             }
 
             .product-spotlight .product-card:hover {
@@ -132,9 +142,12 @@ class VisualBugFixer {
             }
             
             /* Catalog grid cards only — spotlight uses rules above */
-            .products-grid .product-card {
-                min-height: 400px;
-                contain: layout style;
+            @media (min-width: 768px) {
+                .products-grid .product-card,
+                .products-section .product-card {
+                    min-height: 400px;
+                    contain: layout style;
+                }
             }
             
             /* Optimize GPU layers — catalog only; no translateZ (breaks photos on mobile) */
