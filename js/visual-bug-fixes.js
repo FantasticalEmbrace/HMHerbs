@@ -695,7 +695,7 @@ class VisualBugFixer {
     const criticalCSS = document.createElement('style');
     criticalCSS.textContent = `
         /* IMMEDIATE FLICKER FIXES — same exclusions as css/emergency-fixes.css (wishlist modal + dim must stay transform-clean) */
-        *:not(html):not(body):not(img):not(picture):not(video):not(svg):not(canvas):not(.auth-modal):not(.hm-age-gate):not(.hm-age-gate *):not(.hm-password-field):not(.hm-password-field *):not(.hm-password-toggle-btn):not(.newsletter-popup):not(.newsletter-popup *):not(.cart-sidebar):not(.cart-overlay):not(.auth-icon-svg):not(.header-actions):not(.header-actions *):not(.acct-modal-backdrop):not(.hm-wl-picker-backdrop):not(.acct-modal):not(.wishlist-modal):not(.hm-wl-picker-dim):not(.acct-modal-dim):not(.edsa-modal):not(.edsa-modal *):not(#edsa-booking-modal):not(#edsa-booking-modal *):not(#hm-toast-region):not(#hm-toast-region *):not(.hm-address-autocomplete-wrap):not(.hm-address-autocomplete-wrap *):not(.hm-address-suggest-list):not(.hm-address-suggest-list *) {
+        *:not(html):not(body):not(img):not(picture):not(video):not(svg):not(canvas):not(.auth-modal):not(.hm-age-gate):not(.hm-age-gate *):not(.hm-password-field):not(.hm-password-field *):not(.hm-password-toggle-btn):not(.newsletter-popup):not(.newsletter-popup *):not(.cart-sidebar):not(.cart-overlay):not(.auth-icon-svg):not(.header-actions):not(.header-actions *):not(.acct-modal-backdrop):not(.hm-wl-picker-backdrop):not(.acct-modal):not(.wishlist-modal):not(.hm-wl-picker-dim):not(.acct-modal-dim):not(.edsa-modal):not(.edsa-modal *):not(#edsa-booking-modal):not(#edsa-booking-modal *):not(#hm-toast-region):not(#hm-toast-region *):not(.hm-address-autocomplete-wrap):not(.hm-address-autocomplete-wrap *):not(.hm-address-suggest-list):not(.hm-address-suggest-list *):not(.product-image-zoom):not(.product-image-zoom *) {
             -webkit-backface-visibility: hidden !important;
             backface-visibility: hidden !important;
             -webkit-transform: translateZ(0) !important;
@@ -745,6 +745,17 @@ class VisualBugFixer {
             backface-visibility: visible !important;
             -webkit-backface-visibility: visible !important;
         }
+
+        .product-image-zoom,
+        .product-image-zoom * {
+            -webkit-backface-visibility: visible !important;
+            backface-visibility: visible !important;
+        }
+
+        .product-image-zoom-nav {
+            -webkit-transform: translateY(-50%) !important;
+            transform: translateY(-50%) !important;
+        }
         
         /* IMMEDIATE SCROLLBAR FIX — html scrolls; body must not create a second scrollport */
         html {
@@ -774,7 +785,7 @@ class VisualBugFixer {
             opacity: 1 !important;
         }
         
-        img[src=""], img:not([src]) {
+        img[src=""]:not(.hero-search-suggestion-img), img:not([src]):not(.hero-search-suggestion-img) {
             background: #f8f9fa url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iI2Y4ZjlmYSIvPgo8cmVjdCB4PSI1MCIgeT0iNTAiIHdpZHRoPSIyMDAiIGhlaWdodD0iMTAwIiBmaWxsPSIjZTllY2VmIiByeD0iOCIvPgo8Y2lyY2xlIGN4PSIxMDAiIGN5PSI4MCIgcj0iMTUiIGZpbGw9IiNkZWUyZTYiLz4KPHJlY3QgeD0iMTMwIiB5PSI3MCIgd2lkdGg9IjgwIiBoZWlnaHQ9IjgiIGZpbGw9IiNkZWUyZTYiIHJ4PSI0Ii8+CjxyZWN0IHg9IjEzMCIgeT0iODUiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2IiBmaWxsPSIjZGVlMmU2IiByeD0iMyIvPgo8dGV4dCB4PSIxNTAiIHk9IjEzMCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjEyIiBmaWxsPSIjNmM3NTdkIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5JbWFnZSB1bmF2YWlsYWJsZTwvdGV4dD4KPC9zdmc+') center/contain no-repeat !important;
             opacity: 1 !important;
         }

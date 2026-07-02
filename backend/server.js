@@ -253,6 +253,7 @@ const allowedOrigins = [
     'http://localhost:5173', // Vite dev
     'http://localhost:4173', // Vite preview
     'http://localhost:8080',
+    'http://localhost:8765', // python -m http.server local preview
     'http://127.0.0.1:8000',
     'http://127.0.0.1:3000',
     'http://127.0.0.1:3001', // Allow same-origin requests when frontend is served from backend
@@ -260,6 +261,7 @@ const allowedOrigins = [
     'http://127.0.0.1:5173',
     'http://127.0.0.1:4173',
     'http://127.0.0.1:8080',
+    'http://127.0.0.1:8765', // python -m http.server local preview
     // Capacitor Android/iOS WebView origins
     'https://localhost',
     'http://localhost',
@@ -311,6 +313,18 @@ app.use(cors({
     origin: function (origin, callback) {
         // Allow requests with no origin (like mobile apps or curl requests)
         if (!origin) return callback(null, true);
+
+        // Development: allow any localhost / 127.0.0.1 port (python http.server, Live Server, etc.)
+        if (process.env.NODE_ENV !== 'production') {
+            try {
+                const { hostname } = new URL(origin);
+                if (hostname === 'localhost' || hostname === '127.0.0.1') {
+                    return callback(null, true);
+                }
+            } catch (_) {
+                /* ignore malformed origin */
+            }
+        }
 
         // Allow same-origin requests (when origin matches server origin)
         const serverOrigin = `http://localhost:${PORT}`;

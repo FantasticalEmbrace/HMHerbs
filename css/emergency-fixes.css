@@ -31,7 +31,7 @@
     -webkit-backface-visibility: visible !important;
 }
 
-*:not(html):not(body):not(img):not(picture):not(video):not(svg):not(canvas):not(.auth-modal):not(.hm-age-gate):not(.hm-age-gate *):not(.newsletter-popup):not(.cookie-popup):not(.cookie-popup *):not(.cart-sidebar):not(.cart-overlay):not(.header-actions):not(.header-actions *):not(.acct-modal-backdrop):not(.hm-wl-picker-backdrop):not(.acct-modal):not(.wishlist-modal):not(.hm-wl-picker-dim):not(.acct-modal-dim):not(.edsa-modal):not(.edsa-modal *):not(#edsa-booking-modal):not(#edsa-booking-modal *):not(#hm-toast-region):not(#hm-toast-region *):not(.hm-address-autocomplete-wrap):not(.hm-address-autocomplete-wrap *):not(.hm-address-suggest-list):not(.hm-address-suggest-list *):not(.gift-card-preview-wrap):not(.gift-card-preview-wrap *):not(.hm-gift-card):not(.hm-gift-card *):not(.hm-choice-row):not(.hm-choice-row *):not(.header):not(.main-header):not(.navbar):not(.top-bar):not(.header-content):not(.nav-menu):not(#nav-menu):not(#navbar-menu) {
+*:not(html):not(body):not(img):not(picture):not(video):not(svg):not(canvas):not(.auth-modal):not(.hm-age-gate):not(.hm-age-gate *):not(.newsletter-popup):not(.cookie-popup):not(.cookie-popup *):not(.cart-sidebar):not(.cart-overlay):not(.header-actions):not(.header-actions *):not(.acct-modal-backdrop):not(.hm-wl-picker-backdrop):not(.acct-modal):not(.wishlist-modal):not(.hm-wl-picker-dim):not(.acct-modal-dim):not(.edsa-modal):not(.edsa-modal *):not(#edsa-booking-modal):not(#edsa-booking-modal *):not(#hm-toast-region):not(#hm-toast-region *):not(.hm-address-autocomplete-wrap):not(.hm-address-autocomplete-wrap *):not(.hm-address-suggest-list):not(.hm-address-suggest-list *):not(.gift-card-preview-wrap):not(.gift-card-preview-wrap *):not(.hm-gift-card):not(.hm-gift-card *):not(.hm-choice-row):not(.hm-choice-row *):not(.header):not(.main-header):not(.navbar):not(.top-bar):not(.header-content):not(.nav-menu):not(#nav-menu):not(#navbar-menu):not(.product-image-zoom):not(.product-image-zoom *) {
     -webkit-backface-visibility: hidden;
     backface-visibility: hidden;
     -webkit-transform: translateZ(0);
@@ -76,6 +76,17 @@ canvas {
     -webkit-backface-visibility: visible !important;
     transform: none !important;
     -webkit-transform: none !important;
+}
+
+.product-image-zoom,
+.product-image-zoom * {
+    backface-visibility: visible !important;
+    -webkit-backface-visibility: visible !important;
+}
+
+.product-image-zoom-nav {
+    transform: translateY(-50%) !important;
+    -webkit-transform: translateY(-50%) !important;
 }
 
 /* EXCEPTION: Products page menu - must allow translateY transforms */
@@ -176,16 +187,16 @@ img[data-skip-error-handling] {
 }
 
 /* CLS Prevention - Reserve space for images without explicit dimensions */
-img:not([width]):not([height]):not([style*="aspect-ratio"]):not(.logo-wordmark):not(.footer-card-logo):not(.brand-card-image):not(.hm-gift-card__logo):not(.product-image):not(.product-image-main):not(.gallery-thumbnail img) {
+img:not([width]):not([height]):not([style*="aspect-ratio"]):not(.logo-wordmark):not(.footer-card-logo):not(.brand-card-image):not(.hm-gift-card__logo):not(.product-image):not(.product-image-main):not(.gallery-thumbnail img):not(.hero-search-suggestion-img) {
     /* Use a safe default aspect ratio to prevent layout shift */
     aspect-ratio: 16 / 9;
     object-fit: cover;
 }
 
 /* FALLBACK FOR BROKEN IMAGES - Professional placeholder */
-img[src=""],
-img:not([src]),
-img[alt*="unavailable"] {
+img[src=""]:not(.hero-search-suggestion-img),
+img:not([src]):not(.hero-search-suggestion-img),
+img[alt*="unavailable"]:not(.hero-search-suggestion-img) {
     background: #f8f9fa url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iI2Y4ZjlmYSIvPgo8cmVjdCB4PSI1MCIgeT0iNTAiIHdpZHRoPSIyMDAiIGhlaWdodD0iMTAwIiBmaWxsPSIjZTllY2VmIiByeD0iOCIvPgo8Y2lyY2xlIGN4PSIxMDAiIGN5PSI4MCIgcj0iMTUiIGZpbGw9IiNkZWUyZTYiLz4KPHJlY3QgeD0iMTMwIiB5PSI3MCIgd2lkdGg9IjgwIiBoZWlnaHQ9IjgiIGZpbGw9IiNkZWUyZTYiIHJ4PSI0Ii8+CjxyZWN0IHg9IjEzMCIgeT0iODUiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2IiBmaWxsPSIjZGVlMmU2IiByeD0iMyIvPgo8dGV4dCB4PSIxNTAiIHk9IjEzMCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjEyIiBmaWxsPSIjNmM3NTdkIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5JbWFnZSB1bmF2YWlsYWJsZTwvdGV4dD4KPC9zdmc+') center/contain no-repeat;
     opacity: 1;
     min-height: 200px;

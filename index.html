@@ -8,14 +8,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description"
-        content="H&M Herbs & Vitamins - Premium natural health products, herbs, vitamins, and wellness supplements. Over 10,000 products organized by health conditions.">
+        content="H&M Herbs & Vitamins - Premium natural health products, herbs, vitamins, and wellness supplements organized by health conditions.">
     <meta name="keywords"
         content="herbs, vitamins, supplements, natural health, wellness, organic, HM Herbs, blood pressure, heart health, allergies, EDSA, electro dermal stress analysis">
     <meta name="author" content="H&M Herbs & Vitamins">
     <meta name="robots" content="index, follow">
     <meta property="og:title" content="H&M Herbs & Vitamins - Premium Natural Health Products">
     <meta property="og:description"
-        content="Discover over 10,000 premium herbs, vitamins, and natural health supplements organized by health conditions. Plus EDSA service available.">
+        content="Shop curated herbs, vitamins, and natural health supplements organized by health conditions. In-store EDSA wellness testing available in Fort Oglethorpe, GA.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://hmherbs.com">
     <meta property="og:image" content="https://hmherbs.com/images/og-image.jpg">
@@ -26,7 +26,7 @@
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="H&M Herbs & Vitamins - Premium Natural Health Products">
     <meta name="twitter:description"
-        content="Discover over 10,000 premium herbs, vitamins, and natural health supplements organized by health conditions. Plus EDSA service available.">
+        content="Shop curated herbs, vitamins, and natural health supplements organized by health conditions. In-store EDSA wellness testing available in Fort Oglethorpe, GA.">
     <meta name="twitter:image" content="https://hmherbs.com/images/twitter-card.jpg">
 
     <!-- Additional SEO Meta Tags -->
@@ -57,7 +57,7 @@
       "alternateName": "HM Herbs",
       "url": "https://hmherbs.com",
       "logo": "https://hmherbs.com/images/logo.png",
-      "description": "Premium natural health products, herbs, vitamins, and wellness supplements with over 10,000 products organized by health conditions.",
+      "description": "Premium natural health products, herbs, vitamins, and wellness supplements organized by health conditions.",
       "foundingDate": "2010",
       "contactPoint": {
         "@type": "ContactPoint",
@@ -168,14 +168,14 @@
 
     <!-- CRITICAL: Emergency visual bug fixes -->
     <link rel="stylesheet" href="css/brand-tokens.css?v=admin-sync-5">
-    <link rel="stylesheet" href="css/emergency-fixes.css?v=mobile-nav-4">
+    <link rel="stylesheet" href="css/emergency-fixes.css?v=image-zoom-4">
     <link rel="stylesheet" href="css/hm-notify.css">
 
     <!-- Stylesheets -->
-    <link rel="stylesheet" href="styles.css?v=brand-sync-5">
+    <link rel="stylesheet" href="styles.css?v=hero-redesign-9">
     <link rel="stylesheet" href="css/password-toggle.css?v=4">
     <link rel="stylesheet" href="css/hm-choice-toggles.css">
-    <link rel="stylesheet" href="css/mobile-enhancements.css?v=compact-cards-1">
+    <link rel="stylesheet" href="css/mobile-enhancements.css?v=hero-redesign-5">
     <link rel="stylesheet" href="css/mobile-nav.css?v=brand-sync-5">
     <link rel="stylesheet" href="css/browser-compatibility.css">
     <link rel="stylesheet" href="css/age-gate.css?v=brand-sync-5">
@@ -357,20 +357,41 @@
         <!-- Hero Section -->
         <section class="hero" id="home" aria-labelledby="hero-heading">
             <div class="container">
-                <div class="hero-content">
-                    <div class="hero-text">
+                <div class="hero-shell">
+                    <div class="hero-copy">
+                        <p class="hero-eyebrow" id="hero-catalog-eyebrow">Natural wellness</p>
                         <h1 id="hero-heading">Premium Natural Health Products</h1>
                         <p class="hero-description">
-                            Discover over 10,000 carefully curated herbs, vitamins, and natural supplements
-                            organized by health conditions and brands. Plus professional EDSA health analysis service.
-                            Quality you can trust, results you can feel.
+                            Shop curated herbs, vitamins, and supplements by health condition and brand.
+                            Browse online or visit our store for personal guidance and EDSA wellness testing.
                         </p>
+
                         <div class="hero-actions">
-                            <a href="products.html" class="btn btn-primary">Shop Now</a>
-                            <a href="#edsa-service" class="btn btn-accent">EDSA Service</a>
+                            <form class="hero-search-combo" action="products.html" method="get" role="search"
+                                aria-label="Search products">
+                                <label for="hero-product-search" class="sr-only">Search products</label>
+                                <div class="hero-search-field">
+                                    <span class="hero-search-icon" aria-hidden="true">
+                                        <i class="fas fa-search"></i>
+                                    </span>
+                                    <input type="search" id="hero-product-search" name="search"
+                                        class="hero-search-input"
+                                        placeholder="Search herbs, vitamins &amp; supplements…"
+                                        autocomplete="off" enterkeyhint="search"
+                                        aria-autocomplete="list" aria-expanded="false">
+                                </div>
+                                <button type="submit" class="btn btn-primary hero-search-submit">Shop Now</button>
+                            </form>
+
+                            <div class="hero-extra-links">
+                                <a href="products.html" class="btn btn-accent">All Products</a>
+                                <a href="brands.html" class="btn btn-accent">Shop by Brand</a>
+                                <a href="categories.html" class="btn btn-accent">Shop by Condition</a>
+                                <a href="#edsa-service" class="btn btn-accent">EDSA Service</a>
+                            </div>
                         </div>
                     </div>
-                    <div class="hero-image">
+                    <div class="hero-visual">
                         <img src="images/storefront.png"
                             alt="H & M Herbs & Vitamins storefront - Your trusted source for premium natural health products"
                             loading="eager">
@@ -453,7 +474,7 @@
                 <div class="about-content">
                     <p>H&M Herbs & Vitamins, established on May 1, 1995, specializes in providing high-quality herbal
                         supplements and vitamins to support overall health and wellness. We're committed to offering
-                        over 10,000 carefully curated products organized by health conditions and trusted brands.</p>
+                        carefully curated products organized by health conditions and trusted brands.</p>
                     <p>In addition to our extensive product range, we offer EDSA Biofeedback Testing and Foot Bath
                         services, designed to enhance the body's natural healing processes and promote relaxation.</p>
                     <p><a href="about.html" class="btn btn-secondary">Learn More About Us →</a></p>
@@ -1091,7 +1112,7 @@
                                 <div class="form-group">
                                     <label for="register-address-city">City</label>
                                     <input type="text" id="register-address-city" class="form-input"
-                                        placeholder="Hattiesburg" autocomplete="address-level2">
+                                        placeholder="City" autocomplete="address-level2">
                                 </div>
                                 <div class="form-group">
                                     <label for="register-address-state">State</label>
@@ -1154,7 +1175,10 @@
     <script src="js/seo-optimizer.js" defer></script>
     <script src="js/code-quality-optimizer.js" defer></script>
     <script src="js/performance-micro-optimizer.js?v=2.2" defer></script>
-    <script src="script.js?v=spotlight-link-1" defer></script>
+    <script src="js/product-search-utils.js?v=2" defer></script>
+    <script src="js/hm-search-input.js?v=1" defer></script>
+    <script src="js/hero-product-search.js?v=7" defer></script>
+    <script src="script.js?v=hero-search-2" defer></script>
     <script src="js/phone-us-format.js" defer></script>
     <script src="js/address-autocomplete.js" defer></script>
     <script src="js/edsa-ui.js" defer></script>

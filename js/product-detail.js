@@ -33,6 +33,7 @@ class ProductDetailPage {
         this.quantity = 1;
         this.backendOrigin = hmHerbsBackendOrigin();
         this.apiBaseUrl = `${this.backendOrigin}/api`;
+        this.imageZoom = null;
 
         this.init();
     }
@@ -379,12 +380,46 @@ class ProductDetailPage {
                         t.setAttribute('aria-current', isActive ? 'true' : 'false');
                     });
                 });
+                thumb.addEventListener('dblclick', (e) => {
+                    e.preventDefault();
+                    const index = parseInt(thumb.dataset.imageIndex, 10);
+                    if (!Number.isFinite(index)) return;
+                    this.ensureImageZoom().open(index);
+                });
             });
         } else {
             gallery.innerHTML = '';
             gallery.style.display = 'none';
             gallery.hidden = true;
         }
+
+        this.ensureImageZoom().bindMainImage(mainImage);
+    }
+
+    getActiveImageIndex() {
+        const images = this.getDisplayImages();
+        if (!images.length) return 0;
+        const mainImage = document.getElementById('product-main-image');
+        const currentUrl = mainImage?.src || '';
+        const activeIndex = images.findIndex((img) => {
+            const resolved = this.resolveProductImageUrl(img.image_url);
+            return resolved === currentUrl || String(img.image_url) === String(currentUrl);
+        });
+        if (activeIndex >= 0) return activeIndex;
+        const preferredUrl = this.getVariantImageUrl(this.selectedVariant);
+        const variantIndex = images.findIndex((img) => String(img.image_url) === String(preferredUrl));
+        return variantIndex >= 0 ? variantIndex : 0;
+    }
+
+    ensureImageZoom() {
+        if (!this.imageZoom && typeof window.HMProductImageZoom === 'function') {
+            this.imageZoom = new window.HMProductImageZoom({
+                getImages: () => this.getDisplayImages(),
+                resolveUrl: (url) => this.resolveProductImageUrl(url),
+                getActiveIndex: () => this.getActiveImageIndex(),
+            });
+        }
+        return this.imageZoom;
     }
 
     switchMainImage(image) {

@@ -381,6 +381,8 @@ class HMHerbsApp {
             });
         }
 
+        // Hero search is handled by js/hero-product-search.js
+
         // Cart functionality
         this.setupCartEventListeners();
 

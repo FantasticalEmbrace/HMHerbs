@@ -264,14 +264,24 @@ class ProductsPage {
     }
 
     setupEventListeners() {
-        // Search input
+        // Search input — same debounce + matching as homepage hero search
         const searchInput = document.getElementById('product-search');
         if (searchInput) {
-            searchInput.addEventListener('input', this.debounce((e) => {
-                this.currentFilters.search = e.target.value.trim().toLowerCase();
+            const runSearch = (raw) => {
+                this.currentFilters.search = String(raw || '').trim().toLowerCase();
                 this.currentPage = 1;
                 this.applyFilters();
-            }, 300));
+            };
+            if (typeof window.hmBindSearchInput === 'function') {
+                window.hmBindSearchInput(searchInput, {
+                    debounceMs: 300,
+                    onSearch: (raw) => runSearch(raw)
+                });
+            } else {
+                searchInput.addEventListener('input', this.debounce((e) => {
+                    runSearch(e.target.value);
+                }, 300));
+            }
         }
 
         // Sort filter
@@ -427,25 +437,29 @@ class ProductsPage {
 
         // Apply search filter with keyword matching
         if (this.currentFilters.search) {
-            const searchKeywords = this.currentFilters.search.toLowerCase().trim().split(/\s+/).filter(word => word.length > 0);
-            if (searchKeywords.length > 0) {
-                this.filteredProducts = this.filteredProducts.filter(product => {
-                    const name = (product.name || '').toLowerCase();
-                    const description = (product.description || '').toLowerCase();
-                    const category = (product.category || '').toLowerCase();
-                    const brandSlug = (product.brand || '').toLowerCase();
-                    const brandName = (product.brandName || '').toLowerCase();
-                    const brandNameClean = brandName.replace(/[^a-z0-9]/g, '');
-                    return searchKeywords.every(keyword => {
-                        const keywordClean = keyword.replace(/[^a-z0-9]/g, '');
-                        return name.includes(keyword) ||
-                            description.includes(keyword) ||
-                            category.includes(keyword) ||
-                            brandSlug.includes(keyword) ||
-                            brandName.includes(keyword) ||
-                            (keywordClean.length > 0 && brandNameClean.includes(keywordClean));
+            if (typeof window.hmProductSearchMatch === 'function') {
+                this.filteredProducts = window.hmProductSearchMatch(this.filteredProducts, this.currentFilters.search);
+            } else {
+                const searchKeywords = this.currentFilters.search.toLowerCase().trim().split(/\s+/).filter(word => word.length > 0);
+                if (searchKeywords.length > 0) {
+                    this.filteredProducts = this.filteredProducts.filter(product => {
+                        const name = (product.name || '').toLowerCase();
+                        const description = (product.description || '').toLowerCase();
+                        const category = (product.category || '').toLowerCase();
+                        const brandSlug = (product.brand || '').toLowerCase();
+                        const brandName = (product.brandName || '').toLowerCase();
+                        const brandNameClean = brandName.replace(/[^a-z0-9]/g, '');
+                        return searchKeywords.every(keyword => {
+                            const keywordClean = keyword.replace(/[^a-z0-9]/g, '');
+                            return name.includes(keyword) ||
+                                description.includes(keyword) ||
+                                category.includes(keyword) ||
+                                brandSlug.includes(keyword) ||
+                                brandName.includes(keyword) ||
+                                (keywordClean.length > 0 && brandNameClean.includes(keywordClean));
+                        });
                     });
-                });
+                }
             }
         }
 
@@ -1375,7 +1389,7 @@ function setupProductsMobileMenu() {
     // The mobile-menu.js should handle this, but we ensure it's set up
     // Just verify the menu toggle exists and is functional
     const navbarToggle = document.querySelector('.mobile-menu-toggle');
-    const navbarMenu = document.getElementById('navbar-menu');
+    const navbarMenu = document.getElementById('nav-menu') || document.getElementById('navbar-menu');
 
     if (navbarToggle && navbarMenu) {
         // Ensure body scroll is managed when menu opens/closes

@@ -13,16 +13,17 @@
     <link rel="icon" type="image/x-icon" href="favicon.ico">
 
     <!-- CSS -->
-    <link rel="stylesheet" href="css/emergency-fixes.css">
+    <link rel="stylesheet" href="css/emergency-fixes.css?v=mobile-nav-4">
     <link rel="stylesheet" href="styles.css?v=brand-sync-5">
     <link rel="stylesheet" href="css/password-toggle.css?v=4">
     <link rel="stylesheet" href="css/browser-compatibility.css">
     <link rel="stylesheet" href="css/performance-optimizations.css">
     <link rel="stylesheet" href="css/accessibility-enhancements.css">
-    <link rel="stylesheet" href="css/products.css?v=compact-cards-1">
+    <link rel="stylesheet" href="css/products.css?v=compact-cards-3">
     <link rel="stylesheet" href="css/brands-categories.css">
     <link rel="stylesheet" href="css/customer-auth.css">
-    <link rel="stylesheet" href="css/mobile-enhancements.css?v=compact-cards-1">
+    <link rel="stylesheet" href="css/mobile-enhancements.css?v=compact-cards-3">
+    <link rel="stylesheet" href="css/mobile-nav.css?v=brand-sync-5">
     <link rel="stylesheet" href="css/hm-close-controls.css">
     <link rel="stylesheet" href="css/site-promo-banner.css?v=brand-sync-5">
     <link rel="stylesheet" href="css/age-gate.css?v=brand-sync-5">
@@ -34,6 +35,11 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Mobile navigation (must load early) -->
+    <script src="js/mobile-menu.js?v=mobile-nav-4"></script>
+    <script src="js/nav-current-page.js"></script>
+    <script src="js/section-nav.js?v=mobile-nav-4"></script>
 
     <!-- Structured Data -->
     <script type="application/ld+json">
@@ -70,7 +76,7 @@
                     </div>
 
                     <!-- Mobile Menu Toggle -->
-                    <button class="mobile-menu-toggle" aria-expanded="false" aria-controls="navbar-menu"
+                    <button class="mobile-menu-toggle" aria-expanded="false" aria-controls="nav-menu"
                         aria-label="Toggle navigation menu">
                         <span class="hamburger-line"></span>
                         <span class="hamburger-line"></span>
@@ -78,7 +84,7 @@
                     </button>
 
                     <!-- Navigation Menu -->
-                    <ul class="nav-menu" id="navbar-menu" role="menubar">
+                    <ul class="nav-menu" id="nav-menu" role="menubar">
                         <li role="none"><a href="index.html" role="menuitem">Home</a></li>
                         <li role="none"><a href="products.html" role="menuitem" aria-current="page">Products</a></li>
                         <li role="none"><a href="index.html#edsa-service" role="menuitem" class="edsa-nav-link">EDSA
@@ -253,7 +259,7 @@
                         <i class="fas fa-search" aria-hidden="true"></i>
                         <h3>No products found</h3>
                         <p>Try adjusting your search or filter criteria</p>
-                        <button type="button" class="btn btn-primary" onclick="resetFilters()">
+                        <button type="button" class="btn btn-primary no-results-clear-btn" onclick="resetFilters()">
                             Clear Filters
                         </button>
                     </div>
@@ -564,9 +570,10 @@
     <!-- JavaScript -->
     <script src="js/age-gate.js" defer></script>
     <script src="js/site-promo-banner.js" defer></script>
-    <script src="js/mobile-menu.js"></script>
     <script src="js/visual-bug-fixes.js?v=9"></script>
-    <script src="js/products.js?v=20260630a"></script>
+    <script src="js/product-search-utils.js?v=1"></script>
+    <script src="js/hm-search-input.js?v=1"></script>
+    <script src="js/products.js?v=20260630b"></script>
     <script src="js/phone-us-format.js" defer></script>
     <script src="js/password-toggle.js?v=4"></script>
     <script src="js/customer-auth.js" defer></script>

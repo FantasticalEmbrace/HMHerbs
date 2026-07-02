@@ -98,7 +98,7 @@ class CustomerAuth {
             '<input type="text" id="register-address-line2" class="form-input" placeholder="Apt 4B"' +
             ' autocomplete="address-line2"></div>' +
             '<div class="form-row"><div class="form-group"><label for="register-address-city">City</label>' +
-            '<input type="text" id="register-address-city" class="form-input" placeholder="Hattiesburg"' +
+            '<input type="text" id="register-address-city" class="form-input" placeholder="City"' +
             ' autocomplete="address-level2"></div>' +
             '<div class="form-group"><label for="register-address-state">State</label>' +
             '<input type="text" id="register-address-state" class="form-input" placeholder="MS" maxlength="2"' +

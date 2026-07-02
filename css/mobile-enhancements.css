@@ -174,7 +174,7 @@
     input[type="text"],
     input[type="email"],
     input[type="password"],
-    input[type="search"],
+    input[type="search"]:not(.hero-search-input),
     input[type="tel"],
     input[type="number"],
     textarea,
@@ -422,6 +422,44 @@
         height: 24px !important;
         font-size: 0.625rem !important;
     }
+
+    .browse-by-cards .browse-gift-cards {
+        grid-column: 1 / -1 !important;
+        justify-self: center !important;
+        width: calc((100% - var(--space-2)) / 2) !important;
+        max-width: none !important;
+    }
+
+    .hero-search-combo {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+
+    .hero-search-field {
+        width: 100% !important;
+    }
+
+    .hero-search-submit {
+        flex: 0 0 auto !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        padding: var(--space-3) var(--space-4) !important;
+        border-radius: var(--radius-xl) !important;
+    }
+
+    .hero-search-input {
+        font-size: 16px !important;
+        min-height: 0 !important;
+        padding: var(--space-3) var(--space-2) !important;
+        flex: 1 1 0 !important;
+        min-width: 0 !important;
+    }
+
+    .hero-extra-links .btn-accent {
+        width: 100% !important;
+        max-width: none !important;
+    }
 }
 
 /* Slightly roomier cards on wider phones — still 2 columns, ~2–3 cards visible */
@@ -651,9 +689,22 @@
         font-size: 20px !important;
     }
 
-    .btn:not(.edsa-book-btn) {
+    .btn:not(.edsa-book-btn):not(.hero-search-submit):not(.no-results-clear-btn) {
         width: 100% !important;
         max-width: 100% !important;
+    }
+
+    .no-results-content .btn,
+    .no-results-clear-btn {
+        width: auto !important;
+        max-width: none !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+    }
+
+    .hero-extra-links .btn-accent {
+        width: 100% !important;
+        max-width: none !important;
     }
 
     .edsa-book-btn {
