@@ -134,12 +134,22 @@ body {
   width: 100%;
   max-width: 100%;
   height: auto;
-  min-height: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
   position: relative;
-  display: grid;
-  grid-template-rows: auto auto 1fr auto;
-  grid-template-columns: 100%;
+  display: flex;
+  flex-direction: column;
   gap: 0;
+}
+
+main {
+  flex: 1 0 auto;
+  width: 100%;
+}
+
+.footer {
+  flex-shrink: 0;
+  margin-top: auto;
 }
 
 /* Focus Management for Accessibility */
@@ -1815,7 +1825,7 @@ body.hm-mobile-nav-open .top-bar ~ .breadcrumb-nav {
   display: grid;
   grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
   gap: var(--space-8);
-  align-items: stretch;
+  align-items: center;
 }
 
 .hero-copy {
@@ -2084,13 +2094,15 @@ body.hero-search-open .product-spotlight {
 
 .hero-visual {
   display: flex;
+  align-items: center;
+  justify-content: center;
   min-height: 0;
 }
 
 .hero-visual img {
   width: 100%;
-  height: 100%;
-  min-height: 0;
+  height: auto;
+  max-height: clamp(22rem, 48vh, 36rem);
   object-fit: cover;
   object-position: center top;
   border-radius: var(--radius-2xl);
@@ -2103,7 +2115,7 @@ body.hero-search-open .product-spotlight {
   display: grid;
   grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
   gap: var(--space-8);
-  align-items: stretch;
+  align-items: center;
 }
 
 .hero-text,
@@ -2114,8 +2126,8 @@ body.hero-search-open .product-spotlight {
 .hero-image img,
 .hero-visual img {
   width: 100%;
-  height: 100%;
-  min-height: 0;
+  height: auto;
+  max-height: clamp(22rem, 48vh, 36rem);
   object-fit: cover;
   object-position: center top;
   border-radius: var(--radius-2xl);
@@ -3261,6 +3273,8 @@ html.hm-section-scroll-ready body > :not(.hm-age-gate) {
   background-color: var(--primary-green-dark);
   color: var(--white);
   padding: var(--space-10) 0 var(--space-4);
+  flex-shrink: 0;
+  margin-top: auto;
 }
 
 .footer-content {
@@ -5539,7 +5553,7 @@ body.cart-open .cart-sidebar.open {
     grid-template-columns: 1fr 1fr;
     gap: var(--space-8);
     text-align: left;
-    align-items: stretch;
+    align-items: center;
   }
 
   .hero-text h1 {
